@@ -37,20 +37,14 @@ install-dev: ## 📦 Install all development dependencies
 
 docs-build: ## 📚 Build the documentation site
 	@echo "📚 Building documentation..."
-	@if ! command -v mkdocs >/dev/null 2>&1; then \
-		echo "❌ mkdocs is not installed. Install dev deps: make install-dev"; \
-		exit 1; \
-	fi
+
 	uv run mkdocs build
 	@echo "✅ Site built in site/"
 
 
 docs-serve: ## 🚀 Serve docs locally at http://127.0.0.1:8000
 	@echo "🚀 Serving documentation... (Ctrl+C to stop)"
-	@if ! command -v mkdocs >/dev/null 2>&1; then \
-		echo "❌ mkdocs is not installed. Install dev deps: make install-dev"; \
-		exit 1; \
-	fi
+
 	uv run mkdocs serve -a 127.0.0.1:8000
 
 
