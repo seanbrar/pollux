@@ -23,7 +23,7 @@ from . import types as types  # Re-exported public types
 
 # Version handling
 try:
-    __version__ = importlib.metadata.version("gemini-batch")
+    __version__ = importlib.metadata.version("pollux")
 except importlib.metadata.PackageNotFoundError:  # pragma: no cover - dev mode
     __version__ = "development"
 

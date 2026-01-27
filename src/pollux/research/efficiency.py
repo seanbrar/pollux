@@ -567,7 +567,7 @@ async def compare_efficiency(
 
     version: str
     try:
-        version = importlib_metadata.version("gemini-batch")
+        version = importlib_metadata.version("pollux")
     except importlib_metadata.PackageNotFoundError:  # pragma: no cover - dev
         version = "development"
 
