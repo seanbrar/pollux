@@ -140,31 +140,36 @@ class TestEnvironmentConsistency:
     @pytest.mark.workflows
     def test_uv_installation_present(self) -> None:
         """Workflows running checks must install uv."""
-        # We only strictly enforce this on the reusable checks workflow
-        # used by CI, as that's where the specific failure occurred.
-        # Other workflows might rely on pre-installed tools or different setups.
-        workflow_path = Path(".github/workflows/reusable-checks.yml")
-        if not workflow_path.exists():
-            return
+        # Enforce uv installation on all relevant workflows
+        workflows_to_check = [
+            Path(".github/workflows/reusable-checks.yml"),
+            Path(".github/workflows/release.yml"),
+            Path(".github/workflows/docs-lint.yml"),
+            Path(".github/workflows/docs.yml"),
+        ]
 
-        with workflow_path.open() as f:
-            workflow = yaml.safe_load(f)
+        for workflow_path in workflows_to_check:
+            if not workflow_path.exists():
+                continue
 
-        found_uv_setup = False
-        for job in workflow.get("jobs", {}).values():
-            for step in job.get("steps", []):
-                # Check for the astral-sh/setup-uv action
-                uses = step.get("uses", "")
-                if "astral-sh/setup-uv" in uses:
-                    found_uv_setup = True
+            with workflow_path.open() as f:
+                workflow = yaml.safe_load(f)
+
+            found_uv_setup = False
+            for job in workflow.get("jobs", {}).values():
+                for step in job.get("steps", []):
+                    # Check for the astral-sh/setup-uv action
+                    uses = step.get("uses", "")
+                    if "astral-sh/setup-uv" in uses:
+                        found_uv_setup = True
+                        break
+                if found_uv_setup:
                     break
-            if found_uv_setup:
-                break
 
-        assert found_uv_setup, (
-            f"{workflow_path} is missing the 'astral-sh/setup-uv' action. "
-            "This is required to ensure 'uv' is available for 'make install-dev'."
-        )
+            assert found_uv_setup, (
+                f"{workflow_path} is missing the 'astral-sh/setup-uv' action. "
+                "This is required to ensure 'uv' is available for dependencies and builds."
+            )
 
 
 class TestWorkflowSecurity:

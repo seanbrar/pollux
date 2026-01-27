@@ -29,9 +29,14 @@ jobs:
           fetch-depth: 0  # Full history needed for semantic-release
           token: ${{ secrets.SEMANTIC_RELEASE_PAT }}  # PAT for authentication
 
+      # Install uv for build command
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       # Install Python build tools for package creation
-      - name: Install build dependencies
-        run: python -m pip install build
+      # uv itself provides the build command, so we don't need 'build' package
+      # but we need to ensure the environment is ready if needed.
+      # For consistency with other workflows, we rely on uv.
 
       # Main release step using PSR action
       - name: Create and Publish Release
