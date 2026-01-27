@@ -1,9 +1,12 @@
-### 1. GSoC Context & Goal 🎯
+## Summary
 
-### 2. The Change: What & Why 🛠️
+<!-- What does this PR do? One or two sentences. -->
 
-### 3. How to Self-Verify 🧪
+## Notes
 
-### 4. Impact & Next Steps 🚀
+<!-- Optional: anything reviewers should know, or context for your future self. -->
 
-### 5. Key Files Changed (Optional)
+---
+
+- [ ] PR title follows [conventional commits](docs/contributing/contributing.md)
+- [ ] `make lint` and `make test-fast` pass

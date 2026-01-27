@@ -89,12 +89,13 @@ pip install "matplotlib~=3.10" "pandas~=2.3" "seaborn~=0.13"  # if using noteboo
 <details>
 <summary><b>👩‍💻 Developer Setup</b></summary>
 <br>
-If you want to contribute to the project or run tests, install the full development environment:
+If you want to contribute to the project or run tests, install the full development environment using `uv`:
 
 ```bash
-# Install development dependencies (includes testing, linting, etc.)
-pip install -r dev-requirements.txt
-# or
+# Install development dependencies and setup virtualenv
+uv sync --all-extras
+
+# or using the Makefile
 make install-dev
 
 # Verify setup with tests
@@ -104,9 +105,10 @@ make test
 make help
 ```
 
-This project uses modern Python tooling including `ruff`, `mypy`, `pre-commit`, and `pytest` for a professional development experience.
+This project uses modern Python tooling including `uv`, `ruff`, `mypy`, `pre-commit`, and `pytest` for a professional development experience.
 
 </details>
+
 
 ### API Key Setup
 
