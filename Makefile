@@ -3,12 +3,13 @@
 # ------------------------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------------------------
-PYTEST = pytest
+PYTEST = uv run pytest
 PYTEST_ARGS = -v
 COVERAGE_FAIL_UNDER ?= 80
 COVERAGE_ARGS = --cov=pollux --cov-report=term-missing --cov-report=html:coverage_html_report --cov-report=xml --cov-fail-under=$(COVERAGE_FAIL_UNDER)
 PR_COVERAGE_ARGS = --cov=pollux --cov-report=term-missing --cov-report=xml --cov-fail-under=$(COVERAGE_FAIL_UNDER)
 PR_COVERAGE_ARGS_NO_FAIL = --cov=pollux --cov-report=term-missing --cov-report=xml
+
 
 # Default log level for pytest's console output. Can be overridden.
 TEST_LOG_LEVEL ?= WARNING
@@ -30,25 +31,22 @@ help: ## ✨ Show this help message
 
 install-dev: ## 📦 Install all development dependencies
 	@echo "📦 Installing development dependencies..."
-	pip install -e ".[dev]"
+	uv sync --all-extras
 	@echo "✅ Development environment ready"
+
 
 docs-build: ## 📚 Build the documentation site
 	@echo "📚 Building documentation..."
-	@if ! command -v mkdocs >/dev/null 2>&1; then \
-		echo "❌ mkdocs is not installed. Install dev deps: make install-dev"; \
-		exit 1; \
-	fi
-	mkdocs build
+
+	uv run mkdocs build
 	@echo "✅ Site built in site/"
+
 
 docs-serve: ## 🚀 Serve docs locally at http://127.0.0.1:8000
 	@echo "🚀 Serving documentation... (Ctrl+C to stop)"
-	@if ! command -v mkdocs >/dev/null 2>&1; then \
-		echo "❌ mkdocs is not installed. Install dev deps: make install-dev"; \
-		exit 1; \
-	fi
-	mkdocs serve -a 127.0.0.1:8000
+
+	uv run mkdocs serve -a 127.0.0.1:8000
+
 
 # ------------------------------------------------------------------------------
 # Demo Data (repo-local, on-demand)
@@ -60,7 +58,8 @@ MEDIA ?= basic
 
 demo-data: ## 📥 Fetch demo data into cookbook/data/demo/{text-medium|text-full} (+ optional media)
 	@echo "📥 Preparing demo data packs: TEXT=$(TEXT) MEDIA=$(MEDIA)"
-	python scripts/demo_data.py --text "$(TEXT)" --media "$(MEDIA)"
+	uv run python scripts/demo_data.py --text "$(TEXT)" --media "$(MEDIA)"
+
 
 clean-demo-data: ## 🧽 Remove all demo data packs
 	@echo "🧽 Removing demo data under cookbook/data/demo/ ..."
@@ -94,12 +93,14 @@ test-all: test test-integration test-workflows ## 🏁 Run all non-API tests
 
 lint: ## ✒️ Check formatting and lint code
 	@echo "✒️ Checking formatting and linting with ruff..."
-	ruff format --check .
-	ruff check .
+	uv run ruff format --check .
+	uv run ruff check .
 
 typecheck: ## 🔎 Static type checking with mypy (strict)
 	@echo "🔎 Running mypy type checks (strict)..."
-	mypy .
+	uv run mypy .
+
+
 
 lint-all: ## 🧹 Run ruff lint + mypy type checks
 	@echo "🧹 Running full lint + typecheck..."

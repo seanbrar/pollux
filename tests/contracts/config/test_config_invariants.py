@@ -64,7 +64,7 @@ class TestConfigurationArchitecturalInvariants:
             os.environ,
             {"GEMINI_API_KEY": "test_key", "POLLUX_MODEL": "test_model"},
         ):
-            cfg, origin = resolve_config(explain=True)
+            _cfg, origin = resolve_config(explain=True)
 
             # Every field in frozen config must have source tracking
             frozen_fields = {

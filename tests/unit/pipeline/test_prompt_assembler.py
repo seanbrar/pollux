@@ -528,7 +528,7 @@ class TestPromptAssemblerBuilderHook:
         initial = InitialCommand(sources=(), prompts=("test",), config=config)
         command = ResolvedCommand(initial=initial, resolved_sources=())
 
-        with pytest.raises(ConfigurationError, match="Builder.*failed"):
+        with pytest.raises(ConfigurationError, match=r"Builder.*failed"):
             assemble_prompts(command)
 
     def test_builder_hook_invalid_path(self):
@@ -567,7 +567,7 @@ class TestPromptAssemblerBuilderHook:
             command = ResolvedCommand(initial=initial, resolved_sources=())
 
             with pytest.raises(
-                ConfigurationError, match="returned.*expected PromptBundle"
+                ConfigurationError, match=r"returned.*expected PromptBundle"
             ):
                 assemble_prompts(command)
         finally:

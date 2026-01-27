@@ -25,7 +25,7 @@ class AssemblyPlan:
     - ``prefix``/``suffix`` are applied only to inline user prompts.
     """
 
-    system_base: Literal["inline", "file", None]
+    system_base: Literal["inline", "file"] | None
     user_strategy: Literal["inline", "from_file"]
     sources_policy: SourcesPolicy
     sources_block: str | None

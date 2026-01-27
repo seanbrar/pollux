@@ -225,7 +225,7 @@ class TestExtractionContract:
 
         # max_answer_length must be >= min_answer_length
         with pytest.raises(
-            ValueError, match="max_answer_length.*must be >= min_answer_length"
+            ValueError, match=r"max_answer_length.*must be >= min_answer_length"
         ):
             ExtractionContract(min_answer_length=100, max_answer_length=50)
 
@@ -344,10 +344,10 @@ class TestExtractionResult:
 
     def test_invalid_confidence_range(self):
         """Confidence outside [0.0, 1.0] should raise ValueError."""
-        with pytest.raises(ValueError, match="confidence must be in \\[0.0, 1.0\\]"):
+        with pytest.raises(ValueError, match=r"confidence must be in \[0.0, 1.0\]"):
             ExtractionResult(answers=["test"], method="test_method", confidence=-0.1)
 
-        with pytest.raises(ValueError, match="confidence must be in \\[0.0, 1.0\\]"):
+        with pytest.raises(ValueError, match=r"confidence must be in \[0.0, 1.0\]"):
             ExtractionResult(answers=["test"], method="test_method", confidence=1.1)
 
 

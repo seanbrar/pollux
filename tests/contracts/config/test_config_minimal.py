@@ -47,7 +47,8 @@ class TestEssentialConfigurationContracts:
             assert isinstance(cfg, FrozenConfig)
             assert cfg.api_key == "test_key"
 
-            cfg2, origin = resolve_config(explain=True)
+            _cfg2, origin = resolve_config(explain=True)
+
             assert isinstance(origin, dict)
             assert "api_key" in origin
 
@@ -150,7 +151,7 @@ class TestEssentialConfigurationContracts:
         secret_key = "sk-very-secret-api-key-12345"
 
         with patch.dict(os.environ, {"GEMINI_API_KEY": secret_key}):
-            cfg, origin = resolve_config(explain=True)
+            _cfg, origin = resolve_config(explain=True)
 
             # Origin should track source but not contain secret
             assert "api_key" in origin

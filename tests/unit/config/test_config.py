@@ -352,9 +352,7 @@ class TestEnvironmentLoading:
     def test_environment_invalid_integer_handled_by_pydantic(self):
         """Invalid integers should be caught by Pydantic validation."""
         with (
-            patch.dict(
-                os.environ, {"POLLUX_TTL_SECONDS": "not-a-number"}, clear=True
-            ),
+            patch.dict(os.environ, {"POLLUX_TTL_SECONDS": "not-a-number"}, clear=True),
             pytest.raises(ValidationError),
         ):
             resolve_config()

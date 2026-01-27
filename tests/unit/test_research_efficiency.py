@@ -401,9 +401,7 @@ async def test_ensure_uncached_fallbacks_with_cfg_and_without_cfg(monkeypatch):
     def bad_resolve_config(*args, **kwargs):  # noqa: ARG001 - required signature
         raise RuntimeError("fail")
 
-    monkeypatch.setattr(
-        "pollux.research.efficiency.resolve_config", bad_resolve_config
-    )
+    monkeypatch.setattr("pollux.research.efficiency.resolve_config", bad_resolve_config)
     await compare_efficiency(["p"], cfg=None, ensure_uncached=True)
     assert captured_cfgs[-1] is None
 

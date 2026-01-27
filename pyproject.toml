@@ -1,19 +1,16 @@
 # --- Build System ---
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 # --- Project Metadata ---
 [project]
-# Core Metadata
 name = "pollux"
 version = "0.9.0"
 description = "A framework for batch processing with Google's Gemini API"
 readme = "README.md"
 authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
-license = "MIT"
-
-# Requirements
+license = { text = "MIT" }
 requires-python = ">=3.13"
 dependencies = [
     "Pillow~=11.2",
@@ -29,6 +26,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/seanbrar/gemini-batch-prediction"
 Repository = "https://github.com/seanbrar/gemini-batch-prediction"
+Changelog = "https://github.com/seanbrar/gemini-batch-prediction/blob/main/CHANGELOG.md"
+Issues = "https://github.com/seanbrar/gemini-batch-prediction/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -36,7 +35,6 @@ dev = [
     "pandas-stubs>=2.3.0",
     "pip-tools>=7.4.1",
     "pre-commit>=4.2.0",
-    "pydantic>=2.11.7",
     "pyfakefs>=5.9.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=0.24.0",
@@ -61,6 +59,9 @@ all = ["pollux[dev,viz]"]
 pollux-config = "pollux.config.core:main"
 
 # --- Tool Configurations ---
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pollux"]
 
 # --- Coverage ---
 [tool.coverage.run]
@@ -88,6 +89,8 @@ directory = "coverage_html_report"
 [tool.mypy]
 python_version = "3.13"
 disallow_untyped_defs = true
+
+
 namespace_packages = true
 show_error_codes = true
 strict = true
@@ -217,7 +220,7 @@ convention = "google"
 # --- Semantic Release ---
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-build_command = "python -m pip install --upgrade pip build && python -m build"
+build_command = "uv build"
 tag_format = "v{version}"
 allow_zero_version = true
 major_on_zero = false
@@ -247,12 +250,3 @@ trim_blocks = true
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-
-
-# --- Setuptools ---
-[tool.setuptools.packages.find]
-where = ["src"]
-exclude = ["examples*", "notebooks*", "tests*"]
-
-[tool.setuptools.package-data]
-pollux = ["py.typed"]

@@ -327,6 +327,4 @@ class TestArchitecturalBoundaries:
         ]
 
         for item in internal_types:
-            assert not hasattr(pollux, item), (
-                f"{item} should not be in public API"
-            )
+            assert not hasattr(pollux, item), f"{item} should not be in public API"

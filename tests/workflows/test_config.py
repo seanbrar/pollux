@@ -137,6 +137,40 @@ class TestEnvironmentConsistency:
                         f"{workflow_path}:{job_name} uses {job['runs-on']}, expected {expected_runner}"
                     )
 
+    @pytest.mark.workflows
+    def test_uv_installation_present(self) -> None:
+        """Workflows running checks must install uv."""
+        # Enforce uv installation on all relevant workflows
+        workflows_to_check = [
+            Path(".github/workflows/reusable-checks.yml"),
+            Path(".github/workflows/release.yml"),
+            Path(".github/workflows/docs-lint.yml"),
+            Path(".github/workflows/docs.yml"),
+        ]
+
+        for workflow_path in workflows_to_check:
+            if not workflow_path.exists():
+                continue
+
+            with workflow_path.open() as f:
+                workflow = yaml.safe_load(f)
+
+            found_uv_setup = False
+            for job in workflow.get("jobs", {}).values():
+                for step in job.get("steps", []):
+                    # Check for the astral-sh/setup-uv action
+                    uses = step.get("uses", "")
+                    if "astral-sh/setup-uv" in uses:
+                        found_uv_setup = True
+                        break
+                if found_uv_setup:
+                    break
+
+            assert found_uv_setup, (
+                f"{workflow_path} is missing the 'astral-sh/setup-uv' action. "
+                "This is required to ensure 'uv' is available for dependencies and builds."
+            )
+
 
 class TestWorkflowSecurity:
     """Test security best practices in workflows."""
