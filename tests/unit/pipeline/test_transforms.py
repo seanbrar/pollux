@@ -7,7 +7,7 @@ architecture rubric's principles of simplicity and robustness.
 
 import pytest
 
-from gemini_batch.pipeline.results.transforms import (
+from pollux.pipeline.results.transforms import (
     create_transform_registry,
     default_transforms,
     json_array_transform,

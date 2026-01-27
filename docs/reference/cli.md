@@ -1,20 +1,20 @@
-# CLI — gb-config and Cookbook Runner
+# CLI — pollux-config and Cookbook Runner
 
 Minimal CLIs for configuration diagnostics and running repository recipes.
 
 ## Overview
 
-- `gb-config`: Installed console script for inspecting and validating effective configuration. Secrets are never printed; sensitive values appear as `***redacted***`.
+- `pollux-config`: Installed console script for inspecting and validating effective configuration. Secrets are never printed; sensitive values appear as `***redacted***`.
 - `python -m cookbook`: Module runner for executing recipes under `cookbook/` without setting `PYTHONPATH`.
 
-## `gb-config` Commands
+## `pollux-config` Commands
 
-- `gb-config show`: Prints the effective, redacted config as JSON.
+- `pollux-config show`: Prints the effective, redacted config as JSON.
   - Use when you need a machine-readable snapshot for logs or CI artifacts.
   - Example:
 
     ```bash
-    gb-config show
+    pollux-config show
     # {
     #   "model": "gemini-2.0-flash",
     #   "api_key": "***redacted***",
@@ -28,12 +28,12 @@ Minimal CLIs for configuration diagnostics and running repository recipes.
     # }
     ```
 
-- `gb-config audit`: Prints a human-readable audit and a layer summary.
+- `pollux-config audit`: Prints a human-readable audit and a layer summary.
   - Shows each field’s origin (default, home, project, env, overrides).
   - Example (truncated):
 
     ```bash
-    gb-config audit
+    pollux-config audit
     # model: gemini-2.0-flash (default)
     # tier: free (default)
     # ...
@@ -44,30 +44,30 @@ Minimal CLIs for configuration diagnostics and running repository recipes.
     # overrides: 0 fields
     ```
 
-- `gb-config doctor`: Prints actionable messages and advisories.
+- `pollux-config doctor`: Prints actionable messages and advisories.
   - Use to confirm readiness before running real API calls.
   - Example:
 
     ```bash
-    gb-config doctor
+    pollux-config doctor
     # No issues detected.
     # Advisory: 'tier' not specified; using default FREE. See: tier (enum: FREE|TIER_1|...)
     ```
 
-- `gb-config env`: Prints relevant environment variables (redacted where needed).
-  - Includes both `GEMINI_BATCH_*` and `GEMINI_*` variables.
+- `pollux-config env`: Prints relevant environment variables (redacted where needed).
+  - Includes both `POLLUX_*` and `GEMINI_*` variables.
   - Example:
 
     ```bash
-    gb-config env | sort
+    pollux-config env | sort
     # GEMINI_API_KEY=***redacted***
-    # GEMINI_BATCH_TIER=free
-    # GEMINI_BATCH_USE_REAL_API=1
+    # POLLUX_TIER=free
+    # POLLUX_USE_REAL_API=1
     ```
 
 ## Tips
 
-- CI usage: `gb-config show` and `gb-config doctor` always exit `0`; parse output for warnings or raise in your pipeline if necessary.
+- CI usage: `pollux-config show` and `pollux-config doctor` always exit `0`; parse output for warnings or raise in your pipeline if necessary.
 - Redaction: `api_key` and other sensitive fields are always redacted by design.
 - See also: [How‑to → Configuration](../how-to/configuration.md) for precedence rules and audit details.
 
@@ -76,7 +76,7 @@ Minimal CLIs for configuration diagnostics and running repository recipes.
 Shell (fail build if API key required but missing):
 
 ```bash
-if gb-config doctor | grep -q "api_key is missing"; then
+if pollux-config doctor | grep -q "api_key is missing"; then
   echo "❌ Missing API key while use_real_api=True" >&2
   exit 1
 fi
@@ -86,7 +86,7 @@ Python (doctest‑style):
 
 ```pycon
 >>> import subprocess
->>> out = subprocess.check_output(["gb-config", "doctor"], text=True)
+>>> out = subprocess.check_output(["pollux-config", "doctor"], text=True)
 >>> "api_key is missing" not in out
 True
 ```

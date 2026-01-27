@@ -12,9 +12,9 @@ from typing import Any, get_type_hints
 
 import pytest
 
-from gemini_batch.core.types import FinalizedCommand
-from gemini_batch.pipeline.result_builder import ResultBuilder
-from gemini_batch.pipeline.results.extraction import (
+from pollux.core.types import FinalizedCommand
+from pollux.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.results.extraction import (
     ExtractionContext,
     ExtractionContract,
     ExtractionDiagnostics,
@@ -22,8 +22,8 @@ from gemini_batch.pipeline.results.extraction import (
     TransformSpec,
     Violation,
 )
-from gemini_batch.pipeline.results.minimal_projection import MinimalProjection
-from gemini_batch.pipeline.results.transforms import default_transforms
+from pollux.pipeline.results.minimal_projection import MinimalProjection
+from pollux.pipeline.results.transforms import default_transforms
 
 
 class TestResultBuilderHandlerContract:
@@ -76,7 +76,7 @@ class TestResultBuilderHandlerContract:
         # (verified by architectural role - only APIHandler does I/O)
 
         # Should not have I/O-related imports in the module
-        import gemini_batch.pipeline.result_builder as rb_module
+        import pollux.pipeline.result_builder as rb_module
 
         source = inspect.getsource(rb_module)
 
@@ -176,9 +176,9 @@ class TestExtractionDataContract:
         assert _params is not None and getattr(_params, "frozen", True) is False
 
         # Should not be exposed in public API (architectural boundary)
-        import gemini_batch
+        import pollux
 
-        public_items = dir(gemini_batch)
+        public_items = dir(pollux)
         assert "ExtractionDiagnostics" not in public_items
 
 
@@ -251,7 +251,7 @@ class TestTwoTierArchitecturalContract:
         assert isinstance(ctx.config, dict)  # Mutable but isolated per context
 
         # Should not have any global state dependencies
-        import gemini_batch.pipeline.results.extraction as extraction_module
+        import pollux.pipeline.results.extraction as extraction_module
 
         source = inspect.getsource(extraction_module)
 
@@ -267,9 +267,9 @@ class TestArchitecturalBoundaries:
     def test_extraction_no_sdk_dependencies(self):
         """Extraction components must not depend on provider SDKs."""
         modules_to_check = [
-            "gemini_batch.pipeline.results.extraction",
-            "gemini_batch.pipeline.results.minimal_projection",
-            "gemini_batch.pipeline.results.transforms",
+            "pollux.pipeline.results.extraction",
+            "pollux.pipeline.results.minimal_projection",
+            "pollux.pipeline.results.transforms",
         ]
 
         for module_name in modules_to_check:
@@ -307,16 +307,16 @@ class TestArchitecturalBoundaries:
     @pytest.mark.contract
     def test_public_api_minimality_contract(self):
         """Public API must expose only user-facing types."""
-        import gemini_batch
+        import pollux
 
-        # Only specific extraction types should be publicly exposed via gemini_batch.types
+        # Only specific extraction types should be publicly exposed via pollux.types
         extraction_exports = [
             "ResultEnvelope",  # The stable result structure users receive
         ]
 
         for item in extraction_exports:
-            assert hasattr(gemini_batch.types, item), (
-                f"{item} should be in public gemini_batch.types API"
+            assert hasattr(pollux.types, item), (
+                f"{item} should be in public pollux.types API"
             )
 
         # Internal extraction types should NOT be publicly exposed
@@ -327,6 +327,6 @@ class TestArchitecturalBoundaries:
         ]
 
         for item in internal_types:
-            assert not hasattr(gemini_batch, item), (
+            assert not hasattr(pollux, item), (
                 f"{item} should not be in public API"
             )

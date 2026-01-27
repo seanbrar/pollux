@@ -10,9 +10,9 @@ from unittest.mock import patch
 from pydantic import ValidationError
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.models import APITier
+from pollux.config import resolve_config
+from pollux.config.core import FrozenConfig
+from pollux.core.models import APITier
 
 
 class TestConfigurationArchitecturalInvariants:
@@ -24,7 +24,7 @@ class TestConfigurationArchitecturalInvariants:
         # Test that explicit overrides config overrides environment
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "env_key", "GEMINI_BATCH_MODEL": "env_model"},
+            {"GEMINI_API_KEY": "env_key", "POLLUX_MODEL": "env_model"},
         ):
             result = resolve_config(
                 overrides={"api_key": "prog_key", "model": "prog_model"}
@@ -62,7 +62,7 @@ class TestConfigurationArchitecturalInvariants:
         """Invariant: Every configuration field must have traceable source."""
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "test_key", "GEMINI_BATCH_MODEL": "test_model"},
+            {"GEMINI_API_KEY": "test_key", "POLLUX_MODEL": "test_model"},
         ):
             cfg, origin = resolve_config(explain=True)
 
@@ -87,7 +87,7 @@ class TestConfigurationArchitecturalInvariants:
             cfg, origin = resolve_config(explain=True)
 
             # Secret should not appear in redacted representation
-            from gemini_batch.config.core import audit_text
+            from pollux.config.core import audit_text
 
             assert "secret_api_key_12345" not in audit_text(cfg, origin)
             redacted = audit_text(cfg, origin)
@@ -107,7 +107,7 @@ class TestConfigurationArchitecturalInvariants:
         # Test ttl_seconds validation from environment
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "test", "GEMINI_BATCH_TTL_SECONDS": "-1"},
+            {"GEMINI_API_KEY": "test", "POLLUX_TTL_SECONDS": "-1"},
         ):
             with pytest.raises(ValidationError) as exc_info:
                 resolve_config()
@@ -127,8 +127,8 @@ class TestConfigurationArchitecturalInvariants:
             os.environ,
             {
                 "GEMINI_API_KEY": "test",
-                "GEMINI_BATCH_ENABLE_CACHING": "true",
-                "GEMINI_BATCH_USE_REAL_API": "false",
+                "POLLUX_ENABLE_CACHING": "true",
+                "POLLUX_USE_REAL_API": "false",
             },
         ):
             result = resolve_config()
@@ -140,7 +140,7 @@ class TestConfigurationArchitecturalInvariants:
         # Test integer coercion
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "test", "GEMINI_BATCH_TTL_SECONDS": "7200"},
+            {"GEMINI_API_KEY": "test", "POLLUX_TTL_SECONDS": "7200"},
         ):
             result = resolve_config()
             assert result.ttl_seconds == 7200
@@ -151,7 +151,7 @@ class TestConfigurationArchitecturalInvariants:
         """Invariant: APITier must be consistent across the system."""
         # Test that tier is properly resolved to enum
         with patch.dict(
-            os.environ, {"GEMINI_API_KEY": "test", "GEMINI_BATCH_TIER": "tier_1"}
+            os.environ, {"GEMINI_API_KEY": "test", "POLLUX_TIER": "tier_1"}
         ):
             result = resolve_config()
 

@@ -10,7 +10,7 @@ Who this is for:
 Prerequisites and safety:
 
 - Python 3.13; project installed (`make install-dev` or `pip install -e .[dev]`).
-- Real API calls may be involved. Set `GEMINI_API_KEY` and match `GEMINI_BATCH_TIER` to your billing to avoid throttling.
+- Real API calls may be involved. Set `GEMINI_API_KEY` and match `POLLUX_TIER` to your billing to avoid throttling.
 - Experiments can incur costs and rate limits. Start small (`trials=1`, modest corpora). `ensure_uncached=True` increases request volume; use judiciously.
 
 Status: pre‑1.0 (APIs may change until first stable release).

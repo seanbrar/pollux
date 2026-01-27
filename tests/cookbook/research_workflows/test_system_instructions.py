@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.research.efficiency import EfficiencyReport
+from pollux.research.efficiency import EfficiencyReport
 from tests.cookbook.support import load_recipe_module
 
 

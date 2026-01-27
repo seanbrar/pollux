@@ -5,7 +5,7 @@ When you need to: Forecast token usage and cost for a batch, compare to a
 budget, and decide whether to run now, downscope, or adjust concurrency.
 
 Ingredients:
-- Environment config resolved by `gemini_batch.config` (model/tier)
+- Environment config resolved by `pollux.config` (model/tier)
 - Directory of files (or text) to analyze
 - Optional token or dollar budget
 
@@ -31,14 +31,14 @@ import string
 from typing import TYPE_CHECKING
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR
-from gemini_batch.config import resolve_config
-from gemini_batch.extensions.token_counting import (
+from pollux.config import resolve_config
+from pollux.extensions.token_counting import (
     TokenCountFailure,
     TokenCountResult,
     ValidContent,
     count_gemini_tokens,
 )
-from gemini_batch.types import EstimationOptions
+from pollux.types import EstimationOptions
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

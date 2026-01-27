@@ -173,8 +173,8 @@ class ExecutionOptions:
 ### Using ExecutionOptions (example)
 
 ```py
-from gemini_batch import types
-from gemini_batch.core.execution_options import CacheOptions, CachePolicyHint, ResultOption, EstimationOverrideHint
+from pollux import types
+from pollux.core.execution_options import CacheOptions, CachePolicyHint, ResultOption, EstimationOverrideHint
 
 opts = types.ExecutionOptions(
     cache_policy=CachePolicyHint(first_turn_only=True, respect_floor=True),

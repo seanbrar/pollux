@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-08-22
-**Scope:** `src/gemini_batch/extensions/conversation/*`
+**Scope:** `src/pollux/extensions/conversation/*`
 **Audience:** Extension authors and application developers
 **Impacted Modules/APIs:** Conversation extension (`Conversation`, `ConversationState`, `ConversationStore`), `ExecutionOptions` usage, `GeminiExecutor` entry seam
 

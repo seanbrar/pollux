@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.execution_options import ExecutionOptions
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.execution_options import ExecutionOptions
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     InitialCommand,
@@ -18,7 +18,7 @@ from gemini_batch.core.types import (
     ResolvedCommand,
     TextPart,
 )
-from gemini_batch.pipeline.cache_stage import CacheStage
+from pollux.pipeline.cache_stage import CacheStage
 
 
 @pytest.mark.asyncio
@@ -42,7 +42,7 @@ async def test_cache_override_applies_without_adapter() -> None:
 
     stage = CacheStage()
     result = await stage.handle(planned)
-    from gemini_batch.core.types import Success
+    from pollux.core.types import Success
 
     assert isinstance(result, Success)
     updated = result.value

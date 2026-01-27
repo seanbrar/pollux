@@ -10,9 +10,9 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.execution_options import CachePolicyHint, ExecutionOptions
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.execution_options import CachePolicyHint, ExecutionOptions
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     InitialCommand,
@@ -21,9 +21,9 @@ from gemini_batch.core.types import (
     TextPart,
     TokenEstimate,
 )
-from gemini_batch.pipeline.adapters.base import CachingCapability, GenerationAdapter
-from gemini_batch.pipeline.cache_stage import CacheStage
-from gemini_batch.pipeline.registries import CacheRegistry
+from pollux.pipeline.adapters.base import CachingCapability, GenerationAdapter
+from pollux.pipeline.cache_stage import CacheStage
+from pollux.pipeline.registries import CacheRegistry
 
 
 class _DummyCachingAdapter(GenerationAdapter, CachingCapability):
@@ -109,7 +109,7 @@ async def test_cache_policy_enables_when_config_disabled() -> None:
     )
 
     result = await stage.handle(planned)
-    from gemini_batch.core.types import Success
+    from pollux.core.types import Success
 
     assert isinstance(result, Success), (
         f"unexpected failure: {getattr(result, 'error', None)}"

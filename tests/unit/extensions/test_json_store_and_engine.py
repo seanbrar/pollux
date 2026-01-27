@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from gemini_batch.extensions.conversation_engine import ConversationEngine
-from gemini_batch.extensions.conversation_store import JSONStore
-from gemini_batch.extensions.conversation_types import Exchange
+from pollux.extensions.conversation_engine import ConversationEngine
+from pollux.extensions.conversation_store import JSONStore
+from pollux.extensions.conversation_types import Exchange
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from gemini_batch.core.types import InitialCommand, ResultEnvelope
+    from pollux.core.types import InitialCommand, ResultEnvelope
 
 pytestmark = pytest.mark.unit
 

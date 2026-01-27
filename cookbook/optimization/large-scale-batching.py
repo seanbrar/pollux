@@ -27,8 +27,8 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.frontdoor import run_parallel
+from pollux import types
+from pollux.frontdoor import run_parallel
 
 
 async def main_async(

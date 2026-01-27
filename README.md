@@ -1,4 +1,4 @@
-# Gemini Batch Prediction Framework
+# Pollux: Batch Prediction Framework
 
 > **Google Summer of Code 2025 Project** — Efficient multimodal analysis via batching and context caching on Gemini.
 
@@ -17,7 +17,7 @@ Quick links:
 - [Quickstart](https://seanbrar.github.io/gemini-batch-prediction/tutorials/quickstart/)
 - [Cookbook (recipes)](https://seanbrar.github.io/gemini-batch-prediction/cookbook/)
 - [API reference](https://seanbrar.github.io/gemini-batch-prediction/reference/api-reference/)
-- [CLI (`gb-config`)](https://seanbrar.github.io/gemini-batch-prediction/reference/cli/)
+- [CLI (`pollux-config`)](https://seanbrar.github.io/gemini-batch-prediction/reference/cli/)
 - [Installation](https://seanbrar.github.io/gemini-batch-prediction/how-to/installation/)
 - [Troubleshooting](https://seanbrar.github.io/gemini-batch-prediction/how-to/troubleshooting/)
 
@@ -25,7 +25,7 @@ Quick links:
 
 ## 🎯 Project Overview
 
-This project delivers a **production-ready framework** for efficient multimodal analysis on Google's Gemini API. A modern **command pipeline** with intelligent batching and context caching yields **4–5x fewer API calls** and **up to 75% cost savings** while maintaining quality.
+**Pollux** (formerly `gemini-batch`) delivers a **production-ready framework** for efficient multimodal analysis on Google's Gemini API. A modern **command pipeline** with intelligent batching and context caching yields **4–5x fewer API calls** and **up to 75% cost savings** while maintaining quality.
 
 ### Key Features
 
@@ -40,7 +40,7 @@ This project delivers a **production-ready framework** for efficient multimodal 
 
 ```python
 import asyncio
-from gemini_batch import run_simple, types
+from pollux import run_simple, types
 
 async def main():
     result = await run_simple(
@@ -52,9 +52,9 @@ async def main():
 asyncio.run(main())
 ```
 
-## ℹ️ Project History
+## ℹ️ Project Heritage
 
-Originally developed during Google Summer of Code 2025 with Google DeepMind. For the complete narrative and archived milestone roadmap, see [Project History & GSoC](https://seanbrar.github.io/gemini-batch-prediction/explanation/history/).
+**Pollux** was originally developed as `gemini-batch` during Google Summer of Code 2025 with Google DeepMind. For the complete narrative and archived milestone roadmap, see [Project History & GSoC](https://seanbrar.github.io/gemini-batch-prediction/explanation/history/).
 
 For forward‑looking plans, see the live [Project Roadmap](https://seanbrar.github.io/gemini-batch-prediction/roadmap/).
 
@@ -65,10 +65,10 @@ For forward‑looking plans, see the live [Project Roadmap](https://seanbrar.git
 Install the latest wheel from **[📥 Releases](https://github.com/seanbrar/gemini-batch-prediction/releases/latest)** for a stable build.
 
 ```bash
-pip install ./gemini_batch-*.whl
+pip install ./pollux-*.whl
 
 # Verify
-python -c "import gemini_batch as gb; print('✅', gb.__version__)"
+python -c "import pollux as plx; print('✅', plx.__version__)"
 ```
 
 Optional (for notebooks/visualization):
@@ -122,9 +122,9 @@ Example .env contents:
 
 ```dotenv
 GEMINI_API_KEY=your_api_key_here                  # Provider key (fallback supported)
-GEMINI_BATCH_MODEL=gemini-2.0-flash               # Library config
-GEMINI_BATCH_TIER=free                            # free | tier_1 | tier_2 | tier_3
-GEMINI_BATCH_ENABLE_CACHING=true                  # Enable context caching
+POLLUX_MODEL=gemini-2.0-flash                     # Library config
+POLLUX_TIER=free                                  # free | tier_1 | tier_2 | tier_3
+POLLUX_ENABLE_CACHING=true                        # Enable context caching
 ```
 
 See the [comprehensive cookbook](cookbook/) and the online [Quickstart guide](https://seanbrar.github.io/gemini-batch-prediction/tutorials/quickstart/) for runnable examples.
@@ -141,14 +141,14 @@ Looking for more? Visit the [Docs site](https://seanbrar.github.io/gemini-batch-
 - `tier_1` - Billing enabled (most common paid tier)
 - `tier_2`, `tier_3` - Higher volume plans
 
-If no tier is configured, the library defaults to free tier limits. Use `gb-config doctor` to confirm.
+If no tier is configured, the library defaults to free tier limits. Use `pollux-config doctor` to confirm.
 
 ### One-Command Health Check
 
 ```bash
-gb-config doctor
+pollux-config doctor
 # or inspect resolved config
-gb-config audit
+pollux-config audit
 ```
 
 ### First Run Without an API Key
@@ -157,7 +157,7 @@ By default, the library runs in a deterministic mock mode (no external calls). T
 
 ```python
 import asyncio
-from gemini_batch import run_simple, types
+from pollux import run_simple, types
 
 async def main():
     result = await run_simple(
@@ -177,7 +177,7 @@ Expected output (mocked): `ok echo: Say hello`
 
 ```python
 import asyncio
-from gemini_batch import run_simple, types
+from pollux import run_simple, types
 
 async def main():
     # Simple single-source analysis
@@ -194,7 +194,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from gemini_batch import run_batch, types
+from pollux import run_batch, types
 
 async def main():
     sources = [
@@ -217,8 +217,8 @@ asyncio.run(main())
 ### Advanced Configuration
 
 ```python
-from gemini_batch import create_executor, types
-from gemini_batch.config import resolve_config
+from pollux import create_executor, types
+from pollux.config import resolve_config
 
 # Configure execution with custom options
 config = resolve_config(overrides={
@@ -249,7 +249,7 @@ result = await executor.execute(types.InitialCommand(
   - ⚙️ Optimization (8 recipes)
   - 🏭 Production (5 recipes)
 - **[🔬 Research Notebooks](notebooks/)** - Academic workflow demonstrations
-- **[🧩 Extensions](src/gemini_batch/extensions/)** - Official extension suite
+- **[🧩 Extensions](src/pollux/extensions/)** - Official extension suite
 
 Quickly list and run recipes with the runner:
 
@@ -260,10 +260,10 @@ python -m cookbook getting-started/analyze-single-paper.py -- --limit 1
 
 ## 🧭 Architecture At A Glance
 
-- **`config/`**: Deterministic resolution across env, files, and overrides; includes `gb-config` CLI.
+- **`config/`**: Deterministic resolution across env, files, and overrides; includes `pollux-config` CLI.
 - **`pipeline/`**: Async handler chain for source prep, planning, extraction, and result building.
 - **`executor.py`**: Orchestrates the command pipeline, enforcing result invariants.
-- **`telemetry.py`**: Opt‑in, ultra‑low‑overhead telemetry (`GEMINI_BATCH_TELEMETRY=1`).
+- **`telemetry.py`**: Opt‑in, ultra‑low‑overhead telemetry (`POLLUX_TELEMETRY=1`).
 
 ## 🤝 Contributing
 

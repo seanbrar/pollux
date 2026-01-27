@@ -9,7 +9,7 @@ from typing import Any, cast
 
 import pytest
 
-from gemini_batch.pipeline.results.extraction import (
+from pollux.pipeline.results.extraction import (
     ExtractionContext,
     ExtractionContract,
     ExtractionDiagnostics,

@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from gemini_batch.extensions.conversation import Conversation
-from gemini_batch.extensions.conversation_modes import (
+from pollux.extensions.conversation import Conversation
+from pollux.extensions.conversation_modes import (
     ExecutionMode,
     SequentialMode,
     SingleMode,
     VectorizedMode,
 )
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation_types import (
     ConversationState,
     Exchange,
     PromptSet,

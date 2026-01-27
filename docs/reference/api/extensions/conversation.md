@@ -5,10 +5,10 @@ Usage examples:
 - How‑to → Extensions → [Conversation (Advanced)](../../../how-to/conversation-advanced.md)
 - Concepts → Extensions → [Conversation](../../../explanation/concepts/conversation.md)
 
-::: gemini_batch.extensions.conversation.Conversation
+::: pollux.extensions.conversation.Conversation
 
-::: gemini_batch.extensions.conversation_planner.compile_conversation
+::: pollux.extensions.conversation_planner.compile_conversation
 
-::: gemini_batch.extensions.conversation_types
+::: pollux.extensions.conversation_types
 
 Last reviewed: 2025-09

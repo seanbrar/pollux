@@ -1,8 +1,8 @@
 import pytest
 
-from gemini_batch.executor import create_executor
-from gemini_batch.extensions.conversation import Conversation
-from gemini_batch.extensions.conversation_types import ConversationPolicy
+from pollux.executor import create_executor
+from pollux.extensions.conversation import Conversation
+from pollux.extensions.conversation_types import ConversationPolicy
 
 
 @pytest.mark.unit

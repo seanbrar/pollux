@@ -2,15 +2,15 @@ import asyncio
 
 import pytest
 
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.models import APITier
-from gemini_batch.core.types import (
+from pollux.config.core import FrozenConfig
+from pollux.core.models import APITier
+from pollux.core.types import (
     InitialCommand,
     PlannedCommand,
     ResolvedCommand,
     Source,
 )
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.planner import ExecutionPlanner
 
 pytestmark = pytest.mark.unit
 

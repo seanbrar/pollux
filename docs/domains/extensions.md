@@ -16,7 +16,7 @@ Who is this for:
 Prerequisites and safety:
 
 - Python 3.13 installed; project set up via `make install-dev`.
-- Real API calls may be involved depending on the extension. Set `GEMINI_BATCH_TIER` to match your billing to avoid throttling. See How‑to → [Verify Real API](../how-to/verify-real-api.md).
+- Real API calls may be involved depending on the extension. Set `POLLUX_TIER` to match your billing to avoid throttling. See How‑to → [Verify Real API](../how-to/verify-real-api.md).
 - Token counting uses Google’s free token counting endpoint and does not require an API key for counting; rate limits may apply.
 
 Last reviewed: 2025‑09

@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from gemini_batch.extensions import Conversation, PromptSet
-from gemini_batch.extensions.conversation_planner import compile_conversation
-from gemini_batch.extensions.conversation_types import ConversationPolicy
+from pollux.extensions import Conversation, PromptSet
+from pollux.extensions.conversation_planner import compile_conversation
+from pollux.extensions.conversation_types import ConversationPolicy
 
 if TYPE_CHECKING:
-    from gemini_batch.core.commands import InitialCommand
-    from gemini_batch.core.result_envelope import ResultEnvelope
+    from pollux.core.commands import InitialCommand
+    from pollux.core.result_envelope import ResultEnvelope
 
 
 class _StubConfig:

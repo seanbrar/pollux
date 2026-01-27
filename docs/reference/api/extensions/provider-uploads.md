@@ -32,7 +32,7 @@ Purpose: Pre-upload local files to the provider and wait for the `ACTIVE` state.
 ## Example
 
 ```python
-from gemini_batch.extensions.provider_uploads import preupload_and_wait_active
+from pollux.extensions.provider_uploads import preupload_and_wait_active
 
 uri = preupload_and_wait_active("/path/to/sample.mp3", timeout_s=60)
 # Use `uri` or the returned object from `upload_and_wait_active` in your request

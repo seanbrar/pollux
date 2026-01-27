@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.types import InitialCommand, Source
-from gemini_batch.executor import GeminiExecutor, create_executor
+from pollux.config import resolve_config
+from pollux.config.core import FrozenConfig
+from pollux.core.types import InitialCommand, Source
+from pollux.executor import GeminiExecutor, create_executor
 
 pytestmark = pytest.mark.integration
 
@@ -24,7 +24,7 @@ class TestConfigurationIntegrationBehavior:
         """Integration: create_executor() should use new configuration system."""
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "test_key", "GEMINI_BATCH_MODEL": "test_model"},
+            {"GEMINI_API_KEY": "test_key", "POLLUX_MODEL": "test_model"},
         ):
             executor = create_executor()
 
@@ -79,7 +79,7 @@ class TestConfigurationIntegrationBehavior:
         # Set environment baseline
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "env_key", "GEMINI_BATCH_MODEL": "env_model"},
+            {"GEMINI_API_KEY": "env_key", "POLLUX_MODEL": "env_model"},
         ):
             # Override with explicit config
             explicit_config = {"model": "explicit_model"}
@@ -147,14 +147,14 @@ class TestConfigurationIntegrationBehavior:
         """Integration: Environment variables should properly override in pipeline."""
         base_env = {
             "GEMINI_API_KEY": "base_key",
-            "GEMINI_BATCH_MODEL": "base_model",
+            "POLLUX_MODEL": "base_model",
         }
 
         with patch.dict(os.environ, base_env):
             executor1 = create_executor()
 
             # Override one variable
-            with patch.dict(os.environ, {"GEMINI_BATCH_MODEL": "override_model"}):
+            with patch.dict(os.environ, {"POLLUX_MODEL": "override_model"}):
                 executor2 = create_executor()
 
             # Should see override effect

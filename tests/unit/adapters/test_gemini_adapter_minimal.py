@@ -4,8 +4,8 @@ import math
 
 import pytest
 
-from gemini_batch.core.types import Source, TokenEstimate
-from gemini_batch.pipeline.tokens.adapters.gemini import (
+from pollux.core.types import Source, TokenEstimate
+from pollux.pipeline.tokens.adapters.gemini import (
     GeminiBiases,
     GeminiEstimationAdapter,
 )

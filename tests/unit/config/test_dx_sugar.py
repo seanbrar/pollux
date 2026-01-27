@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 import pytest
 
-from gemini_batch.config import check_environment, doctor, resolve_config
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.models import APITier
+from pollux.config import check_environment, doctor, resolve_config
+from pollux.config.core import FrozenConfig
+from pollux.core.models import APITier
 
 pytestmark = pytest.mark.unit
 
@@ -19,14 +19,18 @@ pytestmark = pytest.mark.unit
 class TestCheckEnvironment:
     """Test the check_environment DX sugar function."""
 
-    def test_check_environment_returns_gemini_batch_vars(self):
-        """Should return all GEMINI_BATCH_* environment variables."""
-        env_vars = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
+    def test_check_environment_returns_pollux_vars(self):
+        """Should return all POLLUX_* environment variables."""
+        env_vars = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith("GEMINI_") and not k.startswith("POLLUX_")
+        }
         env_vars.update(
             {
-                "GEMINI_BATCH_MODEL": "test-model",
-                "GEMINI_BATCH_TTL_SECONDS": "1800",
-                "GEMINI_BATCH_USE_REAL_API": "true",
+                "POLLUX_MODEL": "test-model",
+                "POLLUX_TTL_SECONDS": "1800",
+                "POLLUX_USE_REAL_API": "true",
                 "OTHER_VAR": "should-not-appear",
             }
         )
@@ -34,24 +38,28 @@ class TestCheckEnvironment:
         with patch.dict(os.environ, env_vars, clear=True):
             result = check_environment()
 
-            assert "GEMINI_BATCH_MODEL" in result
-            assert "GEMINI_BATCH_TTL_SECONDS" in result
-            assert "GEMINI_BATCH_USE_REAL_API" in result
+            assert "POLLUX_MODEL" in result
+            assert "POLLUX_TTL_SECONDS" in result
+            assert "POLLUX_USE_REAL_API" in result
             assert "OTHER_VAR" not in result
 
-            assert result["GEMINI_BATCH_MODEL"] == "test-model"
-            assert result["GEMINI_BATCH_TTL_SECONDS"] == "1800"
-            assert result["GEMINI_BATCH_USE_REAL_API"] == "true"
+            assert result["POLLUX_MODEL"] == "test-model"
+            assert result["POLLUX_TTL_SECONDS"] == "1800"
+            assert result["POLLUX_USE_REAL_API"] == "true"
 
     def test_check_environment_redacts_sensitive_keys(self):
         """Should redact sensitive environment variables like API keys."""
-        env_vars = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
+        env_vars = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith("GEMINI_") and not k.startswith("POLLUX_")
+        }
         env_vars.update(
             {
                 "GEMINI_API_KEY": "secret-key-123",
-                "GEMINI_BATCH_TOKEN": "secret-token-456",
-                "GEMINI_BATCH_SECRET": "secret-value-789",
-                "GEMINI_BATCH_MODEL": "safe-model-name",
+                "POLLUX_TOKEN": "secret-token-456",
+                "POLLUX_SECRET": "secret-value-789",
+                "POLLUX_MODEL": "safe-model-name",
             }
         )
 
@@ -60,16 +68,20 @@ class TestCheckEnvironment:
 
             # Sensitive keys should be redacted
             assert result["GEMINI_API_KEY"] == "***redacted***"
-            assert result["GEMINI_BATCH_TOKEN"] == "***redacted***"
-            assert result["GEMINI_BATCH_SECRET"] == "***redacted***"
+            assert result["POLLUX_TOKEN"] == "***redacted***"
+            assert result["POLLUX_SECRET"] == "***redacted***"
 
             # Non-sensitive values should be visible
-            assert result["GEMINI_BATCH_MODEL"] == "safe-model-name"
+            assert result["POLLUX_MODEL"] == "safe-model-name"
 
-    def test_check_environment_empty_when_no_gemini_vars(self):
-        """Should return empty dict when no GEMINI_* vars are set."""
-        clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
-        clean_env["OTHER_VAR"] = "not-gemini"
+    def test_check_environment_empty_when_no_pollux_vars(self):
+        """Should return empty dict when no POLLUX_* vars are set."""
+        clean_env = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith("GEMINI_") and not k.startswith("POLLUX_")
+        }
+        clean_env["OTHER_VAR"] = "not-pollux"
 
         with patch.dict(os.environ, clean_env, clear=True):
             result = check_environment()
@@ -78,13 +90,17 @@ class TestCheckEnvironment:
 
     def test_check_environment_case_sensitive_redaction(self):
         """Should redact based on case-insensitive key matching."""
-        env_vars = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
+        env_vars = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith("GEMINI_") and not k.startswith("POLLUX_")
+        }
         env_vars.update(
             {
                 "GEMINI_api_key": "should-redact-lowercase",
                 "GEMINI_API_KEY": "should-redact-uppercase",
                 "GEMINI_Api_Key": "should-redact-mixed",
-                "GEMINI_BATCH_SOME_KEY": "should-redact-contains-key",
+                "POLLUX_SOME_KEY": "should-redact-contains-key",
             }
         )
 
@@ -105,9 +121,9 @@ class TestDoctor:
     def test_doctor_detects_missing_api_key_with_real_api(self):
         """Should detect when use_real_api=True but api_key is missing."""
         with (
-            patch("gemini_batch.config.loaders.load_env", return_value={}),
-            patch("gemini_batch.config.loaders.load_pyproject", return_value={}),
-            patch("gemini_batch.config.loaders.load_home", return_value={}),
+            patch("pollux.config.loaders.load_env", return_value={}),
+            patch("pollux.config.loaders.load_pyproject", return_value={}),
+            patch("pollux.config.loaders.load_home", return_value={}),
         ):
             # This should not raise because use_real_api defaults to False
             messages = doctor()
@@ -133,7 +149,7 @@ class TestDoctor:
             request_concurrency=6,
         )
 
-        with patch("gemini_batch.config.core.resolve_config") as mock_resolve:
+        with patch("pollux.config.core.resolve_config") as mock_resolve:
             mock_resolve.return_value = (bad_config, {})
             messages = doctor()
 
@@ -155,7 +171,7 @@ class TestDoctor:
             request_concurrency=6,
         )
 
-        with patch("gemini_batch.config.core.resolve_config") as mock_resolve:
+        with patch("pollux.config.core.resolve_config") as mock_resolve:
             mock_resolve.return_value = (weird_config, {})
             messages = doctor()
 
@@ -167,9 +183,9 @@ class TestDoctor:
     def test_doctor_reports_no_issues_for_good_config(self):
         """Should report no issues for a valid configuration."""
         with (
-            patch("gemini_batch.config.loaders.load_env", return_value={}),
-            patch("gemini_batch.config.loaders.load_pyproject", return_value={}),
-            patch("gemini_batch.config.loaders.load_home", return_value={}),
+            patch("pollux.config.loaders.load_env", return_value={}),
+            patch("pollux.config.loaders.load_pyproject", return_value={}),
+            patch("pollux.config.loaders.load_home", return_value={}),
         ):
             messages = doctor()
 
@@ -182,7 +198,7 @@ class TestAuditHelpers:
 
     def test_audit_lines_redacts_sensitive_fields(self):
         """Audit lines should never show sensitive field values."""
-        from gemini_batch.config import audit_lines
+        from pollux.config import audit_lines
 
         config, sources = resolve_config(
             overrides={"api_key": "secret-key-123", "model": "test-model"}, explain=True
@@ -208,7 +224,7 @@ class TestAuditHelpers:
 
     def test_to_redacted_dict_redacts_secrets(self):
         """Redacted dict should mask sensitive values."""
-        from gemini_batch.config import to_redacted_dict
+        from pollux.config import to_redacted_dict
 
         config = resolve_config(
             overrides={

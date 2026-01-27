@@ -10,9 +10,9 @@ from unittest.mock import patch
 from pydantic import ValidationError
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.models import APITier
+from pollux.config import resolve_config
+from pollux.config.core import FrozenConfig
+from pollux.core.models import APITier
 
 
 class TestConfigurationContractCompliance:
@@ -58,7 +58,7 @@ class TestConfigurationContractCompliance:
         """Contract: resolve_config() is a pure function - same inputs produce same outputs."""
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "test_key", "GEMINI_BATCH_MODEL": "test_model"},
+            {"GEMINI_API_KEY": "test_key", "POLLUX_MODEL": "test_model"},
         ):
             # Call multiple times with same inputs
             result1 = resolve_config()
@@ -174,12 +174,12 @@ class TestConfigurationContractCompliance:
         """Contract: Configuration system must not use global mutable state."""
         # Verify multiple resolve operations don't interfere
         with patch.dict(
-            os.environ, {"GEMINI_API_KEY": "key1", "GEMINI_BATCH_MODEL": "model1"}
+            os.environ, {"GEMINI_API_KEY": "key1", "POLLUX_MODEL": "model1"}
         ):
             config1 = resolve_config()
 
         with patch.dict(
-            os.environ, {"GEMINI_API_KEY": "key2", "GEMINI_BATCH_MODEL": "model2"}
+            os.environ, {"GEMINI_API_KEY": "key2", "POLLUX_MODEL": "model2"}
         ):
             config2 = resolve_config()
 
@@ -203,7 +203,7 @@ class TestConfigurationContractCompliance:
         # Test invalid tier
         with patch.dict(
             os.environ,
-            {"GEMINI_API_KEY": "test", "GEMINI_BATCH_TIER": "invalid_tier"},
+            {"GEMINI_API_KEY": "test", "POLLUX_TIER": "invalid_tier"},
         ):
             with pytest.raises(ValidationError) as exc_info:
                 resolve_config()

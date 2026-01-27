@@ -29,12 +29,12 @@ from cookbook.utils.demo_inputs import (
     resolve_file_or_exit,
 )
 from cookbook.utils.retry import retry_async
-from gemini_batch import types
-from gemini_batch.extensions.chunking import chunk_text_by_tokens
-from gemini_batch.frontdoor import run_batch, run_parallel
+from pollux import types
+from pollux.extensions.chunking import chunk_text_by_tokens
+from pollux.frontdoor import run_batch, run_parallel
 
 if TYPE_CHECKING:
-    from gemini_batch.core.result_envelope import ResultEnvelope
+    from pollux.core.result_envelope import ResultEnvelope
 
 
 def _read_text(path: Path) -> str:

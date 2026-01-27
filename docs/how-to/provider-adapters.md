@@ -26,9 +26,9 @@ Additionally, a configuration adapter can customize provider‑specific config s
 
 Locations in code:
 
-- Protocols: `gemini_batch.pipeline.adapters.base`
-- Provider config registry: `gemini_batch.pipeline.adapters.registry`
-- Example implementation: `gemini_batch.pipeline.adapters.gemini`
+- Protocols: `pollux.pipeline.adapters.base`
+- Provider config registry: `pollux.pipeline.adapters.registry`
+- Example implementation: `pollux.pipeline.adapters.gemini`
 
 ---
 
@@ -38,7 +38,7 @@ Locations in code:
 from __future__ import annotations
 from typing import Any
 
-from gemini_batch.pipeline.adapters.base import GenerationAdapter
+from pollux.pipeline.adapters.base import GenerationAdapter
 
 class MyProviderAdapter(GenerationAdapter):
     async def generate(
@@ -60,7 +60,7 @@ class MyProviderAdapter(GenerationAdapter):
 If your provider supports uploads and/or caching, also implement these methods:
 
 ```python
-from gemini_batch.pipeline.adapters.base import UploadsCapability, CachingCapability
+from pollux.pipeline.adapters.base import UploadsCapability, CachingCapability
 
 class MyProviderAdapter(GenerationAdapter, UploadsCapability, CachingCapability):
     async def upload_file_local(self, path, mime_type):
@@ -87,11 +87,11 @@ There are two common ways to use your adapter.
 1) Provide it directly to the API handler and compose a pipeline:
 
 ```python
-from gemini_batch.pipeline import SourceHandler
-from gemini_batch.pipeline.planner import ExecutionPlanner
-from gemini_batch.pipeline.rate_limit_handler import RateLimitHandler
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.pipeline.result_builder import ResultBuilder
+from pollux.pipeline import SourceHandler
+from pollux.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.rate_limit_handler import RateLimitHandler
+from pollux.pipeline.api_handler import APIHandler
+from pollux.pipeline.result_builder import ResultBuilder
 
 adapter = MyProviderAdapter(...)
 handlers = [
@@ -108,7 +108,7 @@ handlers = [
 2) Provide a factory to the API handler (useful if you need an API key or per‑run setup):
 
 ```python
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.pipeline.api_handler import APIHandler
 
 def adapter_factory(api_key: str) -> MyProviderAdapter:
     return MyProviderAdapter(api_key)
@@ -128,8 +128,8 @@ If you need to transform `FrozenConfig` into a provider‑specific mapping, impl
 
 ```python
 from typing import Any, Mapping
-from gemini_batch.pipeline.adapters.base import BaseProviderAdapter
-from gemini_batch.pipeline.adapters.registry import register_adapter
+from pollux.pipeline.adapters.base import BaseProviderAdapter
+from pollux.pipeline.adapters.registry import register_adapter
 
 class MyProviderConfigAdapter(BaseProviderAdapter):
     name = "myprovider"  # Match your provider slug

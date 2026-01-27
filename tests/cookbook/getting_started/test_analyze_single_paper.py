@@ -32,7 +32,7 @@ def test_analyze_single_paper_main_async_invokes_frontdoor_and_prints(
             status="ok", answers=["Result body"], usage={"total_token_count": 42}
         )
 
-    monkeypatch.setattr("gemini_batch.frontdoor.run_simple", fake_run_simple)
+    monkeypatch.setattr("pollux.frontdoor.run_simple", fake_run_simple)
 
     # Act: load the recipe module by path (filename uses dashes)
     ns = load_recipe("cookbook/getting-started/analyze-single-paper.py")

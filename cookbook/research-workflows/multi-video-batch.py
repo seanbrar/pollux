@@ -24,15 +24,15 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gemini_batch import types
-from gemini_batch.extensions.provider_uploads import (
+from pollux import types
+from pollux.extensions.provider_uploads import (
     UploadInactiveError,
     preupload_and_wait_active,
 )
-from gemini_batch.frontdoor import run_batch
+from pollux.frontdoor import run_batch
 
 if TYPE_CHECKING:
-    from gemini_batch.core.result_envelope import ResultEnvelope
+    from pollux.core.result_envelope import ResultEnvelope
 
 
 def _coerce_sources(items: list[str | Path]) -> list[types.Source]:

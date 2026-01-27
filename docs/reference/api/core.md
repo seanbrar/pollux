@@ -1,41 +1,41 @@
 # Core Types and Structures
 
-Key low-level types used throughout the pipeline. Prefer the curated `gemini_batch.types` surface for everyday usage.
+Key low-level types used throughout the pipeline. Prefer the curated `pollux.types` surface for everyday usage.
 
 ## Commands
 
-::: gemini_batch.core.commands.InitialCommand
+::: pollux.core.commands.InitialCommand
 
-::: gemini_batch.core.commands.ResolvedCommand
+::: pollux.core.commands.ResolvedCommand
 
-::: gemini_batch.core.commands.PlannedCommand
+::: pollux.core.commands.PlannedCommand
 
-::: gemini_batch.core.commands.FinalizedCommand
+::: pollux.core.commands.FinalizedCommand
 
 ## Result Envelope
 
-::: gemini_batch.core.result_envelope.ResultEnvelope
+::: pollux.core.result_envelope.ResultEnvelope
 
-::: gemini_batch.core.result_envelope.is_result_envelope
+::: pollux.core.result_envelope.is_result_envelope
 
-::: gemini_batch.core.result_envelope.explain_invalid_result_envelope
+::: pollux.core.result_envelope.explain_invalid_result_envelope
 
 ## Execution Options
 
-::: gemini_batch.core.execution_options.ExecutionOptions
+::: pollux.core.execution_options.ExecutionOptions
 
-::: gemini_batch.core.execution_options.make_execution_options
+::: pollux.core.execution_options.make_execution_options
 
-::: gemini_batch.core.execution_options.CacheOptions
+::: pollux.core.execution_options.CacheOptions
 
-::: gemini_batch.core.execution_options.CachePolicyHint
+::: pollux.core.execution_options.CachePolicyHint
 
-::: gemini_batch.core.execution_options.ResultOption
+::: pollux.core.execution_options.ResultOption
 
-::: gemini_batch.core.execution_options.EstimationOptions
+::: pollux.core.execution_options.EstimationOptions
 
-::: gemini_batch.core.execution_options.RemoteFilePolicy
+::: pollux.core.execution_options.RemoteFilePolicy
 
 ## Sources
 
-::: gemini_batch.core.sources.Source
+::: pollux.core.sources.Source

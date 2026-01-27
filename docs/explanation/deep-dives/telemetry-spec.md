@@ -13,7 +13,7 @@ This deep dive documents the Telemetry system’s behavior, interfaces, and perf
 ### Factory and Contexts
 
 - `TelemetryContext(*reporters)` is the entry point.
-  - If `GEMINI_BATCH_TELEMETRY=1` or `DEBUG=1` and at least one reporter is provided, returns `_EnabledTelemetryContext`.
+  - If `POLLUX_TELEMETRY=1` or `DEBUG=1` and at least one reporter is provided, returns `_EnabledTelemetryContext`.
   - Otherwise returns `_NO_OP_SINGLETON` of `_NoOpTelemetryContext`.
 
 ### Enabled Context
@@ -48,7 +48,7 @@ This deep dive documents the Telemetry system’s behavior, interfaces, and perf
 ## Scope Naming and Validation
 
 - Recommended schema: `lowercase` segments separated by dots with digits/underscores allowed.
-- Optional strict regex validation via `GEMINI_BATCH_TELEMETRY_STRICT_SCOPES=1`.
+- Optional strict regex validation via `POLLUX_TELEMETRY_STRICT_SCOPES=1`.
 
 ## Performance Considerations
 
@@ -59,7 +59,7 @@ This deep dive documents the Telemetry system’s behavior, interfaces, and perf
 ## Development Tools
 
 - `_SimpleReporter`: in-memory reporter for local debugging.
-  - Not part of the public API; import from `gemini_batch.telemetry` as an internal.
+  - Not part of the public API; import from `pollux.telemetry` as an internal.
   - Helpers: `print_report()`, `as_dict()`, `reset()`.
   - Produces a hierarchical summary of timings and totals for quick inspection.
 
@@ -67,9 +67,9 @@ Example usage:
 
 ```python
 import os
-os.environ["GEMINI_BATCH_TELEMETRY"] = "1"
+os.environ["POLLUX_TELEMETRY"] = "1"
 
-from gemini_batch.telemetry import _SimpleReporter, TelemetryContext
+from pollux.telemetry import _SimpleReporter, TelemetryContext
 
 reporter = _SimpleReporter()
 tele = TelemetryContext(reporter)
@@ -90,7 +90,7 @@ reporter.reset()
 ## Examples
 
 ```python
-from gemini_batch.telemetry import TelemetryContext, TelemetryReporter
+from pollux.telemetry import TelemetryContext, TelemetryReporter
 
 class PrintReporter(TelemetryReporter):
     def record_timing(self, scope: str, duration: float, **metadata):
@@ -119,4 +119,4 @@ To validate the “negligible overhead when disabled” and characterize enabled
 - Enabled throughput target: >100k scope ops/sec (no-op reporter)
 - Memory growth: ~<100 bytes per nested level
 
-Benchmarks use a no-op reporter to isolate framework cost. Enable telemetry via `GEMINI_BATCH_TELEMETRY=1` (or `DEBUG=1`) when running enabled tests. Internal scripts under `dev/benchmarks/` are provided for contributors; results should be summarized (not raw runs) in PRs that change telemetry internals.
+Benchmarks use a no-op reporter to isolate framework cost. Enable telemetry via `POLLUX_TELEMETRY=1` (or `DEBUG=1`) when running enabled tests. Internal scripts under `dev/benchmarks/` are provided for contributors; results should be summarized (not raw runs) in PRs that change telemetry internals.

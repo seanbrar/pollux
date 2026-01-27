@@ -5,15 +5,15 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     InitialCommand,
     ResolvedCommand,
     Source,
     Success,
     TextPart,
 )
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.planner import ExecutionPlanner
 
 pytestmark = pytest.mark.unit
 

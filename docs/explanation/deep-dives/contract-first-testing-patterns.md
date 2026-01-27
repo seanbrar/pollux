@@ -9,7 +9,7 @@
 import inspect
 import pytest
 
-from gemini_batch.pipeline.source_handler import SourceHandler
+from pollux.pipeline.source_handler import SourceHandler
 
 def test_handler_signature_is_contractual():
     sig = inspect.signature(SourceHandler.handle)
@@ -33,7 +33,7 @@ async def test_handler_is_pure_and_deterministic(initial_command):
 # tests/contracts/test_command_states.py
 import pytest
 from copy import deepcopy
-from gemini_batch.core.types import InitialCommand
+from pollux.core.types import InitialCommand
 
 def test_commands_are_immutable(initial_command):
     with pytest.raises(AttributeError):
@@ -49,7 +49,7 @@ def test_copy_equals_original(initial_command):
 ```python
 # tests/contracts/test_planner_purity.py
 import inspect
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.planner import ExecutionPlanner
 
 FORBIDDEN_IMPORTS = {"google", "genai", "vertexai"}
 
@@ -63,8 +63,8 @@ def test_planner_has_no_sdk_imports():
 ```python
 # tests/contracts/test_error_semantics.py
 import pytest
-from gemini_batch.pipeline.source_handler import SourceHandler
-from gemini_batch.core.types import InitialCommand, Failure, Success
+from pollux.pipeline.source_handler import SourceHandler
+from pollux.core.types import InitialCommand, Failure, Success
 
 @pytest.mark.anyio
 async def test_handlers_return_result_not_throw(bad_initial_command):
@@ -86,6 +86,6 @@ def test_tests_remain_simple():
 
 def test_no_forbidden_patterns():
     bad = re.compile(r"from\s+google\..*import|vertexai|genai")
-    text = open("src/gemini_batch/pipeline/planner.py", "r", encoding="utf-8").read()
+    text = open("src/pollux/pipeline/planner.py", "r", encoding="utf-8").read()
     assert not bad.search(text)
 ```

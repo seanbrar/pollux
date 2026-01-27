@@ -29,8 +29,8 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 
 def _print_durations(metrics: dict[str, Any]) -> None:
@@ -52,7 +52,7 @@ def _pick_files_by_ext(root: Path, exts: list[str], limit: int) -> list[Path]:
 
 async def main_async(directory: Path, limit: int = 2) -> None:
     # Best-effort: set before heavy imports; executor also provides fallback
-    os.environ.setdefault("GEMINI_BATCH_TELEMETRY", "1")
+    os.environ.setdefault("POLLUX_TELEMETRY", "1")
 
     prompts = [
         "Identify three key takeaways.",

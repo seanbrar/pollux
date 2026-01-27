@@ -11,7 +11,7 @@ The extension is provider‑aware but remains a good architectural citizen: it u
 
 ```python
 import asyncio
-from gemini_batch.extensions import (
+from pollux.extensions import (
     GeminiTokenCounter,
     ValidContent,
     TokenCountSuccess,
@@ -66,7 +66,7 @@ This makes invalid states (e.g., “success with error”) impossible at the typ
 You can pass planner‑style estimation hints to conservatively widen/clamp counts:
 
 ```python
-from gemini_batch.core.execution_options import EstimationOptions
+from pollux.core.execution_options import EstimationOptions
 
 hints = (EstimationOptions(widen_max_factor=1.2, clamp_max_tokens=10000),)
 await counter.count_tokens(ValidContent.from_text("..."), hints=hints)
@@ -76,7 +76,7 @@ Hints are applied purely on the result of the base count; they never call provid
 
 ## Notes
 
-- The extension lives under `gemini_batch.extensions.token_counting` and is exported via `gemini_batch.extensions` for convenience.
+- The extension lives under `pollux.extensions.token_counting` and is exported via `pollux.extensions` for convenience.
 - The API is intentionally small and uses validated construction (`ValidContent.from_text`) to prevent invalid inputs.
 - This extension is independent from the conversation/pipeline flow; it’s a self‑contained utility.
 
@@ -86,7 +86,7 @@ Estimate a token budget with a safety margin before issuing a batch.
 
 ```python title="budget_tokens.py"
 import asyncio
-from gemini_batch.extensions import GeminiTokenCounter, ValidContent, TokenCountSuccess
+from pollux.extensions import GeminiTokenCounter, ValidContent, TokenCountSuccess
 
 async def main() -> None:
     text = "Long input ..."

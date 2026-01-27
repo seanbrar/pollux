@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from gemini_batch.extensions.dependency_analyzer import analyze_dependencies
+from pollux.extensions.dependency_analyzer import analyze_dependencies
 
 
 def test_dependency_analyzer_regex_and_overlap():

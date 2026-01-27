@@ -23,13 +23,13 @@ make test-api           # API tests (require GEMINI_API_KEY and ENABLE_API_TESTS
 
 Notes:
 
-- API tests are opt-in and require an API key and an explicit enable flag. Set `GEMINI_API_KEY` (or `GEMINI_BATCH_API_KEY`) and `ENABLE_API_TESTS=1`. Running API tests may incur costs and be subject to rate limits—enable them intentionally.
+- API tests are opt-in and require an API key and an explicit enable flag. Set `GEMINI_API_KEY` (or `POLLUX_API_KEY`) and `ENABLE_API_TESTS=1`. Running API tests may incur costs and be subject to rate limits—enable them intentionally.
 - Some workflow-related tests rely on `semantic-release`; those individual tests will skip gracefully if it is not installed.
 
 Success checks:
 
 - Coverage: after `make test-coverage`, open `coverage_html_report/index.html`.
-- API collection: with both `GEMINI_API_KEY`/`GEMINI_BATCH_API_KEY` and `ENABLE_API_TESTS=1` set, tests marked `api` are collected and run; otherwise they are auto‑skipped.
+- API collection: with both `GEMINI_API_KEY`/`POLLUX_API_KEY` and `ENABLE_API_TESTS=1` set, tests marked `api` are collected and run; otherwise they are auto‑skipped.
 - Timings: use `make test-fast-timed` to print slowest tests.
 
 ## Suites overview

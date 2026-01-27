@@ -2,8 +2,8 @@ from typing import cast
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     InitialCommand,
@@ -14,7 +14,7 @@ from gemini_batch.core.types import (
     TextPart,
     TokenEstimate,
 )
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.pipeline.api_handler import APIHandler
 
 
 def _planned_with_estimate(prompt_text: str, expected: int) -> PlannedCommand:

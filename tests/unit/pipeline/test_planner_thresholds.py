@@ -1,8 +1,8 @@
 import pytest
 
-from gemini_batch.config.core import resolve_config
-from gemini_batch.core.types import InitialCommand, ResolvedCommand, Source
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.config.core import resolve_config
+from pollux.core.types import InitialCommand, ResolvedCommand, Source
+from pollux.pipeline.planner import ExecutionPlanner
 
 pytestmark = pytest.mark.unit
 

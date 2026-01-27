@@ -1,6 +1,6 @@
 import pytest
 
-from gemini_batch.extensions.chunking import chunk_text_by_tokens
+from pollux.extensions.chunking import chunk_text_by_tokens
 
 
 @pytest.mark.unit

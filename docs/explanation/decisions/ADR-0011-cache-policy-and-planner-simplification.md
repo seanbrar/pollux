@@ -121,12 +121,12 @@ Phase 5 — Documentation & Fitness Tests
 
 ## Major/Affected Files
 
-- Add: `src/gemini_batch/pipeline/policy/cache_policy.py` (policy + decision + helpers)
-- Update: `src/gemini_batch/pipeline/hints.py` (add `CachePolicyHint`)
-- Update: `src/gemini_batch/pipeline/planner.py` (remove vendor logic; add policy/decision; first‑turn‑only + floor)
-- Update: `src/gemini_batch/pipeline/api_handler.py` (fallback UX + telemetry; consume decision)
-- Optional Add: `src/gemini_batch/core/types.py` (`FileInlinePart`)
-- Optional Update: `src/gemini_batch/pipeline/adapters/gemini.py` (support `FileInlinePart`, drop `Source` acceptance)
+- Add: `src/pollux/pipeline/policy/cache_policy.py` (policy + decision + helpers)
+- Update: `src/pollux/pipeline/hints.py` (add `CachePolicyHint`)
+- Update: `src/pollux/pipeline/planner.py` (remove vendor logic; add policy/decision; first‑turn‑only + floor)
+- Update: `src/pollux/pipeline/api_handler.py` (fallback UX + telemetry; consume decision)
+- Optional Add: `src/pollux/core/types.py` (`FileInlinePart`)
+- Optional Update: `src/pollux/pipeline/adapters/gemini.py` (support `FileInlinePart`, drop `Source` acceptance)
 - Docs: this ADR; update `concepts/hint-capsules.md`, `concepts/token-counting.md`, and cross‑links in `architecture.md`.
 
 ## Rationale (Rubric Mapping)

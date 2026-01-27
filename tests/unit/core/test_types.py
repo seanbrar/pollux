@@ -10,8 +10,8 @@ from typing import Any, cast
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     Failure,
@@ -274,7 +274,7 @@ class TestCommandStateCompliance:
     def test_api_call_constructor_is_immutable(self):
         """APICall should be immutable by design."""
         # Avoid importing provider SDK types in tests; use library-owned shapes
-        from gemini_batch.core.types import TextPart
+        from pollux.core.types import TextPart
 
         # Convert provider SDK parts/config into library-owned shapes
         api_call = APICall(

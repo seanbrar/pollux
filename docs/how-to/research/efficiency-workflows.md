@@ -7,15 +7,15 @@ Purpose: Task‑focused steps to run efficiency experiments and analyze results 
 Prerequisites
 
 - Python 3.13; repository installed (`make install-dev`).
-- Default is mock mode. For real API, set `GEMINI_API_KEY` and `GEMINI_BATCH_USE_REAL_API=1`, and match `GEMINI_BATCH_TIER` to your billing to avoid throttling.
+- Default is mock mode. For real API, set `GEMINI_API_KEY` and `POLLUX_USE_REAL_API=1`, and match `POLLUX_TIER` to your billing to avoid throttling.
 
 ## 1) Minimal, reproducible run
 
 This example compares vectorized batching to a naive per‑prompt baseline over a tiny workload.
 
 ```python title="compare_efficiency_min.py"
-from gemini_batch import types, frontdoor
-from gemini_batch.research import compare_efficiency
+from pollux import types, frontdoor
+from pollux.research import compare_efficiency
 
 # Small corpus: two prompts across two sources
 prompts = [
@@ -58,8 +58,8 @@ Expected
 
 ## Troubleshooting
 
-- Missing key: set `GEMINI_API_KEY` and re‑run. Use `gb-config doctor` to verify readiness.
-- Timeouts/rate limits: match `GEMINI_BATCH_TIER` to billing; reduce concurrency.
+- Missing key: set `GEMINI_API_KEY` and re‑run. Use `pollux-config doctor` to verify readiness.
+- Timeouts/rate limits: match `POLLUX_TIER` to billing; reduce concurrency.
 - Non‑JSON aggregates: prefer `mode="aggregate"` only when your prompts return parseable structures.
 
 See also

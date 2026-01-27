@@ -17,7 +17,7 @@ This example splits a sample text file into ~2000‑token chunks with ~200‑tok
 
 ```python title="chunk_text.py"
 from pathlib import Path
-from gemini_batch.extensions import chunk_text_by_tokens
+from pollux.extensions import chunk_text_by_tokens
 
 text_path = Path("cookbook/data/public/sample.txt")
 text = text_path.read_text(encoding="utf-8")
@@ -41,13 +41,13 @@ Notes
 
 ## 2) Optional: Use chunks with the Conversation extension
 
-Summarize each chunk with a single prompt per chunk using mock mode by default (no real API required). Set `GEMINI_BATCH_USE_REAL_API=1` if you want real calls.
+Summarize each chunk with a single prompt per chunk using mock mode by default (no real API required). Set `POLLUX_USE_REAL_API=1` if you want real calls.
 
 ```python title="summarize_chunks.py"
 import asyncio
 from pathlib import Path
-from gemini_batch import create_executor, types
-from gemini_batch.extensions import Conversation, chunk_text_by_tokens
+from pollux import create_executor, types
+from pollux.extensions import Conversation, chunk_text_by_tokens
 
 async def main() -> None:
     text = Path("cookbook/data/public/sample.txt").read_text(encoding="utf-8")
@@ -72,14 +72,14 @@ asyncio.run(main())
 Tips
 
 - For reproducible demos, keep outputs short and ground prompts in the provided chunk.
-- If throttled on real API, set `GEMINI_BATCH_TIER` to match billing or reduce concurrency via config.
+- If throttled on real API, set `POLLUX_TIER` to match billing or reduce concurrency via config.
 
 ## 3) Chunk transcripts by approximate tokens
 
 Split a time‑stamped transcript while preserving segments and timestamps.
 
 ```python title="chunk_transcript.py"
-from gemini_batch.extensions import (
+from pollux.extensions import (
     TranscriptSegment,
     chunk_transcript_by_tokens,
 )

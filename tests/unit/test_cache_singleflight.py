@@ -6,14 +6,14 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.api_parts import TextPart
-from gemini_batch.core.api_plan import APICall, ExecutionPlan
-from gemini_batch.core.commands import InitialCommand, PlannedCommand, ResolvedCommand
-from gemini_batch.core.types import Success
-from gemini_batch.pipeline.adapters.base import CachingCapability, GenerationAdapter
-from gemini_batch.pipeline.cache_stage import CacheStage
-from gemini_batch.pipeline.registries import CacheRegistry
+from pollux.config import resolve_config
+from pollux.core.api_parts import TextPart
+from pollux.core.api_plan import APICall, ExecutionPlan
+from pollux.core.commands import InitialCommand, PlannedCommand, ResolvedCommand
+from pollux.core.types import Success
+from pollux.pipeline.adapters.base import CachingCapability, GenerationAdapter
+from pollux.pipeline.cache_stage import CacheStage
+from pollux.pipeline.registries import CacheRegistry
 
 
 @dataclass

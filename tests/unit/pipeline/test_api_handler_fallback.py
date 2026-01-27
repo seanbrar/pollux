@@ -2,8 +2,8 @@ from typing import Any, cast
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     Failure,
@@ -14,8 +14,8 @@ from gemini_batch.core.types import (
     Success,
     TextPart,
 )
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.telemetry import (
+from pollux.pipeline.api_handler import APIHandler
+from pollux.telemetry import (
     _EnabledTelemetryContext,  # test-only: explicit enabled context
     _SimpleReporter,
 )

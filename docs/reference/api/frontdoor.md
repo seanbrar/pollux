@@ -8,16 +8,16 @@ Usage examples:
 - Tutorials → [First Batch](../../tutorials/first-batch.md)
 - How‑to → [Verify Real API](../../how-to/verify-real-api.md)
 
-::: gemini_batch.frontdoor.run_simple
+::: pollux.frontdoor.run_simple
 
-::: gemini_batch.frontdoor.run_batch
+::: pollux.frontdoor.run_batch
 
-::: gemini_batch.frontdoor.run_rag
+::: pollux.frontdoor.run_rag
 
-::: gemini_batch.frontdoor.run_multi
+::: pollux.frontdoor.run_multi
 
-::: gemini_batch.frontdoor.run_synthesis
+::: pollux.frontdoor.run_synthesis
 
-::: gemini_batch.frontdoor.run_parallel
+::: pollux.frontdoor.run_parallel
 
 Last reviewed: 2025-09

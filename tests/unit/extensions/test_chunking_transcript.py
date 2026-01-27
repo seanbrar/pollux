@@ -1,6 +1,6 @@
 import pytest
 
-from gemini_batch.extensions.chunking import (
+from pollux.extensions.chunking import (
     TranscriptSegment,
     chunk_transcript_by_tokens,
 )

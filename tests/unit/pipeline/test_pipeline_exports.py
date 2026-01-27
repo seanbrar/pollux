@@ -1,5 +1,5 @@
 def test_pipeline_exports_classes():
-    from gemini_batch.pipeline import (
+    from pollux.pipeline import (
         APIHandler,
         BaseAsyncHandler,
         ExecutionPlanner,

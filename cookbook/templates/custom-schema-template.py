@@ -19,8 +19,8 @@ from pydantic import BaseModel
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, pick_file_by_ext
 from cookbook.utils.json_tools import coerce_json
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 
 class MySchema(BaseModel):

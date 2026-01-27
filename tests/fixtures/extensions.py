@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.executor import create_executor
+from pollux.config import resolve_config
+from pollux.executor import create_executor
 
 
 @pytest.fixture

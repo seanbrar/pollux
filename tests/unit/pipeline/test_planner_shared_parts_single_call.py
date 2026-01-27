@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import InitialCommand, ResolvedCommand
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.config import resolve_config
+from pollux.core.types import InitialCommand, ResolvedCommand
+from pollux.pipeline.planner import ExecutionPlanner
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,11 +30,11 @@ async def test_single_call_shared_parts_carry_files_only_prompt_in_api_parts(
     file_path.write_bytes(b"%PDF-1.4 test")
 
     cfg = resolve_config()
-    from gemini_batch.core.types import Source
+    from pollux.core.types import Source
 
     source = Source.from_file(file_path)
     initial = InitialCommand(sources=(source,), prompts=("Hello?",), config=cfg)
-    from gemini_batch.pipeline.source_handler import SourceHandler
+    from pollux.pipeline.source_handler import SourceHandler
 
     # Resolve sources via the SourceHandler to materialize Source objects
     resolved_result = await SourceHandler().handle(initial)
@@ -48,7 +48,7 @@ async def test_single_call_shared_parts_carry_files_only_prompt_in_api_parts(
     plan = planned_result.value.execution_plan
 
     # Assert: shared_parts contains a FilePlaceholder; primary.api_parts contain only TextPart
-    from gemini_batch.core.types import FilePlaceholder, TextPart
+    from pollux.core.types import FilePlaceholder, TextPart
 
     assert any(isinstance(p, FilePlaceholder) for p in plan.shared_parts)
     assert all(isinstance(p, TextPart) for p in plan.calls[0].api_parts)

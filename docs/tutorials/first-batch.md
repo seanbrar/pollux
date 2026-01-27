@@ -9,7 +9,7 @@
 ```python
 # save as first_batch.py
 import asyncio
-from gemini_batch import run_batch, types
+from pollux import run_batch, types
 
 async def main():
     sources = [

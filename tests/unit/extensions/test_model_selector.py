@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from gemini_batch.core.models import APITier
-from gemini_batch.extensions.model_selector import (
+from pollux.core.models import APITier
+from pollux.extensions.model_selector import (
     SelectionInputs,
     decide,
     maybe_override_model,

@@ -28,16 +28,16 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import InitialCommand
-from gemini_batch.executor import create_executor
-from gemini_batch.frontdoor import run_batch
-from gemini_batch.types import CacheOptions, CachePolicyHint, make_execution_options
+from pollux import types
+from pollux.config import resolve_config
+from pollux.core.types import InitialCommand
+from pollux.executor import create_executor
+from pollux.frontdoor import run_batch
+from pollux.types import CacheOptions, CachePolicyHint, make_execution_options
 
 if TYPE_CHECKING:
-    from gemini_batch.core.execution_options import ExecutionOptions
-    from gemini_batch.core.result_envelope import ResultEnvelope
+    from pollux.core.execution_options import ExecutionOptions
+    from pollux.core.result_envelope import ResultEnvelope
 
 
 async def _run(

@@ -1,6 +1,6 @@
 import pytest
 
-from gemini_batch.core.sources import Source
+from pollux.core.sources import Source
 
 pytestmark = pytest.mark.unit
 

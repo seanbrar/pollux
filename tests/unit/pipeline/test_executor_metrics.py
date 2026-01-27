@@ -1,9 +1,9 @@
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.sources import Source
-from gemini_batch.core.types import InitialCommand
-from gemini_batch.executor import create_executor
+from pollux.config import resolve_config
+from pollux.core.sources import Source
+from pollux.core.types import InitialCommand
+from pollux.executor import create_executor
 
 
 @pytest.mark.asyncio

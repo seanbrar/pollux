@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     HistoryPart,
@@ -20,7 +20,7 @@ from gemini_batch.core.types import (
     ResolvedCommand,
     TextPart,
 )
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.pipeline.api_handler import APIHandler
 
 pytestmark = pytest.mark.unit
 
@@ -66,7 +66,7 @@ async def test_history_part_reaches_adapter_intact() -> None:
             # Minimal single turn to ensure the part is preserved
             # (empty histories are intentionally omitted by the handler)
             # Using placeholder values avoids tight coupling to provider formatting
-            __import__("gemini_batch.core.types", fromlist=["Turn"]).Turn(
+            __import__("pollux.core.types", fromlist=["Turn"]).Turn(
                 question="q", answer="a"
             ),
         )

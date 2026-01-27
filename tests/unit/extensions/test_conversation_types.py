@@ -2,14 +2,14 @@
 
 import pytest
 
-from gemini_batch.core.turn import Turn
-from gemini_batch.extensions.conversation_modes import (
+from pollux.core.turn import Turn
+from pollux.extensions.conversation_modes import (
     SequentialMode,
     SingleMode,
     VectorizedMode,
 )
-from gemini_batch.extensions.conversation_planner import ConversationPlan
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation_planner import ConversationPlan
+from pollux.extensions.conversation_types import (
     BatchMetrics,
     ConversationAnalytics,
     ConversationPolicy,

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from gemini_batch.core import exceptions, models, types
+from pollux.core import exceptions, models, types
 
 if TYPE_CHECKING:
     from collections.abc import Callable

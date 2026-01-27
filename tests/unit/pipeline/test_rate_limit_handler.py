@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from gemini_batch.core.types import (
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     PlannedCommand,
@@ -11,7 +11,7 @@ from gemini_batch.core.types import (
     Success,
     TextPart,
 )
-from gemini_batch.pipeline.rate_limit_handler import RateLimitHandler
+from pollux.pipeline.rate_limit_handler import RateLimitHandler
 
 
 def _planned_with_constraint(rpm: int, tpm: int | None = None) -> PlannedCommand:

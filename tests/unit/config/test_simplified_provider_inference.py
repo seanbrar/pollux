@@ -5,7 +5,7 @@ Tests the streamlined resolve_provider function and pattern-based approach.
 
 import pytest
 
-from gemini_batch.config.utils import resolve_provider
+from pollux.config.utils import resolve_provider
 
 
 class TestProviderInference:

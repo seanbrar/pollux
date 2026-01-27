@@ -19,24 +19,24 @@ Environment Setup (real API)
 ```bash
 # bash/zsh
 export GEMINI_API_KEY="<your key>"
-export GEMINI_BATCH_USE_REAL_API=1
-export GEMINI_BATCH_MODEL="gemini-2.0-flash"   # optional
-export GEMINI_BATCH_TIER="free"                # free | tier_1 | tier_2 | tier_3
+export POLLUX_USE_REAL_API=1
+export POLLUX_MODEL="gemini-2.0-flash"   # optional
+export POLLUX_TIER="free"                # free | tier_1 | tier_2 | tier_3
 ```
 
 Windows PowerShell
 
 ```powershell
 $Env:GEMINI_API_KEY = "<your key>"
-$Env:GEMINI_BATCH_USE_REAL_API = "1"
-$Env:GEMINI_BATCH_MODEL = "gemini-2.0-flash"
-$Env:GEMINI_BATCH_TIER = "free"
+$Env:POLLUX_USE_REAL_API = "1"
+$Env:POLLUX_MODEL = "gemini-2.0-flash"
+$Env:POLLUX_TIER = "free"
 ```
 
 ## 1) Create an executor and a source
 
 ```python title="step1_setup.py"
-from gemini_batch import create_executor, types
+from pollux import create_executor, types
 
 # Create executor from env‑resolved config (real API if env set)
 ex = create_executor()
@@ -49,7 +49,7 @@ src = types.Source.from_file("cookbook/data/public/sample.txt")
 
 ```python title="step2_single_turn.py"
 import asyncio
-from gemini_batch.extensions import Conversation
+from pollux.extensions import Conversation
 from step1_setup import ex, src
 
 async def main() -> None:
@@ -68,7 +68,7 @@ Expected: a short summary string (real API content varies).
 
 ```python title="step3_two_turns.py"
 import asyncio
-from gemini_batch.extensions import Conversation, PromptSet
+from pollux.extensions import Conversation, PromptSet
 from step1_setup import ex, src
 
 async def main() -> None:
@@ -91,7 +91,7 @@ Expected: two printed answers.
 
 ```python title="step4_analytics.py"
 import asyncio
-from gemini_batch.extensions import Conversation, PromptSet
+from pollux.extensions import Conversation, PromptSet
 from step1_setup import ex, src
 
 async def main() -> None:
@@ -137,8 +137,8 @@ turns=3 errors=0 est_tokens=... actual_tokens=...
 
 Tips and Troubleshooting
 
-- Ensure `GEMINI_BATCH_USE_REAL_API=1` and `GEMINI_API_KEY` are set; otherwise you’ll run in mock mode.
-- If throttled, set `GEMINI_BATCH_TIER` to match your billing and reduce concurrency via config if needed.
+- Ensure `POLLUX_USE_REAL_API=1` and `GEMINI_API_KEY` are set; otherwise you’ll run in mock mode.
+- If throttled, set `POLLUX_TIER` to match your billing and reduce concurrency via config if needed.
 - Response content can vary. For reproducible demos, use precise, grounded prompts and short outputs.
 
 Next Steps

@@ -1,6 +1,6 @@
 import pytest
 
-from gemini_batch.core.types import APICall, ExecutionPlan, RateConstraint
+from pollux.core.types import APICall, ExecutionPlan, RateConstraint
 
 pytestmark = pytest.mark.contract
 

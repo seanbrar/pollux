@@ -1,6 +1,6 @@
 # Logging
 
-Configure logging in your application to see detailed logs from `gemini_batch` when you need them. The library never configures handlers for you; it only attaches a `NullHandler` to avoid warnings. You are in full control.
+Configure logging in your application to see detailed logs from `pollux` when you need them. The library never configures handlers for you; it only attaches a `NullHandler` to avoid warnings. You are in full control.
 
 ## Quick start
 
@@ -14,22 +14,22 @@ logging.basicConfig(
 )
 
 # 2) Adjust verbosity per module namespace
-logging.getLogger("gemini_batch").setLevel(logging.WARNING)  # quiet by default
-logging.getLogger("gemini_batch.executor").setLevel(logging.INFO)
+logging.getLogger("pollux").setLevel(logging.WARNING)  # quiet by default
+logging.getLogger("pollux.executor").setLevel(logging.INFO)
 # For deep debugging of a specific component:
-# logging.getLogger("gemini_batch.pipeline.api_handler").setLevel(logging.DEBUG)
+# logging.getLogger("pollux.pipeline.api_handler").setLevel(logging.DEBUG)
 ```
 
 ## Verification
 
-- Run a small script that imports `gemini_batch` and triggers a single operation (e.g., `run_simple`).
+- Run a small script that imports `pollux` and triggers a single operation (e.g., `run_simple`).
 - Expect INFO lines from your root logger and any module loggers you set to INFO/DEBUG.
-- Programmatic check: `assert logging.getLogger("gemini_batch").getEffectiveLevel() <= logging.INFO`.
+- Programmatic check: `assert logging.getLogger("pollux").getEffectiveLevel() <= logging.INFO`.
 
 ## Best practices
 
 - Be explicit: configure logging in your app or entry script; the library won’t add handlers.
-- Use hierarchical control: set a broad level for `gemini_batch`, then override specific submodules as needed.
+- Use hierarchical control: set a broad level for `pollux`, then override specific submodules as needed.
 - Include exception context with `log.exception(...)` or `exc_info=True` for actionable traces.
 - Avoid sensitive data in logs: do not log API keys or raw private content.
 
@@ -39,7 +39,7 @@ Console only (development):
 
 ```python
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
-logging.getLogger("gemini_batch").setLevel(logging.INFO)
+logging.getLogger("pollux").setLevel(logging.INFO)
 ```
 
 File + console (production-friendly):
@@ -59,7 +59,7 @@ fileh.setFormatter(fmt)
 logger.addHandler(fileh)
 
 # Reduce noise globally, then opt-in per module
-logging.getLogger("gemini_batch").setLevel(logging.WARNING)
+logging.getLogger("pollux").setLevel(logging.WARNING)
 ```
 
 ## Notes
@@ -70,6 +70,6 @@ logging.getLogger("gemini_batch").setLevel(logging.WARNING)
 ## Troubleshooting
 
 - I don’t see logs: Ensure you configured handlers (e.g., `basicConfig`) and that the effective level allows the messages you expect.
-- Too noisy: Reduce the `gemini_batch` namespace to `WARNING` and enable INFO/DEBUG only on specific submodules.
+- Too noisy: Reduce the `pollux` namespace to `WARNING` and enable INFO/DEBUG only on specific submodules.
 
 Last reviewed: 2025-09

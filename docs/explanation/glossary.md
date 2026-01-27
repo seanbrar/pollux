@@ -38,5 +38,5 @@ This glossary defines key terms used across the codebase and documentation. It�
 
 ## Configuration & Secrets
 
-- GEMINI_API_KEY / GEMINI_BATCH_API_KEY: Environment variables that hold the provider API key. When both are present, the batch‑specific key takes precedence.
+- GEMINI_API_KEY / POLLUX_API_KEY: Environment variables that hold the provider API key. When both are present, the batch‑specific key takes precedence.
 - ENABLE_API_TESTS: Environment flag that must be set (e.g., `ENABLE_API_TESTS=1`) to collect and run tests marked `api`.

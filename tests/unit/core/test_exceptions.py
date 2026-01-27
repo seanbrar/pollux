@@ -8,7 +8,7 @@ import inspect
 
 import pytest
 
-from gemini_batch.core.exceptions import (
+from pollux.core.exceptions import (
     APIError,
     ConfigurationError,
     FileError,

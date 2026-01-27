@@ -10,7 +10,7 @@
 
 ## Context
 
-The original Gemini Batch design embedded rate limiting in `GeminiClient.rate_limiter`. This approach:
+The original Pollux design embedded rate limiting in `GeminiClient.rate_limiter`. This approach:
 
 - **Coupled rate limiting to client** — Hard to test independently
 - **Used synchronous sleeps** — Blocked event loop
@@ -137,7 +137,7 @@ class RateLimitHandler(BaseAsyncHandler[PlannedCommand, PlannedCommand, Never]):
 
 ## Operational Notes
 
-- Align your environment tier settings (e.g., `GEMINI_BATCH_TIER`) with actual billing/limits to avoid throttling or unexpected 429s.
+- Align your environment tier settings (e.g., `POLLUX_TIER`) with actual billing/limits to avoid throttling or unexpected 429s.
 
 ---
 

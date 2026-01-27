@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gemini_batch.core.exceptions import InvariantViolationError
-from gemini_batch.extensions.conversation_engine import ConversationEngine
-from gemini_batch.extensions.conversation_types import Exchange
+from pollux.core.exceptions import InvariantViolationError
+from pollux.extensions.conversation_engine import ConversationEngine
+from pollux.extensions.conversation_types import Exchange
 
 from ._builders import make_state
 

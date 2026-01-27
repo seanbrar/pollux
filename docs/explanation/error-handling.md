@@ -1,6 +1,6 @@
 # Error Handling Policy
 
-This document explains how errors are validated, surfaced, and observed across the Gemini Batch system. It provides concrete guidance and heuristics for implementers and extension authors to follow predictable, fail-fast behavior without over‑centralizing responsibilities.
+This document explains how errors are validated, surfaced, and observed across the Pollux system. It provides concrete guidance and heuristics for implementers and extension authors to follow predictable, fail-fast behavior without over‑centralizing responsibilities.
 
 ## Principles
 
@@ -45,8 +45,8 @@ Use each where it brings the most clarity to the caller and keeps error context 
 Centralized validation (non‑raising):
 
 ```python
-from gemini_batch.core.result_envelope import explain_invalid_result_envelope
-from gemini_batch.core.types import is_result_envelope
+from pollux.core.result_envelope import explain_invalid_result_envelope
+from pollux.core.types import is_result_envelope
 
 reason = explain_invalid_result_envelope(obj)
 if reason is not None:

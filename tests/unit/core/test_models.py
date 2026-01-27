@@ -6,7 +6,7 @@ principles of determinism, explicit contracts, and pure transformations.
 
 import pytest
 
-from gemini_batch.core.models import (
+from pollux.core.models import (
     MODEL_CAPABILITIES,
     TIER_RATE_LIMITS,
     APITier,

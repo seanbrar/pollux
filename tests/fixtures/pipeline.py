@@ -32,9 +32,9 @@ def mock_gemini_client(mock_env):  # noqa: ARG001
 @pytest.fixture
 def batch_processor(mock_gemini_client):  # noqa: ARG001
     """Provide a BatchProcessor-like adapter using the new executor."""
-    from gemini_batch.config import resolve_config
-    from gemini_batch.core.types import InitialCommand, ResultEnvelope
-    from gemini_batch.executor import GeminiExecutor
+    from pollux.config import resolve_config
+    from pollux.core.types import InitialCommand, ResultEnvelope
+    from pollux.executor import GeminiExecutor
 
     class _TestAdapterBatchProcessor:
         def __init__(self, **config_overrides: Any):
@@ -107,19 +107,19 @@ def batch_processor(mock_gemini_client):  # noqa: ARG001
 @pytest.fixture
 def char_executor(mock_gemini_client):
     """Provide a GeminiExecutor wired with a controllable test adapter."""
-    from gemini_batch.config import resolve_config
-    from gemini_batch.executor import GeminiExecutor
-    from gemini_batch.pipeline.adapters.base import (
+    from pollux.config import resolve_config
+    from pollux.executor import GeminiExecutor
+    from pollux.pipeline.adapters.base import (
         CachingCapability,
         ExecutionHintsAware,
         GenerationAdapter,
     )
-    from gemini_batch.pipeline.api_handler import APIHandler
-    from gemini_batch.pipeline.cache_stage import CacheStage
-    from gemini_batch.pipeline.execution_state import ExecutionHints
-    from gemini_batch.pipeline.rate_limit_handler import RateLimitHandler
-    from gemini_batch.pipeline.result_builder import ResultBuilder
-    from gemini_batch.pipeline.source_handler import SourceHandler
+    from pollux.pipeline.api_handler import APIHandler
+    from pollux.pipeline.cache_stage import CacheStage
+    from pollux.pipeline.execution_state import ExecutionHints
+    from pollux.pipeline.rate_limit_handler import RateLimitHandler
+    from pollux.pipeline.result_builder import ResultBuilder
+    from pollux.pipeline.source_handler import SourceHandler
 
     class _Adapter(GenerationAdapter, CachingCapability, ExecutionHintsAware):
         def __init__(self) -> None:
@@ -184,8 +184,8 @@ def char_executor(mock_gemini_client):
     def make_executor(
         *, interaction_log: list[dict[str, object]] | None = None
     ) -> GeminiExecutor:
-        from gemini_batch.pipeline.planner import ExecutionPlanner
-        from gemini_batch.pipeline.registries import CacheRegistry
+        from pollux.pipeline.planner import ExecutionPlanner
+        from pollux.pipeline.registries import CacheRegistry
 
         cfg = resolve_config(
             overrides={

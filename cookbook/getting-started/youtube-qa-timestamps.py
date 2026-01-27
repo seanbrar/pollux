@@ -23,8 +23,8 @@ import argparse
 import asyncio
 import re
 
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 TIMESTAMPS_PROMPT = (
     "Answer concisely. Include timestamps like [mm:ss] or [hh:mm:ss] near key points."

@@ -7,11 +7,11 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.core.api_plan import UploadTask
-from gemini_batch.core.types import APIPart, FilePlaceholder
-from gemini_batch.pipeline.adapters.base import UploadsCapability
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.pipeline.registries import FileRegistry
+from pollux.core.api_plan import UploadTask
+from pollux.core.types import APIPart, FilePlaceholder
+from pollux.pipeline.adapters.base import UploadsCapability
+from pollux.pipeline.api_handler import APIHandler
+from pollux.pipeline.registries import FileRegistry
 
 
 @dataclass

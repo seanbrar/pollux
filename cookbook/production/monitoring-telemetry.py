@@ -5,7 +5,7 @@ When you need to: Enable telemetry, inspect stage timings, and surface metrics
 to plug into dashboards.
 
 Ingredients:
-- `GEMINI_BATCH_TELEMETRY=1` (recommended) or rely on envelope metrics
+- `POLLUX_TELEMETRY=1` (recommended) or rely on envelope metrics
 - A small batch (multiple prompts and at least one file)
 
 What you'll learn:
@@ -29,8 +29,8 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 
 def _print_durations(metrics: dict[str, Any]) -> None:
@@ -47,7 +47,7 @@ def _print_durations(metrics: dict[str, Any]) -> None:
 
 
 async def main_async(directory: Path, limit: int = 2) -> None:
-    os.environ.setdefault("GEMINI_BATCH_TELEMETRY", "1")
+    os.environ.setdefault("POLLUX_TELEMETRY", "1")
     prompts = ["Identify three key takeaways.", "List top entities mentioned."]
     files = pick_files_by_ext(directory, [".pdf", ".txt"], limit=limit)
     sources = tuple(types.Source.from_file(p) for p in files)

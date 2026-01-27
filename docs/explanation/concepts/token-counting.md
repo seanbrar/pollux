@@ -4,7 +4,7 @@
 
 ## Purpose & Scope
 
-This document explains how Gemini Batch **estimates** token usage to support planning (batch sizing, caching decisions, and cost predictability). It is vendor-neutral by design and integrates cleanly with the Command Pipeline.
+This document explains how Pollux **estimates** token usage to support planning (batch sizing, caching decisions, and cost predictability). It is vendor-neutral by design and integrates cleanly with the Command Pipeline.
 
 **In scope**:
 

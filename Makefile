@@ -1,4 +1,4 @@
-# Gemini Batch Processing Testing Makefile
+# Pollux Batch Processing Testing Makefile
 
 # ------------------------------------------------------------------------------
 # Configuration
@@ -6,9 +6,9 @@
 PYTEST = pytest
 PYTEST_ARGS = -v
 COVERAGE_FAIL_UNDER ?= 80
-COVERAGE_ARGS = --cov=gemini_batch --cov-report=term-missing --cov-report=html:coverage_html_report --cov-report=xml --cov-fail-under=$(COVERAGE_FAIL_UNDER)
-PR_COVERAGE_ARGS = --cov=gemini_batch --cov-report=term-missing --cov-report=xml --cov-fail-under=$(COVERAGE_FAIL_UNDER)
-PR_COVERAGE_ARGS_NO_FAIL = --cov=gemini_batch --cov-report=term-missing --cov-report=xml
+COVERAGE_ARGS = --cov=pollux --cov-report=term-missing --cov-report=html:coverage_html_report --cov-report=xml --cov-fail-under=$(COVERAGE_FAIL_UNDER)
+PR_COVERAGE_ARGS = --cov=pollux --cov-report=term-missing --cov-report=xml --cov-fail-under=$(COVERAGE_FAIL_UNDER)
+PR_COVERAGE_ARGS_NO_FAIL = --cov=pollux --cov-report=term-missing --cov-report=xml
 
 # Default log level for pytest's console output. Can be overridden.
 TEST_LOG_LEVEL ?= WARNING

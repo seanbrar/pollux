@@ -2,11 +2,11 @@
 
 import pytest
 
-from gemini_batch.extensions.conversation_planner import (
+from pollux.extensions.conversation_planner import (
     ConversationPlan,
     compile_conversation,
 )
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation_types import (
     ConversationPolicy,
     Exchange,
     PromptSet,

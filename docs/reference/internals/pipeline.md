@@ -4,30 +4,30 @@ Core pipeline handlers and supporting utilities. These are stable but considered
 
 ## Handler Protocol
 
-::: gemini_batch.pipeline.base.BaseAsyncHandler
+::: pollux.pipeline.base.BaseAsyncHandler
 
 ## Handlers
 
-::: gemini_batch.pipeline.source_handler.SourceHandler
+::: pollux.pipeline.source_handler.SourceHandler
 
-::: gemini_batch.pipeline.planner.ExecutionPlanner
+::: pollux.pipeline.planner.ExecutionPlanner
 
-::: gemini_batch.pipeline.remote_materialization.RemoteMaterializationStage
+::: pollux.pipeline.remote_materialization.RemoteMaterializationStage
 
-::: gemini_batch.pipeline.cache_stage.CacheStage
+::: pollux.pipeline.cache_stage.CacheStage
 
-::: gemini_batch.pipeline.api_handler.APIHandler
+::: pollux.pipeline.api_handler.APIHandler
 
-::: gemini_batch.pipeline.rate_limit_handler.RateLimitHandler
+::: pollux.pipeline.rate_limit_handler.RateLimitHandler
 
-::: gemini_batch.pipeline.result_builder.ResultBuilder
+::: pollux.pipeline.result_builder.ResultBuilder
 
 ## Execution State and Identity
 
-::: gemini_batch.pipeline.execution_state.ExecutionHints
+::: pollux.pipeline.execution_state.ExecutionHints
 
-::: gemini_batch.pipeline.cache_identity.det_shared_key
+::: pollux.pipeline.cache_identity.det_shared_key
 
 ## Type Erasure (Internal)
 
-::: gemini_batch.pipeline._erasure.ErasedAsyncHandler
+::: pollux.pipeline._erasure.ErasedAsyncHandler

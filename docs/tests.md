@@ -8,7 +8,7 @@ Audience: contributors and maintainers working on tests. If you only need to run
 
 ## Layout
 
-Typical layout (may vary slightly by domain maturity). Tests generally mirror the `src/gemini_batch/*` domains inside each test type:
+Typical layout (may vary slightly by domain maturity). Tests generally mirror the `src/pollux/*` domains inside each test type:
 
 ```text
 tests/
@@ -50,7 +50,7 @@ Register or adjust markers in `pyproject.toml` under `[tool.pytest.ini_options].
 <!-- markdownlint-disable MD046 -->
 !!! note "Running API tests"
 
-    API tests are opt‑in and will be collected and executed only when you set an API key and explicitly enable them. Set either `GEMINI_API_KEY` or `GEMINI_BATCH_API_KEY` and also `ENABLE_API_TESTS=1`. Running API tests may incur costs and be subject to provider rate limits—enable them intentionally.
+    API tests are opt‑in and will be collected and executed only when you set an API key and explicitly enable them. Set either `GEMINI_API_KEY` or `POLLUX_API_KEY` and also `ENABLE_API_TESTS=1`. Running API tests may incur costs and be subject to provider rate limits—enable them intentionally.
 <!-- markdownlint-enable MD046 -->
 
 ## Lanes (Make targets)
