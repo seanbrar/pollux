@@ -132,6 +132,36 @@ class TestReleaseWorkflowLogic:
         )
 
     @pytest.mark.workflows
+    def test_publish_step_skipped_during_dry_run(self, release_workflow):
+        """Publish step must be skipped during dry run to prevent tag-not-found errors.
+
+        Regression test: In dry_run mode, semantic-release calculates versions but
+        does not create git tags. The publish step must check for dry_run to avoid
+        attempting to publish to a non-existent tag.
+        """
+        release_job = release_workflow["jobs"]["release"]
+        steps = release_job["steps"]
+
+        # Find the publish step
+        publish_steps = [
+            step for step in steps if step.get("name") == "Publish to GitHub Release"
+        ]
+        assert publish_steps, "Should have 'Publish to GitHub Release' step"
+
+        publish_step = publish_steps[0]
+        condition = publish_step.get("if", "")
+
+        # Must check that a release was made
+        assert "steps.release.outputs.released == 'true'" in condition, (
+            "Publish step must check that release was made"
+        )
+
+        # Must exclude dry run mode to prevent tag-not-found errors
+        assert "dry_run" in condition, (
+            "Publish step must check dry_run to skip during dry run mode"
+        )
+
+    @pytest.mark.workflows
     def test_git_configuration_in_release(self, release_workflow):
         """Release workflow should configure Git properly."""
         release_job = release_workflow["jobs"]["release"]
