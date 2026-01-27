@@ -42,9 +42,7 @@ def test_efficiency_comparison_main_async_prints_summary_and_env(
     async def fake_compare_efficiency(*_args, **_kwargs):
         return report
 
-    monkeypatch.setattr(
-        "pollux.research.compare_efficiency", fake_compare_efficiency
-    )
+    monkeypatch.setattr("pollux.research.compare_efficiency", fake_compare_efficiency)
 
     # Act: load the recipe module by path (filenames use dashes)
     ns = load_recipe("cookbook/optimization/efficiency-comparison.py")

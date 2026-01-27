@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Iterable
 from pathlib import Path
 from types import TracebackType
+from typing import Self
 
 from _pytest.monkeypatch import MonkeyPatch
 import pytest
@@ -65,7 +66,7 @@ class _FakeResp:
         self._ptr += len(chunk)
         return chunk
 
-    def __enter__(self) -> "_FakeResp":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(

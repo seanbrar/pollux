@@ -124,7 +124,8 @@ class Conversation:
     async def ask(self, prompt: str) -> Conversation:
         """Ask a single prompt and append the result as a new turn."""
         ps = PromptSet.single(prompt)
-        conv, answers, _ = await self.run(ps)
+        conv, _answers, _ = await self.run(ps)
+
         return conv  # answers available at conv.state.last.assistant
 
     async def run(
