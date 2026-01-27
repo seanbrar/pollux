@@ -11,9 +11,9 @@ from unittest.mock import patch
 from pydantic import ValidationError
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.models import APITier
+from pollux.config import resolve_config
+from pollux.config.core import FrozenConfig
+from pollux.core.models import APITier
 
 
 class TestConfigurationSecurityContracts:
@@ -46,7 +46,7 @@ class TestConfigurationSecurityContracts:
             cfg, origin = resolve_config(explain=True)
 
             # Redacted representation should not contain secret
-            from gemini_batch.config.core import audit_text
+            from pollux.config.core import audit_text
 
             redacted_text = audit_text(cfg, origin)
             assert secret_key not in redacted_text
@@ -137,7 +137,7 @@ class TestConfigurationSecurityContracts:
             cfg = resolve_config()
 
             # Test common logging representations
-            from gemini_batch.config.core import audit_text
+            from pollux.config.core import audit_text
 
             cfg2, origin = resolve_config(explain=True)
             logging_representations = [

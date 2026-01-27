@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from gemini_batch.extensions.timestamp_linker import link_timestamps
+from pollux.extensions.timestamp_linker import link_timestamps
 
 
 def test_link_timestamps_parses_and_links_youtube():

@@ -9,10 +9,10 @@ import tempfile
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.sources import sources_from_directory
-from gemini_batch.core.types import InitialCommand, Source, Success
-from gemini_batch.pipeline.source_handler import SourceHandler
+from pollux.config import resolve_config
+from pollux.core.sources import sources_from_directory
+from pollux.core.types import InitialCommand, Source, Success
+from pollux.pipeline.source_handler import SourceHandler
 
 
 @pytest.mark.unit

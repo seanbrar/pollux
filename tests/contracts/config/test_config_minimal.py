@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
-from gemini_batch.config import resolve_config
+from pollux.config import resolve_config
 
 # compatibility helpers removed; tests use resolve_config()/to_frozen()
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.models import APITier
-from gemini_batch.executor import create_executor
+from pollux.config.core import FrozenConfig
+from pollux.core.models import APITier
+from pollux.executor import create_executor
 
 
 class TestEssentialConfigurationContracts:
@@ -116,7 +116,7 @@ class TestEssentialConfigurationContracts:
 
         # convert dict to FrozenConfig via resolve/to_frozen flow
         # Use the resolver to validate and normalize, then convert
-        from gemini_batch.config import resolve_config
+        from pollux.config import resolve_config
 
         result = resolve_config(overrides=dict_config)
         assert isinstance(result, FrozenConfig)

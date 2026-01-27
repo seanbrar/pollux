@@ -21,7 +21,7 @@ See also:
 
 ## Directory
 
-- ADR‑0001: Adopt Asynchronous Handler Pipeline for Gemini Batch Execution — Accepted (2025‑08‑11). Scope: executor/pipeline. Why: immutability, stateless handlers, async throughput.
+- ADR‑0001: Adopt Asynchronous Handler Pipeline for Pollux Execution — Accepted (2025‑08‑11). Scope: executor/pipeline. Why: immutability, stateless handlers, async throughput.
 - ADR‑0002: Hybrid Token Estimation with Provider Adapters and Validation Telemetry — Accepted (2025‑08‑12). Scope: planner/tokens. Why: provider‑agnostic, conservative planning, validation at execution.
 - ADR‑0003: Capability‑Based API Handler with Pure Execution State — Accepted (2025‑08‑13). Scope: API handler/adapters. Why: capability protocols, pure state, orthogonal telemetry.
 - ADR‑0004: Middleware Pattern for Vendor‑Neutral Rate Limiting — Accepted (2025‑08‑13). Scope: pipeline/middleware. Why: data‑driven constraints, dual limiters, observability.

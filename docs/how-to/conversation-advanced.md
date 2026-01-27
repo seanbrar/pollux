@@ -5,9 +5,9 @@ Concise examples of production‑ready features in the Conversation extension.
 ## 1) Context Sources (explicit, validated)
 
 ```python
-from gemini_batch import create_executor
-from gemini_batch.core.types import Source
-from gemini_batch.extensions import Conversation
+from pollux import create_executor
+from pollux.core.types import Source
+from pollux.extensions import Conversation
 
 ex = create_executor()
 conv = Conversation.start(ex, sources=[
@@ -19,7 +19,7 @@ conv = Conversation.start(ex, sources=[
 ## 2) Modes: Single, Sequential, Vectorized
 
 ```python
-from gemini_batch.extensions import PromptSet
+from pollux.extensions import PromptSet
 
 # Single (one Q→A turn)
 conv, _, _ = await conv.run(PromptSet.single("Summarize the abstract."))
@@ -38,7 +38,7 @@ conv, answers, _ = await conv.run(PromptSet.vectorized(
 ## 3) History Windowing (production‑grade context control)
 
 ```python
-from gemini_batch.extensions import ConversationPolicy
+from pollux.extensions import ConversationPolicy
 
 conv = conv.with_policy(ConversationPolicy(keep_last_n=3))
 # Only the last 3 turns are included in planning history
@@ -48,7 +48,7 @@ conv = conv.with_policy(ConversationPolicy(keep_last_n=3))
 
 ```python
 from dataclasses import replace
-from gemini_batch.extensions import ConversationPolicy
+from pollux.extensions import ConversationPolicy
 
 # Attach deterministic cache identity (state‑level)
 conv = Conversation(
@@ -84,8 +84,8 @@ assert opts.result.prefer_json_array is True
 ## 6) Persistence & OCC (backend‑friendly)
 
 ```python
-from gemini_batch.extensions.conversation_store import JSONStore
-from gemini_batch.extensions.conversation_engine import ConversationEngine
+from pollux.extensions.conversation_store import JSONStore
+from pollux.extensions.conversation_engine import ConversationEngine
 
 store = JSONStore("./conversations.json")
 engine = ConversationEngine(ex, store)

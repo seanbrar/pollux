@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_batch.extensions.conversation_modes import SingleMode, VectorizedMode
-from gemini_batch.extensions.conversation_planner import compile_conversation
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation_modes import SingleMode, VectorizedMode
+from pollux.extensions.conversation_planner import compile_conversation
+from pollux.extensions.conversation_types import (
     ConversationPolicy,
     ConversationState,
     PromptSet,
@@ -15,7 +15,7 @@ pytestmark = pytest.mark.unit
 
 def test_history_window_applied() -> None:
     # Prepare prior turns
-    from gemini_batch.extensions.conversation_types import Exchange
+    from pollux.extensions.conversation_types import Exchange
 
     turns = (
         Exchange("q1", "a1", error=False),

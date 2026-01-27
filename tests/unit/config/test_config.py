@@ -20,7 +20,7 @@ from unittest.mock import patch
 from pydantic import ValidationError
 import pytest
 
-from gemini_batch.config import (
+from pollux.config import (
     FrozenConfig,
     Origin,
     Settings,
@@ -28,7 +28,7 @@ from gemini_batch.config import (
     resolve_config,
     resolve_provider,
 )
-from gemini_batch.core.models import APITier
+from pollux.core.models import APITier
 
 pytestmark = pytest.mark.unit
 
@@ -97,9 +97,9 @@ class TestConfigResolution:
         """Should return defaults when no other sources provide values."""
         # Mock all loaders to return empty dicts - pure defaults test
         with (
-            patch("gemini_batch.config.loaders.load_env", return_value={}),
-            patch("gemini_batch.config.loaders.load_pyproject", return_value={}),
-            patch("gemini_batch.config.loaders.load_home", return_value={}),
+            patch("pollux.config.loaders.load_env", return_value={}),
+            patch("pollux.config.loaders.load_pyproject", return_value={}),
+            patch("pollux.config.loaders.load_home", return_value={}),
         ):
             config = resolve_config()
 
@@ -112,7 +112,7 @@ class TestConfigResolution:
     def test_resolve_config_with_overrides(self):
         """Overrides should take highest precedence."""
         clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
-        clean_env["GEMINI_BATCH_MODEL"] = "env-model"
+        clean_env["POLLUX_MODEL"] = "env-model"
         with patch.dict(os.environ, clean_env, clear=True):
             config = resolve_config(overrides={"model": "override-model"})
 
@@ -123,9 +123,9 @@ class TestConfigResolution:
         with patch.dict(
             os.environ,
             {
-                "GEMINI_BATCH_MODEL": "env-model",
-                "GEMINI_BATCH_USE_REAL_API": "true",
-                "GEMINI_BATCH_TTL_SECONDS": "7200",
+                "POLLUX_MODEL": "env-model",
+                "POLLUX_USE_REAL_API": "true",
+                "POLLUX_TTL_SECONDS": "7200",
                 "GEMINI_API_KEY": "test",  # ensure valid when use_real_api=true
             },
             clear=True,
@@ -139,14 +139,14 @@ class TestConfigResolution:
     def test_resolve_config_explain_returns_source_map(self):
         """Should return SourceMap when explain=True."""
         clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
-        clean_env["GEMINI_BATCH_MODEL"] = "env-model"
+        clean_env["POLLUX_MODEL"] = "env-model"
         with patch.dict(os.environ, clean_env, clear=True):
             config, sources = resolve_config(explain=True)
 
             assert isinstance(config, FrozenConfig)
             assert isinstance(sources, dict)
             assert sources["model"].origin == Origin.ENV
-            assert sources["model"].env_key == "GEMINI_BATCH_MODEL"
+            assert sources["model"].env_key == "POLLUX_MODEL"
             assert sources["api_key"].origin == Origin.DEFAULT
 
     def test_resolve_config_extra_fields_preserved(self):
@@ -264,7 +264,7 @@ class TestFileLoading:
     def test_pyproject_toml_loading(self, isolated_config_sources):
         """Should load configuration from pyproject.toml."""
         toml_content = """
-[tool.gemini_batch]
+[tool.pollux]
 model = "file-model"
 enable_caching = true
 ttl_seconds = 1800
@@ -279,11 +279,11 @@ ttl_seconds = 1800
     def test_profile_overlay_from_toml(self, isolated_config_sources):
         """Should overlay profile configuration over base configuration."""
         toml_content = """
-[tool.gemini_batch]
+[tool.pollux]
 model = "base-model"
 enable_caching = false
 
-[tool.gemini_batch.profiles.research]
+[tool.pollux.profiles.research]
 model = "research-model"
 ttl_seconds = 7200
 """
@@ -295,12 +295,12 @@ ttl_seconds = 7200
             assert config.ttl_seconds == 7200  # From profile
 
     def test_profile_from_environment_variable(self, isolated_config_sources):
-        """Should use GEMINI_BATCH_PROFILE environment variable."""
+        """Should use POLLUX_PROFILE environment variable."""
         toml_content = """
-[tool.gemini_batch]
+[tool.pollux]
 model = "base-model"
 
-[tool.gemini_batch.profiles.test]
+[tool.pollux.profiles.test]
 model = "test-model"
 """
 
@@ -333,7 +333,7 @@ class TestEnvironmentLoading:
             with patch.dict(
                 os.environ,
                 {
-                    "GEMINI_BATCH_USE_REAL_API": env_value,
+                    "POLLUX_USE_REAL_API": env_value,
                     "GEMINI_API_KEY": "test",
                 },
                 clear=True,
@@ -345,7 +345,7 @@ class TestEnvironmentLoading:
 
     def test_environment_integer_coercion(self):
         """Should correctly coerce integer values from environment."""
-        with patch.dict(os.environ, {"GEMINI_BATCH_TTL_SECONDS": "1234"}, clear=True):
+        with patch.dict(os.environ, {"POLLUX_TTL_SECONDS": "1234"}, clear=True):
             config = resolve_config()
             assert config.ttl_seconds == 1234
 
@@ -353,7 +353,7 @@ class TestEnvironmentLoading:
         """Invalid integers should be caught by Pydantic validation."""
         with (
             patch.dict(
-                os.environ, {"GEMINI_BATCH_TTL_SECONDS": "not-a-number"}, clear=True
+                os.environ, {"POLLUX_TTL_SECONDS": "not-a-number"}, clear=True
             ),
             pytest.raises(ValidationError),
         ):
@@ -364,7 +364,7 @@ class TestEnvironmentLoading:
         # This is a bit tricky to test reliably without affecting the environment
         # The actual loading is handled by the dotenv library
         # We mainly test that the function doesn't crash when dotenv is not available
-        from gemini_batch.config.loaders import load_env
+        from pollux.config.loaders import load_env
 
         # Should not raise an exception even if dotenv fails
         result = load_env()
@@ -382,7 +382,7 @@ class TestEdgeCases:
                 os.environ,
                 {
                     **clean_env,
-                    "GEMINI_BATCH_PYPROJECT_PATH": "/nonexistent/pyproject.toml",
+                    "POLLUX_PYPROJECT_PATH": "/nonexistent/pyproject.toml",
                 },
                 clear=True,
             ),
@@ -396,7 +396,7 @@ class TestEdgeCases:
     def test_malformed_toml_files_handled_gracefully(self):
         """Malformed TOML files should not cause errors."""
         malformed_content = """
-[tool.gemini_batch
+[tool.pollux
 # Missing closing bracket - invalid TOML
 model = "test"
 """
@@ -406,7 +406,7 @@ model = "test"
             patch.dict(os.environ, clean_env, clear=True),
             self.temp_toml_file(malformed_content) as temp_file,
             patch.dict(
-                os.environ, {"GEMINI_BATCH_PYPROJECT_PATH": str(temp_file)}, clear=False
+                os.environ, {"POLLUX_PYPROJECT_PATH": str(temp_file)}, clear=False
             ),
         ):
             # Use env override for malformed file path

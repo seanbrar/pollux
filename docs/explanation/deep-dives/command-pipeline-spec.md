@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-This document details the technical architecture, data structures, and component responsibilities for the Command Pipeline. It assumes familiarity with the Gemini Batch codebase.
+This document details the technical architecture, data structures, and component responsibilities for the Command Pipeline. It assumes familiarity with the Pollux codebase.
 
 ---
 
@@ -118,7 +118,7 @@ class GeminiExecutor:
 
 ## 7. Directory Structure
 
-Matches updated pipeline roles under `/src/gemini_batch/pipeline/`.
+Matches updated pipeline roles under `/src/pollux/pipeline/`.
 
 ---
 

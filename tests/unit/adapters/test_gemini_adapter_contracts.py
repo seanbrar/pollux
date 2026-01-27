@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_batch.core.types import Source
-from gemini_batch.pipeline.tokens.adapters.base import EstimationAdapter
-from gemini_batch.pipeline.tokens.adapters.gemini import GeminiEstimationAdapter
+from pollux.core.types import Source
+from pollux.pipeline.tokens.adapters.base import EstimationAdapter
+from pollux.pipeline.tokens.adapters.gemini import GeminiEstimationAdapter
 
 pytestmark = pytest.mark.contract
 

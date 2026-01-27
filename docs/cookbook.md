@@ -13,7 +13,7 @@ Problem‑first, copy‑pasteable recipes you can run directly from the repo wit
 - Working directory: defaults to repository root. Opt out with `--no-cwd-repo-root` if you want to run from the current directory.
 - Passing args: place recipe flags after `--` (everything after is forwarded to the recipe).
 
-For more details about the runner and `gb-config`, see Reference → CLI: reference/cli.md.
+For more details about the runner and `pollux-config`, see Reference → CLI: reference/cli.md.
 
 Examples:
 
@@ -30,11 +30,11 @@ python -m cookbook production.resume_on_failure -- --limit 1
 
 Notes:
 
-- For real API calls, set `GEMINI_API_KEY`, `GEMINI_BATCH_TIER`, and `GEMINI_BATCH_USE_REAL_API=1`.
+- For real API calls, set `GEMINI_API_KEY`, `POLLUX_TIER`, and `POLLUX_USE_REAL_API=1`.
 - If you prefer mock mode (default), no key is needed; outputs include the `echo:` prefix.
 
 !!! warning "Costs & rate limits"
-    Real API calls may incur costs and are subject to tier‑specific rate limits. Set `GEMINI_BATCH_TIER` to match your billing plan and start with low concurrency.
+    Real API calls may incur costs and are subject to tier‑specific rate limits. Set `POLLUX_TIER` to match your billing plan and start with low concurrency.
 
 ## Demo Data (optional)
 

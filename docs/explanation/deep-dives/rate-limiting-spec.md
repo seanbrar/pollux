@@ -153,8 +153,8 @@ class DualMicroLimiter:
 
 ```python
 from typing import Callable, Protocol
-from gemini_batch.pipeline.base import BaseAsyncHandler
-from gemini_batch.telemetry import TelemetryContextProtocol
+from pollux.pipeline.base import BaseAsyncHandler
+from pollux.telemetry import TelemetryContextProtocol
 
 # Type for key extraction
 KeyExtractor = Callable[[PlannedCommand], tuple[str, ...]]
@@ -266,7 +266,7 @@ class RateLimitCapability(Protocol):
 ### Gemini Provider Implementation
 
 ```python
-from gemini_batch.client.models import APITier, get_rate_limits
+from pollux.client.models import APITier, get_rate_limits
 
 class GeminiRateLimitCapability:
     """Gemini-specific rate limit provider."""

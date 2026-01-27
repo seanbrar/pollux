@@ -1,4 +1,4 @@
-# Gemini Batch Architecture – At a Glance
+# Pollux Architecture – At a Glance
 
 > Status: Target architecture. Some components still map to legacy classes on this branch. The new token estimation system is implemented on a separate branch; see Related Docs.
 >

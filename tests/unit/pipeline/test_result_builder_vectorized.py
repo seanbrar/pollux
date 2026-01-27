@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     FinalizedCommand,
     InitialCommand,
     PlannedCommand,
     ResolvedCommand,
     Success,
 )
-from gemini_batch.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.result_builder import ResultBuilder
 
 pytestmark = pytest.mark.unit
 
@@ -23,7 +23,7 @@ def _planned_with_prompts(n: int) -> PlannedCommand:
         sources=(), prompts=tuple(f"P{i + 1}" for i in range(n)), config=cfg
     )
     resolved = ResolvedCommand(initial=initial, resolved_sources=())
-    from gemini_batch.core.types import APICall, ExecutionPlan, TextPart
+    from pollux.core.types import APICall, ExecutionPlan, TextPart
 
     primary = APICall(model_name="m", api_parts=(TextPart("joined"),), api_config={})
     plan = ExecutionPlan(calls=(primary,))

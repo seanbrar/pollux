@@ -1,8 +1,8 @@
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.concurrency import resolve_request_concurrency
-from gemini_batch.core.execution_options import make_execution_options
+from pollux.config import resolve_config
+from pollux.core.concurrency import resolve_request_concurrency
+from pollux.core.execution_options import make_execution_options
 
 
 @pytest.mark.unit

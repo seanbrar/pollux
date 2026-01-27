@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.extensions.token_counting import (
+from pollux.extensions.token_counting import (
     ErrorInfo,
     GeminiTokenCounter,
     InvalidContentError,
@@ -96,7 +96,7 @@ async def test_counter_handles_token_count_error(
     content = ValidContent.from_text("hello")
 
     # Patch the internal API function to raise a domain error
-    from gemini_batch.extensions import token_counting as mod
+    from pollux.extensions import token_counting as mod
 
     def boom(text: str, model_name: str) -> int:  # noqa: ARG001
         raise TokenCountError("service down", recovery_hint="try later")
@@ -118,7 +118,7 @@ async def test_counter_handles_unexpected_exception(
 ) -> None:
     content = ValidContent.from_text("hello")
 
-    from gemini_batch.extensions import token_counting as mod
+    from pollux.extensions import token_counting as mod
 
     def boom(text: str, model_name: str) -> int:  # noqa: ARG001
         raise RuntimeError("kaboom")
@@ -148,7 +148,7 @@ async def test_counter_success_with_patched_api(
 ) -> None:
     content = ValidContent.from_text("hello world")
 
-    from gemini_batch.extensions import token_counting as mod
+    from pollux.extensions import token_counting as mod
 
     def ok(text: str, model_name: str) -> int:  # noqa: ARG001
         return 10
@@ -171,7 +171,7 @@ async def test_counter_invokes_api_off_event_loop(
 
     content = ValidContent.from_text("hello")
 
-    from gemini_batch.extensions import token_counting as mod
+    from pollux.extensions import token_counting as mod
 
     called_thread: int | None = None
 

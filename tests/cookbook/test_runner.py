@@ -79,7 +79,7 @@ def test_main_runs_recipe_via_path(
             "usage": {"total_token_count": 1},
         }
 
-    monkeypatch.setattr("gemini_batch.frontdoor.run_simple", fake_run_simple)
+    monkeypatch.setattr("pollux.frontdoor.run_simple", fake_run_simple)
 
     code = runner.main(
         [
@@ -109,7 +109,7 @@ def test_main_runs_recipe_via_dotted(
             "usage": {"total_token_count": 1},
         }
 
-    monkeypatch.setattr("gemini_batch.frontdoor.run_simple", fake_run_simple)
+    monkeypatch.setattr("pollux.frontdoor.run_simple", fake_run_simple)
 
     code = runner.main(
         [
@@ -138,7 +138,7 @@ def test_repo_root_path_outside_cookbook_is_rejected(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # Points to a real file in repo but outside cookbook
-    code = runner.main(["src/gemini_batch/frontdoor.py"])
+    code = runner.main(["src/pollux/frontdoor.py"])
     assert code == 2
     err = capsys.readouterr().err
     assert "Recipe not found" in err

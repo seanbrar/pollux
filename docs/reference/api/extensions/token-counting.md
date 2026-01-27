@@ -6,6 +6,6 @@ Usage examples:
 - Concepts → Extensions → [Token Counting & Estimation](../../../explanation/concepts/token-counting.md)
 - Specifications → [Token Counting Calibration](../../../explanation/deep-dives/token-counting-calibration.md)
 
-::: gemini_batch.extensions.token_counting
+::: pollux.extensions.token_counting
 
 Last reviewed: 2025-09

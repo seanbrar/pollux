@@ -6,13 +6,13 @@ from types import TracebackType
 from _pytest.monkeypatch import MonkeyPatch
 import pytest
 
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.api_plan import APICall, ExecutionPlan
-from gemini_batch.core.commands import InitialCommand, PlannedCommand, ResolvedCommand
-from gemini_batch.core.execution_options import ExecutionOptions, RemoteFilePolicy
-from gemini_batch.core.models import APITier
-from gemini_batch.core.types import APIPart, FileRefPart, Success
-from gemini_batch.pipeline.remote_materialization import RemoteMaterializationStage
+from pollux.config.core import FrozenConfig
+from pollux.core.api_plan import APICall, ExecutionPlan
+from pollux.core.commands import InitialCommand, PlannedCommand, ResolvedCommand
+from pollux.core.execution_options import ExecutionOptions, RemoteFilePolicy
+from pollux.core.models import APITier
+from pollux.core.types import APIPart, FileRefPart, Success
+from pollux.pipeline.remote_materialization import RemoteMaterializationStage
 
 
 @pytest.fixture(autouse=True)
@@ -397,6 +397,6 @@ async def test_redirect_to_non_http_scheme_fail(monkeypatch: MonkeyPatch) -> Non
     stage = RemoteMaterializationStage()
     out = await stage.handle(cmd)
     # Import within block to avoid unused import outside this test
-    from gemini_batch.core.types import Failure as _Failure
+    from pollux.core.types import Failure as _Failure
 
     assert isinstance(out, _Failure)

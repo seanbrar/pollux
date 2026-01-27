@@ -83,7 +83,7 @@ If `apply_if_sources=true` and sources are present, the assembler appends `sourc
 ## Configuration Keys (summary)
 
 ```toml
-[tool.gemini_batch.prompts]
+[tool.pollux.prompts]
 # System instruction
 system = "You are a careful assistant…"        # optional
 system_file = "prompts/system.txt"             # optional; used only if 'system' is unset
@@ -149,7 +149,7 @@ res = executor.execute(cmd)
 ### 2) User prompt from file
 
 ```toml
-[tool.gemini_batch.prompts]
+[tool.pollux.prompts]
 user_file = "prompts/query.txt"
 ```
 
@@ -162,7 +162,7 @@ res = executor.execute(cmd)
 ### 3) Advanced builder
 
 ```toml
-[tool.gemini_batch.prompts]
+[tool.pollux.prompts]
 builder = "my_pkg.my_mod:build_prompts"
 ```
 

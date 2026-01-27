@@ -1,4 +1,4 @@
-# ADR-0001: Adopt Asynchronous Handler Pipeline for Gemini Batch Execution
+# ADR-0001: Adopt Asynchronous Handler Pipeline for Pollux Execution
 
 **Date:** 2025-08-11
 **Status:** Accepted
@@ -10,7 +10,7 @@
 
 ## Context
 
-The original Gemini Batch design centered on `BatchProcessor` and `GeminiClient`. These classes handled:
+The original Pollux design centered on `BatchProcessor` and `GeminiClient`. These classes handled:
 
 - Prompt assembly
 - Source resolution

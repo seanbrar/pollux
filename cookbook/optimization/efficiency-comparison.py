@@ -28,8 +28,8 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.research import compare_efficiency
+from pollux import types
+from pollux.research import compare_efficiency
 
 
 async def main_async(directory: Path, mode: str, trials: int, limit: int = 2) -> None:

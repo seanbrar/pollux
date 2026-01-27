@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation_types import (
     ConversationPolicy,
     ConversationState,
     Exchange,

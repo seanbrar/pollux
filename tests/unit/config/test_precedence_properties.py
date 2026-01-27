@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from gemini_batch.config import Origin, resolve_config
+from pollux.config import Origin, resolve_config
 
 pytestmark = pytest.mark.unit
 
@@ -25,15 +25,15 @@ class TestConfigPrecedenceProperties:
         env_vars = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
         env_vars.update(
             {
-                "GEMINI_BATCH_MODEL": "env-model",
-                "GEMINI_BATCH_TTL_SECONDS": "1200",
-                "GEMINI_BATCH_USE_REAL_API": "true",
+                "POLLUX_MODEL": "env-model",
+                "POLLUX_TTL_SECONDS": "1200",
+                "POLLUX_USE_REAL_API": "true",
             }
         )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write("""
-[tool.gemini_batch]
+[tool.pollux]
 model = "file-model"
 ttl_seconds = 2400
 enable_caching = true
@@ -44,12 +44,12 @@ enable_caching = true
             with (
                 patch.dict(
                     os.environ,
-                    {**env_vars, "GEMINI_BATCH_PYPROJECT_PATH": str(temp_file)},
+                    {**env_vars, "POLLUX_PYPROJECT_PATH": str(temp_file)},
                     clear=True,
                 ),
-                patch("gemini_batch.config.loaders.load_home", return_value={}),
+                patch("pollux.config.loaders.load_home", return_value={}),
                 patch(
-                    "gemini_batch.config.loaders.load_env",
+                    "pollux.config.loaders.load_env",
                     return_value={
                         "model": "env-model",
                         "ttl_seconds": 1200,
@@ -90,7 +90,7 @@ enable_caching = true
         """Environment variables should override file and default values."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write("""
-[tool.gemini_batch]
+[tool.pollux]
 model = "file-model"
 ttl_seconds = 1800
 enable_caching = false
@@ -103,8 +103,8 @@ enable_caching = false
             }
             env_vars.update(
                 {
-                    "GEMINI_BATCH_MODEL": "env-model",
-                    "GEMINI_BATCH_ENABLE_CACHING": "true",  # Override file value
+                    "POLLUX_MODEL": "env-model",
+                    "POLLUX_ENABLE_CACHING": "true",  # Override file value
                     # ttl_seconds not set in env - should use file value
                 }
             )
@@ -112,12 +112,12 @@ enable_caching = false
             with (
                 patch.dict(
                     os.environ,
-                    {**env_vars, "GEMINI_BATCH_PYPROJECT_PATH": str(temp_file)},
+                    {**env_vars, "POLLUX_PYPROJECT_PATH": str(temp_file)},
                     clear=True,
                 ),
-                patch("gemini_batch.config.loaders.load_home", return_value={}),
+                patch("pollux.config.loaders.load_home", return_value={}),
                 patch(
-                    "gemini_batch.config.loaders.load_env",
+                    "pollux.config.loaders.load_env",
                     return_value={"model": "env-model", "enable_caching": True},
                 ),
             ):
@@ -150,7 +150,7 @@ enable_caching = false
             # Project config
             project_file = temp_path / "pyproject.toml"
             project_file.write_text("""
-[tool.gemini_batch]
+[tool.pollux]
 model = "project-model"
 ttl_seconds = 1800
 """)
@@ -158,7 +158,7 @@ ttl_seconds = 1800
             # Home config
             home_file = temp_path / "home_config.toml"
             home_file.write_text("""
-[tool.gemini_batch]
+[tool.pollux]
 model = "home-model"
 ttl_seconds = 2400
 enable_caching = true
@@ -172,14 +172,14 @@ enable_caching = true
                     os.environ,
                     {
                         **clean_env,
-                        "GEMINI_BATCH_PYPROJECT_PATH": str(project_file),
-                        "GEMINI_BATCH_CONFIG_HOME": str(home_file),
+                        "POLLUX_PYPROJECT_PATH": str(project_file),
+                        "POLLUX_CONFIG_HOME": str(home_file),
                     },
                     clear=True,
                 ),
-                patch("gemini_batch.config.loaders.load_env", return_value={}),
+                patch("pollux.config.loaders.load_env", return_value={}),
                 patch(
-                    "gemini_batch.config.loaders.load_home",
+                    "pollux.config.loaders.load_home",
                     return_value={
                         "model": "home-model",
                         "ttl_seconds": 2400,
@@ -205,14 +205,14 @@ enable_caching = true
         env_vars = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
         env_vars.update(
             {
-                "GEMINI_BATCH_MODEL": "env-model",
+                "POLLUX_MODEL": "env-model",
                 # Note: ttl_seconds NOT set in env
             }
         )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write("""
-[tool.gemini_batch]
+[tool.pollux]
 ttl_seconds = 1800
 enable_caching = true
 # Note: model NOT set in file
@@ -223,12 +223,12 @@ enable_caching = true
             with (
                 patch.dict(
                     os.environ,
-                    {**env_vars, "GEMINI_BATCH_PYPROJECT_PATH": str(temp_file)},
+                    {**env_vars, "POLLUX_PYPROJECT_PATH": str(temp_file)},
                     clear=True,
                 ),
-                patch("gemini_batch.config.loaders.load_home", return_value={}),
+                patch("pollux.config.loaders.load_home", return_value={}),
                 patch(
-                    "gemini_batch.config.loaders.load_env",
+                    "pollux.config.loaders.load_env",
                     return_value={"model": "env-model"},
                 ),
             ):
@@ -262,11 +262,11 @@ enable_caching = true
         """Profiles should correctly overlay within each layer."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write("""
-[tool.gemini_batch]
+[tool.pollux]
 model = "base-model"
 ttl_seconds = 1800
 
-[tool.gemini_batch.profiles.test]
+[tool.pollux.profiles.test]
 model = "test-model"
 # ttl_seconds not overridden - should use base value
 enable_caching = true
@@ -277,19 +277,19 @@ enable_caching = true
             clean_env = {
                 k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")
             }
-            clean_env["GEMINI_BATCH_USE_REAL_API"] = (
+            clean_env["POLLUX_USE_REAL_API"] = (
                 "true"  # Env should still win over profile
             )
 
             with (
                 patch.dict(
                     os.environ,
-                    {**clean_env, "GEMINI_BATCH_PYPROJECT_PATH": str(temp_file)},
+                    {**clean_env, "POLLUX_PYPROJECT_PATH": str(temp_file)},
                     clear=True,
                 ),
-                patch("gemini_batch.config.loaders.load_home", return_value={}),
+                patch("pollux.config.loaders.load_home", return_value={}),
                 patch(
-                    "gemini_batch.config.loaders.load_env",
+                    "pollux.config.loaders.load_env",
                     return_value={"use_real_api": False},
                 ),
             ):

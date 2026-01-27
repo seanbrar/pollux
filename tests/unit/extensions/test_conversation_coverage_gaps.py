@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from gemini_batch.extensions import Conversation, PromptSet
-from gemini_batch.extensions.conversation_store import JSONStore
-from gemini_batch.extensions.conversation_types import Exchange
+from pollux.extensions import Conversation, PromptSet
+from pollux.extensions.conversation_store import JSONStore
+from pollux.extensions.conversation_types import Exchange
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from gemini_batch.core.types import InitialCommand, ResultEnvelope
+    from pollux.core.types import InitialCommand, ResultEnvelope
 
 
 class _StubConfig:

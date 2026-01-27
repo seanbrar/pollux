@@ -5,9 +5,9 @@ Focus: Ensure diagnostics reflect key decisions and warn on sharp edges.
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import InitialCommand, ResolvedCommand, Source
-from gemini_batch.pipeline.prompts import explain_prompt_assembly
+from pollux.config import resolve_config
+from pollux.core.types import InitialCommand, ResolvedCommand, Source
+from pollux.pipeline.prompts import explain_prompt_assembly
 
 pytestmark = pytest.mark.unit
 

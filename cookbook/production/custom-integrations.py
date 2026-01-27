@@ -28,9 +28,9 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
-from gemini_batch.telemetry import TelemetryContext
+from pollux import types
+from pollux.frontdoor import run_batch
+from pollux.telemetry import TelemetryContext
 
 
 class PrintReporter:

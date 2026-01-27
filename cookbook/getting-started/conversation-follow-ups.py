@@ -23,9 +23,9 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from gemini_batch import create_executor
-from gemini_batch.extensions.conversation_engine import ConversationEngine
-from gemini_batch.extensions.conversation_store import JSONStore
+from pollux import create_executor
+from pollux.extensions.conversation_engine import ConversationEngine
+from pollux.extensions.conversation_store import JSONStore
 
 
 async def main_async(

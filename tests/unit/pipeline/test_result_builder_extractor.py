@@ -1,7 +1,7 @@
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     FinalizedCommand,
@@ -12,7 +12,7 @@ from gemini_batch.core.types import (
     Success,
     TextPart,
 )
-from gemini_batch.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.result_builder import ResultBuilder
 
 
 def make_finalized_with_raw(raw: object) -> FinalizedCommand:

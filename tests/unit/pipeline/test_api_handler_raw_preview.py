@@ -6,10 +6,10 @@ from typing import Any, cast
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import InitialCommand, ResolvedCommand, Success
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.config import resolve_config
+from pollux.core.types import InitialCommand, ResolvedCommand, Success
+from pollux.pipeline.api_handler import APIHandler
+from pollux.pipeline.planner import ExecutionPlanner
 
 pytestmark = pytest.mark.unit
 
@@ -41,7 +41,7 @@ async def test_api_handler_attaches_raw_preview_when_enabled_constructor() -> No
 
 @pytest.mark.asyncio
 async def test_api_handler_attaches_raw_preview_via_env(monkeypatch: Any) -> None:
-    monkeypatch.setenv("GEMINI_BATCH_TELEMETRY_RAW_PREVIEW", "1")
+    monkeypatch.setenv("POLLUX_TELEMETRY_RAW_PREVIEW", "1")
     cfg = resolve_config(overrides={"api_key": "test-key"})
     initial = InitialCommand(sources=(), prompts=("Q1",), config=cfg)
     resolved = ResolvedCommand(initial=initial, resolved_sources=())
@@ -63,7 +63,7 @@ async def test_api_handler_attaches_raw_preview_via_env(monkeypatch: Any) -> Non
 async def test_api_handler_does_not_attach_raw_preview_when_disabled_env(
     monkeypatch: Any,
 ) -> None:
-    monkeypatch.delenv("GEMINI_BATCH_TELEMETRY_RAW_PREVIEW", raising=False)
+    monkeypatch.delenv("POLLUX_TELEMETRY_RAW_PREVIEW", raising=False)
     cfg = resolve_config(overrides={"api_key": "test-key"})
     initial = InitialCommand(sources=(), prompts=("Only",), config=cfg)
     resolved = ResolvedCommand(initial=initial, resolved_sources=())

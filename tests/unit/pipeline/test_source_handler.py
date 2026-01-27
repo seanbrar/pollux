@@ -12,16 +12,16 @@ from typing import cast
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.exceptions import SourceError
-from gemini_batch.core.sources import Source
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.exceptions import SourceError
+from pollux.core.sources import Source
+from pollux.core.types import (
     Failure,
     InitialCommand,
     ResolvedCommand,
     Success,
 )
-from gemini_batch.pipeline.source_handler import SourceHandler
+from pollux.pipeline.source_handler import SourceHandler
 
 
 class TestSourceHandlerContracts:

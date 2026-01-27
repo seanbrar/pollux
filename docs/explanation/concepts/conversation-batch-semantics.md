@@ -89,9 +89,9 @@ This default can be revisited once the planner/adapters fully support multi-prom
 Sequential batch (two prompts → two turns):
 
 ```python
-from gemini_batch import create_executor
-from gemini_batch.extensions.conversation import Conversation
-from gemini_batch.extensions.conversation_types import PromptSet
+from pollux import create_executor
+from pollux.extensions.conversation import Conversation
+from pollux.extensions.conversation_types import PromptSet
 
 executor = create_executor()
 conv = Conversation.start(executor)
@@ -101,9 +101,9 @@ conv, answers, metrics = await conv.run(PromptSet.sequential("A?", "B?"))
 Vectorized batch (shared context cached once; answers align to prompts):
 
 ```python
-from gemini_batch import create_executor
-from gemini_batch.extensions.conversation import Conversation
-from gemini_batch.extensions.conversation_types import PromptSet
+from pollux import create_executor
+from pollux.extensions.conversation import Conversation
+from pollux.extensions.conversation_types import PromptSet
 
 executor = create_executor()
 conv = Conversation.start(executor)

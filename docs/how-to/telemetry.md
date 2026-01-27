@@ -8,9 +8,9 @@ The library includes a `TelemetryContext` for advanced metrics collection. You c
 
 ## Prerequisites
 
-- Python 3.13 and `gemini_batch` installed.
+- Python 3.13 and `pollux` installed.
 - Basic logging or a monitoring client available (for examples below, Python `logging`).
-- Optional: set `GEMINI_BATCH_TELEMETRY=1` to enable emission; otherwise the context becomes a no‑op.
+- Optional: set `POLLUX_TELEMETRY=1` to enable emission; otherwise the context becomes a no‑op.
 
 This feature is designed for production environments where detailed telemetry is required. For design rationale and implementation details, see [Explanation → Concepts (Telemetry)](../explanation/concepts/telemetry.md), [Deep Dives → Telemetry Spec](../explanation/deep-dives/telemetry-spec.md), and [Decisions → ADR-0006 Telemetry](../explanation/decisions/ADR-0006-telemetry.md).
 
@@ -24,15 +24,15 @@ Most users should either monitor logs or emit telemetry to an external backend. 
 import os
 import logging
 from typing import Any
-from gemini_batch.telemetry import TelemetryContext, TelemetryReporter
+from pollux.telemetry import TelemetryContext, TelemetryReporter
 
 # 1) Enable telemetry via env (opt-in)
-os.environ["GEMINI_BATCH_TELEMETRY"] = "1"
+os.environ["POLLUX_TELEMETRY"] = "1"
 
 # 2) Example: bridge timings/metrics to your existing logging setup
 class LoggingReporter:
     def __init__(self, logger: logging.Logger | None = None) -> None:
-        self.log = logger or logging.getLogger("gemini_batch.telemetry")
+        self.log = logger or logging.getLogger("pollux.telemetry")
 
     def record_timing(self, scope: str, duration: float, **metadata: Any) -> None:
         self.log.info("telemetry.timing", extra={
@@ -72,7 +72,7 @@ Recommended — Structural typing (no inheritance):
 
 ```python
 from typing import Any
-from gemini_batch.telemetry import TelemetryContext, TelemetryReporter
+from pollux.telemetry import TelemetryContext, TelemetryReporter
 
 class MyCustomReporter:
     def record_timing(self, scope: str, duration: float, **metadata: Any) -> None:
@@ -89,7 +89,7 @@ Optional — Runtime conformance check (when you accept reporters from third par
 
 ```python
 from typing import Any
-from gemini_batch.telemetry import TelemetryContext, TelemetryReporter
+from pollux.telemetry import TelemetryContext, TelemetryReporter
 
 class MyCustomReporter:
     def record_timing(self, scope: str, duration: float, **metadata: Any) -> None: ...
@@ -110,7 +110,7 @@ There are two ways to capture pipeline telemetry.
 
 Option A — Enable built‑in telemetry via environment flags (no custom reporter):
 
-- Set `GEMINI_BATCH_TELEMETRY=1`. The library attaches a tiny, internal reporter and surfaces metrics into the `ResultEnvelope` (under `metrics` and `usage`).
+- Set `POLLUX_TELEMETRY=1`. The library attaches a tiny, internal reporter and surfaces metrics into the `ResultEnvelope` (under `metrics` and `usage`).
 - Read `env["metrics"]`/`env["usage"]` from the result. See Reference → [ResultEnvelope Metrics](../metrics.md) for shapes.
 
 Option B — Provide your own reporter to the API handler in a custom pipeline:
@@ -120,27 +120,27 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from gemini_batch.executor import GeminiExecutor
-from gemini_batch.config import resolve_config
-from gemini_batch.pipeline.source_handler import SourceHandler
-from gemini_batch.pipeline.planner import ExecutionPlanner
-from gemini_batch.pipeline.remote_materialization import RemoteMaterializationStage
-from gemini_batch.pipeline.rate_limit_handler import RateLimitHandler
-from gemini_batch.pipeline.cache_stage import CacheStage
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.pipeline.result_builder import ResultBuilder
-from gemini_batch.telemetry import TelemetryContext
+from pollux.executor import GeminiExecutor
+from pollux.config import resolve_config
+from pollux.pipeline.source_handler import SourceHandler
+from pollux.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.remote_materialization import RemoteMaterializationStage
+from pollux.pipeline.rate_limit_handler import RateLimitHandler
+from pollux.pipeline.cache_stage import CacheStage
+from pollux.pipeline.api_handler import APIHandler
+from pollux.pipeline.result_builder import ResultBuilder
+from pollux.telemetry import TelemetryContext
 
 class LoggingReporter:
     def __init__(self, logger: logging.Logger | None = None) -> None:
-        self.log = logger or logging.getLogger("gemini_batch.telemetry")
+        self.log = logger or logging.getLogger("pollux.telemetry")
     def record_timing(self, scope: str, duration: float, **metadata: Any) -> None:
         self.log.info("telemetry.timing", extra={"scope": scope, "duration_s": duration, **metadata})
     def record_metric(self, scope: str, value: Any, **metadata: Any) -> None:
         self.log.info("telemetry.metric", extra={"scope": scope, "value": value, **metadata})
 
 cfg = resolve_config()
-tele = TelemetryContext(LoggingReporter())  # requires GEMINI_BATCH_TELEMETRY=1
+tele = TelemetryContext(LoggingReporter())  # requires POLLUX_TELEMETRY=1
 
 handlers = [
     SourceHandler(),
@@ -158,7 +158,7 @@ executor = GeminiExecutor(cfg, pipeline_handlers=handlers)
 Notes
 
 - Option A is simplest and surfaces metrics in the result envelope for immediate use.
-- Option B streams timings/metrics to your backend via a reporter; it requires a custom executor and `GEMINI_BATCH_TELEMETRY=1` to enable emission.
+- Option B streams timings/metrics to your backend via a reporter; it requires a custom executor and `POLLUX_TELEMETRY=1` to enable emission.
 
 Verification
 
@@ -172,7 +172,7 @@ Verification
 !!! warning "Handle data responsibly"
     - Avoid logging raw inputs, prompts, or secrets. Prefer IDs, short labels, and small scalar metadata in telemetry and logs.
     - Raw preview is sanitized and truncated by design, but still opt‑in. Enable only when necessary for triage and disable in steady‑state production.
-    - Redaction: API keys and sensitive fields are never printed by `gb-config`; apply the same discipline to your reporters and log processors.
+    - Redaction: API keys and sensitive fields are never printed by `pollux-config`; apply the same discipline to your reporters and log processors.
     - Minimize retention: if exporting telemetry, keep payloads small and set retention appropriate to your compliance requirements.
     - PII: If processing personal data, align with your org’s policies (e.g., GDPR/CCPA). Do not include user content in telemetry; prefer anonymized counters and bounded metrics.
 

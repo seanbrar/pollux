@@ -4,13 +4,13 @@
 
 ## Purpose & Scope
 
-**Contract-First Testing** uses type contracts and architectural invariants to drive test design. For Gemini Batch—built on immutable data flow, typed transformations, and explicit error handling—this methodology prevents whole classes of bugs and continuously verifies that the implementation still matches the intended **architecture**.
+**Contract-First Testing** uses type contracts and architectural invariants to drive test design. For Pollux—built on immutable data flow, typed transformations, and explicit error handling—this methodology prevents whole classes of bugs and continuously verifies that the implementation still matches the intended **architecture**.
 
 **In scope**:
 
 - Why contract-first (vs. example-only) testing
 - The test model (layers, invariants, fitness functions)
-- How it maps to Gemini Batch components and folders
+- How it maps to Pollux components and folders
 - Minimal, illustrative test patterns
 
 **Not in scope**:

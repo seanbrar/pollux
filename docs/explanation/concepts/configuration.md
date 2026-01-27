@@ -1,6 +1,6 @@
 # Configuration System — Conceptual Overview
 
-> Audience: Engineers designing, extending, or reviewing `gemini_batch`’s configuration.
+> Audience: Engineers designing, extending, or reviewing `pollux`’s configuration.
 > Scope: Concepts, rationale, trade‑offs, and relationships to the Command Pipeline.
 
 ---
@@ -10,7 +10,7 @@
 The configuration system resolves settings from **multiple sources** into a single, immutable `FrozenConfig` that flows through the **Command Pipeline**. It implements the **Pydantic Two-File Core** pattern with **resolve-once, freeze-then-flow** semantics, providing **predictable precedence**, **audit‑grade origin tracking**, and **extensible provider inference**.
 
 * Resolve once, use everywhere. Inputs (programmatic/env/files/defaults) are merged before pipeline entry using Pydantic; the result is frozen and attached to the initial command.
-* Precedence: `Programmatic > Environment > Project pyproject.toml > Home config > Defaults` with optional `GEMINI_BATCH_PROFILE` selection.
+* Precedence: `Programmatic > Environment > Project pyproject.toml > Home config > Defaults` with optional `POLLUX_PROFILE` selection.
 * Auditability: A SourceMap records where each effective value came from, with comprehensive secret redaction.
 * Extensibility: Pattern-based provider inference via `resolve_provider`; extra fields validation with pattern-based warnings; environment-gated debug audit via Python warnings.
 * Testing & overrides: `config_scope()` provides entry‑time scoped overrides (async‑safe); the pipeline itself only sees the frozen snapshot.
@@ -45,11 +45,11 @@ Think of configuration as **layers** that are merged **once** into a single, imm
 ```text
 Programmatic overrides
         ⬇
-Environment (GEMINI_BATCH_*)
+Environment (POLLUX_*)
         ⬇
-Project pyproject.toml  [tool.gemini_batch] / [tool.gemini_batch.profiles.*]
+Project pyproject.toml  [tool.pollux] / [tool.pollux.profiles.*]
         ⬇
-Home   ~/.config/gemini_batch.toml  (optional)
+Home   ~/.config/pollux.toml  (optional)
         ⬇
 Defaults (schema)
         ⬇  merge
@@ -67,7 +67,7 @@ Defaults (schema)
 ### 1) Settings schema (validation)
 
 * Implemented with **Pydantic BaseModel** providing strong typing, field validation, and automatic coercion.
-* Captures **defaults** with Field descriptors and env integration (`GEMINI_BATCH_` prefix); `.env` support via python-dotenv (opt-in).
+* Captures **defaults** with Field descriptors and env integration (`POLLUX_` prefix); `.env` support via python-dotenv (opt-in).
 * Uses **extra='allow'** to preserve unknown fields for extensibility while validating known fields.
 * Cross-field validation (e.g., `api_key` required when `use_real_api=True`) with clear error messages.
 
@@ -98,7 +98,7 @@ Defaults (schema)
 
 ### 6) Debug audit emission
 
-* Controlled by `GEMINI_BATCH_DEBUG_CONFIG`.
+* Controlled by `POLLUX_DEBUG_CONFIG`.
 * Emitted via Python’s `warnings` module (redacted audit); by default warnings print once per callsite.
 * Stateless implementation keeps resolution thread-safe.
 
@@ -114,9 +114,9 @@ Defaults (schema)
 * **Order:** `Programmatic > Env > Project pyproject.toml > Home file > Defaults`.
 * **Profiles:** In files, configuration lives under:
 
-  * Project: `pyproject.toml` → `[tool.gemini_batch]` or `[tool.gemini_batch.profiles.<name>]`
-  * Home: `~/.config/gemini_batch.toml` with the same tables
-* **Selection:** `GEMINI_BATCH_PROFILE=<name>` chooses a profile; if absent, the root table is used.
+  * Project: `pyproject.toml` → `[tool.pollux]` or `[tool.pollux.profiles.<name>]`
+  * Home: `~/.config/pollux.toml` with the same tables
+* **Selection:** `POLLUX_PROFILE=<name>` chooses a profile; if absent, the root table is used.
 * **Conflict rule:** Higher layer always wins **per field**; unprovided fields fall back to lower layers.
 
 **Rationale:** Teams get project‑level defaults; individuals can keep home profiles; CI and scripts can override via env; code can override anything programmatically.
@@ -165,7 +165,7 @@ Defaults (schema)
 | **Auditability**    | Implicit; hard to explain effective values              | **SourceMap** per field; redacted when surfaced         |
 | **Extensibility**   | Adding fields required careful ad‑hoc wiring            | Schema‑driven; provider extras via **registry** seam    |
 | **Testing**         | `config_scope()` convenient but mutable during run      | Scope only at **entry**; deterministic frozen snapshot  |
-| **Team ergonomics** | No project/home profile story                           | First‑class project/home profiles; `GEMINI_BATCH_PROFILE`     |
+| **Team ergonomics** | No project/home profile story                           | First‑class project/home profiles; `POLLUX_PROFILE`     |
 
 **Net effect:** Higher **clarity**, **predictability**, and **team usability**, with stronger **safety** and **observability**.
 
@@ -212,7 +212,7 @@ Defaults (schema)
 
 * **Configuration access:** Use `config.field` syntax with `FrozenConfig` instances for type-safe access to configuration values.
 * **Scope usage:** Use `config_scope()` in tests or entry points; ensure resolution happens **before** building the initial command.
-* **File adoption:** Add `[tool.gemini_batch]` to `pyproject.toml`; introduce profiles under `[tool.gemini_batch.profiles.<name>]`. Developers may keep a matching `~/.config/gemini_batch.toml`.
+* **File adoption:** Add `[tool.pollux]` to `pyproject.toml`; introduce profiles under `[tool.pollux.profiles.<name>]`. Developers may keep a matching `~/.config/pollux.toml`.
 
 ---
 

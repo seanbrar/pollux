@@ -15,7 +15,7 @@ What you'll learn:
 
 Note:
 - Videos may require processing time by the provider before they become usable.
-  This recipe uses an extension helper (`gemini_batch.extensions.provider_uploads`)
+  This recipe uses an extension helper (`pollux.extensions.provider_uploads`)
   to pre-upload the video and wait until it reaches the ACTIVE state. If the
   video is not ready within the timeout, the recipe proceeds with the other
   sources and prints a friendly note.
@@ -33,12 +33,12 @@ from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_MEDIA_DEMO_DIR, pick_file_by_ext
 from cookbook.utils.retry import retry_async
-from gemini_batch import types
-from gemini_batch.extensions.provider_uploads import (
+from pollux import types
+from pollux.extensions.provider_uploads import (
     UploadInactiveError,
     preupload_and_wait_active,
 )
-from gemini_batch.frontdoor import run_batch
+from pollux.frontdoor import run_batch
 
 
 def _pick_file_by_ext(root: Path, exts: list[str]) -> Path | None:

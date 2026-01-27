@@ -7,7 +7,7 @@ This guide covers the enhanced configuration system using the **Pydantic Two-Fil
 ### Current System
 
 ```python
-from gemini_batch.config import resolve_config
+from pollux.config import resolve_config
 
 # Direct FrozenConfig - clean and simple
 config = resolve_config()
@@ -22,7 +22,7 @@ extra = config.extra  # Validated extra fields
 The old `ambient()` helper has been removed. Replace it with explicit resolution and (when needed) scoped overrides:
 
 ```python
-from gemini_batch.config import resolve_config, config_scope
+from pollux.config import resolve_config, config_scope
 
 config = resolve_config()
 
@@ -34,7 +34,7 @@ with config_scope({"model": "test-model"}):
 ### Advanced Usage
 
 ```python
-from gemini_batch.config import resolve_config
+from pollux.config import resolve_config
 
 # With overrides
 config = resolve_config(overrides={"model": "gpt-4o"})
@@ -51,11 +51,11 @@ print(f"Model came from: {sources['model'].origin}")
 Debug and understand your configuration:
 
 ```python
-from gemini_batch.config import resolve_config, check_environment, doctor
+from pollux.config import resolve_config, check_environment, doctor
 
 # Check current environment variables
 env_vars = check_environment()
-print("GEMINI_BATCH_ environment variables:", env_vars)
+print("POLLUX_ environment variables:", env_vars)
 
 # Get diagnostic information
 diagnostics = doctor()
@@ -67,7 +67,7 @@ config, sources = resolve_config(explain=True)
 print(f"Model '{config.model}' came from: {sources['model'].origin}")
 
 # Debug provider inference
-from gemini_batch.config import resolve_provider
+from pollux.config import resolve_provider
 print(f"Model 'custom-llm' resolves to: {resolve_provider('custom-llm')}")
 ```
 
@@ -95,15 +95,15 @@ print(f"Model 'custom-llm' resolves to: {resolve_provider('custom-llm')}")
 Enhanced environment variable support with automatic type coercion:
 
 - `GEMINI_API_KEY` — Your API key (redacted in all outputs)
-- `GEMINI_BATCH_MODEL` — Model name (default: gemini-2.0-flash)
-- `GEMINI_BATCH_TIER` — API tier (`free`, `tier_1`, `tier_2`, `tier_3`)
-- `GEMINI_BATCH_USE_REAL_API` — Use real API (`true`/`false`, default: false)
-- `GEMINI_BATCH_ENABLE_CACHING` — Enable caching (`true`/`false`, default: false)
-- `GEMINI_BATCH_TTL_SECONDS` — Cache TTL in seconds (default: 3600)
-- `GEMINI_BATCH_TELEMETRY_ENABLED` — Enable telemetry (`true`/`false`, default: false)
-- `GEMINI_BATCH_REQUEST_CONCURRENCY` — Client-side fan-out bound (int, default: 6)
-- `GEMINI_BATCH_PROFILE` — Select configuration profile
-- `GEMINI_BATCH_DEBUG_CONFIG` — Enable redacted debug audit emission (development only)
+- `POLLUX_MODEL` — Model name (default: gemini-2.0-flash)
+- `POLLUX_TIER` — API tier (`free`, `tier_1`, `tier_2`, `tier_3`)
+- `POLLUX_USE_REAL_API` — Use real API (`true`/`false`, default: false)
+- `POLLUX_ENABLE_CACHING` — Enable caching (`true`/`false`, default: false)
+- `POLLUX_TTL_SECONDS` — Cache TTL in seconds (default: 3600)
+- `POLLUX_TELEMETRY_ENABLED` — Enable telemetry (`true`/`false`, default: false)
+- `POLLUX_REQUEST_CONCURRENCY` — Client-side fan-out bound (int, default: 6)
+- `POLLUX_PROFILE` — Select configuration profile
+- `POLLUX_DEBUG_CONFIG` — Enable redacted debug audit emission (development only)
 
 ## File-Based Configuration
 
@@ -112,7 +112,7 @@ Enhanced support for `pyproject.toml` and home configuration:
 ### pyproject.toml
 
 ```toml
-[tool.gemini_batch]
+[tool.pollux]
 model = "gemini-2.0-flash"
 use_real_api = false
 enable_caching = false
@@ -121,23 +121,23 @@ enable_caching = false
 request_timeout = 30  # *_timeout pattern
 api_url = "https://api.example.com"  # *_url pattern
 
-[tool.gemini_batch.profiles.dev]
+[tool.pollux.profiles.dev]
 model = "gemini-2.0-flash"
 experimental_features = true  # experimental_* pattern
 
-[tool.gemini_batch.profiles.prod]
+[tool.pollux.profiles.prod]
 model = "gemini-2.0-pro"
 use_real_api = true
 ```
 
-### ~/.config/gemini_batch.toml
+### ~/.config/pollux.toml
 
 ```toml
-[tool.gemini_batch]
+[tool.pollux]
 model = "gemini-2.0-flash"
 tier = "free"
 
-[tool.gemini_batch.profiles.personal]
+[tool.pollux.profiles.personal]
 model = "gemini-2.0-pro"
 ```
 

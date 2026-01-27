@@ -27,7 +27,7 @@ def _remove_fake_google() -> None:
 
 
 def test_unsupported_provider_raises(tmp_path: Path) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     f = tmp_path / "x.txt"
     f.write_text("hi")
@@ -38,7 +38,7 @@ def test_unsupported_provider_raises(tmp_path: Path) -> None:
 def test_missing_api_key_raises_runtime(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     f = tmp_path / "x.txt"
     f.write_text("hi")
@@ -58,7 +58,7 @@ def test_missing_api_key_raises_runtime(
 
 
 def test_file_not_found_raises(tmp_path: Path) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     p = tmp_path / "missing.bin"
     with pytest.raises(FileNotFoundError):
@@ -68,7 +68,7 @@ def test_file_not_found_raises(tmp_path: Path) -> None:
 def test_upload_active_happy_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     # Env present
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
@@ -108,7 +108,7 @@ def test_upload_active_happy_path(
 def test_missing_dependency_raises(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     # Ensure any fake module is gone and env key won't be consulted
     _remove_fake_google()
@@ -149,7 +149,7 @@ def test_missing_dependency_raises(
 def test_terminal_failure_raises(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "z.bin"
@@ -181,7 +181,7 @@ def test_terminal_failure_raises(
 def test_timeout_raises_inactive(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "x.bin"
@@ -211,7 +211,7 @@ def test_timeout_raises_inactive(
 def test_negative_poll_is_clamped(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "w2.bin"
@@ -249,7 +249,7 @@ def test_negative_poll_is_clamped(
 def test_state_normalization_with_enum_like(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "n.bin"
@@ -282,7 +282,7 @@ def test_state_normalization_with_enum_like(
 def test_upload_returns_no_identifier_raises(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "noid.bin"
@@ -309,7 +309,7 @@ def test_upload_returns_no_identifier_raises(
 def test_terminal_failure_cleans_up_when_enabled(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "failcleanup.bin"
@@ -343,7 +343,7 @@ def test_terminal_failure_cleans_up_when_enabled(
 
 
 def test_list_fallback_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "y.bin"
@@ -373,7 +373,7 @@ def test_list_fallback_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 def test_explicit_api_key_bypasses_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     # ensure env missing
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -401,7 +401,7 @@ def test_explicit_api_key_bypasses_env(
 def test_cleanup_on_timeout_calls_delete(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "ct.bin"
@@ -439,7 +439,7 @@ def test_cleanup_on_timeout_calls_delete(
 def test_preupload_wrapper_returns_uri(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from gemini_batch.extensions import provider_uploads as mod
+    from pollux.extensions import provider_uploads as mod
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     f = tmp_path / "w.mp4"

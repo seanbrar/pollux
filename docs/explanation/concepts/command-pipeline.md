@@ -7,7 +7,7 @@
 
 ## Purpose & Scope
 
-The Command Pipeline is the **core architectural pattern** of the Gemini Batch library. It enables *developer-consumers* to execute batched Gemini API requests efficiently, with predictable costs, strong testability, and clear control over data flow.
+The Command Pipeline is the **core architectural pattern** of the Pollux library. It enables *developer-consumers* to execute batched Gemini API requests efficiently, with predictable costs, strong testability, and clear control over data flow.
 
 This architecture replaces earlier monolithic `BatchProcessor` and `GeminiClient` designs with a **composable, asynchronous, unidirectional pipeline**.
 

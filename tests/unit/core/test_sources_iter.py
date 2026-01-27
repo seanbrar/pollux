@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from gemini_batch.core.sources import iter_files, sources_from_directory
+from pollux.core.sources import iter_files, sources_from_directory
 
 pytestmark = pytest.mark.unit
 

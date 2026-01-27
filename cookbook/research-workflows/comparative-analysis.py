@@ -25,8 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cookbook.utils.json_tools import coerce_json
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 PROMPT = (
     "Return application/json ONLY. Compare the sources and output a compact JSON object "

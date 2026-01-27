@@ -10,12 +10,12 @@ Prerequisites
 
 - Python 3.13; repository installed (`make install-dev`).
 - Real API key required for uploads (`GEMINI_API_KEY`), and optional runtime dependency on `google-genai`.
-- Set `GEMINI_BATCH_TIER` to match your billing to avoid throttling.
+- Set `POLLUX_TIER` to match your billing to avoid throttling.
 
 ## 1) Quick start: get a file URI
 
 ```python title="preupload_quickstart.py"
-from gemini_batch.extensions.provider_uploads import preupload_and_wait_active
+from pollux.extensions.provider_uploads import preupload_and_wait_active
 
 uri = preupload_and_wait_active(
     "./test_files/media/sample.mp3",  # local path
@@ -34,7 +34,7 @@ Success check
 ## 2) Core function with rich result
 
 ```python title="upload_with_result.py"
-from gemini_batch.extensions.provider_uploads import upload_and_wait_active
+from pollux.extensions.provider_uploads import upload_and_wait_active
 
 res = upload_and_wait_active(
     "./test_files/media/sample.mp3",
@@ -53,9 +53,9 @@ Notes
 
 Troubleshooting
 
-- Missing key: set `GEMINI_API_KEY` and re‑run. Use `gb-config doctor` to verify readiness.
+- Missing key: set `GEMINI_API_KEY` and re‑run. Use `pollux-config doctor` to verify readiness.
 - SDK not installed: install `google-genai` (see error message) or vendor‑lock to local mocks for tests.
-- Rate limits: reduce concurrent uploads; increase `timeout_s`/backoff; match `GEMINI_BATCH_TIER` to billing.
+- Rate limits: reduce concurrent uploads; increase `timeout_s`/backoff; match `POLLUX_TIER` to billing.
 
 See also
 

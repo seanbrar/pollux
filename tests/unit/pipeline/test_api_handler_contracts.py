@@ -1,7 +1,7 @@
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     Failure,
@@ -13,8 +13,8 @@ from gemini_batch.core.types import (
     Success,
     TextPart,
 )
-from gemini_batch.pipeline.adapters.base import GenerationAdapter
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.pipeline.adapters.base import GenerationAdapter
+from pollux.pipeline.api_handler import APIHandler
 
 
 def make_planned(prompts: tuple[str, ...]) -> PlannedCommand:

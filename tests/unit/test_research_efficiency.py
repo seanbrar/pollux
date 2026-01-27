@@ -5,10 +5,10 @@ from typing import Any, Literal, cast
 
 import pytest
 
-from gemini_batch.config import FrozenConfig
-from gemini_batch.core.models import APITier
-from gemini_batch.research.efficiency import EfficiencyReport, compare_efficiency
-from gemini_batch.types import ResultEnvelope, make_execution_options
+from pollux.config import FrozenConfig
+from pollux.core.models import APITier
+from pollux.research.efficiency import EfficiencyReport, compare_efficiency
+from pollux.types import ResultEnvelope, make_execution_options
 
 
 def _env(
@@ -154,7 +154,7 @@ async def test_compare_efficiency_sequential_with_pipeline_metrics(monkeypatch):
             per_call_meta=[{"duration_s": 0.01}, {"duration_s": 0.02}],
         )
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     # Config resolution for env capture; avoid dataclasses.replace path by leaving cfg=None
     def fake_resolve_config(*_args, **_kwargs):
@@ -170,12 +170,12 @@ async def test_compare_efficiency_sequential_with_pipeline_metrics(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "gemini_batch.research.efficiency.resolve_config", fake_resolve_config
+        "pollux.research.efficiency.resolve_config", fake_resolve_config
     )
 
     # Stable version string
     monkeypatch.setattr(
-        "gemini_batch.research.efficiency.importlib_metadata.version",
+        "pollux.research.efficiency.importlib_metadata.version",
         lambda _: "0.0-test",
     )
 
@@ -220,7 +220,7 @@ async def test_compare_efficiency_concurrent_trials_and_status(monkeypatch):
         status = "error" if p == "ERR" else "ok"
         return _env(status=status, tokens=40, n_calls=1)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     # Options-based concurrency
     opts = make_execution_options(request_concurrency=5)
@@ -250,7 +250,7 @@ async def test_compare_efficiency_concurrent_trials_and_status(monkeypatch):
         return _env(status="ok", tokens=1, n_calls=1)
 
     monkeypatch.setattr(
-        "gemini_batch.research.efficiency.run_batch", fake_run_batch_vec_error
+        "pollux.research.efficiency.run_batch", fake_run_batch_vec_error
     )
     rep2 = await compare_efficiency(["a", "b"], mode="batch")  # explicit
     assert rep2.status == "error"
@@ -267,7 +267,7 @@ async def test_mode_aggregate_joins_and_propagates_prefer_json(monkeypatch):
             captured["first_prefer_json"] = kwargs.get("prefer_json")
         return _env(status="ok", tokens=9, n_calls=1)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     prompts = ["Q1?", "Q2?", "Q3?"]
     rep = await compare_efficiency(
@@ -298,7 +298,7 @@ async def test_mode_auto_switches_based_on_prompt_count(monkeypatch):
         calls.append((tuple(prompts), kwargs))
         return _env(status="ok", tokens=len(prompts), n_calls=1)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     # Multi-prompt -> aggregate
     rep_multi = await compare_efficiency(["A", "B"], mode="auto", prefer_json=False)
@@ -354,7 +354,7 @@ async def test_compare_efficiency_vectorized_exception_triggers_error_envelope(
             raise RuntimeError("boom")
         return _env(status="ok", tokens=3, n_calls=1)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
     rep = await compare_efficiency(
         ["a", "b"], include_pipeline_durations=False, mode="batch"
     )
@@ -372,7 +372,7 @@ async def test_ensure_uncached_fallbacks_with_cfg_and_without_cfg(monkeypatch):
         captured_cfgs.append(kwargs.get("cfg"))
         return _env(status="ok", tokens=1, n_calls=1)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     # Case A: cfg provided but dataclasses.replace fails -> fallback to original cfg
     # Use a well-typed FrozenConfig and patch dataclasses.replace to raise
@@ -402,7 +402,7 @@ async def test_ensure_uncached_fallbacks_with_cfg_and_without_cfg(monkeypatch):
         raise RuntimeError("fail")
 
     monkeypatch.setattr(
-        "gemini_batch.research.efficiency.resolve_config", bad_resolve_config
+        "pollux.research.efficiency.resolve_config", bad_resolve_config
     )
     await compare_efficiency(["p"], cfg=None, ensure_uncached=True)
     assert captured_cfgs[-1] is None
@@ -430,7 +430,7 @@ async def test_parallel_naive_branch_and_robust_metric_parsing(monkeypatch):
             per_call_meta=[{"duration_s": 0.03}, {"duration_s": 0.01}],
         )
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     rep = await compare_efficiency(
         ["a", "b", "c"],
@@ -456,7 +456,7 @@ async def test_eff_vec_concurrency_from_param(monkeypatch):
     async def fake_run_batch(_prompts, _sources, **_kwargs):
         return _env(status="ok", tokens=1, n_calls=2)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
     rep = await compare_efficiency(["q1", "q2"], concurrency=7)
     assert rep.to_dict()["env"]["vec_concurrency_effective"] == 7
 
@@ -471,7 +471,7 @@ async def test_eff_vec_concurrency_config_int_cast_error(monkeypatch):
     async def fake_run_batch():
         return _env(status="ok", tokens=1, n_calls=1)
 
-    monkeypatch.setattr("gemini_batch.research.efficiency.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.research.efficiency.run_batch", fake_run_batch)
 
     def cfg_with_bad_conc() -> Any:
         # Intentionally return a dynamic object to exercise int() cast error path
@@ -482,7 +482,7 @@ async def test_eff_vec_concurrency_config_int_cast_error(monkeypatch):
         return cfg_with_bad_conc()
 
     monkeypatch.setattr(
-        "gemini_batch.research.efficiency.resolve_config",
+        "pollux.research.efficiency.resolve_config",
         typed_resolve,
     )
 

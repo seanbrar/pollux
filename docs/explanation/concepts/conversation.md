@@ -2,7 +2,7 @@
 
 ## What this is
 
-The **Conversation Extension** is an *optional* library API that layers on top of the Gemini Batch core. It demonstrates how to build powerful features **without modifying the core pipeline**. It provides a tiny, immutable API for multi‑turn interactions, audit‑grade observability, cache reuse, and batch workflows — all as a **good citizen** of the architecture.
+The **Conversation Extension** is an *optional* library API that layers on top of the Pollux core. It demonstrates how to build powerful features **without modifying the core pipeline**. It provides a tiny, immutable API for multi‑turn interactions, audit‑grade observability, cache reuse, and batch workflows — all as a **good citizen** of the architecture.
 
 > Positioning: This is an **extension**, not core. It consumes the core’s public types (`InitialCommand`, `Turn`, `GeminiExecutor`) and follows the Command Pipeline’s rules: **single SDK seam, immutable command states, data‑over‑control, metrics via `ResultBuilder`.**
 

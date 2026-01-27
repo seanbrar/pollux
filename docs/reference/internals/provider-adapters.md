@@ -5,7 +5,7 @@ Usage examples:
 - How‑to → [Provider Adapters](../../how-to/provider-adapters.md)
 - Concepts → [Provider Capabilities](../../explanation/concepts/provider-capabilities.md)
 
-::: gemini_batch.pipeline.adapters.registry
+::: pollux.pipeline.adapters.registry
 
 Related:
 

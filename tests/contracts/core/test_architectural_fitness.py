@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from gemini_batch.core import exceptions, models, types
+from pollux.core import exceptions, models, types
 
 logger = logging.getLogger(__name__)
 

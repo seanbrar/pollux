@@ -6,15 +6,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.exceptions import ConfigurationError
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.exceptions import ConfigurationError
+from pollux.core.types import (
     InitialCommand,
     PromptBundle,
     ResolvedCommand,
     Source,
 )
-from gemini_batch.pipeline.prompts import assemble_prompts
+from pollux.pipeline.prompts import assemble_prompts
 
 pytestmark = pytest.mark.unit
 

@@ -30,8 +30,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

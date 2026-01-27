@@ -22,11 +22,11 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 if TYPE_CHECKING:
-    from gemini_batch.core.result_envelope import ResultEnvelope
+    from pollux.core.result_envelope import ResultEnvelope
 
 
 async def main_async(directory: Path) -> ResultEnvelope:

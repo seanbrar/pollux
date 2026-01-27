@@ -18,7 +18,7 @@ def test_efficiency_comparison_main_async_prints_summary_and_env(
     (tmp_path / "b.txt").write_text("beta")
 
     # Build a minimal EfficiencyReport to return from the research helper
-    from gemini_batch.research.efficiency import EfficiencyReport
+    from pollux.research.efficiency import EfficiencyReport
 
     report = EfficiencyReport(
         status="ok",
@@ -43,7 +43,7 @@ def test_efficiency_comparison_main_async_prints_summary_and_env(
         return report
 
     monkeypatch.setattr(
-        "gemini_batch.research.compare_efficiency", fake_compare_efficiency
+        "pollux.research.compare_efficiency", fake_compare_efficiency
     )
 
     # Act: load the recipe module by path (filenames use dashes)

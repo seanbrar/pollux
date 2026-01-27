@@ -48,7 +48,7 @@ We need:
 
 ### Capability Protocols
 
-Fine-grained protocols define specific provider abilities (see `gemini_batch.pipeline.adapters.base`):
+Fine-grained protocols define specific provider abilities (see `pollux.pipeline.adapters.base`):
 
 ```python
 @runtime_checkable
@@ -201,7 +201,7 @@ else:
 
 ## Adding New Capabilities
 
-1. Define a new protocol (e.g., in `gemini_batch/pipeline/adapters/base.py` or a small adjacent module).
+1. Define a new protocol (e.g., in `pollux/pipeline/adapters/base.py` or a small adjacent module).
 2. Mark it with `@runtime_checkable` for safe `isinstance` checks.
 3. Implement it in relevant adapters.
 4. Add conditional usage in the pipeline where appropriate.

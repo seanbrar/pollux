@@ -4,19 +4,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gemini_batch.extensions.conversation import (
+from pollux.extensions.conversation import (
     Conversation,
 )
-from gemini_batch.extensions.conversation_modes import (
+from pollux.extensions.conversation_modes import (
     SequentialMode,
     SingleMode,
     VectorizedMode,
 )
-from gemini_batch.extensions.conversation_planner import (
+from pollux.extensions.conversation_planner import (
     ConversationPlan,
     compile_conversation,
 )
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation_types import (
     ConversationPolicy,
     ConversationState,
     PromptSet,

@@ -17,15 +17,15 @@ Global enablement and default TTL are part of the resolved config.
 - `enable_caching: bool` — master switch for enabling caching behavior when supported by provider/model.
 - `ttl_seconds: int` — default cache TTL in seconds (non‑negative). Applies when a cache entry is created.
 
-Find these fields under `gemini_batch.config` and the effective values via `gb-config show` or `gb-config audit`.
+Find these fields under `pollux.config` and the effective values via `pollux-config show` or `pollux-config audit`.
 
 ## Execution Options (per‑call)
 
 For granular, per‑call control, use `ExecutionOptions`. See detailed API docs on the Core Types page:
 
-- Cache options: [gemini_batch.core.execution_options.CacheOptions](api/core.md#gemini_batch.core.execution_options.CacheOptions)
-- Cache policy: [gemini_batch.core.execution_options.CachePolicyHint](api/core.md#gemini_batch.core.execution_options.CachePolicyHint)
-- Execution options: [gemini_batch.core.execution_options.ExecutionOptions](api/core.md#gemini_batch.core.execution_options.ExecutionOptions)
+- Cache options: [pollux.core.execution_options.CacheOptions](api/core.md#pollux.core.execution_options.CacheOptions)
+- Cache policy: [pollux.core.execution_options.CachePolicyHint](api/core.md#pollux.core.execution_options.CachePolicyHint)
+- Execution options: [pollux.core.execution_options.ExecutionOptions](api/core.md#pollux.core.execution_options.ExecutionOptions)
 
 Notes:
 

@@ -9,9 +9,9 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config import FrozenConfig, resolve_config
-from gemini_batch.pipeline.adapters.base import BaseProviderAdapter
-from gemini_batch.pipeline.adapters.registry import (
+from pollux.config import FrozenConfig, resolve_config
+from pollux.pipeline.adapters.base import BaseProviderAdapter
+from pollux.pipeline.adapters.registry import (
     build_provider_config,
     get_adapter,
     register_adapter,
@@ -77,7 +77,7 @@ class TestAdapterSeam:
     def test_gemini_adapter_registered_on_import(self):
         """Gemini adapter should be registered when module is imported."""
         # Import the module to trigger registration
-        from gemini_batch.pipeline.adapters import gemini  # noqa: F401
+        from pollux.pipeline.adapters import gemini  # noqa: F401
 
         adapter = get_adapter("google")
         assert adapter is not None
@@ -86,7 +86,7 @@ class TestAdapterSeam:
     @pytest.mark.unit
     def test_gemini_adapter_build_config(self):
         """Gemini adapter should build appropriate configuration."""
-        from gemini_batch.pipeline.adapters import gemini  # noqa: F401
+        from pollux.pipeline.adapters import gemini  # noqa: F401
 
         config = resolve_config(
             overrides={
@@ -109,7 +109,7 @@ class TestAdapterSeam:
     @pytest.mark.unit
     def test_adapter_seam_preserves_extras(self):
         """Adapter should have access to extra fields from configuration."""
-        from gemini_batch.pipeline.adapters import gemini  # noqa: F401
+        from pollux.pipeline.adapters import gemini  # noqa: F401
 
         config = resolve_config(
             overrides={

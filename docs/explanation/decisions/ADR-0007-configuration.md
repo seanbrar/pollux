@@ -15,12 +15,12 @@ The prior configuration relied on environment variables and an ambient `config_s
 
 Adopt an enhanced **resolve‑once, freeze‑then‑flow** configuration model implementing the **Pydantic Two-File Core** pattern:
 
-1. **Precedence:** `Programmatic > Environment > Project pyproject.toml > Home file > Defaults` (per field), with optional `GEMINI_BATCH_PROFILE` selection.
+1. **Precedence:** `Programmatic > Environment > Project pyproject.toml > Home file > Defaults` (per field), with optional `POLLUX_PROFILE` selection.
 2. **Schema:** **Pydantic BaseModel** (`Settings`) validates and merges sources with strong typing, field validation, and cross-field rules.
 3. **Frozen payload:** Convert validated settings to **`FrozenConfig`** (frozen dataclass) and attach to the **Initial Command**. Handlers never mutate or re‑resolve.
 4. **Provider Inference:** Pattern-based mapping (`resolve_provider`) using priority regex rules and compiled patterns.
 5. **Extra Fields Validation:** **Pattern-based validation** with non-breaking warnings for conventional field patterns and deprecated usage.
-6. **Debug Audit:** Controlled by `GEMINI_BATCH_DEBUG_CONFIG` and emitted via Python warnings (prints once per callsite by default).
+6. **Debug Audit:** Controlled by `POLLUX_DEBUG_CONFIG` and emitted via Python warnings (prints once per callsite by default).
 7. **Scoped overrides:** Retain `config_scope()` only for **entry‑time** overrides. The pipeline never reads ambient state.
 
 ## Drivers (Why)
@@ -64,7 +64,7 @@ The configuration system is now fully implemented with enhanced features:
 3. **Extra Fields Validation** → Pattern-based validation with helpful warnings for conventional naming.
 4. **Debug Audit Emission** → Environment-gated, redacted audit via Python warnings.
 5. **Eliminated Circular Imports** → Clean utils module with shared functionality and path utilities.
-6. **Profiles** → reads from `pyproject.toml` and `~/.config/gemini_batch.toml`; supports `GEMINI_BATCH_PROFILE`.
+6. **Profiles** → reads from `pyproject.toml` and `~/.config/pollux.toml`; supports `POLLUX_PROFILE`.
 7. **Enhanced Test Fixtures** → Robust, isolated configuration sources for comprehensive testing.
 
 ## Security & Privacy

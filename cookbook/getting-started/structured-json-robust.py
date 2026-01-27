@@ -29,13 +29,13 @@ import re
 from pydantic import BaseModel
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, pick_file_by_ext
-from gemini_batch import types
-from gemini_batch.core.result_envelope import (
+from pollux import types
+from pollux.core.result_envelope import (
     ResultEnvelope,
     explain_invalid_result_envelope,
     is_result_envelope,
 )
-from gemini_batch.frontdoor import run_batch
+from pollux.frontdoor import run_batch
 
 # Note: This recipe handles JSON extraction inline for demonstration purposes.
 

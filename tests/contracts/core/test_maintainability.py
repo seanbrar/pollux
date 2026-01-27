@@ -2,7 +2,7 @@ import inspect
 
 import pytest
 
-from gemini_batch.core import exceptions, models, types
+from pollux.core import exceptions, models, types
 
 
 class TestMaintainabilityCompliance:
@@ -111,13 +111,13 @@ class TestMaintainabilityCompliance:
         exceptions_source = inspect.getsource(exceptions)
 
         # Types module should not import from models or exceptions
-        assert "from gemini_batch.core.models" not in types_source
-        assert "from gemini_batch.core.exceptions" not in types_source
+        assert "from pollux.core.models" not in types_source
+        assert "from pollux.core.exceptions" not in types_source
 
         # Models module should not import from types or exceptions
-        assert "from gemini_batch.core.types" not in models_source
-        assert "from gemini_batch.core.exceptions" not in models_source
+        assert "from pollux.core.types" not in models_source
+        assert "from pollux.core.exceptions" not in models_source
 
         # Exceptions module should not import from types or models
-        assert "from gemini_batch.core.types" not in exceptions_source
-        assert "from gemini_batch.core.models" not in exceptions_source
+        assert "from pollux.core.types" not in exceptions_source
+        assert "from pollux.core.models" not in exceptions_source

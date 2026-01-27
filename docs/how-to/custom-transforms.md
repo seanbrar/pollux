@@ -17,7 +17,7 @@ Keep transforms simple, deterministic, and IO-free.
 
 ```python
 from typing import Any
-from gemini_batch.pipeline.results.extraction import TransformSpec
+from pollux.pipeline.results.extraction import TransformSpec
 
 # Match a specific structure
 def matcher(raw: Any) -> bool:
@@ -52,7 +52,7 @@ def make_my_transform(prefix: str = "") -> TransformSpec:
 ## 2) Use it with the Result Builder
 
 ```python
-from gemini_batch.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.result_builder import ResultBuilder
 
 # Supply only your transform
 builder = ResultBuilder(transforms=(my_transform,))
@@ -63,7 +63,7 @@ answers = result.value["answers"]
 Combine with the defaults when desired (priority controls order):
 
 ```python
-from gemini_batch.pipeline.results.transforms import default_transforms
+from pollux.pipeline.results.transforms import default_transforms
 
 builder = ResultBuilder(transforms=(make_my_transform(prefix="[X] "), *default_transforms()))
 ```

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_batch.executor import create_executor
-from gemini_batch.extensions import Exchange
-from gemini_batch.extensions.conversation_engine import ConversationEngine
-from gemini_batch.extensions.conversation_store import JSONStore
+from pollux.executor import create_executor
+from pollux.extensions import Exchange
+from pollux.extensions.conversation_engine import ConversationEngine
+from pollux.extensions.conversation_store import JSONStore
 
 
 @pytest.mark.contract

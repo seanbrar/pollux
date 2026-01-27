@@ -3,8 +3,8 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     InitialCommand,
@@ -15,7 +15,7 @@ from gemini_batch.core.types import (
     TextPart,
     UploadTask,
 )
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.pipeline.api_handler import APIHandler
 
 
 class _NoUploadAdapter:

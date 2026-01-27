@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, TypedDict
 
 import pytest
 
-from gemini_batch.core.api_plan import UploadTask
-from gemini_batch.core.types import APIPart, FilePlaceholder, TextPart
-from gemini_batch.pipeline.adapters.base import UploadsCapability
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.core.api_plan import UploadTask
+from pollux.core.types import APIPart, FilePlaceholder, TextPart
+from pollux.pipeline.adapters.base import UploadsCapability
+from pollux.pipeline.api_handler import APIHandler
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -67,7 +67,7 @@ async def test_upload_task_indices_are_relative_to_call_parts() -> None:
         )
 
         # Assert: combined index 2 replaced by uploaded ref (coerced to FileRefPart)
-        from gemini_batch.core.types import FileRefPart
+        from pollux.core.types import FileRefPart
 
         assert isinstance(out[2], FileRefPart)
         assert adapter.calls == 1

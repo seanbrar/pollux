@@ -5,8 +5,8 @@ Usage examples:
 - How‑to → [Telemetry Integration](../../how-to/telemetry.md)
 - Explanation → Concepts → [Telemetry](../../explanation/concepts/telemetry.md)
 
-::: gemini_batch.telemetry.TelemetryContext
+::: pollux.telemetry.TelemetryContext
 
-::: gemini_batch.telemetry.TelemetryReporter
+::: pollux.telemetry.TelemetryReporter
 
 Last reviewed: 2025-09

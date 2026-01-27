@@ -1,6 +1,6 @@
 import pytest
 
-from gemini_batch.core import exceptions, models, types
+from pollux.core import exceptions, models, types
 
 
 class TestRobustnessCompliance:
@@ -23,7 +23,7 @@ class TestRobustnessCompliance:
         ]
 
         # Add Result Builder extraction types (internal - not in core.types)
-        from gemini_batch.pipeline.results.extraction import (
+        from pollux.pipeline.results.extraction import (
             ExtractionContext,
             ExtractionContract,
             ExtractionResult,

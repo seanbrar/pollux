@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # --- Project Metadata ---
 [project]
 # Core Metadata
-name = "gemini-batch"
+name = "pollux"
 version = "0.9.0"
 description = "A framework for batch processing with Google's Gemini API"
 readme = "README.md"
@@ -54,21 +54,21 @@ dev = [
     "types-PyYAML>=6.0.12",
 ]
 viz = ["matplotlib~=3.10", "pandas~=2.3", "seaborn~=0.13"]
-all = ["gemini-batch[dev,viz]"]
+all = ["pollux[dev,viz]"]
 
 # --- Console Scripts ---
 [project.scripts]
-gb-config = "gemini_batch.config.core:main"
+pollux-config = "pollux.config.core:main"
 
 # --- Tool Configurations ---
 
 # --- Coverage ---
 [tool.coverage.run]
-source = ["src/gemini_batch"]
+source = ["src/pollux"]
 omit = [
     "setup.py",
-    "src/gemini_batch/__init__.py",
-    "src/gemini_batch/extensions/visualization.py",
+    "src/pollux/__init__.py",
+    "src/pollux/extensions/visualization.py",
     "tests/*",
 ]
 
@@ -145,7 +145,7 @@ exclude = [
     "build",
     "dist",
     "venv",
-    "src/gemini_batch/_legacy",
+    "src/pollux/_legacy",
 ]
 
 [tool.ruff.format]
@@ -201,7 +201,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
-known-first-party = ["gemini_batch"]
+known-first-party = ["pollux"]
 section-order = [
     "future",
     "standard-library",
@@ -248,10 +248,11 @@ trim_blocks = true
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
 
+
 # --- Setuptools ---
 [tool.setuptools.packages.find]
 where = ["src"]
 exclude = ["examples*", "notebooks*", "tests*"]
 
 [tool.setuptools.package-data]
-gemini_batch = ["py.typed"]
+pollux = ["py.typed"]

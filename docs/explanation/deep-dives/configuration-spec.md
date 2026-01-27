@@ -126,7 +126,7 @@ def validate_extra_field(name: str, value: Any) -> list[str]:
 
 ### 3.6 Debug Audit Emission
 
-Controlled via `GEMINI_BATCH_DEBUG_CONFIG` and emitted through Python’s warnings module. By default, warnings print once per callsite; values are redacted to avoid secret leaks.
+Controlled via `POLLUX_DEBUG_CONFIG` and emitted through Python’s warnings module. By default, warnings print once per callsite; values are redacted to avoid secret leaks.
 
 ---
 
@@ -135,18 +135,18 @@ Controlled via `GEMINI_BATCH_DEBUG_CONFIG` and emitted through Python’s warnin
 **Order (highest → lowest):**
 
 1. Programmatic overrides (dict passed to `resolve_config()` or via `with_overrides`)
-2. Environment variables (`GEMINI_BATCH_*`)
+2. Environment variables (`POLLUX_*`)
 3. Project file: `./pyproject.toml`
-4. Home file: `~/.config/gemini_batch.toml`
+4. Home file: `~/.config/pollux.toml`
 5. Defaults (schema)
 
 **Per‑field merge:** Higher layer sets a field → lower layers ignored for that field; unspecified fields fall through.
 
 **Profiles:**
 
-- Project file tables: `[tool.gemini_batch]` and `[tool.gemini_batch.profiles.<name>]`.
-- Home file uses the same tables (`[tool.gemini_batch]` and optional `[tool.gemini_batch.profiles.<name>]`).
-- Selection: `GEMINI_BATCH_PROFILE=<name>` or `resolve_config(profile=...)`.
+- Project file tables: `[tool.pollux]` and `[tool.pollux.profiles.<name>]`.
+- Home file uses the same tables (`[tool.pollux]` and optional `[tool.pollux.profiles.<name>]`).
+- Selection: `POLLUX_PROFILE=<name>` or `resolve_config(profile=...)`.
 
 **.env support:** `resolve_config()` attempts to load a `.env` file if `python-dotenv` is available; failures are ignored for robustness.
 
@@ -157,29 +157,29 @@ Controlled via `GEMINI_BATCH_DEBUG_CONFIG` and emitted through Python’s warnin
 ### 5.1 `pyproject.toml`
 
 ```toml
-[tool.gemini_batch]
+[tool.pollux]
 model = "gemini-2.0-flash"
 use_real_api = false
 enable_caching = true
 ttl_seconds = 3600
 
-[tool.gemini_batch.profiles.dev]
+[tool.pollux.profiles.dev]
 model = "gemini-2.0-flash"
 use_real_api = false
 
-[tool.gemini_batch.profiles.prod]
+[tool.pollux.profiles.prod]
 model = "gemini-2.0-pro"
 use_real_api = true
 ```
 
-### 5.2 Home file `~/.config/gemini_batch.toml`
+### 5.2 Home file `~/.config/pollux.toml`
 
 ```toml
-[tool.gemini_batch]
+[tool.pollux]
 model = "gemini-2.0-flash"
 tier = "FREE"
 
-[tool.gemini_batch.profiles.office]
+[tool.pollux.profiles.office]
 model = "gemini-2.0-flash"
 ```
 
@@ -194,11 +194,11 @@ model = "gemini-2.0-flash"
 
 ## 6. Environment Variables
 
-- Prefix: `GEMINI_BATCH_` (e.g., `GEMINI_BATCH_MODEL`, `GEMINI_BATCH_TIER`).
+- Prefix: `POLLUX_` (e.g., `POLLUX_MODEL`, `POLLUX_TIER`).
 - Field names are normalized to lower‑case after the prefix is stripped; variable names must match exactly.
 - Type coercion: booleans (`true/false/1/0`), integers, enums (`APITier`).
-- Also recognized: `GEMINI_API_KEY` (convenience; preferred if `GEMINI_BATCH_API_KEY` is not set).
-- Additional field: `GEMINI_BATCH_REQUEST_CONCURRENCY` (int; default 6).
+- Also recognized: `GEMINI_API_KEY` (convenience; preferred if `POLLUX_API_KEY` is not set).
+- Additional field: `POLLUX_REQUEST_CONCURRENCY` (int; default 6).
 
 ---
 
@@ -365,7 +365,7 @@ Errors abort resolution; callers may catch and surface actionable messages.
 
 - **Phase 1:** Introduce resolver and `FrozenConfig`; leave dict reads in place with a warning log path.
 - **Phase 2:** Codemod handler reads to attribute access; drop dict branch.
-- **Phase 3:** Enable profiles and document `GEMINI_BATCH_PROFILE`.
+- **Phase 3:** Enable profiles and document `POLLUX_PROFILE`.
 - **Deprecations:** Old field names may be kept as **aliases** with warnings for one minor version.
 
 ---
@@ -384,7 +384,7 @@ Errors abort resolution; callers may catch and surface actionable messages.
 
 - Optional org‑level policy file (lower than project) and enforcement hooks.
 - Model/tier capability validation once provider capabilities stabilize.
-- CLI: `gemini_batch config --print-effective` (redacted) and `--check` for CI.
+- CLI: `pollux config --print-effective` (redacted) and `--check` for CI.
 !!! note "Draft – pending revision"
     This specification will be reworked for clarity and efficacy. Included in nav for discoverability; content to be reviewed before release.
 

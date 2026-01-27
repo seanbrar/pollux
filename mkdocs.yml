@@ -1,4 +1,4 @@
-site_name: Gemini Batch Documentation
+site_name: Pollux Documentation
 repo_url: https://github.com/seanbrar/gemini-batch-prediction
 repo_name: seanbrar/gemini-batch-prediction
 site_url: https://seanbrar.github.io/gemini-batch-prediction/
@@ -27,8 +27,8 @@ plugins:
                   raise_error: true
                   validate_external_urls: false
                   ignore_urls:
-                          # Ignore mkdocstrings-generated anchors (dynamic per build); limited to gemini_batch anchors
-                          - "*#gemini_batch.*"
+                          # Ignore mkdocstrings-generated anchors (dynamic per build); limited to pollux anchors
+                          - "*#pollux.*"
 markdown_extensions:
         - admonition
         - toc:

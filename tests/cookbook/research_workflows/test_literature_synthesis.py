@@ -32,7 +32,7 @@ def test_literature_synthesis_main_async_prints_structured_summary(
     async def fake_run_batch(*_args, **_kwargs):
         return payload
 
-    monkeypatch.setattr("gemini_batch.frontdoor.run_batch", fake_run_batch)
+    monkeypatch.setattr("pollux.frontdoor.run_batch", fake_run_batch)
 
     # Act: load the recipe module by path (filename uses dashes)
     ns = load_recipe("cookbook/research-workflows/literature-synthesis.py")

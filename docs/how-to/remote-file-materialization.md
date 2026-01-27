@@ -11,7 +11,7 @@ Goal: Convert eligible remote HTTP(S) file references (e.g., arXiv/PDF URLs) int
 1. Enable the policy
 
 ```python title="enable_remote_files.py"
-from gemini_batch.core.execution_options import ExecutionOptions, RemoteFilePolicy
+from pollux.core.execution_options import ExecutionOptions, RemoteFilePolicy
 
 opts = ExecutionOptions(remote_files=RemoteFilePolicy(enabled=True))
 ```
@@ -20,8 +20,8 @@ opts = ExecutionOptions(remote_files=RemoteFilePolicy(enabled=True))
 
 ```python title="run_with_remote.py"
 import asyncio
-from gemini_batch import types, run_batch
-from gemini_batch.core.execution_options import ExecutionOptions, RemoteFilePolicy
+from pollux import types, run_batch
+from pollux.core.execution_options import ExecutionOptions, RemoteFilePolicy
 
 async def main() -> None:
     opts = ExecutionOptions(remote_files=RemoteFilePolicy(enabled=True))
@@ -68,9 +68,9 @@ Last reviewed: 2025-09
 ### Quick Start
 
 ```python
-from gemini_batch.core.execution_options import ExecutionOptions, RemoteFilePolicy
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux.core.execution_options import ExecutionOptions, RemoteFilePolicy
+from pollux import types
+from pollux.frontdoor import run_batch
 
 # Option A: quick enablement
 opts = ExecutionOptions(remote_files=RemoteFilePolicy(enabled=True))

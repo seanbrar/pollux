@@ -16,7 +16,7 @@ Pick one path:
 # A) From Releases (recommended)
 # Download the latest .whl from:
 # https://github.com/seanbrar/gemini-batch-prediction/releases/latest
-pip install ./gemini_batch-*.whl
+pip install ./pollux-*.whl
 
 # B) From source (this repo)
 git clone https://github.com/seanbrar/gemini-batch-prediction.git
@@ -35,7 +35,7 @@ pip install "matplotlib~=3.10" "pandas~=2.3" "seaborn~=0.13"
 Verify installation:
 
 ```bash
-python -c "import gemini_batch as gb; print('✅', gb.__version__)"
+python -c "import pollux as gb; print('✅', gb.__version__)"
 ```
 
 ## 2) First run (no API key needed)
@@ -45,7 +45,7 @@ The library defaults to a deterministic mock mode until you opt‑in to the real
 ```python
 # save as hello.py
 import asyncio
-from gemini_batch import run_simple, types
+from pollux import run_simple, types
 
 async def main():
     result = await run_simple(
@@ -79,27 +79,27 @@ Enable real calls and configure your billing tier to avoid rate‑limit surprise
     ```bash
     # Set your key and enable real API
     export GEMINI_API_KEY="<your key>"
-    export GEMINI_BATCH_TIER=free      # free | tier_1 | tier_2 | tier_3
-    export GEMINI_BATCH_USE_REAL_API=1
+    export POLLUX_TIER=free      # free | tier_1 | tier_2 | tier_3
+    export POLLUX_USE_REAL_API=1
 
     # Sanity check (redacted):
-    gb-config doctor
+    pollux-config doctor
     ```
 
 === "PowerShell"
 
     ```powershell
     $Env:GEMINI_API_KEY = "<your key>"
-    $Env:GEMINI_BATCH_TIER = "free"      # free | tier_1 | tier_2 | tier_3
-    $Env:GEMINI_BATCH_USE_REAL_API = "1"
-    gb-config doctor
+    $Env:POLLUX_TIER = "free"      # free | tier_1 | tier_2 | tier_3
+    $Env:POLLUX_USE_REAL_API = "1"
+    pollux-config doctor
     ```
 <!-- markdownlint-enable MD046 -->
 
 Re‑run `hello.py`. You should still see `status: ok` with a non‑mock answer.
 
 !!! warning "Costs & rate limits"
-    Real API calls may incur costs and are subject to tier‑specific rate limits. Set `GEMINI_BATCH_TIER` to match your billing plan.
+    Real API calls may incur costs and are subject to tier‑specific rate limits. Set `POLLUX_TIER` to match your billing plan.
 
 ## 4) Next steps
 
@@ -112,8 +112,8 @@ Re‑run `hello.py`. You should still see `status: ok` with a non‑mock answer.
 
 - Install from Releases or source and verify import.
 - Run the Hello example in mock mode and confirm expected output.
-- Set `GEMINI_API_KEY`, `GEMINI_BATCH_TIER`, `GEMINI_BATCH_USE_REAL_API=1` when ready for real calls.
-- Run `gb-config doctor` until no issues are reported.
+- Set `GEMINI_API_KEY`, `POLLUX_TIER`, `POLLUX_USE_REAL_API=1` when ready for real calls.
+- Run `pollux-config doctor` until no issues are reported.
 - Re-run the example; iterate with How‑to → Troubleshooting if needed.
 
 Last reviewed: 2025-09

@@ -1,7 +1,7 @@
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     FinalizedCommand,
@@ -12,7 +12,7 @@ from gemini_batch.core.types import (
     TextPart,
     TokenEstimate,
 )
-from gemini_batch.pipeline.api_handler import APIHandler
+from pollux.pipeline.api_handler import APIHandler
 
 pytestmark = pytest.mark.unit
 
@@ -49,7 +49,7 @@ async def test_api_handler_simulated_usage_matches_estimate_envelope():
     # Mock adapter calculates: max(len(text) // 4 + 10, 0) = 12 for "hello world"
     planned = make_planned_with_estimate("hello world", expected=12)
     result = await handler.handle(planned)
-    from gemini_batch.core.types import Success
+    from pollux.core.types import Success
 
     assert isinstance(result, Success)
     finalized: FinalizedCommand = result.value

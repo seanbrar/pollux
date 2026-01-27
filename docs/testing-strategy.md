@@ -16,7 +16,7 @@ Audience: contributors and maintainers who want to understand why tests run when
 
 !!! note "Notes"
 
-    - API tests are opt‑in and run only when both an API key and an explicit enable flag are set. Set either `GEMINI_API_KEY` or `GEMINI_BATCH_API_KEY` and also `ENABLE_API_TESTS=1`. Keep them off for regular CI to avoid flakiness and rate limits. Running API tests may incur costs and trigger rate limits—enable them intentionally.
+    - API tests are opt‑in and run only when both an API key and an explicit enable flag are set. Set either `GEMINI_API_KEY` or `POLLUX_API_KEY` and also `ENABLE_API_TESTS=1`. Keep them off for regular CI to avoid flakiness and rate limits. Running API tests may incur costs and trigger rate limits—enable them intentionally.
     - Coverage HTML reports are written to `coverage_html_report/` during `make test-coverage` and on the `make test-main` lane.
 
 ## Rationale
@@ -33,7 +33,7 @@ CI picks a lane based on the event type:
 - Draft PRs: runs `test-fast` with `TEST_LOG_LEVEL=DEBUG` for richer logs.
 - Ready PRs: runs `test-pr` (progressive fail‑fast + integration + workflows).
 - Main: runs `test-main` (all tests with coverage reporting).
-- Releases: run `test-main`; optionally enable API checks by setting `GEMINI_API_KEY` (or `GEMINI_BATCH_API_KEY`) and `ENABLE_API_TESTS=1`.
+- Releases: run `test-main`; optionally enable API checks by setting `GEMINI_API_KEY` (or `POLLUX_API_KEY`) and `ENABLE_API_TESTS=1`.
 
 ## Progressive Testing (Fail‑Fast)
 

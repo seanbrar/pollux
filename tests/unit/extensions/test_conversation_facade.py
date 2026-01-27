@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from gemini_batch.extensions.conversation import Conversation
-from gemini_batch.extensions.conversation_types import (
+from pollux.extensions.conversation import Conversation
+from pollux.extensions.conversation_types import (
     ConversationPolicy,
     ConversationState,
     PromptSet,

@@ -28,13 +28,13 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     resolve_file_or_exit,
 )
-from gemini_batch import types
-from gemini_batch.extensions.chunking import (
+from pollux import types
+from pollux.extensions.chunking import (
     TranscriptChunk,
     TranscriptSegment,
     chunk_transcript_by_tokens,
 )
-from gemini_batch.frontdoor import run_batch, run_parallel
+from pollux.frontdoor import run_batch, run_parallel
 
 
 def _read_lines(path: Path) -> list[str]:

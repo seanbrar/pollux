@@ -39,16 +39,16 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
-from gemini_batch.executor import GeminiExecutor
-from gemini_batch.core.commands import PlannedCommand
-from gemini_batch.core.exceptions import GeminiBatchError
-from gemini_batch.pipeline.base import BaseAsyncHandler
-from gemini_batch.pipeline.result_builder import ResultBuilder
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.pipeline.cache_stage import CacheStage
-from gemini_batch.pipeline.rate_limit_handler import RateLimitHandler
-from gemini_batch.pipeline.remote_materialization import RemoteMaterializationStage
-from gemini_batch.pipeline.source_handler import SourceHandler
+from pollux.executor import GeminiExecutor
+from pollux.core.commands import PlannedCommand
+from pollux.core.exceptions import GeminiBatchError
+from pollux.pipeline.base import BaseAsyncHandler
+from pollux.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.api_handler import APIHandler
+from pollux.pipeline.cache_stage import CacheStage
+from pollux.pipeline.rate_limit_handler import RateLimitHandler
+from pollux.pipeline.remote_materialization import RemoteMaterializationStage
+from pollux.pipeline.source_handler import SourceHandler
 
 
 class ResponseSchemaInjector(BaseAsyncHandler[PlannedCommand, PlannedCommand, GeminiBatchError]):
@@ -88,7 +88,7 @@ def build_custom_executor(cfg) -> GeminiExecutor:
         # ExecutionPlanner() is inside GeminiExecutor._build_default_pipeline; we replicate sequence
         # to keep control. Using private imports here for brevity; in real code import the class.
     ]
-    from gemini_batch.pipeline.planner import ExecutionPlanner
+    from pollux.pipeline.planner import ExecutionPlanner
     handlers.append(ExecutionPlanner())
     handlers.append(ResponseSchemaInjector(
         response_mime_type="application/json",
@@ -132,8 +132,8 @@ e.g., to prefer domain‑specific parsing.
 Sketch:
 
 ```python
-from gemini_batch.pipeline.results.transforms import TransformSpec
-from gemini_batch.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.results.transforms import TransformSpec
+from pollux.pipeline.result_builder import ResultBuilder
 
 def my_transform() -> TransformSpec:
     def matcher(raw):

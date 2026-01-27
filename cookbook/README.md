@@ -72,8 +72,8 @@ Notes
 - Seed demo data: `make demo-data`
 - Export env (example):
   - `export GEMINI_API_KEY=...`
-  - `export GEMINI_BATCH_TIER=tier_1` (match your billing)
-  - `export GEMINI_BATCH_USE_REAL_API=true`
+  - `export POLLUX_TIER=tier_1` (match your billing)
+  - `export POLLUX_USE_REAL_API=true`
 - Run recipes from repo root via module runner (no PYTHONPATH needed):
   - `python -m cookbook production/resume-on-failure -- --limit 2`
   - Dotted equivalent: `python -m cookbook production.resume_on_failure -- --limit 2`
@@ -115,7 +115,7 @@ Tips:
 - No demo data found
   - Run `make demo-data` (or pass `--input your_dir`)
 - 429 / throttling
-  - Set `GEMINI_BATCH_TIER` to match your billing tier; reduce `--limit` or input size.
+  - Set `POLLUX_TIER` to match your billing tier; reduce `--limit` or input size.
 - Slow runs / high tokens
   - Keep to small files for demos; use `--limit`, and prefer text over large PDFs/videos.
 
@@ -123,6 +123,6 @@ Tips:
 
 - Store secrets in `.env` (gitignored): `GEMINI_API_KEY=...`
 - Optional envs:
-  - `GEMINI_BATCH_TIER` (e.g., `tier_1`)
-  - `GEMINI_BATCH_USE_REAL_API` (`true` to call the provider)
+  - `POLLUX_TIER` (e.g., `tier_1`)
+  - `POLLUX_USE_REAL_API` (`true` to call the provider)
   - Model override via `pyproject.toml` or env per docs

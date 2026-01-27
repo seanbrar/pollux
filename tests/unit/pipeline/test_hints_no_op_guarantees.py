@@ -7,14 +7,14 @@ backward compatibility and fail-soft semantics.
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.execution_options import (
+from pollux.config import resolve_config
+from pollux.core.execution_options import (
     CacheOptions,
     EstimationOptions,
     ExecutionOptions,
     ResultOption,
 )
-from gemini_batch.core.types import (
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     FinalizedCommand,
@@ -25,11 +25,11 @@ from gemini_batch.core.types import (
     Success,
     TextPart,
 )
-from gemini_batch.executor import create_executor
-from gemini_batch.extensions.conversation import Conversation
-from gemini_batch.extensions.conversation_types import ConversationState
-from gemini_batch.pipeline.planner import ExecutionPlanner
-from gemini_batch.pipeline.result_builder import ResultBuilder
+from pollux.executor import create_executor
+from pollux.extensions.conversation import Conversation
+from pollux.extensions.conversation_types import ConversationState
+from pollux.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.result_builder import ResultBuilder
 
 pytestmark = pytest.mark.unit
 
@@ -223,7 +223,7 @@ class TestNoOpGuarantees:
     @pytest.mark.asyncio
     async def test_end_to_end_no_op_guarantee(self):
         """End-to-end execution should be identical with options=None vs default options."""
-        from gemini_batch.core.types import InitialCommand
+        from pollux.core.types import InitialCommand
 
         executor = create_executor()
 

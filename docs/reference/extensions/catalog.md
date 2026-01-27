@@ -40,7 +40,7 @@ Last reviewed: 2025‑09
 ## Provider Adapters (Core seam) — Advanced
 
 - Purpose: Provider adapter interfaces and registry to customize generation/uploads/cache behavior for the Command Pipeline.
-- Location: Core pipeline (`gemini_batch.pipeline.adapters.*`), not the `extensions` package, but commonly used by advanced users.
+- Location: Core pipeline (`pollux.pipeline.adapters.*`), not the `extensions` package, but commonly used by advanced users.
 - Links:
   - How‑to: [Provider Adapters](../../how-to/provider-adapters.md)
 - Internals API: [Provider Adapters](../internals/provider-adapters.md)

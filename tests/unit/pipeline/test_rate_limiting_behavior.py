@@ -1,10 +1,10 @@
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import InitialCommand, ResolvedCommand, Success
-from gemini_batch.executor import create_executor
-from gemini_batch.pipeline.planner import ExecutionPlanner
-from gemini_batch.pipeline.rate_limit_handler import RateLimitHandler
+from pollux.config import resolve_config
+from pollux.core.types import InitialCommand, ResolvedCommand, Success
+from pollux.executor import create_executor
+from pollux.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.rate_limit_handler import RateLimitHandler
 
 
 @pytest.mark.unit

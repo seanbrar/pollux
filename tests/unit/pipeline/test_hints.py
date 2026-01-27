@@ -2,7 +2,7 @@
 
 import pytest
 
-from gemini_batch.core.execution_options import (
+from pollux.core.execution_options import (
     CacheOptions,
     EstimationOptions,
     ResultOption,

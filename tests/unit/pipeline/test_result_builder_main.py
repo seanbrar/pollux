@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gemini_batch.core.types import (
+from pollux.core.types import (
     APICall,
     ExecutionPlan,
     FinalizedCommand,
@@ -19,8 +19,8 @@ from gemini_batch.core.types import (
     ResolvedCommand,
     Success,
 )
-from gemini_batch.pipeline.result_builder import ResultBuilder
-from gemini_batch.pipeline.results.extraction import (
+from pollux.pipeline.result_builder import ResultBuilder
+from pollux.pipeline.results.extraction import (
     ExtractionContext,
     TransformSpec,
 )

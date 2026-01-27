@@ -28,14 +28,14 @@ from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
     pick_files_by_ext,
 )
-from gemini_batch import types
-from gemini_batch.config import resolve_config
-from gemini_batch.research import compare_efficiency
+from pollux import types
+from pollux.config import resolve_config
+from pollux.research import compare_efficiency
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Callable
 
-    from gemini_batch.config.core import FrozenConfig
+    from pollux.config.core import FrozenConfig
 
 
 def make_cfg_with_system(

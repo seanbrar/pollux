@@ -7,24 +7,24 @@ from typing import Any
 
 import pytest
 
-from gemini_batch._dev_flags import dev_raw_preview_enabled
-from gemini_batch.pipeline._debug_preview import build_raw_preview
+from pollux._dev_flags import dev_raw_preview_enabled
+from pollux.pipeline._debug_preview import build_raw_preview
 
 pytestmark = pytest.mark.unit
 
 
 def test_dev_flags_raw_preview_enabled_env_and_override(monkeypatch: Any) -> None:
     # Override takes precedence
-    monkeypatch.delenv("GEMINI_BATCH_TELEMETRY_RAW_PREVIEW", raising=False)
+    monkeypatch.delenv("POLLUX_TELEMETRY_RAW_PREVIEW", raising=False)
     assert dev_raw_preview_enabled(override=True) is True
     assert dev_raw_preview_enabled(override=False) is False
 
     # Env exact-match semantics
-    monkeypatch.setenv("GEMINI_BATCH_TELEMETRY_RAW_PREVIEW", "1")
+    monkeypatch.setenv("POLLUX_TELEMETRY_RAW_PREVIEW", "1")
     assert dev_raw_preview_enabled() is True
-    monkeypatch.setenv("GEMINI_BATCH_TELEMETRY_RAW_PREVIEW", "0")
+    monkeypatch.setenv("POLLUX_TELEMETRY_RAW_PREVIEW", "0")
     assert dev_raw_preview_enabled() is False
-    monkeypatch.setenv("GEMINI_BATCH_TELEMETRY_RAW_PREVIEW", "true")
+    monkeypatch.setenv("POLLUX_TELEMETRY_RAW_PREVIEW", "true")
     assert dev_raw_preview_enabled() is False
 
 

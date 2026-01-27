@@ -7,8 +7,8 @@ maintaining the architecture rubric's robustness principles.
 
 import pytest
 
-from gemini_batch.pipeline.results.extraction import ExtractionContext
-from gemini_batch.pipeline.results.minimal_projection import MinimalProjection
+from pollux.pipeline.results.extraction import ExtractionContext
+from pollux.pipeline.results.minimal_projection import MinimalProjection
 
 pytestmark = pytest.mark.unit
 

@@ -52,7 +52,7 @@ def isolate_gemini_env(request, monkeypatch):
         if key.startswith("GEMINI_"):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.delenv("DEBUG", raising=False)
-    monkeypatch.delenv("GEMINI_BATCH_DEBUG_CONFIG", raising=False)
+    monkeypatch.delenv("POLLUX_DEBUG_CONFIG", raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -63,8 +63,8 @@ def neutral_home_config(request, monkeypatch, tmp_path):
 
     fake_home_dir = tmp_path / "home_config_isolated"
     fake_home_dir.mkdir(parents=True, exist_ok=True)
-    fake_home_file = fake_home_dir / "gemini_batch.toml"
-    monkeypatch.setenv("GEMINI_BATCH_CONFIG_HOME", str(fake_home_file))
+    fake_home_file = fake_home_dir / "pollux.toml"
+    monkeypatch.setenv("POLLUX_CONFIG_HOME", str(fake_home_file))
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def isolated_config_sources(tmp_path):
         if env_vars:
             for key, value in env_vars.items():
                 if not key.startswith("GEMINI_"):
-                    key = f"GEMINI_BATCH_{key.upper()}"
+                    key = f"POLLUX_{key.upper()}"
                 clean_env[key] = value
 
         project_dir = tmp_path / "project"
@@ -105,15 +105,15 @@ def isolated_config_sources(tmp_path):
 
         home_dir = tmp_path / "home"
         home_dir.mkdir(exist_ok=True)
-        home_config_path = home_dir / "gemini_batch.toml"
+        home_config_path = home_dir / "pollux.toml"
 
         if pyproject_content:
             pyproject_path.write_text(pyproject_content)
         if home_content:
             home_config_path.write_text(home_content)
 
-        clean_env["GEMINI_BATCH_PYPROJECT_PATH"] = str(pyproject_path)
-        clean_env["GEMINI_BATCH_CONFIG_HOME"] = str(home_config_path)
+        clean_env["POLLUX_PYPROJECT_PATH"] = str(pyproject_path)
+        clean_env["POLLUX_CONFIG_HOME"] = str(home_config_path)
 
         with patch.dict(os.environ, clean_env, clear=True):
             yield
@@ -165,12 +165,12 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(items):
     """Automatically skip API tests when API key is unavailable."""
     if not (
-        (os.getenv("GEMINI_BATCH_API_KEY") or os.getenv("GEMINI_API_KEY"))
+        (os.getenv("POLLUX_API_KEY") or os.getenv("GEMINI_API_KEY"))
         and os.getenv("ENABLE_API_TESTS")
     ):
         skip_api = pytest.mark.skip(
             reason=(
-                "API tests require GEMINI_BATCH_API_KEY or GEMINI_API_KEY and ENABLE_API_TESTS=1"
+                "API tests require POLLUX_API_KEY or GEMINI_API_KEY and ENABLE_API_TESTS=1"
             ),
         )
         for item in items:
@@ -187,8 +187,8 @@ def mock_api_key() -> str:
 @pytest.fixture
 def mock_env(mock_api_key, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", mock_api_key)
-    monkeypatch.setenv("GEMINI_BATCH_MODEL", "gemini-2.0-flash")
-    monkeypatch.setenv("GEMINI_BATCH_ENABLE_CACHING", "False")
+    monkeypatch.setenv("POLLUX_MODEL", "gemini-2.0-flash")
+    monkeypatch.setenv("POLLUX_ENABLE_CACHING", "False")
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ When to use: You run the same shared context (system instruction + shared parts)
 Prerequisites
 
 - Python 3.13; repository installed (`make install-dev`).
-- Default is mock mode (no real provider). For actual cache creation/reuse, enable real API and set your billing tier: `GEMINI_API_KEY`, `GEMINI_BATCH_USE_REAL_API=1`, `GEMINI_BATCH_TIER=...`.
+- Default is mock mode (no real provider). For actual cache creation/reuse, enable real API and set your billing tier: `GEMINI_API_KEY`, `POLLUX_USE_REAL_API=1`, `POLLUX_TIER=...`.
 
 ## 1) Minimal: create and reuse a cache (two runs)
 
@@ -17,9 +17,9 @@ This example runs a tiny batch twice with the same deterministic cache key. In m
 
 ```python title="cache_min.py"
 import asyncio
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
-from gemini_batch.core.execution_options import ExecutionOptions, CacheOptions
+from pollux import types
+from pollux.frontdoor import run_batch
+from pollux.core.execution_options import ExecutionOptions, CacheOptions
 
 async def main() -> None:
     # Shared context (shaped by prompts + sources)
@@ -70,7 +70,7 @@ Expected
 Use `ExecutionOptions.cache_policy` for conservative, planner‑scoped controls:
 
 ```python
-from gemini_batch.core.execution_options import CachePolicyHint, make_execution_options
+from pollux.core.execution_options import CachePolicyHint, make_execution_options
 
 opts = make_execution_options(
     cache_policy=CachePolicyHint(

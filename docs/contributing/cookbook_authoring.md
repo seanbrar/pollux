@@ -1,6 +1,6 @@
 # Cookbook Authoring Guide
 
-Write problem‑first, copy‑pasteable recipes that help users succeed quickly while showcasing best practices of `gemini_batch`.
+Write problem‑first, copy‑pasteable recipes that help users succeed quickly while showcasing best practices of `pollux`.
 
 ## Goals
 
@@ -34,7 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from gemini_batch import create_executor, types
+from pollux import create_executor, types
 
 
 class OutputSchema(BaseModel):

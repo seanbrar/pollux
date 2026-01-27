@@ -25,7 +25,7 @@ Earlier designs mixed ad-hoc timing, logging, and counters throughout classes, y
 Introduce a `TelemetryContext` factory and a `TelemetryReporter` protocol:
 
 - `TelemetryContext(*reporters)` returns either:
-  - An enabled context when env flag is on (`GEMINI_BATCH_TELEMETRY=1` or `DEBUG=1`) and reporters exist; or
+  - An enabled context when env flag is on (`POLLUX_TELEMETRY=1` or `DEBUG=1`) and reporters exist; or
   - A shared no-op singleton when disabled.
 - `TelemetryReporter` defines two methods: `record_timing` and `record_metric`.
 - The context enriches timing events with depth, parent scope, call count, and precise start/end times.

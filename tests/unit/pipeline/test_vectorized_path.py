@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config import resolve_config
-from gemini_batch.core.types import (
+from pollux.config import resolve_config
+from pollux.core.types import (
     HistoryPart,
     InitialCommand,
     PlannedCommand,
@@ -15,8 +15,8 @@ from gemini_batch.core.types import (
     Success,
     Turn,
 )
-from gemini_batch.pipeline.api_handler import APIHandler
-from gemini_batch.pipeline.planner import ExecutionPlanner
+from pollux.pipeline.api_handler import APIHandler
+from pollux.pipeline.planner import ExecutionPlanner
 
 pytestmark = pytest.mark.unit
 
@@ -144,7 +144,7 @@ async def test_shared_cache_created_once_for_vectorized() -> None:
 @pytest.mark.asyncio
 async def test_batch_response_transform_extracts_multiple_answers() -> None:
     """Test that the batch response transform correctly extracts multiple answers from batch structure."""
-    from gemini_batch.pipeline.results.transforms import batch_response_transform
+    from pollux.pipeline.results.transforms import batch_response_transform
 
     transform = batch_response_transform()
 

@@ -2,16 +2,16 @@ from typing import Any
 
 import pytest
 
-from gemini_batch.config.core import FrozenConfig
-from gemini_batch.core.exceptions import (
+from pollux.config.core import FrozenConfig
+from pollux.core.exceptions import (
     GeminiBatchError,
     InvariantViolationError,
     PipelineError,
 )
-from gemini_batch.core.models import APITier
-from gemini_batch.core.types import Failure, InitialCommand, Result, Success
-from gemini_batch.executor import GeminiExecutor
-from gemini_batch.pipeline.base import BaseAsyncHandler
+from pollux.core.models import APITier
+from pollux.core.types import Failure, InitialCommand, Result, Success
+from pollux.executor import GeminiExecutor
+from pollux.pipeline.base import BaseAsyncHandler
 
 
 class FailingStage(BaseAsyncHandler[Any, Any, GeminiBatchError]):

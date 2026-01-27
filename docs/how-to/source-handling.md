@@ -4,14 +4,14 @@ Audience: developers assembling sources for batch/question answering. Quadrant: 
 
 Goal: Build `types.Source` objects from files/URIs/text and run combined or per‑source analysis using the frontdoor helpers.
 
-Applies to: `gemini_batch.types.Source`, `frontdoor.run_batch`, `frontdoor.run_parallel`, and `types.sources_from_directory`.
+Applies to: `pollux.types.Source`, `frontdoor.run_batch`, `frontdoor.run_parallel`, and `types.sources_from_directory`.
 
 Last reviewed: 2025-09
 
 ## 1) Create Sources
 
 ```python
-from gemini_batch import types
+from pollux import types
 
 # Text
 text_src = types.Source.from_text("Your text content here")
@@ -35,8 +35,8 @@ Analyze multiple prompts over multiple sources in one vectorized request with sh
 
 ```python
 import asyncio
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 async def main() -> None:
     sources = [
@@ -57,7 +57,7 @@ asyncio.run(main())
 Verification
 
 - Expect `status == "ok"` in mock mode and two answers in `env["answers"]`.
-- Real API: enable `GEMINI_BATCH_USE_REAL_API=1` and set `GEMINI_API_KEY`; see How‑to → [Verify Real API](verify-real-api.md).
+- Real API: enable `POLLUX_USE_REAL_API=1` and set `GEMINI_API_KEY`; see How‑to → [Verify Real API](verify-real-api.md).
 
 ## 3) Per‑source analysis (fan‑out)
 
@@ -65,8 +65,8 @@ Ask the same question across many sources and aggregate answers with bounded cli
 
 ```python
 import asyncio
-from gemini_batch import types
-from gemini_batch.frontdoor import run_parallel
+from pollux import types
+from pollux.frontdoor import run_parallel
 
 async def main() -> None:
     srcs = types.sources_from_directory("research_papers/")

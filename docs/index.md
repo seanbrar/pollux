@@ -1,4 +1,4 @@
-# Gemini Batch
+# Pollux
 
 Ship multimodal analysis fast. Spend less on tokens.
 
@@ -9,7 +9,7 @@ Ship multimodal analysis fast. Spend less on tokens.
 
 ```python
 import asyncio
-from gemini_batch import run_simple, types
+from pollux import run_simple, types
 
 async def main():
     envelope = await run_simple(
@@ -21,7 +21,7 @@ async def main():
 asyncio.run(main())
 ```
 
-Note: Works without an API key (deterministic mock mode). To use the real API, set `GEMINI_API_KEY` and `GEMINI_BATCH_USE_REAL_API=1` — see [Verify Real API](how-to/verify-real-api.md).
+Note: Works without an API key (deterministic mock mode). To use the real API, set `GEMINI_API_KEY` and `POLLUX_USE_REAL_API=1` — see [Verify Real API](how-to/verify-real-api.md).
 
 ## Highlights
 
@@ -34,14 +34,14 @@ Note: Works without an API key (deterministic mock mode). To use the real API, s
 
 ## Choose your path
 
-- New to Gemini Batch: [Quickstart](tutorials/quickstart.md) → [First Batch](tutorials/first-batch.md) → [Cookbook](cookbook.md)
+- New to Pollux: [Quickstart](tutorials/quickstart.md) → [First Batch](tutorials/first-batch.md) → [Cookbook](cookbook.md)
 - Going to production: [Installation](how-to/installation.md) → [Configuration](how-to/configuration.md) → [Caching](how-to/caching.md) → [CLI doctor](reference/cli.md) → [Logging](how-to/logging.md)
 - Research workflows: [Research](domains/research.md) → [Efficiency workflows](how-to/research/efficiency-workflows.md) → [Extensions catalog](reference/extensions/catalog.md)
 
 ## Health check
 
 ```bash
-gb-config doctor
+pollux-config doctor
 ```
 
 See: [CLI Reference](reference/cli.md)

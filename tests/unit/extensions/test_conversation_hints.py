@@ -2,7 +2,7 @@
 
 import pytest
 
-from gemini_batch.extensions.conversation import Conversation
+from pollux.extensions.conversation import Conversation
 from tests.unit.extensions._builders import make_state
 
 pytestmark = pytest.mark.unit
@@ -17,7 +17,7 @@ class TestConversationCache:
     async def test_conversation_with_cache_key(self, executor):
         """Test that conversation works with cache key in state."""
         # Create conversation state with cache key
-        from gemini_batch.core.types import Source
+        from pollux.core.types import Source
 
         state = make_state(
             sources=(Source.from_text("doc"),),
@@ -38,7 +38,7 @@ class TestConversationCache:
     @pytest.mark.asyncio
     async def test_conversation_without_cache_key(self, executor):
         """Test conversation works without cache key."""
-        from gemini_batch.core.types import Source
+        from pollux.core.types import Source
 
         conv = Conversation.start(executor, sources=(Source.from_text("doc"),))
 

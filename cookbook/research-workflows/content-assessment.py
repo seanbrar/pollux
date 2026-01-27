@@ -35,8 +35,8 @@ from cookbook.utils.demo_inputs import (
     pick_files_by_ext,
 )
 from cookbook.utils.json_tools import coerce_json
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
+from pollux import types
+from pollux.frontdoor import run_batch
 
 PROMPT = (
     "Assess these materials and return JSON with keys: "

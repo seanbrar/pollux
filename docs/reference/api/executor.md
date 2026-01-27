@@ -6,8 +6,8 @@ Usage examples:
 - Tutorials → [First Batch](../../tutorials/first-batch.md)
 - How‑to → [Configuration](../../how-to/configuration.md)
 
-::: gemini_batch.executor.GeminiExecutor
+::: pollux.executor.GeminiExecutor
 
-::: gemini_batch.executor.create_executor
+::: pollux.executor.create_executor
 
 Last reviewed: 2025-09

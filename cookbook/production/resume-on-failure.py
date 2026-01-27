@@ -28,9 +28,9 @@ from pathlib import Path
 from typing import Any
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
-from gemini_batch.types import make_execution_options
+from pollux import types
+from pollux.frontdoor import run_batch
+from pollux.types import make_execution_options
 
 MANIFEST_PATH = Path("outputs/manifest.json")
 OUTPUTS_DIR = Path("outputs/items")
