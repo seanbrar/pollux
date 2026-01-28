@@ -9,7 +9,7 @@ from __future__ import annotations
 import inspect
 from typing import TYPE_CHECKING, Any, Protocol, TypeGuard, TypeVar, cast
 
-from pollux.core.exceptions import GeminiBatchError
+from pollux.core.exceptions import PolluxError
 
 if TYPE_CHECKING:
     from pollux.core.types import Result
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 T_In = TypeVar("T_In", contravariant=True)
 T_Out = TypeVar("T_Out")
-T_Error = TypeVar("T_Error", bound=GeminiBatchError)
+T_Error = TypeVar("T_Error", bound=PolluxError)
 
 
 class ErasedAsyncHandler(Protocol):
@@ -26,7 +26,7 @@ class ErasedAsyncHandler(Protocol):
 
     stage_name: str
 
-    async def handle(self, command: Any) -> Result[Any, GeminiBatchError]: ...
+    async def handle(self, command: Any) -> Result[Any, PolluxError]: ...
 
 
 def is_erased_handler(obj: object) -> TypeGuard[ErasedAsyncHandler]:
@@ -45,7 +45,7 @@ def is_erased_handler(obj: object) -> TypeGuard[ErasedAsyncHandler]:
         return False
 
 
-class _ErasedWrapper[T_In, T_Out, T_Error: GeminiBatchError]:
+class _ErasedWrapper[T_In, T_Out, T_Error: PolluxError]:
     """Adapter from ``BaseAsyncHandler`` to ``ErasedAsyncHandler`` (internal)."""
 
     def __init__(self, inner: BaseAsyncHandler[T_In, T_Out, T_Error]):
@@ -54,12 +54,12 @@ class _ErasedWrapper[T_In, T_Out, T_Error: GeminiBatchError]:
         # Sentinel used to positively identify erased instances
         self.__erased__ = True
 
-    async def handle(self, command: Any) -> Result[Any, GeminiBatchError]:
+    async def handle(self, command: Any) -> Result[Any, PolluxError]:
         _res = await self._inner.handle(cast("T_In", command))
-        return cast("Result[Any, GeminiBatchError]", _res)
+        return cast("Result[Any, PolluxError]", _res)
 
 
-def erase[T_In, T_Out, T_Error: GeminiBatchError](
+def erase[T_In, T_Out, T_Error: PolluxError](
     handler: BaseAsyncHandler[T_In, T_Out, T_Error] | ErasedAsyncHandler,
 ) -> ErasedAsyncHandler:
     """Erase a typed handler to a uniform executor-compatible wrapper (internal)."""

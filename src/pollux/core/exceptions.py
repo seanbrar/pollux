@@ -1,4 +1,4 @@
-"""Core exceptions for the Gemini Batch Pipeline.
+"""Core exceptions for Pollux.
 
 This module consolidates all custom exceptions for the library, providing a clear
 hierarchy for error handling. The pipeline-specific exceptions allow for more
@@ -6,7 +6,7 @@ granular error catching and reporting.
 """
 
 
-class GeminiBatchError(Exception):
+class PolluxError(Exception):
     """Base exception for all library-specific errors."""
 
     def __init__(self, message: str | None, hint: str | None = None):
@@ -60,7 +60,7 @@ def get_http_error_hint(status_code: int) -> str | None:
     return _HTTP_ERROR_HINTS.get(status_code)
 
 
-class APIError(GeminiBatchError):
+class APIError(PolluxError):
     """Raised for errors originating from the Gemini API."""
 
 
@@ -69,7 +69,7 @@ class APIError(GeminiBatchError):
 # the executor or user to understand exactly where a failure occurred.
 
 
-class PipelineError(GeminiBatchError):
+class PipelineError(PolluxError):
     """Raised when a step in the execution pipeline fails."""
 
     def __init__(
@@ -85,34 +85,34 @@ class PipelineError(GeminiBatchError):
         super().__init__(f"Error in handler '{handler_name}': {message}", hint=hint)
 
 
-class ConfigurationError(GeminiBatchError):
+class ConfigurationError(PolluxError):
     """Raised for invalid or missing configuration."""
 
 
-class SourceError(GeminiBatchError):
+class SourceError(PolluxError):
     """Raised for errors related to input source processing (e.g., file not found)."""
 
 
 # --- Legacy Exceptions (to be phased out or mapped) ---
 
 
-class MissingKeyError(GeminiBatchError):
+class MissingKeyError(PolluxError):
     """Raised when required API key or configuration key is missing."""
 
 
-class FileError(GeminiBatchError):
+class FileError(PolluxError):
     """Raised when file operations fail."""
 
 
-class ValidationError(GeminiBatchError):
+class ValidationError(PolluxError):
     """Raised when input validation fails."""
 
 
-class UnsupportedContentError(GeminiBatchError):
+class UnsupportedContentError(PolluxError):
     """Raised when content type is not supported."""
 
 
-class InvariantViolationError(GeminiBatchError):
+class InvariantViolationError(PolluxError):
     """Raised when an internal pipeline invariant is violated.
 
     Used to signal impossible states that indicate a bug or mis-composed pipeline,

@@ -12,9 +12,9 @@ from pollux.core.exceptions import (
     APIError,
     ConfigurationError,
     FileError,
-    GeminiBatchError,
     MissingKeyError,
     PipelineError,
+    PolluxError,
     SourceError,
     UnsupportedContentError,
     ValidationError,
@@ -27,7 +27,7 @@ class TestExceptionHierarchyCompliance:
     @pytest.mark.unit
     @pytest.mark.smoke
     def test_all_exceptions_inherit_from_base(self):
-        """All custom exceptions should inherit from GeminiBatchError."""
+        """All custom exceptions should inherit from PolluxError."""
         custom_exceptions = [
             APIError,
             PipelineError,
@@ -40,12 +40,12 @@ class TestExceptionHierarchyCompliance:
         ]
 
         for exception_class in custom_exceptions:
-            assert issubclass(exception_class, GeminiBatchError)
+            assert issubclass(exception_class, PolluxError)
 
     @pytest.mark.unit
     def test_base_exception_is_proper_exception(self):
-        """GeminiBatchError should be a proper exception."""
-        assert issubclass(GeminiBatchError, Exception)
+        """PolluxError should be a proper exception."""
+        assert issubclass(PolluxError, Exception)
 
 
 class TestExceptionConstructorCompliance:
@@ -53,9 +53,9 @@ class TestExceptionConstructorCompliance:
 
     @pytest.mark.unit
     def test_base_exception_constructor_accepts_message(self):
-        """GeminiBatchError should accept a message parameter."""
+        """PolluxError should accept a message parameter."""
         message = "Test error message"
-        error = GeminiBatchError(message)
+        error = PolluxError(message)
 
         assert str(error) == message
 
@@ -121,7 +121,7 @@ class TestExceptionBehaviorCompliance:
     def test_exceptions_preserve_message(self):
         """Exceptions should preserve the original message."""
         original_message = "Original error message"
-        error = GeminiBatchError(original_message)
+        error = PolluxError(original_message)
 
         assert str(error) == original_message
         assert error.args[0] == original_message
@@ -143,8 +143,8 @@ class TestExceptionBehaviorCompliance:
     @pytest.mark.unit
     def test_exceptions_are_hashable(self):
         """Exceptions should be hashable for use in sets/dicts."""
-        error1 = GeminiBatchError("Error 1")
-        error2 = GeminiBatchError("Error 2")
+        error1 = PolluxError("Error 1")
+        error2 = PolluxError("Error 2")
 
         # Should be hashable
         error_set = {error1, error2}
@@ -153,9 +153,9 @@ class TestExceptionBehaviorCompliance:
     @pytest.mark.unit
     def test_exceptions_are_comparable(self):
         """Exceptions should be comparable based on their content."""
-        error1 = GeminiBatchError("Same message")
-        error2 = GeminiBatchError("Same message")
-        error3 = GeminiBatchError("Different message")
+        error1 = PolluxError("Same message")
+        error2 = PolluxError("Same message")
+        error3 = PolluxError("Different message")
 
         # Exceptions with same message are not equal by default in Python
         # This is expected behavior
@@ -188,7 +188,7 @@ class TestExceptionTypeSafetyCompliance:
         pipeline_error = PipelineError("Test", "Handler", ValueError("Underlying"))
 
         assert isinstance(pipeline_error, PipelineError)
-        assert isinstance(pipeline_error, GeminiBatchError)
+        assert isinstance(pipeline_error, PolluxError)
         assert not isinstance(pipeline_error, APIError)
         assert not isinstance(pipeline_error, ConfigurationError)
 
@@ -238,7 +238,7 @@ class TestExceptionContractCompliance:
         for exception_class in simple_exceptions:
             sig = inspect.signature(exception_class.__init__)
 
-            # Simple exceptions now inherit GeminiBatchError(self, message, hint)
+            # Simple exceptions now inherit PolluxError(self, message, hint)
             assert len(sig.parameters) == 3
             assert "message" in sig.parameters
             assert "hint" in sig.parameters
@@ -248,7 +248,7 @@ class TestExceptionContractCompliance:
         """Exceptions should follow consistent naming conventions."""
         # All custom exceptions should end with "Error"
         custom_exceptions = [
-            GeminiBatchError,
+            PolluxError,
             APIError,
             PipelineError,
             ConfigurationError,
@@ -297,7 +297,7 @@ class TestExceptionRobustnessCompliance:
         """Exceptions should handle unicode message strings."""
         unicode_message = "🚀 Unicode error message 🚀"
 
-        error = GeminiBatchError(unicode_message)
+        error = PolluxError(unicode_message)
         assert str(error) == unicode_message
 
     @pytest.mark.unit
@@ -371,7 +371,7 @@ class TestExceptionArchitecturalCompliance:
             raise APIError("API error")
         except APIError:
             api_caught = True
-        except GeminiBatchError:
+        except PolluxError:
             base_caught = True
 
         assert api_caught
@@ -383,7 +383,7 @@ class TestExceptionArchitecturalCompliance:
         # Test that base exception catches all custom exceptions
         try:
             raise SourceError("Source error")
-        except GeminiBatchError:
+        except PolluxError:
             base_caught = True
         else:
             base_caught = False

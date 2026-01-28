@@ -23,9 +23,9 @@ from pollux._dev_flags import dev_validate_enabled
 from pollux.config import FrozenConfig, resolve_config
 from pollux.core import types as _ctypes
 from pollux.core.exceptions import (
-    GeminiBatchError,
     InvariantViolationError,
     PipelineError,
+    PolluxError,
 )
 from pollux.core.types import (
     Failure,
@@ -77,7 +77,7 @@ class GeminiExecutor:
         self,
         config: FrozenConfig,
         pipeline_handlers: (
-            Iterable[BaseAsyncHandler[Any, Any, GeminiBatchError]]
+            Iterable[BaseAsyncHandler[Any, Any, PolluxError]]
             | Iterable[ErasedAsyncHandler]
             | None
         ) = None,
@@ -184,7 +184,7 @@ class GeminiExecutor:
             last_stage_name = handler.stage_name
             with ctx("pipeline.stage", stage=last_stage_name):
                 start = perf_counter()
-                result: Result[Any, GeminiBatchError] = await handler.handle(current)
+                result: Result[Any, PolluxError] = await handler.handle(current)
                 duration = perf_counter() - start
             stage_durations[last_stage_name] = duration
 
@@ -284,7 +284,7 @@ class GeminiExecutor:
     def raw_pipeline(
         self,
     ) -> tuple[
-        BaseAsyncHandler[Any, Any, GeminiBatchError] | ErasedAsyncHandler,
+        BaseAsyncHandler[Any, Any, PolluxError] | ErasedAsyncHandler,
         ...,
     ]:
         """Return the original handlers as constructed (read-only view).

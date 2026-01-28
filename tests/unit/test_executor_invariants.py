@@ -4,9 +4,9 @@ import pytest
 
 from pollux.config.core import FrozenConfig
 from pollux.core.exceptions import (
-    GeminiBatchError,
     InvariantViolationError,
     PipelineError,
+    PolluxError,
 )
 from pollux.core.models import APITier
 from pollux.core.types import Failure, InitialCommand, Result, Success
@@ -14,25 +14,21 @@ from pollux.executor import GeminiExecutor
 from pollux.pipeline.base import BaseAsyncHandler
 
 
-class FailingStage(BaseAsyncHandler[Any, Any, GeminiBatchError]):
+class FailingStage(BaseAsyncHandler[Any, Any, PolluxError]):
     """A minimal handler that always fails to exercise PipelineError path."""
 
     async def handle(
         self, _command: Any
-    ) -> Result[
-        Any, GeminiBatchError
-    ]:  # pragma: no cover - signature exercised by executor
-        return Failure(GeminiBatchError("boom"))
+    ) -> Result[Any, PolluxError]:  # pragma: no cover - signature exercised by executor
+        return Failure(PolluxError("boom"))
 
 
-class PassThroughStage(BaseAsyncHandler[Any, Any, GeminiBatchError]):
+class PassThroughStage(BaseAsyncHandler[Any, Any, PolluxError]):
     """A minimal handler that returns the input unchanged, violating the final envelope invariant."""
 
     async def handle(
         self, command: Any
-    ) -> Result[
-        Any, GeminiBatchError
-    ]:  # pragma: no cover - signature exercised by executor
+    ) -> Result[Any, PolluxError]:  # pragma: no cover - signature exercised by executor
         return Success(command)
 
 

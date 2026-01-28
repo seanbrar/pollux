@@ -6,24 +6,24 @@ from pollux.core.exceptions import (
     HINTS,
     APIError,
     ConfigurationError,
-    GeminiBatchError,
+    PolluxError,
     get_http_error_hint,
 )
 
 
-def test_gemini_batch_error_with_hint():
-    """Test that GeminiBatchError correctly includes a hint in the message."""
+def test_pollux_error_with_hint():
+    """Test that PolluxError correctly includes a hint in the message."""
     message = "Something went wrong"
     hint = "Try turning it off and on again"
-    err = GeminiBatchError(message, hint=hint)
+    err = PolluxError(message, hint=hint)
     assert str(err) == f"{message}. {hint}"
     assert err.hint == hint
 
 
-def test_gemini_batch_error_without_hint():
-    """Test that GeminiBatchError works without a hint."""
+def test_pollux_error_without_hint():
+    """Test that PolluxError works without a hint."""
     message = "Something went wrong"
-    err = GeminiBatchError(message)
+    err = PolluxError(message)
     assert str(err) == message
     assert err.hint is None
 
