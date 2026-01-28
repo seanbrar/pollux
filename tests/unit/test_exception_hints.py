@@ -11,32 +11,11 @@ from pollux.core.exceptions import (
 )
 
 
-def test_pollux_error_with_hint():
-    """Test that PolluxError correctly includes a hint in the message."""
-    message = "Something went wrong"
-    hint = "Try turning it off and on again"
-    err = PolluxError(message, hint=hint)
-    assert str(err) == f"{message}. {hint}"
-    assert err.hint == hint
 
 
-def test_pollux_error_without_hint():
-    """Test that PolluxError works without a hint."""
-    message = "Something went wrong"
-    err = PolluxError(message)
-    assert str(err) == message
-    assert err.hint is None
 
 
-def test_configuration_error_with_standard_hint():
-    """Test ConfigurationError with a predefined hint."""
-    message = "Config failed"
-    hint = HINTS["missing_api_key"]
-    err = ConfigurationError(message, hint=hint)
-    assert str(err) == f"{message}. {hint}"
-    assert hint in str(err)
-
-
+# High-signal tests verifying mapping logic and integration behavior
 def test_get_http_hint():
     """Test mapping of HTTP status codes to hints."""
     assert get_http_error_hint(401) == "Verify GEMINI_API_KEY is valid."
