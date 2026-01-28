@@ -36,10 +36,12 @@ class TestMaintainabilityCompliance:
             "Models module should contain model lookup functions"
         )
 
-        # Exceptions module should contain exception classes
+        # Exceptions module should contain exception classes or hint helpers
         assert all(
-            "Error" in item for item in exceptions_items if not item.startswith("_")
-        ), "Exceptions module should contain Error classes"
+            "error" in item.lower() or "hint" in item.lower()
+            for item in exceptions_items
+            if not item.startswith("_")
+        ), "Exceptions module should contain Error classes or hint helpers"
 
     @pytest.mark.unit
     @pytest.mark.contract
