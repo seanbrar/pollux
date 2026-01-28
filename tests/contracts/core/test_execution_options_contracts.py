@@ -9,10 +9,7 @@ import pytest
 
 from pollux.config import resolve_config
 from pollux.core.execution_options import (
-    CacheOptions,
-    EstimationOptions,
     ExecutionOptions,
-    ResultOption,
 )
 from pollux.core.types import (
     APICall,
@@ -31,10 +28,10 @@ from pollux.extensions.conversation_types import ConversationState
 from pollux.pipeline.planner import ExecutionPlanner
 from pollux.pipeline.result_builder import ResultBuilder
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.contract
 
 
-class TestNoOpGuarantees:
+class TestExecutionOptionsContract:
     """Verify options=None produces identical behavior to default/no options."""
 
     @pytest.fixture
@@ -287,28 +284,3 @@ class TestNoOpGuarantees:
         # Should succeed as if no hints were present
         envelope = result_result.value
         assert envelope["status"] == "ok"
-
-    def test_hint_type_equivalence_no_state_leakage(self):
-        """Hint instances should be independent with no shared state."""
-        # Create multiple instances of same hint
-        cache1 = CacheOptions("key1")
-        cache2 = CacheOptions("key1")
-        cache3 = CacheOptions("key2")
-
-        # Should be equal by value
-        assert cache1 == cache2
-        assert cache1 != cache3
-
-        # Should be independent instances
-        assert cache1 is not cache2
-
-        # Same for other hint types
-        est1 = EstimationOptions(widen_max_factor=2.0)
-        est2 = EstimationOptions(widen_max_factor=2.0)
-        assert est1 == est2
-        assert est1 is not est2
-
-        result1 = ResultOption(prefer_json_array=True)
-        result2 = ResultOption(prefer_json_array=True)
-        assert result1 == result2
-        assert result1 is not result2

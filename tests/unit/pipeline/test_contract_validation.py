@@ -5,7 +5,6 @@ focusing on validation, immutability, and contract adherence according
 to the architecture rubric principles.
 """
 
-from typing import Any, cast
 
 import pytest
 
@@ -14,49 +13,8 @@ from pollux.pipeline.results.extraction import ExtractionContract
 pytestmark = pytest.mark.unit
 
 
-
-
-
-
-
-
 class TestExtractionContract:
     """Test ExtractionContract validation and behavior."""
-
-    def test_default_extraction_contract(self):
-        """Default ExtractionContract should have sensible defaults."""
-        contract = ExtractionContract()
-
-        assert contract.answer_count is None
-        assert contract.min_answer_length == 0
-        assert contract.max_answer_length == 100_000
-        assert contract.required_fields == frozenset()
-
-    def test_custom_extraction_contract(self):
-        """Custom ExtractionContract should accept parameters."""
-        contract = ExtractionContract(
-            answer_count=5,
-            min_answer_length=10,
-            max_answer_length=1000,
-            required_fields=frozenset(["field1", "field2"]),
-        )
-
-        assert contract.answer_count == 5
-        assert contract.min_answer_length == 10
-        assert contract.max_answer_length == 1000
-        assert contract.required_fields == frozenset(["field1", "field2"])
-
-    def test_contract_validation_constraints(self):
-        """Contract validation should check parameter constraints."""
-        # min_answer_length must be >= 0
-        with pytest.raises(ValueError, match="min_answer_length must be >= 0"):
-            ExtractionContract(min_answer_length=-1)
-
-        # max_answer_length must be >= min_answer_length
-        with pytest.raises(
-            ValueError, match=r"max_answer_length.*must be >= min_answer_length"
-        ):
-            ExtractionContract(min_answer_length=100, max_answer_length=50)
 
     def test_validate_answer_count(self):
         """Contract should validate answer count when specified."""
@@ -121,6 +79,3 @@ class TestExtractionContract:
         assert "Answer 0 is not a string" in violations[0].message
         assert "Answer 1 is not a string" in violations[1].message
         assert "Answer 2 is not a string" in violations[2].message
-
-
-

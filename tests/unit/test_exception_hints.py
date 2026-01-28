@@ -6,13 +6,8 @@ from pollux.core.exceptions import (
     HINTS,
     APIError,
     ConfigurationError,
-    PolluxError,
     get_http_error_hint,
 )
-
-
-
-
 
 
 # High-signal tests verifying mapping logic and integration behavior

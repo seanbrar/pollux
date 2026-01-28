@@ -169,6 +169,3 @@ def test_compile_conversation_reuse_cache_only():
     cache_hints = [h for h in plan.hints if type(h).__name__ == "CacheOptions"]
     assert len(cache_hints) == 1
     assert cache_hints[0].reuse_only is True
-
-
-
