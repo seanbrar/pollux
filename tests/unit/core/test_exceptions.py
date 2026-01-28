@@ -203,11 +203,12 @@ class TestExceptionContractCompliance:
 
         sig = inspect.signature(PipelineError.__init__)
 
-        # Should take exactly 4 parameters (self, message, handler_name, underlying_error)
-        assert len(sig.parameters) == 4
+        # Should take exactly 5 parameters (self, message, handler_name, underlying_error, hint)
+        assert len(sig.parameters) == 5
         assert "message" in sig.parameters
         assert "handler_name" in sig.parameters
         assert "underlying_error" in sig.parameters
+        assert "hint" in sig.parameters
 
         # Parameters should be properly typed
         message_param = sig.parameters["message"]
@@ -237,15 +238,10 @@ class TestExceptionContractCompliance:
         for exception_class in simple_exceptions:
             sig = inspect.signature(exception_class.__init__)
 
-            # Simple exceptions inherit from Exception which uses *args, **kwargs
-            # So they should have 3 parameters: self, *args, **kwargs
+            # Simple exceptions now inherit GeminiBatchError(self, message, hint)
             assert len(sig.parameters) == 3
-            assert "args" in sig.parameters
-            assert "kwargs" in sig.parameters
-
-            # The first positional argument is the message
-            args_param = sig.parameters["args"]
-            assert args_param.kind == inspect.Parameter.VAR_POSITIONAL
+            assert "message" in sig.parameters
+            assert "hint" in sig.parameters
 
     @pytest.mark.unit
     def test_exceptions_follow_naming_convention(self):

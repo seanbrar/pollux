@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from pollux._dev_flags import dev_raw_preview_enabled
 from pollux.core.concurrency import resolve_request_concurrency
-from pollux.core.exceptions import APIError
+from pollux.core.exceptions import APIError, get_http_error_hint
 from pollux.core.types import (
     APICall,
     APIPart,
@@ -156,7 +156,19 @@ class APIHandler(BaseAsyncHandler[PlannedCommand, FinalizedCommand, APIError]):
         except APIError as e:
             return Failure(e)
         except Exception as e:  # Defensive normalization
-            return Failure(APIError(f"API handler failed: {e}"))
+            return Failure(self._wrap_api_error(f"API handler failed: {e}", e))
+
+    def _wrap_api_error(self, message: str, error: Exception) -> APIError:
+        """Wrap an exception in an APIError with an actionable hint if possible."""
+        # Attempt to extract status code from common SDK/HTTP error patterns
+        status_code: int | None = getattr(error, "status_code", None)
+        if status_code is None:
+            code = getattr(error, "code", None)
+            if isinstance(code, int):
+                status_code = code
+
+        hint = get_http_error_hint(status_code) if status_code else None
+        return APIError(message, hint=hint)
 
     # --- Internal helpers ---
 
@@ -171,7 +183,9 @@ class APIHandler(BaseAsyncHandler[PlannedCommand, FinalizedCommand, APIError]):
             try:
                 return self._adapter_factory(str(api_key))
             except Exception as e:  # pragma: no cover
-                raise APIError(f"Failed to initialize provider: {e}") from e
+                raise self._wrap_api_error(
+                    f"Failed to initialize provider: {e}", e
+                ) from e
         return _MockAdapter()
 
     # --- Cache intent modeling ---
@@ -780,8 +794,8 @@ class APIHandler(BaseAsyncHandler[PlannedCommand, FinalizedCommand, APIError]):
                 total_api_time_s += float(api_time_s or 0.0)
             except Exception as primary_error:
                 if command.execution_plan.fallback_call is None:
-                    raise APIError(
-                        f"Provider call failed: {primary_error}"
+                    raise self._wrap_api_error(
+                        f"Provider call failed: {primary_error}", primary_error
                     ) from primary_error
                 try:
                     fb = command.execution_plan.fallback_call
@@ -807,8 +821,9 @@ class APIHandler(BaseAsyncHandler[PlannedCommand, FinalizedCommand, APIError]):
                     # Fallback path does not imply primary no-cache retry
                     retried_without_cache = False
                 except Exception as fallback_error:
-                    raise APIError(
-                        f"Fallback failed after primary error: {primary_error}; fallback error: {fallback_error}"
+                    raise self._wrap_api_error(
+                        f"Fallback failed after primary error: {primary_error}; fallback error: {fallback_error}",
+                        fallback_error,
                     ) from fallback_error
         return (
             raw_response,

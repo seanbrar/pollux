@@ -2,7 +2,7 @@
 
 import logging
 
-from pollux.core.exceptions import SourceError
+from pollux.core.exceptions import HINTS, SourceError
 from pollux.core.types import (
     Failure,
     InitialCommand,
@@ -39,8 +39,8 @@ class SourceHandler(BaseAsyncHandler[InitialCommand, ResolvedCommand, SourceErro
                 if not isinstance(s, Source):
                     return Failure(
                         SourceError(
-                            "All inputs must be explicit `Source` objects. "
-                            "Use `types.Source.from_text(...)` or `types.Source.from_file(...)`."
+                            "All inputs must be explicit `Source` objects",
+                            hint=HINTS["invalid_source"],
                         )
                     )
             return Success(
