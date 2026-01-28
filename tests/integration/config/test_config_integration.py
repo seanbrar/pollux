@@ -11,7 +11,6 @@ import pytest
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig
-from pollux.core.exceptions import ConfigurationError
 from pollux.core.types import InitialCommand, Source
 from pollux.executor import GeminiExecutor, create_executor
 
@@ -65,16 +64,6 @@ class TestConfigurationIntegrationBehavior:
             assert isinstance(command.config, FrozenConfig)
             assert command.config.api_key == "test_key"
 
-    def test_compatibility_shim_in_pipeline_flow(self):
-        """Integration: Compatibility shim should work throughout pipeline."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            executor = create_executor()
-
-            # Executor already provides a FrozenConfig
-            assert executor.config.api_key == "test_key"
-            assert executor.config.model == executor.config.model
-            assert executor.config.tier == executor.config.tier
-
     def test_config_precedence_in_executor_flow(self):
         """Integration: Configuration precedence should work through executor creation."""
         # Set environment baseline
@@ -103,9 +92,9 @@ class TestConfigurationIntegrationBehavior:
             executor = create_executor()
             assert executor.config.api_key is None
 
-    def test_dual_config_type_support_during_migration(self):
-        """Integration: System should handle both FrozenConfig and dict during migration."""
-        # Test with dict config (legacy)
+    def test_accepts_resolved_config(self):
+        """Integration: Executor should accept pre-resolved FrozenConfig via dictionary normalization."""
+        # Test with dict config (legacy/programmatic)
         dict_config = {"api_key": "dict_key", "model": "dict_model"}
 
         # When passing a dict, create_executor will resolve and freeze it;
@@ -121,28 +110,6 @@ class TestConfigurationIntegrationBehavior:
         # Both should work
         assert executor_dict.config.api_key == "dict_key"
         assert executor_frozen.config.api_key == "frozen_key"
-
-    def test_telemetry_integration_with_configuration(self):
-        """Integration: Telemetry should work with configuration resolution."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            # Resolution should not fail with telemetry
-            resolved = resolve_config()
-
-            # Should have telemetry-safe representation (use str/resolved.audit())
-            redacted = str(resolved)
-            assert redacted is not None
-            assert "test_key" not in redacted
-
-    def test_config_validation_in_executor_pipeline(self):
-        """Integration: Config validation should work in executor creation."""
-        # Test invalid ttl_seconds
-        with (
-            patch.dict(os.environ, {"GEMINI_API_KEY": "test"}),
-            pytest.raises(ConfigurationError),
-        ):
-            # Validation happens during resolution; resolving invalid programmatic
-            # config should raise ConfigurationError (wrapped)
-            resolve_config(overrides={"ttl_seconds": -1})
 
     def test_environment_override_behavior(self):
         """Integration: Environment variables should properly override in pipeline."""

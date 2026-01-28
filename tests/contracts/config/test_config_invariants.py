@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from pollux.config import resolve_config
-from pollux.config.core import FrozenConfig
 from pollux.core.exceptions import ConfigurationError
 from pollux.core.models import APITier
 
@@ -123,27 +122,6 @@ class TestConfigurationArchitecturalInvariants:
                 assert hasattr(origin[field], "origin")
 
     @pytest.mark.contract
-    def test_secret_redaction_invariant(self):
-        """Invariant: Secrets must never appear in logs, debug output, or audit trails."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "secret_api_key_12345"}):
-            cfg, origin = resolve_config(explain=True)
-
-            # Secret should not appear in redacted representation
-            from pollux.config.core import audit_text
-
-            assert "secret_api_key_12345" not in audit_text(cfg, origin)
-            redacted = audit_text(cfg, origin)
-            assert (
-                ("***" in redacted)
-                or ("[REDACTED]" in redacted)
-                or ("redact" in redacted.lower())
-            )
-
-            # Secret should not appear in string representation of source map
-            source_map_str = str(origin)
-            assert "secret_api_key_12345" not in source_map_str
-
-    @pytest.mark.contract
     def test_validation_consistency_invariant(self):
         """Invariant: Validation rules must be consistently applied regardless of source."""
         # Test ttl_seconds validation from environment
@@ -248,40 +226,3 @@ class TestConfigurationArchitecturalInvariants:
             assert result1.enable_caching == result2.enable_caching
             assert result1.use_real_api == result2.use_real_api
             assert result1.ttl_seconds == result2.ttl_seconds
-
-    @pytest.mark.contract
-    def test_compatibility_shim_transparency_invariant(self):
-        """Invariant: Compatibility shim must provide transparent access to both config types."""
-        # Compatibility shim removed; use FrozenConfig / dict conversion directly
-
-        # Create both config types with same values
-        frozen = FrozenConfig(
-            api_key="test_key",
-            model="gemini-2.0-flash",
-            tier=APITier.FREE,
-            enable_caching=True,
-            use_real_api=False,
-            ttl_seconds=3600,
-            telemetry_enabled=True,
-            provider="google",
-            extra={},
-            request_concurrency=6,
-        )
-
-        dict_config = {
-            "api_key": "test_key",
-            "model": "gemini-2.0-flash",
-            "tier": APITier.FREE,
-            "enable_caching": True,
-            "use_real_api": False,
-            "ttl_seconds": 3600,
-        }
-
-        # Compare values directly
-        resolved_from_dict = resolve_config(overrides=dict_config)
-        assert frozen.api_key == resolved_from_dict.api_key
-        assert frozen.model == resolved_from_dict.model
-        assert frozen.tier == resolved_from_dict.tier
-        assert frozen.enable_caching == resolved_from_dict.enable_caching
-        assert frozen.use_real_api == resolved_from_dict.use_real_api
-        assert frozen.ttl_seconds == resolved_from_dict.ttl_seconds

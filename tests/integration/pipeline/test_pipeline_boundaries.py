@@ -7,53 +7,29 @@ correctly without mocking internal interactions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
 import pytest
 
 from pollux.config import resolve_config
-from pollux.core.types import InitialCommand, Source, Success
+from pollux.core.types import InitialCommand, Source
 from pollux.executor import create_executor
-from pollux.pipeline.adapters.base import BaseProviderAdapter
-from pollux.pipeline.adapters.registry import register_adapter
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from pollux.config import FrozenConfig
 
 pytestmark = pytest.mark.integration
 
 
-class MockProviderAdapter(BaseProviderAdapter):
-    """Mock adapter for integration testing without real API calls."""
-
-    name = "mock-integration"
-
-    def build_provider_config(self, _cfg: FrozenConfig) -> Mapping[str, Any]:
-        return {}
-
-
-@pytest.fixture
-def mock_adapter() -> MockProviderAdapter:
-    adapter = MockProviderAdapter()
-    register_adapter(adapter)
-    return adapter
-
-
-@pytest.mark.usefixtures("mock_adapter")
 @pytest.mark.asyncio
 async def test_full_pipeline_flow_end_to_end():
     """Verify data flows correctly through the entire pipeline.
 
-    This test serves as the primary integration signal, replacing fragmented unit tests
-    that verify individual component hand-offs.
+    Uses 'google' provider to enable real planning/estimation logic, but relies on
+    APIHandler's default `use_real_api=False` behavior to use the internal _MockAdapter
+    for execution. This ensures metrics like token validation (which depend on logic
+    consistency between plan and mock response) are generated.
     """
-    # 1. Setup: Configure executor with mock provider
+    # 1. Setup: Configure executor for Google/Gemini but without real API
     config = resolve_config(
         overrides={
-            "provider": "mock-integration",
-            "model": "mock-model",
+            "provider": "google",
+            "model": "gemini-2.0-flash",
             "api_key": "mock-key",
             "use_real_api": False,
         }
@@ -72,44 +48,35 @@ async def test_full_pipeline_flow_end_to_end():
     )
 
     # 3. Execution: Run the pipeline
-    # Note: We need to mock the API call itself since we're not hitting a real endpoint.
-    # We can inject a mock handler or patch the API client.
-    # For this architectural test, we trust the Executor's ability to dispatch.
-    # However, to simulate a full run, we'll patch the API handler's execute method
-    # to return a predictable response, or use a "dry run" mode if available.
+    # No patching required; APIHandler defaults to _MockAdapter which echoes input.
+    result_envelope = await executor.execute(cmd)
 
-    # Since we want to test the PIPELINE logic, forcing a mock response at the API boundary
-    # is the correct seam.
+    # 4. Verification: Check the final output envelope
+    assert result_envelope["status"] == "ok"
 
-    from unittest.mock import patch
+    # _MockAdapter echoes the input text
+    answers = result_envelope["answers"]
+    assert len(answers) == 1
+    assert "echo: Analyze these documents" in answers[0]
 
-    from pollux.core.types import FinalizedCommand
+    # Verify metrics framework integration
+    metrics = result_envelope.get("metrics", {})
+    assert isinstance(metrics, dict)
 
-    mock_response_text = '{"answers": ["Analysis complete"]}'
+    # Duration metrics (ResultBuilder)
+    assert "ResultBuilder" in metrics.get("durations", {})
 
-    # We patch the APIHandler.handle to return success with our mock response
-    # This proves the Planner passes correct args and ResultBuilder receives correct response
-    with patch("pollux.pipeline.api_handler.APIHandler.handle") as mock_api:
-        # Mock API handler must return a Success(FinalizedCommand)
-        def side_effect(planned_cmd):
-            # Verify Planner Output passing to API
-            assert len(planned_cmd.execution_plan.calls) > 0
-
-            return Success(
-                FinalizedCommand(
-                    planned=planned_cmd, raw_api_response=mock_response_text
-                )
-            )
-
-        mock_api.side_effect = side_effect
-
-        result_envelope = await executor.execute(cmd)
-
-        # 4. Verification: Check the final output envelope
-        assert result_envelope["status"] == "ok"
-        assert result_envelope["answers"] == ["Analysis complete"]
-        # Verify metrics contain durations (added by ResultBuilder)
-        assert "ResultBuilder" in result_envelope["metrics"]["durations"]
-
-        # Verify the flow passed through all stages
-        mock_api.assert_called_once()
+    # Token validation metrics (ResultBuilder)
+    # These should be present because 'google' provider enables proper estimation planning
+    tv = metrics.get("token_validation", {})
+    assert isinstance(tv, dict)
+    for key in (
+        "estimated_expected",
+        "estimated_min",
+        "estimated_max",
+        "actual",
+        "in_range",
+    ):
+        assert key in tv
+    assert isinstance(tv["actual"], int)
+    assert isinstance(tv["in_range"], bool)
