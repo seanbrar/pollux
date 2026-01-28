@@ -1,34 +1,55 @@
+"""Tests for the provider inference logic.
+
+Tests the pattern-based provider resolution strategy.
+"""
+
 import pytest
 
-from pollux.config import resolve_provider
-
-pytestmark = pytest.mark.unit
+from pollux.config.utils import resolve_provider
 
 
 class TestProviderInference:
-    """Test the data-driven provider inference logic."""
+    """Test the provider inference."""
 
-    @pytest.mark.smoke
-    def test_provider_inference_gemini_models(self):
-        """Should identify Google as provider for gemini- prefixed models."""
+    @pytest.mark.unit
+    def test_exact_model_names(self):
+        """Test exact model name matching."""
         assert resolve_provider("gemini-1.5-flash") == "google"
-        assert resolve_provider("gemini-2.0-pro") == "google"
-        assert resolve_provider("GEMINI-1.5-FLASH") == "google"  # Case insensitive
+        assert resolve_provider("gemini-1.5-pro") == "google"
+        assert resolve_provider("gpt-4o") == "openai"
+        assert resolve_provider("claude-3-5-sonnet") == "anthropic"
 
-    def test_provider_inference_openai_models(self):
-        """Should identify OpenAI as provider for gpt- prefixed models."""
-        assert resolve_provider("gpt-4") == "openai"
-        assert resolve_provider("gpt-3.5-turbo") == "openai"
-        assert resolve_provider("GPT-4") == "openai"  # Case insensitive
+    @pytest.mark.unit
+    def test_version_patterns(self):
+        """Test version-aware pattern matching."""
+        assert resolve_provider("gemini-2.0-ultra") == "google"
+        assert resolve_provider("gpt-5") == "openai"
+        assert resolve_provider("claude-4-opus") == "anthropic"
 
-    def test_provider_inference_anthropic_models(self):
-        """Should identify Anthropic as provider for claude- prefixed models."""
-        assert resolve_provider("claude-3-sonnet") == "anthropic"
-        assert resolve_provider("claude-2") == "anthropic"
-        assert resolve_provider("CLAUDE-3-OPUS") == "anthropic"  # Case insensitive
+    @pytest.mark.unit
+    def test_prefix_fallbacks(self):
+        """Test prefix-based fallback matching."""
+        assert resolve_provider("gemini-unknown") == "google"
+        assert resolve_provider("gpt-unknown") == "openai"
+        assert resolve_provider("claude-unknown") == "anthropic"
 
-    def test_provider_inference_unknown_model_defaults_to_google(self):
-        """Unknown models should default to Google provider."""
-        assert resolve_provider("unknown-model") == "google"
-        assert resolve_provider("custom-model-v1") == "google"
+    @pytest.mark.unit
+    def test_default_behavior(self):
+        """Test default behavior for unknown models."""
         assert resolve_provider("") == "google"
+        assert resolve_provider("unknown-model") == "google"
+        assert resolve_provider("random-model-name") == "google"
+
+    @pytest.mark.unit
+    def test_case_insensitive(self):
+        """Test case-insensitive matching."""
+        assert resolve_provider("GEMINI-1.5-FLASH") == "google"
+        assert resolve_provider("GPT-4O") == "openai"
+        assert resolve_provider("Claude-3-5-Sonnet") == "anthropic"
+
+    @pytest.mark.unit
+    def test_priority_order(self):
+        """Test that exact patterns take priority over prefixes."""
+        # This would match both exact and prefix patterns, exact should win
+        assert resolve_provider("gemini-1.5-flash") == "google"
+        assert resolve_provider("gpt-4o") == "openai"
