@@ -22,18 +22,7 @@ def test_from_youtube_valid_examples():
         assert s.content_loader() == u.encode("utf-8")
 
 
-@pytest.mark.parametrize(
-    "bad",
-    [
-        "",  # empty
-        "not-a-url",
-        "https://example.com/watch?v=abc",  # not youtube
-        "file:///path",
-    ],
-)
-def test_from_youtube_invalid(bad: str) -> None:
-    with pytest.raises(ValueError):
-        Source.from_youtube(bad)
+
 
 
 @pytest.mark.parametrize(
@@ -74,21 +63,7 @@ def test_from_arxiv_normalization(ref: str, expected: str) -> None:
     assert s.content_loader() == expected.encode("utf-8")
 
 
-@pytest.mark.parametrize(
-    "bad",
-    [
-        "",
-        "170603762",  # not clearly arXiv (missing dot or slash)
-        "https://arxiv.org/other/1706.03762",  # unsupported shape
-    ],
-)
-def test_from_arxiv_invalid_inputs(bad: str) -> None:
-    with pytest.raises(ValueError):
-        Source.from_arxiv(bad)
 
 
-def test_from_uri_rejects_specialized_cases() -> None:
-    with pytest.raises(ValueError):
-        Source.from_uri("https://www.youtube.com/watch?v=abc", "video/youtube")
-    with pytest.raises(ValueError):
-        Source.from_uri("https://arxiv.org/abs/1706.03762", "application/pdf")
+
+

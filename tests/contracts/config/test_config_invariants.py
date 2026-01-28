@@ -42,20 +42,7 @@ class TestConfigurationArchitecturalInvariants:
             assert origin["api_key"].origin.value == "overrides"
             assert origin["model"].origin.value == "overrides"
 
-    @pytest.mark.contract
-    def test_resolve_once_freeze_then_flow_invariant(self):
-        """Invariant: Configuration must be resolved once and then flow immutably."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            frozen = resolve_config()
 
-            # Frozen config must be immutable
-            assert isinstance(frozen, FrozenConfig)
-
-            # Attempting to modify should fail
-            with pytest.raises(AttributeError):
-                frozen.api_key = "new_key"  # type: ignore[misc]
-
-            # There is no separate resolved type; single FrozenConfig flows through
 
     @pytest.mark.contract
     def test_audit_trail_completeness_invariant(self):

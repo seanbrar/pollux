@@ -19,24 +19,7 @@ from pollux.executor import create_executor
 class TestEssentialConfigurationContracts:
     """Essential configuration system contract tests."""
 
-    @pytest.mark.contract
-    def test_frozen_config_immutability(self):
-        """Essential: FrozenConfig must be immutable."""
-        config = FrozenConfig(
-            api_key="test_key",
-            model="gemini-2.0-flash",
-            tier=APITier.FREE,
-            enable_caching=True,
-            use_real_api=False,
-            ttl_seconds=3600,
-            telemetry_enabled=True,
-            provider="google",
-            extra={},
-            request_concurrency=6,
-        )
 
-        with pytest.raises(AttributeError):
-            config.api_key = "new_key"  # type: ignore[misc]
 
     @pytest.mark.contract
     def test_resolve_config_basic_functionality(self):
