@@ -58,3 +58,25 @@ def test_from_arxiv_normalization(ref: str, expected: str) -> None:
     assert s.mime_type == "application/pdf"
     assert s.size_bytes == 0
     assert s.content_loader() == expected.encode("utf-8")
+
+    with pytest.raises(ValueError):
+        _ = Source.from_file("some/dir/file.txt")
+
+
+def test_from_text_basic():
+    """Verify basic text source creation."""
+    s = Source.from_text("hello world")
+    assert s.source_type == "text"
+    assert s.identifier == "hello world"
+    assert s.mime_type == "text/plain"
+    assert s.content_loader() == b"hello world"
+
+
+def test_from_file_basic(tmp_path):
+    """Verify file source creation with valid file."""
+    f = tmp_path / "test.txt"
+    f.write_text("content")
+    s = Source.from_file(f)
+    assert s.source_type == "file"
+    assert str(f) in str(s.identifier)
+    assert s.content_loader() == b"content"

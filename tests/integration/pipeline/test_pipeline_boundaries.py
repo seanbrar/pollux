@@ -41,8 +41,9 @@ def mock_adapter() -> MockProviderAdapter:
     return adapter
 
 
+@pytest.mark.usefixtures("mock_adapter")
 @pytest.mark.asyncio
-async def test_full_pipeline_flow_end_to_end(_mock_adapter):
+async def test_full_pipeline_flow_end_to_end():
     """Verify data flows correctly through the entire pipeline.
 
     This test serves as the primary integration signal, replacing fragmented unit tests
