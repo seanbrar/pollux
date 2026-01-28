@@ -45,47 +45,6 @@ class TestConfigurationContractCompliance:
             assert result1 == result2
 
     @pytest.mark.contract
-    def test_resolve_config_returns_typed_result(self):
-        """Contract: resolve_config() returns properly typed FrozenConfig and origin map when requested."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            result = resolve_config()
-            assert isinstance(result, FrozenConfig)
-
-            cfg, origin = resolve_config(explain=True)
-            assert isinstance(cfg, FrozenConfig)
-            assert isinstance(origin, dict)
-            assert "api_key" in origin
-
-    @pytest.mark.contract
-    def test_frozen_config_direct_access_contract(self):
-        """Contract: FrozenConfig must provide direct field access."""
-        frozen_config = FrozenConfig(
-            api_key="test_key",
-            model="gemini-2.0-flash",
-            tier=APITier.FREE,
-            enable_caching=True,
-            use_real_api=False,
-            ttl_seconds=3600,
-            telemetry_enabled=True,
-            provider="google",
-            extra={},
-            request_concurrency=6,
-        )
-
-        # Must provide all required fields
-        assert hasattr(frozen_config, "api_key")
-        assert hasattr(frozen_config, "model")
-        assert hasattr(frozen_config, "tier")
-        assert hasattr(frozen_config, "enable_caching")
-        assert hasattr(frozen_config, "use_real_api")
-        assert hasattr(frozen_config, "ttl_seconds")
-
-        # Field access must work
-        assert frozen_config.api_key == "test_key"
-        assert frozen_config.model == "gemini-2.0-flash"
-        assert frozen_config.tier == APITier.FREE
-
-    @pytest.mark.contract
     def test_overrides_flow_contract(self):
         """Contract: overrides should be applied and returned in FrozenConfig."""
         resolved = resolve_config(

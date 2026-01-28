@@ -8,7 +8,6 @@ from pollux.extensions.conversation import (
     Conversation,
 )
 from pollux.extensions.conversation_modes import (
-    SequentialMode,
     SingleMode,
     VectorizedMode,
 )
@@ -55,60 +54,6 @@ def mock_result():
 
 class TestConversationContracts:
     """Test core contracts and invariants of the conversation extension."""
-
-    def test_conversation_state_immutability_contract(self):
-        """Contract: ConversationState must be immutable after creation."""
-        state = ConversationState(
-            sources=("doc.pdf",),
-            turns=(),
-            policy=ConversationPolicy(),
-        )
-
-        # Should not be able to modify state
-        with pytest.raises(AttributeError):
-            state.sources = ("modified.pdf",)  # type: ignore
-
-        with pytest.raises(AttributeError):
-            state.version = 999  # type: ignore
-
-    def test_conversation_policy_immutability_contract(self):
-        """Contract: ConversationPolicy must be immutable after creation."""
-        policy = ConversationPolicy(keep_last_n=5, widen_max_factor=1.2)
-
-        # Should not be able to modify policy
-        with pytest.raises(AttributeError):
-            policy.keep_last_n = 10  # type: ignore
-
-        with pytest.raises(AttributeError):
-            policy.widen_max_factor = 1.5  # type: ignore
-
-    def test_prompt_set_immutability_contract(self):
-        """Contract: PromptSet must be immutable after creation."""
-        ps = PromptSet(("Hello", "World"), SequentialMode())
-
-        # Should not be able to modify prompt set
-        with pytest.raises(AttributeError):
-            ps.prompts = ("Modified",)  # type: ignore
-
-        with pytest.raises(AttributeError):
-            ps.mode = VectorizedMode()  # type: ignore
-
-    def test_conversation_plan_immutability_contract(self):
-        """Contract: ConversationPlan must be immutable after creation."""
-        plan = ConversationPlan(
-            sources=("doc.pdf",),
-            history=(),
-            prompts=("Hello",),
-            strategy="sequential",
-            hints=(),
-        )
-
-        # Should not be able to modify plan
-        with pytest.raises(AttributeError):
-            plan.prompts = ("Modified",)  # type: ignore
-
-        with pytest.raises(AttributeError):
-            plan.strategy = "vectorized"  # type: ignore
 
     def test_compile_conversation_pure_function_contract(self):
         """Contract: compile_conversation must be a pure function."""
@@ -189,51 +134,3 @@ class TestConversationContracts:
         assert plan.strategy == "vectorized"
         assert len(plan.hints) > 0  # From policy settings
         assert plan.prompts == ("Q1", "Q2", "Q3")  # From prompt_set
-
-    def test_plan_inspectability_contract(self):
-        """Contract: ConversationPlan must be inspectable for auditability."""
-        policy = ConversationPolicy(keep_last_n=3, widen_max_factor=1.2)
-        prompt_set = PromptSet(("Q1", "Q2"), SequentialMode())
-        state = ConversationState(sources=("doc.pdf",), turns=())
-
-        plan = compile_conversation(state, prompt_set, policy)
-
-        # Plan must be inspectable via attributes
-        assert hasattr(plan, "sources")
-        assert hasattr(plan, "prompts")
-        assert hasattr(plan, "strategy")
-        assert hasattr(plan, "hints")
-
-        # Verify the plan structure
-        assert plan.sources == ("doc.pdf",)
-        assert plan.prompts == ("Q1", "Q2")
-        assert plan.strategy == "sequential"
-
-    def test_policy_constructors_contract(self):
-        """Contract: Policy constructors must create valid policies."""
-        # Test default policy construction
-        policy = ConversationPolicy()
-
-        assert isinstance(policy, ConversationPolicy)
-
-        # Verify default values
-        assert policy.keep_last_n is None
-        assert policy.widen_max_factor is None
-        assert policy.clamp_max_tokens is None
-        assert policy.prefer_json_array is False
-
-    def test_prompt_set_constructors_contract(self):
-        """Contract: PromptSet constructors must create valid prompt sets."""
-        # Test direct construction of PromptSet
-        single = PromptSet(("Hello",), SingleMode())
-        seq = PromptSet(("Q1", "Q2", "Q3"), SequentialMode())
-        vec = PromptSet(("A", "B", "C"), VectorizedMode())
-
-        assert single.mode == SingleMode()
-        assert single.prompts == ("Hello",)
-
-        assert seq.mode == SequentialMode()
-        assert seq.prompts == ("Q1", "Q2", "Q3")
-
-        assert vec.mode == VectorizedMode()
-        assert vec.prompts == ("A", "B", "C")

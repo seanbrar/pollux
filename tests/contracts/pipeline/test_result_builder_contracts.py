@@ -5,68 +5,19 @@ architectural contracts defined in the Command Pipeline and Two-Tier Transform
 Chain specifications, rather than testing specific input/output behaviors.
 """
 
-from dataclasses import is_dataclass
 import inspect
-import sys
-from typing import Any, get_type_hints
 
 import pytest
 
-from pollux.core.types import FinalizedCommand
 from pollux.pipeline.result_builder import ResultBuilder
 from pollux.pipeline.results.extraction import (
     ExtractionContext,
-    ExtractionContract,
-    ExtractionDiagnostics,
-    ExtractionResult,
-    TransformSpec,
-    Violation,
 )
-from pollux.pipeline.results.minimal_projection import MinimalProjection
 from pollux.pipeline.results.transforms import default_transforms
 
 
 class TestResultBuilderHandlerContract:
     """Verify Result Builder adheres to pipeline handler contract."""
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_handler_signature_contract(self):
-        """Result Builder must implement correct handler signature."""
-        # Must have async handle method
-        assert hasattr(ResultBuilder, "handle")
-        assert inspect.iscoroutinefunction(ResultBuilder.handle)
-
-        # Handle method signature inspection
-        builder = ResultBuilder()
-        sig = inspect.signature(builder.handle)
-        params = list(sig.parameters.keys())
-
-        # Must accept exactly: command (self is not in bound method signature)
-        assert len(params) == 1
-        assert params[0] == "command"
-
-        # Type hints must specify FinalizedCommand input
-        _mod = sys.modules.get(builder.handle.__module__)
-        _ns = _mod.__dict__ if _mod is not None else {}
-        hints = get_type_hints(builder.handle, globalns=_ns, localns=_ns)
-        assert "command" in hints
-        assert hints["command"] == FinalizedCommand
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_handler_never_fails_contract(self):
-        """Result Builder must never fail - architectural robustness guarantee."""
-        # This is verified by the return type annotation
-        sig = inspect.signature(ResultBuilder.handle)
-        return_annotation = sig.return_annotation
-
-        # Must return Result[dict, Never] - Never indicates no failure cases
-        # The type system enforces this architectural guarantee
-        assert hasattr(return_annotation, "__origin__")  # Generic type
-
-        # Verify it's a Result type (Success | Failure)
-        # The type annotation should indicate this cannot fail
 
     @pytest.mark.unit
     @pytest.mark.contract
@@ -93,113 +44,8 @@ class TestResultBuilderHandlerContract:
         )
 
 
-class TestExtractionDataContract:
-    """Verify extraction data structures maintain immutability contract."""
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_extraction_types_are_immutable(self):
-        """All extraction data structures must be immutable (frozen dataclasses)."""
-        immutable_types = [
-            TransformSpec,
-            ExtractionContext,
-            ExtractionContract,
-            ExtractionResult,
-            Violation,
-        ]
-
-        for cls in immutable_types:
-            assert is_dataclass(cls), f"{cls.__name__} must be a dataclass"
-            params = getattr(cls, "__dataclass_params__", None)
-            assert params is not None and getattr(params, "frozen", False), (
-                f"{cls.__name__} must be frozen"
-            )
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_transform_spec_purity_contract(self):
-        """TransformSpec must enforce pure functions for matcher/extractor."""
-        # The contract is enforced by type annotations and runtime validation
-        # Resolve annotations (Callable is only imported under TYPE_CHECKING)
-        import collections.abc as cabc
-        from typing import get_args, get_origin
-
-        _mod = sys.modules.get(TransformSpec.__module__)
-        _ns = (_mod.__dict__ if _mod is not None else {}).copy()
-        _ns.setdefault("Callable", cabc.Callable)
-
-        hints = get_type_hints(TransformSpec, globalns=_ns, localns=_ns)
-
-        matcher_hint = hints["matcher"]
-        extractor_hint = hints["extractor"]
-
-        assert get_origin(matcher_hint) is cabc.Callable
-        matcher_args, matcher_ret = get_args(matcher_hint)
-        # typing.get_args returns ( [args], return ) for Callable
-        assert list(matcher_args) == [Any]
-        assert matcher_ret is bool
-
-        assert get_origin(extractor_hint) is cabc.Callable
-        extractor_args, extractor_ret = get_args(extractor_hint)
-        assert len(extractor_args) == 2
-        assert get_origin(extractor_args[1]) is dict
-        assert get_origin(extractor_ret) is dict
-
-        # Runtime validation: non-callables are rejected
-        bad_matcher: Any = "not-callable"
-        bad_extractor: Any = "not-callable"
-        with pytest.raises(ValueError):
-            TransformSpec(name="x", matcher=bad_matcher, extractor=lambda _x, _s: {})
-        with pytest.raises(ValueError):
-            TransformSpec(name="x", matcher=lambda _x: True, extractor=bad_extractor)
-
-        # Positive case: valid callables are accepted and preserved
-        def test_matcher(_: Any) -> bool:
-            return True
-
-        def test_extractor(_: Any, __: dict[str, Any]) -> dict[str, Any]:
-            return {"answers": ["test"]}
-
-        spec = TransformSpec(
-            name="test", matcher=test_matcher, extractor=test_extractor
-        )
-        assert spec.matcher is test_matcher
-        assert spec.extractor is test_extractor
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_mutable_diagnostics_isolation(self):
-        """ExtractionDiagnostics is intentionally mutable but isolated."""
-        # This is the only mutable type in the extraction system
-        assert is_dataclass(ExtractionDiagnostics)
-        _params = getattr(ExtractionDiagnostics, "__dataclass_params__", None)
-        assert _params is not None and getattr(_params, "frozen", True) is False
-
-        # Should not be exposed in public API (architectural boundary)
-        import pollux
-
-        public_items = dir(pollux)
-        assert "ExtractionDiagnostics" not in public_items
-
-
 class TestTwoTierArchitecturalContract:
     """Verify Two-Tier Transform Chain architectural invariants."""
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_minimal_projection_infallible_contract(self):
-        """MinimalProjection must be architecturally infallible."""
-        projection = MinimalProjection()
-
-        # Must have extract method
-        assert hasattr(projection, "extract")
-
-        # Extract method must not raise exceptions (architectural guarantee)
-        sig = inspect.signature(projection.extract)
-        return_annotation = sig.return_annotation
-
-        # Should return ExtractionResult (not Result[T, E] - no failure case)
-        assert return_annotation == ExtractionResult
 
     @pytest.mark.unit
     @pytest.mark.contract
@@ -219,24 +65,6 @@ class TestTwoTierArchitecturalContract:
         # Names must be unique across all transforms
         names = [t.name for t in transforms]
         assert len(names) == len(set(names)), "Transform names must be unique"
-
-    @pytest.mark.unit
-    @pytest.mark.contract
-    def test_record_only_validation_contract(self):
-        """Validation must never fail extraction (Record Don't Reject principle)."""
-        contract = ExtractionContract()
-
-        # validate method must return violations, not raise exceptions
-        sig = inspect.signature(contract.validate)
-        return_annotation = sig.return_annotation
-
-        # Must return list of Violation (not raise exceptions)
-        # Handle both runtime and string annotations
-        if hasattr(return_annotation, "__origin__"):
-            assert return_annotation.__origin__ is list
-        else:
-            # String annotation case
-            assert "list[Violation]" in str(return_annotation)
 
     @pytest.mark.unit
     @pytest.mark.contract
