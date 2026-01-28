@@ -103,7 +103,7 @@ class TestSimplicityCompliance:
         """The core module should avoid complex inheritance hierarchies."""
         # Check that exceptions have simple inheritance
         exception_classes = [
-            exceptions.GeminiBatchError,
+            exceptions.PolluxError,
             exceptions.APIError,
             exceptions.PipelineError,
             exceptions.ConfigurationError,
@@ -116,6 +116,6 @@ class TestSimplicityCompliance:
 
         for cls in exception_classes:
             # Should have simple inheritance (max 4 levels including object)
-            # This accounts for: Class -> GeminiBatchError -> Exception -> BaseException -> object
+            # This accounts for: Class -> PolluxError -> Exception -> BaseException -> object
             mro = cls.__mro__
             assert len(mro) <= 5, f"{cls.__name__} has complex inheritance: {mro}"

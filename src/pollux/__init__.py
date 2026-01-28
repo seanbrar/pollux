@@ -1,11 +1,11 @@
-"""Gemini Batch: Efficient, scenario-first batch interactions with Gemini APIs."""
+"""Pollux: Efficient, scenario-first batch interactions with Gemini APIs."""
 
 from __future__ import annotations
 
 import importlib.metadata
 import logging
 
-from pollux.core.exceptions import GeminiBatchError
+from pollux.core.exceptions import PolluxError
 from pollux.executor import GeminiExecutor, create_executor
 from pollux.frontdoor import (
     run_batch,
@@ -41,7 +41,7 @@ __all__ = [  # noqa: RUF022
     "run_synthesis",
     "run_parallel",
     # Root exception and curated namespaces
-    "GeminiBatchError",
+    "PolluxError",
     "types",
     "exceptions",
     "research",

@@ -65,8 +65,8 @@ class TestRobustnessCompliance:
         ]
 
         for exception_class in custom_exceptions:
-            assert issubclass(exception_class, exceptions.GeminiBatchError), (
-                f"{exception_class.__name__} should inherit from GeminiBatchError"
+            assert issubclass(exception_class, exceptions.PolluxError), (
+                f"{exception_class.__name__} should inherit from PolluxError"
             )
 
     @pytest.mark.unit

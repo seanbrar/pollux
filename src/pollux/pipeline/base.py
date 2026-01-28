@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol, TypeVar
 
-from pollux.core.exceptions import GeminiBatchError
+from pollux.core.exceptions import PolluxError
 
 if TYPE_CHECKING:
     from pollux.core.types import Result
@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 # Contravariant input (handlers accept supertypes), invariant output and error
 T_In = TypeVar("T_In", contravariant=True)
 T_Out = TypeVar("T_Out")
-T_Error = TypeVar("T_Error", bound=GeminiBatchError)
+T_Error = TypeVar("T_Error", bound=PolluxError)
 
 
 class BaseAsyncHandler(Protocol[T_In, T_Out, T_Error]):

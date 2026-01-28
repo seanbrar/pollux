@@ -107,7 +107,7 @@ class TestClarityCompliance:
             models.RateLimits,
             models.CachingCapabilities,
             models.ModelCapabilities,
-            exceptions.GeminiBatchError,
+            exceptions.PolluxError,
             exceptions.APIError,
             exceptions.PipelineError,
         ]

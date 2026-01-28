@@ -22,7 +22,7 @@ from pollux.pipeline._erasure import is_erased_handler
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from pollux.core.exceptions import GeminiBatchError
+    from pollux.core.exceptions import PolluxError
 
     from ._erasure import ErasedAsyncHandler
     from .base import BaseAsyncHandler
@@ -31,9 +31,9 @@ log = logging.getLogger(__name__)
 
 
 def compose_pipeline(
-    *handlers: BaseAsyncHandler[Any, Any, GeminiBatchError] | ErasedAsyncHandler,
+    *handlers: BaseAsyncHandler[Any, Any, PolluxError] | ErasedAsyncHandler,
     strict: bool = True,
-) -> list[BaseAsyncHandler[Any, Any, GeminiBatchError] | ErasedAsyncHandler]:
+) -> list[BaseAsyncHandler[Any, Any, PolluxError] | ErasedAsyncHandler]:
     """Validate and return a typed handler sequence for executor use.
 
     - Confirms each handler has an async ``handle``.

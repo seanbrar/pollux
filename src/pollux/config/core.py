@@ -19,8 +19,16 @@ import os
 from typing import TYPE_CHECKING, Any, Literal, overload
 import warnings
 
-from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
+from pollux.core.exceptions import HINTS, ConfigurationError
 from pollux.core.models import APITier
 
 from .utils import field_spec_hint, is_sensitive_field_key, should_emit_debug
@@ -118,10 +126,7 @@ class Settings(BaseModel):
     def validate_api_key_required_if_real_api(self) -> Settings:
         """Validate that API key is provided when use_real_api=True."""
         if self.use_real_api and self.api_key is None:
-            raise ValueError(
-                "api_key is required when use_real_api=True. "
-                "Set GEMINI_API_KEY environment variable or provide in configuration."
-            )
+            raise ValueError("api_key is required when use_real_api=True")
         return self
 
 
@@ -326,7 +331,7 @@ def resolve_config(
         FrozenConfig instance, or tuple of (FrozenConfig, SourceMap) if explain=True.
 
     Raises:
-        ValidationError: If configuration validation fails.
+        ConfigurationError: If configuration validation fails.
     """
     # Ensure .env is loaded (optional) before reading environment variables
     _try_load_dotenv()
@@ -346,11 +351,25 @@ def resolve_config(
         home=load_home(profile=effective_profile),
     )
 
-    settings = Settings.model_validate(merged)
+    try:
+        settings = Settings.model_validate(merged)
+        frozen = _freeze(settings, merged)
+    except ValidationError as e:
+        # Extract first error for clarity
+        err = e.errors()[0]
+        msg = err.get("msg")
+        # Remove "Value error, " prefix if present (Pydantic standard wrapper)
+        if msg and msg.startswith("Value error, "):
+            msg = msg[13:]
 
-    frozen = _freeze(settings, merged)
+        # Map known errors to hints
+        hint = None
+        if "api_key is required" in (msg or ""):
+            hint = HINTS["missing_api_key"]
 
-    # Optional debug audit emission.
+        raise ConfigurationError(
+            f"Configuration validation failed: {msg}", hint=hint
+        ) from e
     # Note: Python's warnings filter prints once per callsite by default,
     # so we intentionally avoid global state and rely on that behavior.
     if not explain and should_emit_debug():

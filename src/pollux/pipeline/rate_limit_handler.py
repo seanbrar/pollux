@@ -12,13 +12,13 @@ from dataclasses import dataclass, field
 import time
 
 # Removed ConfigCompatibilityShim import - no longer needed
-from pollux.core.exceptions import GeminiBatchError
+from pollux.core.exceptions import PolluxError
 from pollux.core.types import PlannedCommand, RateConstraint, Result, Success
 from pollux.pipeline.base import BaseAsyncHandler
 from pollux.telemetry import TelemetryContext, TelemetryContextProtocol
 
 
-class RateLimitMiddlewareError(GeminiBatchError):
+class RateLimitMiddlewareError(PolluxError):
     """Placeholder error type; handler is not expected to fail."""
 
 

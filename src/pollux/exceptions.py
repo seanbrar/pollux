@@ -8,8 +8,8 @@ from __future__ import annotations
 from pollux.core.exceptions import (
     ConfigurationError,
     FileError,
-    GeminiBatchError,
     PipelineError,
+    PolluxError,
     SourceError,
     UnsupportedContentError,
     ValidationError,
@@ -18,8 +18,8 @@ from pollux.core.exceptions import (
 __all__ = [
     "ConfigurationError",
     "FileError",
-    "GeminiBatchError",
     "PipelineError",
+    "PolluxError",
     "SourceError",
     "UnsupportedContentError",
     "ValidationError",
