@@ -7,11 +7,11 @@ Prove the system rules remain true across the configuration architecture.
 import os
 from unittest.mock import patch
 
-from pydantic import ValidationError
 import pytest
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig
+from pollux.core.exceptions import ConfigurationError
 from pollux.core.models import APITier
 
 
@@ -109,13 +109,13 @@ class TestConfigurationArchitecturalInvariants:
             os.environ,
             {"GEMINI_API_KEY": "test", "POLLUX_TTL_SECONDS": "-1"},
         ):
-            with pytest.raises(ValidationError) as exc_info:
+            with pytest.raises(ConfigurationError) as exc_info:
                 resolve_config()
             assert "ttl_seconds" in str(exc_info.value).lower()
 
         # Test same validation from programmatic config
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test"}):
-            with pytest.raises(ValidationError) as exc_info:
+            with pytest.raises(ConfigurationError) as exc_info:
                 resolve_config(overrides={"ttl_seconds": -1})
             assert "ttl_seconds" in str(exc_info.value).lower()
 

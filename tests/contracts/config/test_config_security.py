@@ -8,11 +8,11 @@ import json
 import os
 from unittest.mock import patch
 
-from pydantic import ValidationError
 import pytest
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig
+from pollux.core.exceptions import ConfigurationError
 from pollux.core.models import APITier
 
 
@@ -119,7 +119,7 @@ class TestConfigurationSecurityContracts:
 
         # Test validation error with secret in context
         with patch.dict(os.environ, {"GEMINI_API_KEY": secret_key}):
-            with pytest.raises(ValidationError) as exc_info:
+            with pytest.raises(ConfigurationError) as exc_info:
                 # Force a validation error
                 resolve_config(overrides={"ttl_seconds": -1})
             error_msg = str(exc_info.value)

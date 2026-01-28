@@ -28,6 +28,7 @@ from pollux.config import (
     resolve_config,
     resolve_provider,
 )
+from pollux.core.exceptions import ConfigurationError
 from pollux.core.models import APITier
 
 pytestmark = pytest.mark.unit
@@ -51,6 +52,7 @@ class TestSettings:
 
     def test_settings_validation_api_key_required_when_real_api(self):
         """Should require API key when use_real_api=True."""
+        # Using Settings() directly triggers Pydantic validation (ValidationError)
         with pytest.raises(ValidationError) as exc_info:
             Settings(use_real_api=True, api_key=None)
 
@@ -158,7 +160,7 @@ class TestConfigResolution:
 
     def test_resolve_config_validation_error_propagates(self):
         """Validation errors should bubble up clearly."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigurationError) as exc_info:
             resolve_config(overrides={"use_real_api": True, "api_key": None})
 
         assert "api_key is required" in str(exc_info.value)
@@ -200,7 +202,7 @@ class TestAmbientScope:
         """ambient() removed; ensure resolution still works without it."""
         # The old ambient accessor was removed. Ensure resolve_config still
         # raises when required validations fail (proxy for previous behavior).
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigurationError):
             resolve_config(overrides={"use_real_api": True, "api_key": None})
 
     def test_ambient_emits_deprecation_warning(self):
@@ -209,7 +211,7 @@ class TestAmbientScope:
         This test ensures calling resolve_config still triggers validation
         warnings when appropriate — the ambient accessor itself is gone.
         """
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigurationError):
             resolve_config(overrides={"use_real_api": True, "api_key": None})
 
     def test_config_scope_sets_and_restores_ambient(self):
@@ -353,7 +355,8 @@ class TestEnvironmentLoading:
         """Invalid integers should be caught by Pydantic validation."""
         with (
             patch.dict(os.environ, {"POLLUX_TTL_SECONDS": "not-a-number"}, clear=True),
-            pytest.raises(ValidationError),
+            # resolve_config wraps ValidationErrors into ConfigurationError
+            pytest.raises(ConfigurationError),
         ):
             resolve_config()
 

@@ -7,11 +7,11 @@ Prove each configuration component meets its type/behavior contract.
 import os
 from unittest.mock import patch
 
-from pydantic import ValidationError
 import pytest
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig
+from pollux.core.exceptions import ConfigurationError
 from pollux.core.models import APITier
 
 
@@ -194,7 +194,7 @@ class TestConfigurationContractCompliance:
         """Contract: Configuration errors must be explicit, not hidden exceptions."""
         # Test missing required API key when use_real_api=True
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValidationError) as exc_info:
+            with pytest.raises(ConfigurationError) as exc_info:
                 resolve_config(overrides={"use_real_api": True})
 
             # Error should be descriptive and explicit
@@ -205,7 +205,8 @@ class TestConfigurationContractCompliance:
             os.environ,
             {"GEMINI_API_KEY": "test", "POLLUX_TIER": "invalid_tier"},
         ):
-            with pytest.raises(ValidationError) as exc_info:
+            # resolve_config wraps ValidationErrors into ConfigurationError
+            with pytest.raises(ConfigurationError) as exc_info:
                 resolve_config()
 
             # Should mention tier validation

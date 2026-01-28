@@ -11,6 +11,7 @@ import pytest
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig
+from pollux.core.exceptions import ConfigurationError
 from pollux.core.types import InitialCommand, Source
 from pollux.executor import GeminiExecutor, create_executor
 
@@ -137,10 +138,10 @@ class TestConfigurationIntegrationBehavior:
         # Test invalid ttl_seconds
         with (
             patch.dict(os.environ, {"GEMINI_API_KEY": "test"}),
-            pytest.raises(ValueError),
+            pytest.raises(ConfigurationError),
         ):
             # Validation happens during resolution; resolving invalid programmatic
-            # config should raise ValueError
+            # config should raise ConfigurationError (wrapped)
             resolve_config(overrides={"ttl_seconds": -1})
 
     def test_environment_override_behavior(self):
