@@ -21,28 +21,83 @@ class TestConfigurationArchitecturalInvariants:
     @pytest.mark.contract
     def test_precedence_order_invariant(self):
         """Invariant: Precedence order must be programmatic > env > project > home > defaults."""
-        # Test that explicit overrides config overrides environment
-        with patch.dict(
-            os.environ,
-            {"GEMINI_API_KEY": "env_key", "POLLUX_MODEL": "env_model"},
-        ):
-            result = resolve_config(
-                overrides={"api_key": "prog_key", "model": "prog_model"}
+        # We simulate the full stack to prove the invariant holds across all layers
+        # 1. Defaults are implicit (e.g. model=gemini-2.0-flash)
+        # 2. Home config sets a baseline
+        # 3. Project config overrides home
+        # 4. Env vars override project
+        # 5. Programmatic overrides win it all
+
+        from pathlib import Path
+        import tempfile
+
+        from pollux.config import Origin
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Setup files
+            project_file = temp_path / "pyproject.toml"
+            project_file.write_text(
+                '[tool.pollux]\nmodel = "project-model"\nttl_seconds = 100'
             )
 
-            # Programmatic should win
-            assert result.api_key == "prog_key"
-            assert result.model == "prog_model"
-
-            # Source map should reflect precedence
-            _, origin = resolve_config(
-                overrides={"api_key": "prog_key", "model": "prog_model"},
-                explain=True,
+            home_file = temp_path / "home_config.toml"
+            home_file.write_text(
+                '[tool.pollux]\nmodel = "home-model"\nttl_seconds = 200\nenable_caching = true'
             )
-            assert origin["api_key"].origin.value == "overrides"
-            assert origin["model"].origin.value == "overrides"
 
+            # Setup Environment
+            env_vars = {
+                "GEMINI_API_KEY": "env_key",
+                "POLLUX_MODEL": "env-model",
+                "POLLUX_PYPROJECT_PATH": str(project_file),
+                "POLLUX_CONFIG_HOME": str(home_file),
+                # ttl_seconds NOT in env, should fall through to project
+            }
 
+            with (
+                patch.dict(os.environ, env_vars, clear=True),
+                patch(
+                    "pollux.config.loaders.load_home",
+                    return_value={
+                        "model": "home-model",
+                        "ttl_seconds": 200,
+                        "enable_caching": True,
+                    },
+                ),
+                patch(
+                    "pollux.config.loaders.load_env",
+                    return_value={"model": "env-model", "api_key": "env_key"},
+                ),
+            ):
+                # Execute resolution with one override
+                result, sources = resolve_config(
+                    overrides={"api_key": "prog_key"}, explain=True
+                )
+
+                # Verify Precedence Chain
+
+                # 1. Programmatic > Env (api_key)
+                assert result.api_key == "prog_key"
+                assert sources["api_key"].origin == Origin.OVERRIDES
+
+                # 2. Env > Project (model)
+                assert result.model == "env-model"
+                assert sources["model"].origin == Origin.ENV
+
+                # 3. Project > Home (ttl_seconds)
+                # Env didn't set it, so it falls to project (100) vs home (200)
+                # Note: We rely on the loader mocks to be accurate to what real loaders do,
+                # but valid config resolution merges them.
+                # If we assume standard merging:
+                assert result.ttl_seconds == 100
+                assert sources["ttl_seconds"].origin == Origin.PROJECT
+
+                # 4. Home > Defaults (enable_caching)
+                # Project didn't set it, so it falls to home
+                assert result.enable_caching is True
+                assert sources["enable_caching"].origin == Origin.HOME
 
     @pytest.mark.contract
     def test_audit_trail_completeness_invariant(self):

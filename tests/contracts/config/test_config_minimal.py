@@ -19,8 +19,6 @@ from pollux.executor import create_executor
 class TestEssentialConfigurationContracts:
     """Essential configuration system contract tests."""
 
-
-
     @pytest.mark.contract
     def test_resolve_config_basic_functionality(self):
         """Essential: resolve_config() must return proper FrozenConfig and origin when requested."""
@@ -54,15 +52,6 @@ class TestEssentialConfigurationContracts:
         # Direct use of FrozenConfig is sufficient
         assert frozen.api_key == "test_key"
         assert frozen.model == "gemini-2.0-flash"
-
-    @pytest.mark.contract
-    def test_precedence_order_basic(self):
-        """Essential: Programmatic config must override environment."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "env_key"}):
-            cfg = resolve_config(overrides={"api_key": "prog_key"})
-            assert cfg.api_key == "prog_key"
-            _, origin = resolve_config(overrides={"api_key": "prog_key"}, explain=True)
-            assert origin["api_key"].origin.value == "overrides"
 
     @pytest.mark.contract
     def test_executor_integration_basic(self):

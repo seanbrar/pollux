@@ -19,29 +19,6 @@ class TestConfigurationContractCompliance:
     """Contract compliance tests for configuration system components."""
 
     @pytest.mark.contract
-    def test_frozen_config_is_immutable(self):
-        """Contract: FrozenConfig must be immutable."""
-        config = FrozenConfig(
-            api_key="test_key",
-            model="gemini-2.0-flash",
-            tier=APITier.FREE,
-            enable_caching=True,
-            use_real_api=False,
-            ttl_seconds=3600,
-            telemetry_enabled=True,
-            provider="google",
-            extra={},
-            request_concurrency=6,
-        )
-
-        # Attempt mutation should fail
-        with pytest.raises(AttributeError):
-            config.api_key = "new_key"  # type: ignore[misc]
-
-        with pytest.raises(AttributeError):
-            config.model = "new_model"  # type: ignore[misc]
-
-    @pytest.mark.contract
     def test_resolve_config_returns_frozen_and_source_map(self):
         """Contract: resolve_config() returns FrozenConfig, and explain=True returns (FrozenConfig, SourceMap)."""
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):

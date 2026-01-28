@@ -22,9 +22,6 @@ def test_from_youtube_valid_examples():
         assert s.content_loader() == u.encode("utf-8")
 
 
-
-
-
 @pytest.mark.parametrize(
     "ref, expected",
     [
@@ -61,9 +58,3 @@ def test_from_arxiv_normalization(ref: str, expected: str) -> None:
     assert s.mime_type == "application/pdf"
     assert s.size_bytes == 0
     assert s.content_loader() == expected.encode("utf-8")
-
-
-
-
-
-

@@ -5,7 +5,6 @@ focusing on validation, immutability, and contract adherence according
 to the architecture rubric principles.
 """
 
-
 import pytest
 
 from pollux.pipeline.results.extraction import ExtractionContract
