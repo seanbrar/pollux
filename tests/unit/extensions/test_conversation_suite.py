@@ -211,6 +211,21 @@ class TestConversationEngine:
         assert state.version == 1
         assert state.turns[-1].warnings == ("w1",)
 
+    @pytest.mark.asyncio
+    async def test_json_store_occ_conflict(self, tmp_path: Path) -> None:
+        """Verify optimistic concurrency control conflict."""
+        store = JSONStore(str(tmp_path / "store.json"))
+        # Initial turn
+        await store.append(
+            "occ", expected_version=0, ex=Exchange("u", "a", error=False)
+        )
+
+        # Current version is 1. Attempting append expecting 0 should fail.
+        with pytest.raises(RuntimeError):
+            await store.append(
+                "occ", expected_version=0, ex=Exchange("u2", "a2", error=False)
+            )
+
 
 class TestAdvancedBehaviors:
     """Tests for metrics distribution, modes, and edge cases."""
