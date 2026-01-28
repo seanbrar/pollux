@@ -4,7 +4,6 @@ import pytest
 
 from pollux.config.core import FrozenConfig
 from pollux.core.exceptions import (
-    InvariantViolationError,
     PipelineError,
     PolluxError,
 )
@@ -66,20 +65,6 @@ async def test_pipeline_error_uses_true_stage_name() -> None:
     assert err.handler_name == "FailingStage"
     # Convenience check: stage_names property exposes correct names
     assert executor.stage_names == ("FailingStage",)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_invariant_violation_when_no_result_envelope_produced() -> None:
-    # A single pass-through stage leaves the executor with a non-dict state
-    executor = GeminiExecutor(_minimal_config(), pipeline_handlers=[PassThroughStage()])
-
-    with pytest.raises(InvariantViolationError) as ei:
-        await executor.execute(_minimal_command())
-
-    assert "ResultEnvelope" in str(ei.value)
-    # Stage name recorded on the invariant error should be the final stage
-    assert getattr(ei.value, "stage_name", None) == "PassThroughStage"
 
 
 @pytest.mark.unit

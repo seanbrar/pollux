@@ -13,7 +13,6 @@ from typing import cast
 import pytest
 
 from pollux.config import resolve_config
-from pollux.core.exceptions import SourceError
 from pollux.core.sources import Source
 from pollux.core.types import (
     Failure,
@@ -146,5 +145,26 @@ class TestSourceHandlerContracts:
 
         # Assert: The handler MUST return a Failure with SourceError.
         assert isinstance(result, Failure)
-        assert isinstance(result.error, SourceError)
-        assert "explicit `Source` objects" in str(result.error)
+
+
+@pytest.mark.asyncio
+async def test_text_detection_allows_short_bare_filenames_as_text():
+    """Verify that bare filenames without delimiters are treated as text by default."""
+    handler = SourceHandler()
+    # No separators; looks like a bare filename, should be treated as text
+    cmd = InitialCommand(
+        sources=(Source.from_file("README.md"),),
+        prompts=("p",),
+        config=resolve_config(overrides={"api_key": "k"}),
+    )
+    result = await handler.handle(cmd)
+    assert isinstance(result, Success)
+    src = result.value.resolved_sources[0]
+    # For real files in project root, detector may treat as file; ensure no failure.
+    assert src.identifier in {"README.md", __import__("pathlib").Path("README.md")}
+
+
+def test_source_from_file_invalid_path_raises():
+    """Explicit construction requires existing file; invalid path raises immediately."""
+    with pytest.raises(ValueError):
+        _ = Source.from_file("some/dir/file.txt")

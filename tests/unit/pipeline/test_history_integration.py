@@ -1,7 +1,7 @@
-"""Verify HistoryPart is passed intact to the adapter.
+"""Integration tests for HistoryPart handling in the pipeline.
 
-This test ensures the APIHandler no longer downgrades HistoryPart
-to TextPart and that adapters receive the structured part.
+Ensures that HistoryPart is passed intact to adapters when non-empty,
+and omitted when empty, maintaining architectural intent for conversational state.
 """
 
 from __future__ import annotations
@@ -14,11 +14,14 @@ from pollux.config import resolve_config
 from pollux.core.types import (
     APICall,
     ExecutionPlan,
+    FinalizedCommand,
     HistoryPart,
     InitialCommand,
     PlannedCommand,
     ResolvedCommand,
+    Success,
     TextPart,
+    Turn,
 )
 from pollux.pipeline.api_handler import APIHandler
 
@@ -29,8 +32,7 @@ class CaptureAdapter:
     """Minimal adapter capturing the api_parts passed to generate() calls."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[str, tuple[Any, ...]]] = []
-        self.caches: list[tuple[str, tuple[Any, ...]]] = []
+        self.parts_seen: list[tuple[str, tuple[Any, ...]]] = []
 
     async def generate(
         self,
@@ -39,8 +41,7 @@ class CaptureAdapter:
         api_parts: tuple[Any, ...],
         api_config: dict[str, object],  # noqa: ARG002
     ) -> dict[str, Any]:
-        self.calls.append((model_name, api_parts))
-        # Return a minimal raw response to satisfy handler
+        self.parts_seen.append((model_name, api_parts))
         # Echo the last text-like part for determinism
         text = ""
         for p in reversed(api_parts):
@@ -56,21 +57,13 @@ class CaptureAdapter:
 
 @pytest.mark.asyncio
 async def test_history_part_reaches_adapter_intact() -> None:
+    """Verify HistoryPart is passed intact to the adapter when non-empty."""
     cfg = resolve_config()
     initial = InitialCommand(sources=(), prompts=("A", "B"), config=cfg)
     resolved = ResolvedCommand(initial=initial, resolved_sources=())
 
     # Build a vectorized plan with non-empty HistoryPart
-    history = HistoryPart(
-        turns=(
-            # Minimal single turn to ensure the part is preserved
-            # (empty histories are intentionally omitted by the handler)
-            # Using placeholder values avoids tight coupling to provider formatting
-            __import__("pollux.core.types", fromlist=["Turn"]).Turn(
-                question="q", answer="a"
-            ),
-        )
-    )
+    history = HistoryPart(turns=(Turn(question="q", answer="a"),))
     calls = (
         APICall(model_name="m", api_parts=(TextPart("A"),), api_config={}),
         APICall(model_name="m", api_parts=(TextPart("B"),), api_config={}),
@@ -84,9 +77,33 @@ async def test_history_part_reaches_adapter_intact() -> None:
     adapter = CaptureAdapter()
     handler = APIHandler(adapter=adapter)
     result = await handler.handle(planned)
-    assert hasattr(result, "value")
+    assert isinstance(result, Success)
 
     # Verify that each generate() received the HistoryPart among parts
-    assert len(adapter.calls) == 2
-    for _, parts in adapter.calls:
+    assert len(adapter.parts_seen) == 2
+    for _, parts in adapter.parts_seen:
         assert any(hasattr(p, "turns") for p in parts), "HistoryPart missing"
+
+
+@pytest.mark.asyncio
+async def test_empty_history_is_omitted_in_single_call() -> None:
+    """Ensure empty HistoryPart is omitted before reaching adapter."""
+    cfg = resolve_config()
+    initial = InitialCommand(sources=(), prompts=("Hi",), config=cfg)
+    resolved = ResolvedCommand(initial=initial, resolved_sources=())
+
+    empty_history = HistoryPart(turns=())
+    primary = APICall(model_name="m", api_parts=(TextPart("Hi"),), api_config={})
+    plan = ExecutionPlan(calls=(primary,), shared_parts=(empty_history,))
+    planned = PlannedCommand(resolved=resolved, execution_plan=plan)
+
+    adapter = CaptureAdapter()
+    handler = APIHandler(adapter=adapter)
+    res = await handler.handle(planned)
+    assert isinstance(res, Success)
+    assert isinstance(res.value, FinalizedCommand)
+
+    assert adapter.parts_seen, "Adapter should have been called"
+    _, parts = adapter.parts_seen[0]
+    # Ensure no structured history part reached the adapter
+    assert not any(hasattr(p, "turns") for p in parts)
