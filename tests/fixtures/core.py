@@ -6,17 +6,11 @@ utilities. Loaded as a pytest plugin from the root conftest.
 
 from __future__ import annotations
 
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 import logging
 import os
-from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
 
 
 # --- Environment Isolation (Autouse) ---
@@ -67,81 +61,6 @@ def neutral_home_config(request, monkeypatch, tmp_path):
     monkeypatch.setenv("POLLUX_CONFIG_HOME", str(fake_home_file))
 
 
-@pytest.fixture
-def clean_env_patch():
-    """Helper to apply a clean env baseline plus overrides as a context manager."""
-
-    def _apply(extra: dict[str, str] | None = None) -> Generator[None]:
-        base = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
-        if extra:
-            base.update(extra)
-        with patch.dict(os.environ, base, clear=True):
-            yield
-
-    return _apply
-
-
-@pytest.fixture
-def isolated_config_sources(tmp_path):
-    """Completely isolate configuration sources for testing."""
-
-    @contextmanager
-    def _setup(
-        *,
-        pyproject_content: str = "",
-        home_content: str = "",
-        env_vars: dict[str, str] | None = None,
-    ) -> Generator[None]:
-        clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GEMINI_")}
-        if env_vars:
-            for key, value in env_vars.items():
-                if not key.startswith("GEMINI_"):
-                    key = f"POLLUX_{key.upper()}"
-                clean_env[key] = value
-
-        project_dir = tmp_path / "project"
-        project_dir.mkdir(exist_ok=True)
-        pyproject_path = project_dir / "pyproject.toml"
-
-        home_dir = tmp_path / "home"
-        home_dir.mkdir(exist_ok=True)
-        home_config_path = home_dir / "pollux.toml"
-
-        if pyproject_content:
-            pyproject_path.write_text(pyproject_content)
-        if home_content:
-            home_config_path.write_text(home_content)
-
-        clean_env["POLLUX_PYPROJECT_PATH"] = str(pyproject_path)
-        clean_env["POLLUX_CONFIG_HOME"] = str(home_config_path)
-
-        with patch.dict(os.environ, clean_env, clear=True):
-            yield
-
-    return _setup
-
-
-@pytest.fixture
-def temp_toml_file():
-    """Create temporary TOML files for testing as a context manager."""
-    from contextlib import contextmanager
-    import tempfile
-
-    @contextmanager
-    def _create(content: str) -> Generator[Path]:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-            f.write(content)
-            f.flush()
-            temp_path = Path(f.name)
-        try:
-            yield temp_path
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
-
-    return _create
-
-
 # --- Logging & Markers ---
 @pytest.fixture(scope="session", autouse=True)
 def quiet_noisy_libraries():
@@ -176,23 +95,3 @@ def pytest_collection_modifyitems(items):
         for item in items:
             if "api" in item.keywords:
                 item.add_marker(skip_api)
-
-
-# --- Common helpers ---
-@pytest.fixture
-def mock_api_key() -> str:
-    return "test_api_key_12345_67890_abcdef_ghijkl"
-
-
-@pytest.fixture
-def mock_env(mock_api_key, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", mock_api_key)
-    monkeypatch.setenv("POLLUX_MODEL", "gemini-2.0-flash")
-    monkeypatch.setenv("POLLUX_ENABLE_CACHING", "False")
-
-
-@pytest.fixture
-def fs(fs):
-    """pyfakefs helper that preserves OS-specific path separators."""
-    fs.os = os
-    return fs

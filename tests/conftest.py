@@ -8,8 +8,4 @@ Tests should rely on fixture injection through pytest (not direct imports from
 
 pytest_plugins = [
     "tests.fixtures.core",
-    "tests.fixtures.pipeline",
-    "tests.fixtures.templates",
-    "tests.fixtures.workflows",
-    "tests.fixtures.extensions",
 ]
