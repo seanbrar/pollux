@@ -151,7 +151,7 @@ class ActCommand:
 
     def run(self, cwd: Path | None = None) -> ActResult:
         """Execute the act command."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             self.build_args(),
             cwd=cwd,
             capture_output=True,
@@ -175,7 +175,7 @@ class GitHelper:
     ) -> subprocess.CompletedProcess[str]:
         """Run a git command in the repository."""
         cmd = [self.git_executable, *args]
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             cmd,
             cwd=self.repo_path,
             capture_output=True,
