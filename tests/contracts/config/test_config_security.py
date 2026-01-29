@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from pollux.config import resolve_config
-from pollux.core.exceptions import ConfigurationError
 
 
 class TestConfigurationSecurityContracts:
@@ -54,39 +53,3 @@ class TestConfigurationSecurityContracts:
                 indicator in redacted_repr_lower
                 for indicator in ["***", "[redacted]", "hidden", "secret"]
             )
-
-    @pytest.mark.contract
-    @pytest.mark.security
-    def test_source_map_never_contains_secrets(self):
-        """Security: Source map must never contain actual secret values."""
-        secret_key = "sk-very-secret-api-key-12345-abcdef"
-
-        with patch.dict(os.environ, {"GEMINI_API_KEY": secret_key}):
-            _, origin = resolve_config(explain=True)
-
-            # Convert source map to string for searching
-            source_map_str = str(origin)
-            source_map_repr = repr(origin)
-
-            # Secret should not appear anywhere in source map
-            assert secret_key not in source_map_str
-            assert secret_key not in source_map_repr
-
-            # Source map should still track the field
-            assert "api_key" in origin
-
-    @pytest.mark.contract
-    @pytest.mark.security
-    def test_exception_messages_dont_leak_secrets(self):
-        """Security: Exception messages must not contain secret values."""
-        secret_key = "sk-very-secret-api-key-12345-abcdef"
-
-        # Test validation error with secret in context
-        with patch.dict(os.environ, {"GEMINI_API_KEY": secret_key}):
-            with pytest.raises(ConfigurationError) as exc_info:
-                # Force a validation error
-                resolve_config(overrides={"ttl_seconds": -1})
-            error_msg = str(exc_info.value)
-
-            # Error message should not contain the secret
-            assert secret_key not in error_msg

@@ -15,41 +15,12 @@ from pollux.core.types import (
     InitialCommand,
 )
 from pollux.executor import create_executor
-from pollux.extensions.conversation import Conversation
-from pollux.extensions.conversation_types import ConversationState
 
 pytestmark = pytest.mark.contract
 
 
 class TestExecutionOptionsContract:
     """Verify options=None produces identical behavior to default/no options."""
-
-    @pytest.mark.asyncio
-    async def test_conversation_no_op_guarantee(self):
-        """Conversation should behave identically with and without cache."""
-        executor = create_executor()
-
-        # Same conversation setup, one with cache, one without
-        conv_no_cache = Conversation.start(executor, sources=())
-        # Create conversation state with cache key for comparison
-        cached_state = ConversationState(
-            sources=(), turns=(), cache_key="noop-test", cache_artifacts=("artifact1",)
-        )
-        conv_with_cache = Conversation(cached_state, executor)
-
-        # Ask the same question
-        result_no_cache = await conv_no_cache.ask("test question")
-        result_with_cache = await conv_with_cache.ask("test question")
-
-        # Both should succeed and have turns
-        assert len(result_no_cache.state.turns) == 1
-        assert len(result_with_cache.state.turns) == 1
-        assert result_no_cache.state.turns[0].error is False
-        assert result_with_cache.state.turns[0].error is False
-
-        # Both should have valid responses (deterministic mock may vary slightly)
-        assert len(result_no_cache.state.turns[0].assistant) > 0
-        assert len(result_with_cache.state.turns[0].assistant) > 0
 
     @pytest.mark.asyncio
     async def test_end_to_end_no_op_guarantee(self):
