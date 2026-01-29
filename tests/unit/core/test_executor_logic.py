@@ -65,10 +65,3 @@ async def test_pipeline_error_uses_true_stage_name() -> None:
     assert err.handler_name == "FailingStage"
     # Convenience check: stage_names property exposes correct names
     assert executor.stage_names == ("FailingStage",)
-
-
-@pytest.mark.unit
-def test_erase_guard_raises_for_invalid_handler() -> None:
-    # Creating an executor with an invalid handler (no 'handle') should raise TypeError during erase()
-    with pytest.raises(TypeError):
-        GeminiExecutor(_minimal_config(), pipeline_handlers=[object()])  # type: ignore

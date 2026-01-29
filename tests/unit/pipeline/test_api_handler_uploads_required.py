@@ -42,12 +42,6 @@ class _UploadCapableAdapter(_NoUploadAdapter):
         return {"uri": f"files/mock/{os.fspath(path)}"}
 
 
-@pytest.mark.skip(
-    reason="ExecutionPlan.upload_tasks no longer enforced; use placeholders if needed"
-)
-async def test_required_uploads_fail_when_provider_cannot_upload(tmp_path): ...
-
-
 @pytest.mark.asyncio
 async def test_optional_uploads_skip_when_provider_cannot_upload(tmp_path):
     (tmp_path / "f.txt").write_text("x", encoding="utf-8")
@@ -71,9 +65,3 @@ async def test_optional_uploads_skip_when_provider_cannot_upload(tmp_path):
     handler = APIHandler(adapter=_NoUploadAdapter())
     result = await handler.handle(planned)
     assert isinstance(result, Success)
-
-
-@pytest.mark.skip(
-    reason="ExecutionPlan.upload_tasks no longer enforced; use placeholders if needed"
-)
-async def test_required_uploads_succeed_when_provider_can_upload(tmp_path): ...
