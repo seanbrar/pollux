@@ -134,6 +134,8 @@ class TestCacheSingleFlight:
     @pytest.mark.asyncio
     async def test_cache_creation_is_single_flight(self) -> None:
         """Concurrent cache requests for same content produce single API call."""
+        # Exception: this is an interior-stage test because it guards a real
+        # production failure mode (duplicate cache creation under concurrency).
         cfg = resolve_config(
             overrides={"use_real_api": True, "api_key": "x", "enable_caching": True}
         )
@@ -173,10 +175,11 @@ class _UploadRef(TypedDict):
 
 
 @dataclass
-class _FakeUploadsAdapter(UploadsCapability):
-    """Fake adapter that tracks upload calls."""
+class _FakeUploadsAdapter(GenerationAdapter, UploadsCapability):
+    """Fake adapter that tracks upload calls and captures prepared parts."""
 
     calls: int = 0
+    last_parts: tuple[Any, ...] | None = None
 
     async def upload_file_local(
         self, path: str | os.PathLike[str], mime_type: str | None
@@ -184,6 +187,17 @@ class _FakeUploadsAdapter(UploadsCapability):
         self.calls += 1
         await asyncio.sleep(0.01)
         return {"uri": f"mock://{Path(path)}", "mime_type": mime_type}
+
+    async def generate(
+        self,
+        *,
+        model_name: str,
+        api_parts: tuple[Any, ...],
+        api_config: dict[str, object],
+    ) -> dict[str, Any]:
+        _ = model_name, api_config
+        self.last_parts = api_parts
+        return {"text": "ok"}
 
 
 @pytest.mark.unit
@@ -196,28 +210,45 @@ class TestUploadSingleFlight:
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "doc.txt"
             p.write_text("hello")
-            t1 = UploadTask(
-                part_index=0, local_path=p, mime_type="text/plain", required=False
-            )
-            t2 = UploadTask(
-                part_index=1, local_path=p, mime_type="text/plain", required=False
-            )
 
-            handler = APIHandler(registries={"files": FileRegistry()})
-            adapter = _FakeUploadsAdapter()
-
-            parts: list[APIPart] = [
+            call_parts: list[APIPart] = [
                 FilePlaceholder(local_path=p, mime_type="text/plain", ephemeral=False),
                 FilePlaceholder(local_path=p, mime_type="text/plain", ephemeral=False),
             ]
-            res = await handler._upload_pending(adapter, [(0, t1), (1, t2)], parts)
+            tasks = (
+                UploadTask(
+                    part_index=0,
+                    local_path=p,
+                    mime_type="text/plain",
+                    required=False,
+                ),
+                UploadTask(
+                    part_index=1,
+                    local_path=p,
+                    mime_type="text/plain",
+                    required=False,
+                ),
+            )
 
-            assert len(res) == 2
+            adapter = _FakeUploadsAdapter()
+            handler = APIHandler(registries={"files": FileRegistry()}, adapter=adapter)
+            cmd = _mk_cmd(shared_parts=(), call_parts=call_parts)
+            cmd = PlannedCommand(
+                resolved=cmd.resolved,
+                execution_plan=ExecutionPlan(
+                    calls=cmd.execution_plan.calls,
+                    shared_parts=cmd.execution_plan.shared_parts,
+                    upload_tasks=tasks,
+                ),
+            )
+
+            result = await handler.handle(cmd)
+            assert isinstance(result, Success)
             assert adapter.calls == 1
-            uris = {
-                uploaded.get("uri") for _, uploaded in res if isinstance(uploaded, dict)
-            }
-            assert len(uris) == 1
+            assert adapter.last_parts is not None
+            assert len(adapter.last_parts) == 2
+            assert isinstance(adapter.last_parts[0], FileRefPart)
+            assert isinstance(adapter.last_parts[1], FileRefPart)
 
 
 @pytest.mark.unit
@@ -236,25 +267,29 @@ class TestUploadTaskIndexing:
                 TextPart("prompt"),
                 FilePlaceholder(local_path=p, mime_type="text/plain", ephemeral=False),
             ]
-            combined = list(shared) + list(call_parts)
-
             tasks = (
                 UploadTask(
                     part_index=1, local_path=p, mime_type="text/plain", required=True
                 ),
             )
 
-            handler = APIHandler()
             adapter = _FakeUploadsAdapter()
-            out = await handler._prepare_effective_parts(
-                adapter,
-                combined,
-                upload_tasks=tasks,
-                infer_placeholders=False,
-                call_offset=len(shared),
+            handler = APIHandler(adapter=adapter)
+            cmd = _mk_cmd(shared_parts=shared, call_parts=call_parts)
+            cmd = PlannedCommand(
+                resolved=cmd.resolved,
+                execution_plan=ExecutionPlan(
+                    calls=cmd.execution_plan.calls,
+                    shared_parts=cmd.execution_plan.shared_parts,
+                    upload_tasks=tasks,
+                ),
             )
 
-            assert isinstance(out[2], FileRefPart)
+            result = await handler.handle(cmd)
+            assert isinstance(result, Success)
+            assert adapter.last_parts is not None
+            assert isinstance(adapter.last_parts[2], FileRefPart)
+            assert isinstance(adapter.last_parts[1], TextPart)
             assert adapter.calls == 1
 
 
