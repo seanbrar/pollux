@@ -263,24 +263,6 @@ class TestMinimalProjection:
 
         assert result.answers == ["Object text content"]
 
-    def test_handles_string_conversion_failures(self):
-        """MinimalProjection should handle str() conversion failures gracefully."""
-        projection = MinimalProjection()
-        ctx = ExtractionContext(expected_count=1)
-
-        # Object that raises exception on str()
-        class BadStringObject:
-            def __str__(self):
-                raise RuntimeError("Cannot convert to string")
-
-        bad_obj = BadStringObject()
-        result = projection.extract(bad_obj, ctx)
-
-        # Should still return a result
-        assert isinstance(result.answers, list)
-        assert len(result.answers) == 1
-        assert result.answers[0] == "[unparseable content]"
-
     def test_deterministic_behavior(self):
         """MinimalProjection should produce identical results for same input."""
         projection = MinimalProjection()

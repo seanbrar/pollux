@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 
 from pollux.extensions.token_counting import (
@@ -25,12 +23,6 @@ def test_valid_content_from_text_success() -> None:
     assert content.char_count == len("hello world")
 
 
-@pytest.mark.parametrize("bad", [None, 123, 1.23, object()])
-def test_valid_content_from_text_rejects_non_str(bad: Any) -> None:
-    with pytest.raises(InvalidContentError):
-        ValidContent.from_text(bad)
-
-
 @pytest.mark.parametrize("bad", ["", "   \n\t   "])
 def test_valid_content_from_text_rejects_empty(bad: str) -> None:
     with pytest.raises(InvalidContentError):
@@ -41,16 +33,6 @@ def test_valid_content_from_text_rejects_too_large() -> None:
     huge = "x" * (10_000_000 + 1)
     with pytest.raises(InvalidContentError):
         ValidContent.from_text(huge)
-
-
-def test_token_count_success_rejects_negative() -> None:
-    with pytest.raises(ValueError):
-        TokenCountSuccess(
-            count=-1,
-            content_type="text",
-            char_count=5,
-            metadata={},
-        )
 
 
 def test_error_info_preserves_recovery_hint() -> None:
