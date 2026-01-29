@@ -6,16 +6,9 @@ and recipe execution.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
-
-# Ensure project root is in path for cookbook import
-_project_root = Path(__file__).parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
 
 import cookbook.__main__ as runner
 

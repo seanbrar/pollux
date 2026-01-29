@@ -13,8 +13,8 @@ Contracts are grouped by subsystem:
 from __future__ import annotations
 
 import os
-import tempfile
 from pathlib import Path
+import tempfile
 from typing import Any
 from unittest.mock import patch
 
@@ -22,7 +22,11 @@ import pytest
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig, audit_text
-from pollux.core.exceptions import ConfigurationError, InvariantViolationError, PolluxError
+from pollux.core.exceptions import (
+    ConfigurationError,
+    InvariantViolationError,
+    PolluxError,
+)
 from pollux.core.execution_options import ExecutionOptions
 from pollux.core.models import APITier
 from pollux.core.types import InitialCommand, Result, Success

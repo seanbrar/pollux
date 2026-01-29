@@ -11,15 +11,12 @@ through the system with minimal mocking.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import tempfile
-from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self, TypedDict
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
 from pollux.config import resolve_config
 from pollux.config.core import FrozenConfig
@@ -30,14 +27,22 @@ from pollux.core.execution_options import ExecutionOptions, RemoteFilePolicy
 from pollux.core.models import APITier
 from pollux.core.types import APIPart, FilePlaceholder, FileRefPart, Source, Success
 from pollux.executor import create_executor
-from pollux.pipeline.adapters.base import CachingCapability, GenerationAdapter, UploadsCapability
+from pollux.pipeline.adapters.base import (
+    CachingCapability,
+    GenerationAdapter,
+    UploadsCapability,
+)
 from pollux.pipeline.api_handler import APIHandler
 from pollux.pipeline.cache_stage import CacheStage
 from pollux.pipeline.registries import CacheRegistry, FileRegistry
 from pollux.pipeline.remote_materialization import RemoteMaterializationStage
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     import os
+    from types import TracebackType
+
+    from _pytest.monkeypatch import MonkeyPatch
 
 
 # =============================================================================
@@ -137,7 +142,9 @@ class TestCacheSingleFlight:
         resolved = ResolvedCommand(initial=initial, resolved_sources=())
         plan = ExecutionPlan(
             calls=(
-                APICall(model_name=cfg.model, api_parts=(TextPart("u"),), api_config={}),
+                APICall(
+                    model_name=cfg.model, api_parts=(TextPart("u"),), api_config={}
+                ),
             ),
             shared_parts=(TextPart("shared"),),
         )
@@ -321,7 +328,9 @@ class _FakeResp:
 def _mk_cmd(
     shared_parts: Iterable[APIPart] = (), call_parts: Iterable[APIPart] = ()
 ) -> PlannedCommand:
-    init = InitialCommand.strict(sources=(), prompts=("p",), config=_cfg(), options=None)
+    init = InitialCommand.strict(
+        sources=(), prompts=("p",), config=_cfg(), options=None
+    )
     res = ResolvedCommand(initial=init, resolved_sources=())
     call = APICall(model_name="m", api_parts=tuple(call_parts), api_config={})
     plan = ExecutionPlan(calls=(call,), shared_parts=tuple(shared_parts))
@@ -336,7 +345,9 @@ class TestRemoteMaterialization:
     async def test_noop_when_disabled(self) -> None:
         """Stage is no-op when remote file policy is disabled."""
         cmd = _mk_cmd(
-            shared_parts=(FileRefPart(uri="https://x/y.pdf", mime_type="application/pdf"),)
+            shared_parts=(
+                FileRefPart(uri="https://x/y.pdf", mime_type="application/pdf"),
+            )
         )
         stage = RemoteMaterializationStage()
         out = await stage.handle(cmd)
@@ -367,7 +378,9 @@ class TestRemoteMaterialization:
             policy = RemoteFilePolicy(enabled=True)
             cmd = _mk_cmd(
                 shared_parts=(
-                    FileRefPart(uri="https://host/file.pdf", mime_type="application/pdf"),
+                    FileRefPart(
+                        uri="https://host/file.pdf", mime_type="application/pdf"
+                    ),
                 )
             )
             cmd = PlannedCommand(
@@ -436,7 +449,9 @@ class TestRemoteMaterialization:
             return _FakeResp(b"x" * (30 * 1024 * 1024))
 
         monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-        policy = RemoteFilePolicy(enabled=True, max_bytes=1 * 1024 * 1024, on_error="skip")
+        policy = RemoteFilePolicy(
+            enabled=True, max_bytes=1 * 1024 * 1024, on_error="skip"
+        )
         ref = FileRefPart(uri="https://host/big.pdf", mime_type="application/pdf")
         cmd = _mk_cmd(shared_parts=(ref,))
         cmd = PlannedCommand(
@@ -476,7 +491,9 @@ class TestRemoteMaterialization:
                     sources=(),
                     prompts=("p",),
                     config=_cfg(),
-                    options=ExecutionOptions(remote_files=RemoteFilePolicy(enabled=True)),
+                    options=ExecutionOptions(
+                        remote_files=RemoteFilePolicy(enabled=True)
+                    ),
                 ),
                 resolved_sources=(),
             ),
