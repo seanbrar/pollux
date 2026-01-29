@@ -8,6 +8,7 @@ This project values small, focused changes with clear rationale and easy verific
 - Body:
   1. Summary – what does this PR do? One or two sentences.
   2. Notes (optional) – anything reviewers should know, or context for your future self.
+- Tests: If your PR includes tests, ensure they provide meaningful signal. See the [Testing Guide](../testing.md) for guidance on what merits a test.
 
 ## Documentation
 

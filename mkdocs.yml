@@ -151,8 +151,7 @@ nav:
                   - Authoring Templates: contributing/authoring_templates.md
                   - Cookbook Authoring: contributing/cookbook_authoring.md
                   - Docs Quality Checklist: contributing/docs_quality_checklist.md
-                  - Testing Strategy: testing-strategy.md
-                  - Test Suite Reference: tests.md
+                  - Testing Guide: testing.md
         - Domains:
                   - Extensions: domains/extensions.md
                   - Research: domains/research.md
