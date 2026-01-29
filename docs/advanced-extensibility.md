@@ -15,7 +15,7 @@ Core principles:
 - `GeminiExecutor` constructs a default pipeline of async handlers:
   `SourceHandler → ExecutionPlanner → RemoteMaterializationStage → RateLimitHandler
   → CacheStage → APIHandler → ResultBuilder`.
-- Handlers implement `BaseAsyncHandler[T_In, T_Out, GeminiBatchError]` with a
+- Handlers implement `BaseAsyncHandler[T_In, T_Out, PolluxError]` with a
   single `handle(...)` coroutine.
 - The executor enforces that the last stage produces a valid `ResultEnvelope`.
 
@@ -41,7 +41,7 @@ from typing import Any
 
 from pollux.executor import GeminiExecutor
 from pollux.core.commands import PlannedCommand
-from pollux.core.exceptions import GeminiBatchError
+from pollux.core.exceptions import PolluxError
 from pollux.pipeline.base import BaseAsyncHandler
 from pollux.pipeline.result_builder import ResultBuilder
 from pollux.pipeline.api_handler import APIHandler
@@ -51,7 +51,7 @@ from pollux.pipeline.remote_materialization import RemoteMaterializationStage
 from pollux.pipeline.source_handler import SourceHandler
 
 
-class ResponseSchemaInjector(BaseAsyncHandler[PlannedCommand, PlannedCommand, GeminiBatchError]):
+class ResponseSchemaInjector(BaseAsyncHandler[PlannedCommand, PlannedCommand, PolluxError]):
     def __init__(self, *, response_mime_type: str, response_schema: Any) -> None:
         self._mime = response_mime_type
         self._schema = response_schema
@@ -162,7 +162,7 @@ True via `executor._build_default_pipeline`.
 ## Telemetry, Diagnostics, and Validation
 
 - Handlers should not raise on data quality; instead, return Failure with a
-  `GeminiBatchError` subtype when behavior cannot proceed.
+  `PolluxError` subtype when behavior cannot proceed.
 - Prefer attaching optional diagnostics under `command.telemetry_data` for the
   `ResultBuilder` to surface into the envelope.
 - The executor collects per‑stage durations and attaches them to the final

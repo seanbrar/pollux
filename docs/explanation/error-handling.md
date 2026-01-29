@@ -14,7 +14,7 @@ This document explains how errors are validated, surfaced, and observed across t
 - `ValueError` / `TypeError`: Field‑level validation failures in data classes and constructors (e.g., `ExtractionResult`).
 - `InvariantViolationError`: Architectural contract violations at seams (e.g., invalid `ResultEnvelope`). Includes `stage_name` context.
 - `PipelineError`: Operational/runtime failure from a stage (domain failure, not a contract breach).
-- `GeminiBatchError`: Base class for catching/reporting at top‑level when needed.
+- `PolluxError`: Base class for catching/reporting at top‑level when needed.
 
 Use each where it brings the most clarity to the caller and keeps error context intact.
 
