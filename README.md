@@ -8,6 +8,7 @@
 [![codecov](https://codecov.io/gh/seanbrar/gemini-batch-prediction/graph/badge.svg)](https://codecov.io/gh/seanbrar/gemini-batch-prediction)
 ![Docs](https://img.shields.io/badge/docs-MkDocs-blue)
 [![Docs Site](https://img.shields.io/badge/Docs-Site-2EA44F)](https://seanbrar.github.io/gemini-batch-prediction/)
+[![Testing: MTMT](https://img.shields.io/badge/testing-MTMT_v0.1.0-blue)](https://github.com/seanbrar/minimal-tests-maximum-trust)
 ![Python](https://img.shields.io/badge/Python-3.13+-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 

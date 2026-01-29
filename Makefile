@@ -96,6 +96,11 @@ lint: ## ✒️ Check formatting and lint code
 	uv run ruff format --check .
 	uv run ruff check .
 
+format: ## ✨ Format code and fix linting issues
+	@echo "✨ Formatting and fixing linting issues with ruff..."
+	uv run ruff format .
+	uv run ruff check --fix .
+
 typecheck: ## 🔎 Static type checking with mypy (strict)
 	@echo "🔎 Running mypy type checks (strict)..."
 	uv run mypy .
