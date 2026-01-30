@@ -49,7 +49,17 @@ Common issues and quick fixes when getting started.
 - Fix: Install visualization helpers:
   - `pip install "matplotlib~=3.10" "pandas~=2.3" "seaborn~=0.13"`
 
+## Testing without an API key
+
+If you want to verify your setup before making real API calls:
+
+```bash
+unset POLLUX_USE_REAL_API  # or export POLLUX_USE_REAL_API=0
+```
+
+In mock mode, outputs will look like `echo: <your prompt>`. This is useful for testing pipelines without incurring costs.
+
 ## Still stuck?
 
-- Run: `pollux-config show` and `pollux-config doctor` and attach output to any issue report.
-- See also: How‑to → [FAQ](faq.md); How‑to → [Configuration](configuration.md); How‑to → [Logging](logging.md); Reference → [CLI](../reference/cli.md).
+- Run `pollux-config doctor` and attach the output to any issue report.
+- See [Configuration](configuration.md) for detailed setup or [CLI reference](../reference/cli.md) for diagnostic commands.

@@ -1,14 +1,8 @@
-# Configuration — How‑To
+# Configuration
 
-Last reviewed: 2025-09
+How to configure Pollux for your environment.
 
-> Audience: practitioners configuring or testing now. Task‑focused.
 
-!!! info "See also"
-    - Reference: [Configuration](../reference/configuration.md) — precedence, file discovery, provider inference rules, API surface.
-    - ADR‑0007: [Configuration Resolution & Immutability](../explanation/decisions/ADR-0007-configuration.md)
-
----
 
 ## 1) Quick Start: Use environment variables only
 
@@ -57,7 +51,7 @@ config = resolve_config()  # File values fill in when env is absent
 print(f"Extra fields: {config.extra}")  # Validated extra fields
 ```
 
-Precedence reminder: Programmatic > Env > Project file > Home file > Defaults. For full rules and file discovery options, see Reference → [Configuration](../reference/configuration.md).
+Precedence: Programmatic > Env > Project file > Home file > Defaults.
 
 ---
 
@@ -176,14 +170,7 @@ See also: Reference → CLI for command equivalents and quick checks:
 - `pollux-config doctor` (actionable messages)
 - `pollux-config env` (redacted environment snapshot)
 
-For full diagnostics, provider inference rules, precedence, file discovery, and extra‑field validation patterns, see Reference → [Configuration](../reference/configuration.md).
 
-Conventional patterns:
-
-- `*_timeout` (int) — Timeout values in seconds
-- `*_url` (str) — URL endpoints for external services
-- `experimental_*` (Any) — Experimental features (unstable API)
-- `legacy_*` (Any, deprecated) — Triggers deprecation warnings
 
 ---
 

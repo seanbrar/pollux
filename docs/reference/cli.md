@@ -69,7 +69,7 @@ Minimal CLIs for configuration diagnostics and running repository recipes.
 
 - CI usage: `pollux-config show` and `pollux-config doctor` always exit `0`; parse output for warnings or raise in your pipeline if necessary.
 - Redaction: `api_key` and other sensitive fields are always redacted by design.
-- See also: [How‑to → Configuration](../how-to/configuration.md) for precedence rules and audit details.
+- See also: [Configuration Guide](../guides/configuration.md) for precedence rules and audit details.
 
 ## CI usage examples
 

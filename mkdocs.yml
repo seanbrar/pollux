@@ -37,34 +37,19 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Quickstart: quickstart.md
   - Guides:
-      - Quickstart: guides/quickstart.md
       - Installation: guides/installation.md
       - Configuration: guides/configuration.md
       - Batch Processing: guides/batch-processing.md
-      - Conversations: guides/conversations.md
       - Caching: guides/caching.md
+      - Conversations: guides/conversations.md
       - Troubleshooting: guides/troubleshooting.md
   - Reference:
-      - Overview: reference/index.md
-      - API Reference: reference/api-reference.md
+      - API: reference/api.md
       - CLI: reference/cli.md
-      - Configuration: reference/configuration.md
-      - Caching: reference/caching.md
       - Glossary: reference/glossary.md
-      - API:
-          - Types: reference/api/types.md
-          - Executor: reference/api/executor.md
-          - Frontdoor: reference/api/frontdoor.md
-          - Config: reference/api/config.md
-          - Core Types: reference/api/core.md
-          - Telemetry: reference/api/telemetry.md
-          - Extensions:
-              - Conversation: reference/api/extensions/conversation.md
-              - Token Counting: reference/api/extensions/token-counting.md
-              - Chunking: reference/api/extensions/chunking.md
-              - Provider Uploads: reference/api/extensions/provider-uploads.md
+  - Testing: testing.md
   - Contributing:
       - How to Contribute: contributing/contributing.md
       - Cookbook Authoring: contributing/cookbook_authoring.md
-  - Testing: testing.md

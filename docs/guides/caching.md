@@ -92,9 +92,4 @@ Notes
 
 - No cache effects: ensure real API is enabled and the provider supports caching (`enable_caching` and `ttl_seconds` are passed via provider adapter). Mock mode won’t create caches.
 - Missing counters: not all SDKs expose `cached_*` usage; rely on `metrics.cache_application` to confirm reuse.
-- Large files: inline caching payloads skip very large files by design (see Reference → Caching for size threshold).
-
-See also
-
-- Explanation → Concepts → [Command Pipeline](../explanation/concepts/command-pipeline.md)
-- Reference → [Caching](../reference/caching.md)
+- Large files: inline caching payloads skip very large files by design.
