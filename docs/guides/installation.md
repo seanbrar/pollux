@@ -17,7 +17,7 @@ pip install pollux
 
 ```bash
 # 1) Download the latest .whl from:
-# https://github.com/seanbrar/gemini-batch-prediction/releases/latest
+# https://github.com/seanbrar/pollux/releases/latest
 
 # 2) Install the wheel (replace filename)
 pip install ./pollux-*.whl
@@ -29,8 +29,8 @@ python -c "import pollux as p; print(p.__version__)"
 ## Option C: From source (contributors)
 
 ```bash
-git clone https://github.com/seanbrar/gemini-batch-prediction.git
-cd gemini-batch-prediction
+git clone https://github.com/seanbrar/pollux.git
+cd pollux
 pip install -e .
 ```
 

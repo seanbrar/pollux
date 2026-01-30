@@ -24,10 +24,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/seanbrar/gemini-batch-prediction"
-Repository = "https://github.com/seanbrar/gemini-batch-prediction"
-Changelog = "https://github.com/seanbrar/gemini-batch-prediction/blob/main/CHANGELOG.md"
-Issues = "https://github.com/seanbrar/gemini-batch-prediction/issues"
+Homepage = "https://github.com/seanbrar/pollux"
+Repository = "https://github.com/seanbrar/pollux"
+Changelog = "https://github.com/seanbrar/pollux/blob/main/CHANGELOG.md"
+Issues = "https://github.com/seanbrar/pollux/issues"
 
 [project.optional-dependencies]
 dev = [

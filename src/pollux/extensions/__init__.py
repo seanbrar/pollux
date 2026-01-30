@@ -1,4 +1,4 @@
-"""Extensions for Gemini batch processing framework.
+"""Extensions for Pollux framework.
 
 High-level, data-centric add-ons that build on the core pipeline while keeping
 the single execution seam intact. Extensions favor immutable data, pure
@@ -18,7 +18,7 @@ Extensions overview:
 Architecture principles:
 - Data-centric design with immutable state
 - Pure compile-then-execute pattern
-- Single pipeline seam via GeminiExecutor
+- Single pipeline seam via Executor
 - Minimal façades with essential operations
 - Aligned with Architecture Rubric (simplicity, clarity, robustness, DX, extensibility)
 

@@ -1,4 +1,4 @@
-"""Project-wide constants for Gemini Batch Processing Framework"""  # noqa: D415
+"""Project-wide constants for Pollux"""  # noqa: D415
 
 # ==============================================================================
 # File Processing Configuration

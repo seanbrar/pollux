@@ -80,8 +80,7 @@ def load_env() -> Mapping[str, Any]:
     # Read only the primary prefix to prevent ambiguity with provider SDK envs
     _process_with_prefix(utils.ENV_PREFIX)
 
-    # Exception: accept official provider API key env as a convenience.
-    # Prefer POLLUX_API_KEY when both are set.
+    # Exception: accept official provider API key env (GEMINI_API_KEY) as a convenience.
     if "api_key" not in config:
         provider_key = os.environ.get("GEMINI_API_KEY")
         if provider_key is not None:

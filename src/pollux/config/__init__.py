@@ -1,6 +1,6 @@
 # src/pollux/config/__init__.py
 
-"""Configuration management for the Gemini Batch Pipeline.
+"""Configuration management for the Pollux Pipeline.
 
 This module provides the new Pydantic Two-File Core configuration system
 that replaces the previous multi-file approach with a clean, data-centric design.

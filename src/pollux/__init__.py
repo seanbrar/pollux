@@ -11,7 +11,7 @@ from pollux.core.exceptions import PolluxError
 
 if TYPE_CHECKING:
     import pollux.exceptions as exceptions
-    from pollux.executor import GeminiExecutor, create_executor
+    from pollux.executor import Executor, create_executor
     from pollux.frontdoor import (
         run_batch,
         run_multi,
@@ -34,7 +34,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 __all__ = [  # noqa: RUF022
     # Primary entry points
-    "GeminiExecutor",
+    "Executor",
     "create_executor",
     "run_simple",
     "run_batch",
@@ -50,7 +50,7 @@ __all__ = [  # noqa: RUF022
 ]
 
 _LAZY_ATTRS: dict[str, tuple[str, str]] = {
-    "GeminiExecutor": ("pollux.executor", "GeminiExecutor"),
+    "Executor": ("pollux.executor", "Executor"),
     "create_executor": ("pollux.executor", "create_executor"),
     "run_simple": ("pollux.frontdoor", "run_simple"),
     "run_batch": ("pollux.frontdoor", "run_batch"),
