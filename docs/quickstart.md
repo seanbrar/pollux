@@ -1,4 +1,4 @@
-# Quickstart
+# Quick Start
 
 Get your first answer in under 2 minutes.
 
@@ -37,8 +37,8 @@ asyncio.run(main())
 
 Expected result: a short answer printed to your terminal.
 
-## Next steps
+## Next Steps
 
-- **[Batch processing](guides/batch-processing.md)** - Multiple prompts or sources
-- **[Configuration](guides/configuration.md)** - Models, real API, and defaults
-- **[Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)** - Real-world recipes
+- **[Usage Patterns](guides/patterns.md)** — Batch processing, conversations
+- **[Configuration](guides/configuration.md)** — Models, tiers, and options
+- **[Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)** — Ready-to-run recipes

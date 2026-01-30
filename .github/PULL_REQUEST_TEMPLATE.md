@@ -8,6 +8,6 @@
 
 ---
 
-- [ ] PR title follows [conventional commits](docs/contributing/contributing.md)
+- [ ] PR title follows [conventional commits](https://seanbrar.github.io/gemini-batch-prediction/contributing/)
 - [ ] `make lint` and `make test-fast` pass
 - [ ] Tests (if any) provide signal, not just coverage

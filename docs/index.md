@@ -1,24 +1,34 @@
 # Pollux
 
-Pollux is a developer-first library for efficient, long-context, multimodal Gemini
-batch processing.
+Efficient multimodal analysis on Google's Gemini API.
 
-- Use one API call to analyze many sources with multiple prompts.
-- Keep costs predictable with batching, caching, and concurrency controls.
-- Stay productive with a clean, minimal API that's easy to reason about.
+> You describe what to analyze. Pollux handles batching, caching, rate limits, and retries—so you don't.
 
 ```python
 import asyncio
 from pollux import run_simple, types
 
-result = asyncio.run(
-    run_simple(
-        "What are the key points?",
-        source=types.Source.from_file("document.pdf"),
+async def main():
+    result = await run_simple(
+        "What are the key findings?",
+        source=types.Source.from_file("paper.pdf"),
     )
-)
-print(result["answers"][0])
+    print(result["answers"][0])
+
+asyncio.run(main())
 ```
 
-**[Get Started ->](quickstart.md)** | **[Guides ->](guides/installation.md)** |
-[Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)
+## Why Pollux?
+
+- **Multimodal-first** — PDFs, images, videos, YouTube URLs. Same API.
+- **Intelligent batching** — Fan-out across prompts and sources efficiently.
+- **Context caching** — Reuse uploaded content. Save tokens and money.
+- **Production-ready** — Rate limiting, retries, async pipelines.
+
+## Get Started
+
+**[Quickstart →](quickstart.md)** — First result in 2 minutes
+
+**[Guides →](guides/installation.md)** — Installation, configuration, patterns
+
+**[Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)** — 11 ready-to-run recipes
