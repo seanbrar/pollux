@@ -46,10 +46,10 @@ nav:
       - Conversations: guides/conversations.md
       - Troubleshooting: guides/troubleshooting.md
   - Reference:
+      - Overview: reference/index.md
       - API: reference/api.md
       - CLI: reference/cli.md
       - Glossary: reference/glossary.md
-  - Testing: testing.md
   - Contributing:
       - How to Contribute: contributing/contributing.md
       - Cookbook Authoring: contributing/cookbook_authoring.md
