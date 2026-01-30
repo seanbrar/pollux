@@ -30,7 +30,7 @@ from pollux.core.exceptions import (
 from pollux.core.execution_options import ExecutionOptions
 from pollux.core.models import APITier
 from pollux.core.types import InitialCommand, Result, Success
-from pollux.executor import GeminiExecutor, create_executor
+from pollux.executor import Executor, create_executor
 from pollux.extensions import Exchange
 from pollux.extensions.conversation_engine import ConversationEngine
 from pollux.extensions.conversation_store import JSONStore
@@ -184,9 +184,7 @@ class TestPipelineContracts:
     @pytest.mark.asyncio
     async def test_invariant_violation_when_no_result_envelope_produced(self) -> None:
         """Contract: Pipeline must produce a ResultEnvelope; violations raise InvariantViolationError."""
-        executor = GeminiExecutor(
-            _minimal_config(), pipeline_handlers=[_PassThroughStage()]
-        )
+        executor = Executor(_minimal_config(), pipeline_handlers=[_PassThroughStage()])
 
         with pytest.raises(InvariantViolationError) as ei:
             await executor.execute(_minimal_command())

@@ -209,7 +209,7 @@ def _require_matplotlib() -> Any:
         import matplotlib.pyplot as plt
     except Exception as exc:  # pragma: no cover - exercised in notebook usage
         raise RuntimeError(
-            "matplotlib is required for visualization. Install with 'gemini-batch[viz]'."
+            "matplotlib is required for visualization. Install with 'pollux[viz]'."
         ) from exc
     return plt
 
@@ -220,7 +220,7 @@ def _require_pandas() -> Any:
         import pandas as pd
     except Exception as exc:  # pragma: no cover - exercised in notebook usage
         raise RuntimeError(
-            "pandas is required for visualization. Install with 'gemini-batch[viz]'."
+            "pandas is required for visualization. Install with 'pollux[viz]'."
         ) from exc
     return pd
 
@@ -251,7 +251,7 @@ def create_efficiency_visualizations(
         figsize=PLOT_CONFIG["figure_size"],
     )
     fig.suptitle(
-        "Gemini Batch Processing Efficiency Analysis",
+        "Pollux Efficiency Analysis",
         fontsize=16,
         fontweight="bold",
     )

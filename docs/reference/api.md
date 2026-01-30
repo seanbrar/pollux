@@ -20,7 +20,7 @@ For fine-grained control:
 
 ::: pollux.executor.create_executor
 
-::: pollux.executor.GeminiExecutor
+::: pollux.executor.Executor
 
 ---
 

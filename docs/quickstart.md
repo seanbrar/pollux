@@ -9,7 +9,7 @@ pip install pollux
 ```
 
 Or download the latest wheel from
-[Releases](https://github.com/seanbrar/gemini-batch-prediction/releases/latest).
+[Releases](https://github.com/seanbrar/pollux/releases/latest).
 
 ## 2) Set your API key
 
@@ -41,4 +41,4 @@ Expected result: a short answer printed to your terminal.
 
 - **[Usage Patterns](guides/patterns.md)** — Batch processing, conversations
 - **[Configuration](guides/configuration.md)** — Models, tiers, and options
-- **[Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)** — Ready-to-run recipes
+- **[Cookbook](https://github.com/seanbrar/pollux/tree/main/cookbook)** — Ready-to-run recipes

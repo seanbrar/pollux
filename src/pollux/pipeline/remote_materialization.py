@@ -327,7 +327,7 @@ async def _download_to_temp(uri: str, policy: RemoteFilePolicy) -> tuple[str, in
             raise APIError(f"HTTP not allowed by policy for URI: {uri}")
 
         req = Request(  # noqa: S310 - http(s) only, validated above
-            uri, headers={"User-Agent": "gemini-batch/remote-materializer"}
+            uri, headers={"User-Agent": "pollux/remote-materializer"}
         )
         # urllib uses a single timeout parameter; apply the maximum of the
         # configured connect/read timeouts to approximate the stricter bound.

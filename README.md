@@ -4,12 +4,12 @@ Efficient multimodal analysis on Google's Gemini API.
 
 > You describe what to analyze. Pollux handles batching, caching, rate limits, and retries—so you don't.
 
-[Documentation](https://seanbrar.github.io/gemini-batch-prediction/) ·
-[Quickstart](https://seanbrar.github.io/gemini-batch-prediction/quickstart/) ·
+[Documentation](https://seanbrar.github.io/pollux/) ·
+[Quickstart](https://seanbrar.github.io/pollux/quickstart/) ·
 [Cookbook](./cookbook/)
 
-![CI](https://github.com/seanbrar/gemini-batch-prediction/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/gh/seanbrar/gemini-batch-prediction/graph/badge.svg)](https://codecov.io/gh/seanbrar/gemini-batch-prediction)
+![CI](https://github.com/seanbrar/pollux/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/seanbrar/pollux/graph/badge.svg)](https://codecov.io/gh/seanbrar/pollux)
 [![Testing: MTMT](https://img.shields.io/badge/testing-MTMT_v0.1.0-blue)](https://github.com/seanbrar/minimal-tests-maximum-trust)
 ![Python](https://img.shields.io/badge/Python-3.13+-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
@@ -43,7 +43,7 @@ asyncio.run(main())
 pip install pollux
 ```
 
-Or download the latest wheel from [Releases](https://github.com/seanbrar/gemini-batch-prediction/releases/latest).
+Or download the latest wheel from [Releases](https://github.com/seanbrar/pollux/releases/latest).
 
 ### API Key
 
@@ -92,22 +92,22 @@ config = resolve_config(overrides={
 executor = create_executor(config)
 ```
 
-See the [Configuration Guide](https://seanbrar.github.io/gemini-batch-prediction/guides/configuration/) for details.
+See the [Configuration Guide](https://seanbrar.github.io/pollux/guides/configuration/) for details.
 
 ## Documentation
 
-- [Quickstart](https://seanbrar.github.io/gemini-batch-prediction/quickstart/) — First result in 2 minutes
-- [Guides](https://seanbrar.github.io/gemini-batch-prediction/guides/installation/) — Installation, configuration, patterns
-- [API Reference](https://seanbrar.github.io/gemini-batch-prediction/reference/api/) — Entry points and types
+- [Quickstart](https://seanbrar.github.io/pollux/quickstart/) — First result in 2 minutes
+- [Guides](https://seanbrar.github.io/pollux/guides/installation/) — Installation, configuration, patterns
+- [API Reference](https://seanbrar.github.io/pollux/reference/api/) — Entry points and types
 - [Cookbook](./cookbook/) — 11 ready-to-run recipes
 
 ## Origins
 
-Pollux was developed as part of Google Summer of Code 2025 with Google DeepMind. [Learn more →](https://seanbrar.github.io/gemini-batch-prediction/about/)
+Pollux was developed as part of Google Summer of Code 2025 with Google DeepMind. [Learn more →](https://seanbrar.github.io/pollux/about/)
 
 ## Contributing
 
-See [CONTRIBUTING](https://seanbrar.github.io/gemini-batch-prediction/contributing/) and [TESTING.md](./TESTING.md) for guidelines.
+See [CONTRIBUTING](https://seanbrar.github.io/pollux/contributing/) and [TESTING.md](./TESTING.md) for guidelines.
 
 ## License
 

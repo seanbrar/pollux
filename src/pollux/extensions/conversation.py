@@ -1,4 +1,4 @@
-"""Data-centric conversation extension for Gemini batch processing.
+"""Data-centric conversation extension for Pollux.
 
 This module provides a minimal, data-driven conversation extension that implements
 the A+B hybrid design with single pipeline seam. The extension focuses on multi-turn
@@ -15,7 +15,7 @@ Key components:
 Architecture principles:
 - Data-centric design with immutable state
 - Pure compile-then-execute pattern
-- Single pipeline seam via GeminiExecutor
+- Single pipeline seam via Executor
 - Minimal facade with essential operations
 - Full alignment with architecture rubric
 
@@ -81,7 +81,7 @@ class Conversation:
     """Immutable conversation facade over the batch pipeline.
 
     Wraps a `ConversationState` and delegates execution to the single
-    `GeminiExecutor.execute` seam. Every operation returns a new instance.
+    `Executor.execute` seam. Every operation returns a new instance.
     """
 
     def __init__(self, state: ConversationState, executor: ExecutorLike):

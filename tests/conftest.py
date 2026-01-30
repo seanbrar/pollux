@@ -80,6 +80,12 @@ def quiet_noisy_libraries():
 # Pytest Hooks
 # =============================================================================
 
+API_TESTS_REASON = "API tests require GEMINI_API_KEY and ENABLE_API_TESTS=1"
+
+
+def _api_tests_enabled() -> bool:
+    return bool(os.getenv("GEMINI_API_KEY") and os.getenv("ENABLE_API_TESTS"))
+
 
 def pytest_configure(config):
     """Register custom markers."""
@@ -96,13 +102,9 @@ def pytest_configure(config):
 
 def pytest_collection_modifyitems(items):
     """Automatically skip API tests when credentials are unavailable."""
-    if not (
-        (os.getenv("POLLUX_API_KEY") or os.getenv("GEMINI_API_KEY"))
-        and os.getenv("ENABLE_API_TESTS")
-    ):
-        skip_api = pytest.mark.skip(
-            reason="API tests require POLLUX_API_KEY or GEMINI_API_KEY and ENABLE_API_TESTS=1"
-        )
-        for item in items:
-            if "api" in item.keywords:
-                item.add_marker(skip_api)
+    if _api_tests_enabled():
+        return
+    skip_api = pytest.mark.skip(reason=API_TESTS_REASON)
+    for item in items:
+        if "api" in item.keywords:
+            item.add_marker(skip_api)

@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from pollux.pipeline.base import BaseAsyncHandler
 
 
-class GeminiExecutor:
+class Executor:
     """Executes commands through a pipeline of handlers.
 
     This class manages the flow of commands through a series of processing
@@ -299,7 +299,7 @@ def create_executor(
     config: FrozenConfig | None = None,
     *,
     validate: bool | None = None,
-) -> GeminiExecutor:
+) -> Executor:
     """Create an executor with optional configuration.
 
     If no configuration is provided, it will be resolved from the environment
@@ -310,10 +310,10 @@ def create_executor(
         validate: Enable dev-time validation (overrides POLLUX_PIPELINE_VALIDATE). This does not affect the executor's final invariant, which always ensures a valid `ResultEnvelope`.
 
     Returns:
-        An instance of GeminiExecutor.
+        An instance of Executor.
     """
     # This is the only place where ambient configuration is resolved.
     # Use the new configuration system; explain=False returns FrozenConfig
     final_config = config if config is not None else resolve_config()
 
-    return GeminiExecutor(final_config, validate=validate)
+    return Executor(final_config, validate=validate)

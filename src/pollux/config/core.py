@@ -1,6 +1,6 @@
 # src/pollux/config/core.py
 
-"""Core configuration schema and resolution for Gemini Batch Pipeline.
+"""Core configuration schema and resolution for Pollux Pipeline.
 
 This module implements the Pydantic Two-File Core design that provides:
 - Single source of truth for configuration schema (Settings)

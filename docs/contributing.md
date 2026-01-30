@@ -38,7 +38,7 @@ Examples:
 
 ## Testing Philosophy
 
-This project follows the [MTMT (Minimal Tests, Maximum Trust)](https://github.com/seanbrar/minimal-tests-maximum-trust) testing standard. See [TESTING.md](https://github.com/seanbrar/gemini-batch-prediction/blob/main/TESTING.md) for guidance on what merits a test.
+This project follows the [MTMT (Minimal Tests, Maximum Trust)](https://github.com/seanbrar/minimal-tests-maximum-trust) testing standard. See [TESTING.md](https://github.com/seanbrar/pollux/blob/main/TESTING.md) for guidance on what merits a test.
 
 ## Documentation Standards
 

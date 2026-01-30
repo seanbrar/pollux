@@ -31,4 +31,4 @@ asyncio.run(main())
 
 **[Guides →](guides/installation.md)** — Installation, configuration, patterns
 
-**[Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)** — 11 ready-to-run recipes
+**[Cookbook](https://github.com/seanbrar/pollux/tree/main/cookbook)** — 11 ready-to-run recipes

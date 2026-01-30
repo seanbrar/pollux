@@ -18,7 +18,7 @@ from pollux.core.execution_options import (
     make_execution_options,
 )
 from pollux.core.types import InitialCommand, Source
-from pollux.executor import GeminiExecutor, create_executor
+from pollux.executor import Executor, create_executor
 
 # Extraction method constant used by parallel aggregate helper
 PARALLEL_AGG_METHOD = "parallel_aggregate"
@@ -80,11 +80,11 @@ async def run_simple(
         ```
 
     See Also:
-        For advanced control, use `GeminiExecutor` directly.
+        For advanced control, use `Executor` directly.
         For multiple prompts, use `run_batch()`.
     """
     final_cfg = cfg or _resolve_config()
-    executor: GeminiExecutor = create_executor(final_cfg)
+    executor: Executor = create_executor(final_cfg)
 
     sources: tuple[Source, ...] = (source,) if source is not None else ()
 
@@ -196,10 +196,10 @@ async def run_batch(
 
     See Also:
         For single prompts, use `run_simple()`.
-        For advanced pipeline control, use `GeminiExecutor` with `InitialCommand`.
+        For advanced pipeline control, use `Executor` with `InitialCommand`.
     """
     final_cfg = cfg or _resolve_config()
-    executor: GeminiExecutor = create_executor(final_cfg)
+    executor: Executor = create_executor(final_cfg)
 
     # No implicit path detection; callers must pass explicit Sources
     resolved_sources: list[Source] = list(sources)
@@ -382,7 +382,7 @@ async def run_parallel(
           use `run_batch([prompt], sources=...)` instead.
     """
     final_cfg = cfg or _resolve_config()
-    executor: GeminiExecutor = create_executor(final_cfg)
+    executor: Executor = create_executor(final_cfg)
     opts = _merge_frontdoor_options(
         prefer_json=prefer_json, options=options, concurrency=concurrency
     )

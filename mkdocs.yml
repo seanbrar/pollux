@@ -1,7 +1,7 @@
 site_name: Pollux Documentation
-repo_url: https://github.com/seanbrar/gemini-batch-prediction
-repo_name: seanbrar/gemini-batch-prediction
-site_url: https://seanbrar.github.io/gemini-batch-prediction/
+repo_url: https://github.com/seanbrar/pollux
+repo_name: seanbrar/pollux
+site_url: https://seanbrar.github.io/pollux/
 edit_uri: edit/main/docs/
 
 theme:
