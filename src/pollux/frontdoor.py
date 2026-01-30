@@ -11,7 +11,6 @@ import contextlib
 import dataclasses
 from typing import TYPE_CHECKING, Any, Literal, overload
 
-from pollux.config import FrozenConfig, resolve_config
 from pollux.core.concurrency import resolve_request_concurrency
 from pollux.core.execution_options import (
     ExecutionOptions,
@@ -27,7 +26,14 @@ PARALLEL_AGG_METHOD = "parallel_aggregate"
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Coroutine, Iterable
 
+    from pollux.config import FrozenConfig
     from pollux.types import ResultEnvelope
+
+
+def _resolve_config() -> FrozenConfig:
+    from pollux.config import resolve_config
+
+    return resolve_config()
 
 
 async def run_simple(
@@ -77,7 +83,7 @@ async def run_simple(
         For advanced control, use `GeminiExecutor` directly.
         For multiple prompts, use `run_batch()`.
     """
-    final_cfg = cfg or resolve_config()
+    final_cfg = cfg or _resolve_config()
     executor: GeminiExecutor = create_executor(final_cfg)
 
     sources: tuple[Source, ...] = (source,) if source is not None else ()
@@ -192,7 +198,7 @@ async def run_batch(
         For single prompts, use `run_simple()`.
         For advanced pipeline control, use `GeminiExecutor` with `InitialCommand`.
     """
-    final_cfg = cfg or resolve_config()
+    final_cfg = cfg or _resolve_config()
     executor: GeminiExecutor = create_executor(final_cfg)
 
     # No implicit path detection; callers must pass explicit Sources
@@ -375,7 +381,7 @@ async def run_parallel(
         - For a single vectorized request (shared context) without fan-out,
           use `run_batch([prompt], sources=...)` instead.
     """
-    final_cfg = cfg or resolve_config()
+    final_cfg = cfg or _resolve_config()
     executor: GeminiExecutor = create_executor(final_cfg)
     opts = _merge_frontdoor_options(
         prefer_json=prefer_json, options=options, concurrency=concurrency

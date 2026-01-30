@@ -15,6 +15,7 @@ from contextlib import contextmanager, suppress
 import contextvars
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 import os
 from typing import TYPE_CHECKING, Any, Literal, overload
 import warnings
@@ -130,6 +131,12 @@ class Settings(BaseModel):
         return self
 
 
+# Cache default settings to avoid repeated Pydantic instantiation per resolution.
+@cache
+def _default_settings() -> dict[str, Any]:
+    return Settings().model_dump()
+
+
 # --- Immutable runtime payload ---
 
 
@@ -202,6 +209,8 @@ SourceMap = dict[str, FieldOrigin]
 _AMBIENT: contextvars.ContextVar[FrozenConfig | None] = contextvars.ContextVar(
     "ambient_config", default=None
 )
+
+_DOTENV_LOADED: bool = False
 
 
 class ConfigScope:
@@ -281,13 +290,18 @@ def _try_load_dotenv() -> None:
     during loading are ignored so that configuration resolution remains
     predictable in minimal environments.
     """
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return
     try:
         from dotenv import load_dotenv
 
         load_dotenv()
     except Exception:
         # Deliberately ignore any errors; dotenv is optional
+        _DOTENV_LOADED = True
         return
+    _DOTENV_LOADED = True
 
 
 # --- Public resolution API ---
@@ -483,7 +497,7 @@ def _resolve_layers(
     src: SourceMap = {}
 
     # Start with defaults from Settings schema
-    defaults = Settings().model_dump()
+    defaults = dict(_default_settings())
     for k, v in defaults.items():
         out[k] = v
         src[k] = FieldOrigin(origin=Origin.DEFAULT)
