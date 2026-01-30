@@ -1,55 +1,45 @@
 # Pollux
 
-Ship multimodal analysis fast. Spend less on tokens.
+Batch prediction for Gemini. Fewer API calls. Lower costs.
 
-- Get Started → [Quickstart](tutorials/quickstart.md)
-- Explore → [Cookbook (recipes)](cookbook.md)
+**[Get Started →](guides/quickstart.md)** | [Cookbook](https://github.com/seanbrar/gemini-batch-prediction/tree/main/cookbook)
 
-## 30‑second quickstart
+## 30-Second Example
 
 ```python
 import asyncio
 from pollux import run_simple, types
 
 async def main():
-    envelope = await run_simple(
+    result = await run_simple(
         "Summarize key insights",
-        source=types.Source.from_text("Hello world"),
+        source=types.Source.from_text("Your content here"),
     )
-    print(envelope["answers"][0])
+    print(result["answers"][0])
 
 asyncio.run(main())
 ```
 
-Note: Works without an API key (deterministic mock mode). To use the real API, set `GEMINI_API_KEY` and `POLLUX_USE_REAL_API=1` — see [Verify Real API](how-to/verify-real-api.md).
+> Works without an API key (mock mode). Set `GEMINI_API_KEY` and `POLLUX_USE_REAL_API=1` for real calls.
 
-## Highlights
+## What It Does
 
-- Command pipeline: async handler chain for prep → plan → extract → build
-- Intelligent batching: group related calls; cut redundant work
-- Context caching: up to 75% cost reduction with safe fallbacks
-- Multimodal: text, PDFs, images, videos, and YouTube
-- Conversation memory: multi‑turn sessions with overflow handling
-- Production‑grade: tests, CI, telemetry, and semantic releases
+- **Intelligent batching** — N prompts → 1 API call
+- **Context caching** — Up to 75% cost reduction
+- **Multimodal** — Text, PDFs, images, video, YouTube
+- **Conversation memory** — Multi-turn sessions with overflow handling
 
-## Choose your path
+## Quick Links
 
-- New to Pollux: [Quickstart](tutorials/quickstart.md) → [First Batch](tutorials/first-batch.md) → [Cookbook](cookbook.md)
-- Going to production: [Installation](how-to/installation.md) → [Configuration](how-to/configuration.md) → [Caching](how-to/caching.md) → [CLI doctor](reference/cli.md) → [Logging](how-to/logging.md)
-- Research workflows: [Research](domains/research.md) → [Efficiency workflows](how-to/research/efficiency-workflows.md) → [Extensions catalog](reference/extensions/catalog.md)
+| Getting Started | Reference |
+|-----------------|-----------|
+| [Installation](guides/installation.md) | [API Reference](reference/api-reference.md) |
+| [Configuration](guides/configuration.md) | [CLI (`pollux-config`)](reference/cli.md) |
+| [Batch Processing](guides/batch-processing.md) | [Configuration Options](reference/configuration.md) |
+| [Troubleshooting](guides/troubleshooting.md) | [Glossary](reference/glossary.md) |
 
-## Health check
+## Health Check
 
 ```bash
 pollux-config doctor
 ```
-
-See: [CLI Reference](reference/cli.md)
-
-## Deep links
-
-- Tutorials: [Quickstart](tutorials/quickstart.md), [First Batch](tutorials/first-batch.md)
-- How‑to: [Installation](how-to/installation.md), [Configuration](how-to/configuration.md), [Troubleshooting](how-to/troubleshooting.md)
-- Reference: [API overview](reference/api-reference.md), [CLI](reference/cli.md)
-- Explanation: [Architecture at a Glance](explanation/architecture.md)
-- Project: [Roadmap](roadmap.md), [Project History & GSoC](explanation/history.md)
