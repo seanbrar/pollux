@@ -15,6 +15,7 @@ from contextlib import contextmanager, suppress
 import contextvars
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 import os
 from typing import TYPE_CHECKING, Any, Literal, overload
 import warnings
@@ -128,6 +129,12 @@ class Settings(BaseModel):
         if self.use_real_api and self.api_key is None:
             raise ValueError("api_key is required when use_real_api=True")
         return self
+
+
+# Cache default settings to avoid repeated Pydantic instantiation per resolution.
+@cache
+def _default_settings() -> dict[str, Any]:
+    return Settings().model_dump()
 
 
 # --- Immutable runtime payload ---
@@ -483,7 +490,7 @@ def _resolve_layers(
     src: SourceMap = {}
 
     # Start with defaults from Settings schema
-    defaults = Settings().model_dump()
+    defaults = dict(_default_settings())
     for k, v in defaults.items():
         out[k] = v
         src[k] = FieldOrigin(origin=Origin.DEFAULT)
