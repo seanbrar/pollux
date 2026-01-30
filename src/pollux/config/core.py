@@ -210,6 +210,8 @@ _AMBIENT: contextvars.ContextVar[FrozenConfig | None] = contextvars.ContextVar(
     "ambient_config", default=None
 )
 
+_DOTENV_LOADED: bool = False
+
 
 class ConfigScope:
     """Context manager for temporarily setting ambient configuration.
@@ -288,13 +290,18 @@ def _try_load_dotenv() -> None:
     during loading are ignored so that configuration resolution remains
     predictable in minimal environments.
     """
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return
     try:
         from dotenv import load_dotenv
 
         load_dotenv()
     except Exception:
         # Deliberately ignore any errors; dotenv is optional
+        _DOTENV_LOADED = True
         return
+    _DOTENV_LOADED = True
 
 
 # --- Public resolution API ---
