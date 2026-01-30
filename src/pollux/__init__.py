@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
+import importlib
 import importlib.metadata
 import logging
+from typing import TYPE_CHECKING
 
 from pollux.core.exceptions import PolluxError
-from pollux.executor import GeminiExecutor, create_executor
-from pollux.frontdoor import (
-    run_batch,
-    run_multi,
-    run_parallel,
-    run_rag,
-    run_simple,
-    run_synthesis,
-)
 
-# Curated public namespaces for clarity
-from . import exceptions as exceptions  # Re-exported public exceptions
-from . import research as research  # Progressive disclosure: research helpers
-from . import types as types  # Re-exported public types
+if TYPE_CHECKING:
+    import pollux.exceptions as exceptions
+    from pollux.executor import GeminiExecutor, create_executor
+    from pollux.frontdoor import (
+        run_batch,
+        run_multi,
+        run_parallel,
+        run_rag,
+        run_simple,
+        run_synthesis,
+    )
+    import pollux.research as research
+    import pollux.types as types
 
 # Version handling
 try:
@@ -46,3 +48,38 @@ __all__ = [  # noqa: RUF022
     "exceptions",
     "research",
 ]
+
+_LAZY_ATTRS: dict[str, tuple[str, str]] = {
+    "GeminiExecutor": ("pollux.executor", "GeminiExecutor"),
+    "create_executor": ("pollux.executor", "create_executor"),
+    "run_simple": ("pollux.frontdoor", "run_simple"),
+    "run_batch": ("pollux.frontdoor", "run_batch"),
+    "run_rag": ("pollux.frontdoor", "run_rag"),
+    "run_multi": ("pollux.frontdoor", "run_multi"),
+    "run_synthesis": ("pollux.frontdoor", "run_synthesis"),
+    "run_parallel": ("pollux.frontdoor", "run_parallel"),
+}
+
+_LAZY_MODULES: dict[str, str] = {
+    "exceptions": "pollux.exceptions",
+    "research": "pollux.research",
+    "types": "pollux.types",
+}
+
+
+def __getattr__(name: str) -> object:
+    if name in _LAZY_MODULES:
+        module = importlib.import_module(_LAZY_MODULES[name])
+        globals()[name] = module
+        return module
+    if name in _LAZY_ATTRS:
+        module_name, attr_name = _LAZY_ATTRS[name]
+        module = importlib.import_module(module_name)
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(list(globals().keys()) + list(_LAZY_ATTRS) + list(_LAZY_MODULES))
