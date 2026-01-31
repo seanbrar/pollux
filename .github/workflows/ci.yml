@@ -13,24 +13,18 @@ jobs:
   lint-workflows:
     name: Lint Workflow Files
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Lint workflows with actionlint
-        uses: devops-actions/actionlint@v0.1.9
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: devops-actions/actionlint@v0.1.10
 
   quality-checks:
-    # Ensures workflow linting passes before running application checks
-    needs: lint-workflows
+    # Runs in parallel with lint-workflows (no dependency)
     uses: ./.github/workflows/reusable-checks.yml
     secrets: inherit
     with:
-      python-version: "3.13"  # Explicit version passed to reusable workflow
-      # Optimized testing cadence based on event type and PR status:
-      # - Feature branch pushes: Fast tests only (~30s)
-      # - Draft PRs: Fast tests with DEBUG logging
-      # - Ready PRs: Progressive + integration + workflows (< 2 min)
-      # - Main branch: Everything + coverage
-      test-command: ${{ github.ref_name == 'main' && 'make test-main' || github.event_name == 'pull_request' && github.event.pull_request.draft == false && 'make test-coverage' || github.event_name == 'pull_request' && github.event.pull_request.draft == true && 'make test-fast' || 'make test-fast' }}
-      upload-coverage: ${{ github.ref_name == 'main' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false) }}
+      python-version: "3.13"
+      test-command: make test
+      upload-coverage: false

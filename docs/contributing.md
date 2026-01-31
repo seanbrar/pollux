@@ -19,7 +19,7 @@ make test
 
 ## Before Opening a PR
 
-1. Run linting and tests: `make lint-all && make test-fast`
+1. Run checks: `make check`
 2. If docs changed, preview locally: `make docs-serve`
 3. Keep changes focused: one PR, one idea
 

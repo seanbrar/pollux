@@ -13,35 +13,31 @@ name: Release
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Prevent multiple releases from running simultaneously
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: false
-    # Minimal permissions needed for PSR action
+    # Permissions for PSR action and PyPI trusted publishing
     permissions:
-      contents: write # Needed for creating releases and pushing tags
+      contents: write  # Needed for creating releases and pushing tags
+      id-token: write  # Needed for PyPI trusted publishing (OIDC)
 
     steps:
-      # Checkout with full history for semantic-release analysis
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history needed for semantic-release
-          token: ${{ secrets.SEMANTIC_RELEASE_PAT }}  # PAT for authentication
+          token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
 
-      # Install uv for build command
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      # Install Python build tools for package creation
-      # uv itself provides the build command, so we don't need 'build' package
-      # but we need to ensure the environment is ready if needed.
-      # For consistency with other workflows, we rely on uv.
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
       # Main release step using PSR action
       - name: Create and Publish Release
         id: release
-        uses: python-semantic-release/python-semantic-release@v10.2.0
+        uses: python-semantic-release/python-semantic-release@v10
         with:
           verbosity: '1'  # Enable verbose output for debugging
           # Use PAT for authentication (more secure than SSH keys)
@@ -51,14 +47,21 @@ jobs:
 
       - name: Publish to GitHub Release
         if: steps.release.outputs.released == 'true' && github.event.inputs.dry_run != 'true'
-        uses: python-semantic-release/publish-action@v10.2.0
+        uses: python-semantic-release/publish-action@v10
         with:
           github_token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
           tag: ${{ steps.release.outputs.tag }}
 
+      # Publish to PyPI on real releases
+      - name: Publish to PyPI
+        if: steps.release.outputs.released == 'true' && github.event.inputs.dry_run != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
       # Provide feedback for dry-run mode
       - name: Dry Run Summary
-        if: github.event.inputs.dry_run == true && steps.release.outputs.version != ''
+        if: github.event.inputs.dry_run == 'true' && steps.release.outputs.version != ''
         run: |
           {
             echo "## 🛡️ Dry Run Completed"
@@ -73,5 +76,5 @@ jobs:
         run: |
           {
             echo "## ✅ Release Successful"
-            echo "Version **${{ steps.release.outputs.tag }}** has been successfully published."
+            echo "Version **${{ steps.release.outputs.tag }}** has been published to GitHub and PyPI."
           } >> "$GITHUB_STEP_SUMMARY"
