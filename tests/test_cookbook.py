@@ -15,7 +15,7 @@ import cookbook.__main__ as runner
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = [pytest.mark.unit, pytest.mark.cookbook]
+pytestmark = pytest.mark.unit
 
 
 class TestCookbookRunner:

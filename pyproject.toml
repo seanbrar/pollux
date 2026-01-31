@@ -117,22 +117,18 @@ log_cli_format = "%(name)-40s - %(levelname)-8s - %(message)s"
 log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 markers = [
-    "contract: Architectural contract tests (fast)",
-    "unit: Unit tests (fast)",
-    "integration: Cross-component integration tests (may be slow)",
-    "characterization: Golden file/snapshot tests (fast)",
-    "golden_test: Golden file tests (alias; legacy marker)",
-    "workflows: CI/CD workflow tests (fast)",
-    "cookbook: Cookbook recipe tests (fast, mocked)",
-    "slow: Tests that take > 1s (subset of integration)",
-    "api: Tests requiring external API (slow)",
-    "security: Security and secret handling tests",
+    # Primary test types (mutually exclusive)
+    "contract: Architectural invariant tests spanning modules",
+    "unit: Fast, isolated unit tests",
+    "integration: Cross-component integration tests with mocked APIs",
+    "api: External API tests (requires GEMINI_API_KEY, auto-skipped otherwise)",
+    # Secondary attributes (stackable with primary type)
+    "security: Security-sensitive tests",
+    "slow: Tests taking >1s (for CI optimization)",
+    # Fixture control (opt-out of default isolation)
     "allow_dotenv: Opt-in to load .env in a specific test",
-    "allow_real_home_config: Opt-in to use the real home config path",
     "allow_env_pollution: Opt-in to keep current env (no cleanup)",
-    "smoke: Very fast, critical path checks (<1m)",
-    "scenario: Curated advanced end-to-end scenarios",
-    "legacy: Legacy tests kept for reference/quarantine",
+    "allow_real_home_config: Opt-in to use the real home config path",
 ]
 
 # --- Ruff ---
