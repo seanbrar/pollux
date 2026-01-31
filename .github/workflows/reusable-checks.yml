@@ -37,6 +37,9 @@ jobs:
       - name: Lint code
         run: make lint
 
+      - name: Type check
+        run: make typecheck
+
       - name: Run Tests
         run: ${{ inputs.test-command }}
 
