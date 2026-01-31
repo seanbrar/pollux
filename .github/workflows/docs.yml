@@ -44,8 +44,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install project (dev extras)
-        run: |
-          uv pip install --system -e .[dev]
+        run: uv sync --all-extras
 
       - name: Build site (strict)
         run: mkdocs build --strict --clean
