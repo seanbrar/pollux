@@ -87,19 +87,6 @@ def _api_tests_enabled() -> bool:
     return bool(os.getenv("GEMINI_API_KEY") and os.getenv("ENABLE_API_TESTS"))
 
 
-def pytest_configure(config):
-    """Register custom markers."""
-    markers = [
-        "unit: Fast, isolated unit tests",
-        "integration: Component integration tests with mocked APIs",
-        "api: Real API integration tests (requires API key)",
-        "characterization: Golden master tests to detect behavior changes",
-        "slow: Tests that take >1 second",
-    ]
-    for marker in markers:
-        config.addinivalue_line("markers", marker)
-
-
 def pytest_collection_modifyitems(items):
     """Automatically skip API tests when credentials are unavailable."""
     if _api_tests_enabled():
