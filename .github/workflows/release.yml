@@ -33,6 +33,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+      # No uv sync needed: PSR action builds via `uv build` (see pyproject.toml)
 
       # Main release step using PSR action
       - name: Create and Publish Release

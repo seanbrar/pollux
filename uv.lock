@@ -60,20 +60,6 @@ wheels = [
 ]
 
 [[package]]
-name = "build"
-version = "1.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "os_name == 'nt'" },
-    { name = "packaging" },
-    { name = "pyproject-hooks" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/42/18/94eaffda7b329535d91f00fe605ab1f1e5cd68b2074d03f255c7d250687d/build-1.4.0.tar.gz", hash = "sha256:f1b91b925aa322be454f8330c6fb48b465da993d1e7e7e6fa35027ec49f3c936", size = 50054, upload-time = "2026-01-08T16:41:47.696Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/0d/84a4380f930db0010168e0aa7b7a8fed9ba1835a8fbb1472bc6d0201d529/build-1.4.0-py3-none-any.whl", hash = "sha256:6a07c1b8eb6f2b311b96fcbdbce5dab5fe637ffda0fd83c9cac622e927501596", size = 24141, upload-time = "2026-01-08T16:41:46.453Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2026.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1248,32 +1234,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pip"
-version = "25.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fe/6e/74a3f0179a4a73a53d66ce57fdb4de0080a8baa1de0063de206d6167acc2/pip-25.3.tar.gz", hash = "sha256:8d0538dbbd7babbd207f261ed969c65de439f6bc9e5dbd3b3b9a77f25d95f343", size = 1803014, upload-time = "2025-10-25T00:55:41.394Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/3c/d717024885424591d5376220b5e836c2d5293ce2011523c9de23ff7bf068/pip-25.3-py3-none-any.whl", hash = "sha256:9655943313a94722b7774661c21049070f6bbb0a1516bf02f7c8d5d9201514cd", size = 1778622, upload-time = "2025-10-25T00:55:39.247Z" },
-]
-
-[[package]]
-name = "pip-tools"
-version = "7.5.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "build" },
-    { name = "click" },
-    { name = "pip" },
-    { name = "pyproject-hooks" },
-    { name = "setuptools" },
-    { name = "wheel" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/79/d149fb40bc425ad9defcb8ff73c65088bbc36a84b1825e035397d1c40624/pip_tools-7.5.2.tar.gz", hash = "sha256:2d64d72da6a044da1110257d333960563d7a4743637e8617dd2610ae7b82d60f", size = 164815, upload-time = "2025-11-12T22:46:12.627Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/c1/61aef9517201b43cc20f4a5c9339a072644cbaf0e9ce4e4970c2a105f766/pip_tools-7.5.2-py3-none-any.whl", hash = "sha256:2fe16db727bbe5bf28765aeb581e792e61be51fc275545ef6725374ad720a1ce", size = 66905, upload-time = "2025-11-12T22:46:11.374Z" },
-]
-
-[[package]]
 name = "platformdirs"
 version = "4.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1307,29 +1267,13 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-all = [
+viz = [
     { name = "matplotlib" },
-    { name = "mkdocs" },
-    { name = "mkdocs-htmlproofer-plugin" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-    { name = "mypy" },
     { name = "pandas" },
-    { name = "pandas-stubs" },
-    { name = "pip-tools" },
-    { name = "pre-commit" },
-    { name = "pyfakefs" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-golden" },
-    { name = "pytest-mock" },
-    { name = "python-semantic-release" },
-    { name = "ruff" },
     { name = "seaborn" },
-    { name = "types-pyyaml" },
-    { name = "vulture" },
 ]
+
+[package.dev-dependencies]
 dev = [
     { name = "mkdocs" },
     { name = "mkdocs-htmlproofer-plugin" },
@@ -1337,7 +1281,6 @@ dev = [
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mypy" },
     { name = "pandas-stubs" },
-    { name = "pip-tools" },
     { name = "pre-commit" },
     { name = "pyfakefs" },
     { name = "pytest" },
@@ -1350,10 +1293,31 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vulture" },
 ]
-viz = [
-    { name = "matplotlib" },
-    { name = "pandas" },
-    { name = "seaborn" },
+docs = [
+    { name = "mkdocs" },
+    { name = "mkdocs-htmlproofer-plugin" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+lint = [
+    { name = "mypy" },
+    { name = "ruff" },
+    { name = "vulture" },
+]
+release = [
+    { name = "python-semantic-release" },
+]
+test = [
+    { name = "pyfakefs" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-golden" },
+    { name = "pytest-mock" },
+]
+types = [
+    { name = "pandas-stubs" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -1361,35 +1325,61 @@ requires-dist = [
     { name = "google-genai", specifier = "~=1.20" },
     { name = "httpx", specifier = "~=0.27" },
     { name = "matplotlib", marker = "extra == 'viz'", specifier = "~=3.10" },
-    { name = "mkdocs", marker = "extra == 'dev'", specifier = ">=1.6.0" },
-    { name = "mkdocs-htmlproofer-plugin", marker = "extra == 'dev'" },
-    { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9.6.0" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'", specifier = ">=0.25.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
     { name = "pandas", marker = "extra == 'viz'", specifier = "~=2.3" },
-    { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.3.0" },
     { name = "pillow", specifier = "~=11.2" },
-    { name = "pip-tools", marker = "extra == 'dev'", specifier = ">=7.4.1" },
-    { name = "pollux", extras = ["dev", "viz"], marker = "extra == 'all'" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.2.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.8.0" },
-    { name = "pyfakefs", marker = "extra == 'dev'", specifier = ">=5.9.1" },
     { name = "pypdf2", specifier = "~=3.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
-    { name = "pytest-golden", marker = "extra == 'dev'", specifier = ">=0.2.2" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.14.1" },
     { name = "python-dotenv", specifier = "~=1.1" },
     { name = "python-magic", specifier = "~=0.4.27" },
-    { name = "python-semantic-release", marker = "extra == 'dev'", specifier = "==10.2.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.2" },
     { name = "seaborn", marker = "extra == 'viz'", specifier = "~=0.13" },
-    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.12" },
-    { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.14" },
 ]
-provides-extras = ["dev", "viz", "all"]
+provides-extras = ["viz"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mkdocs", specifier = ">=1.6.0" },
+    { name = "mkdocs-htmlproofer-plugin" },
+    { name = "mkdocs-material", specifier = ">=9.6.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25.0" },
+    { name = "mypy", specifier = ">=1.17.0" },
+    { name = "pandas-stubs", specifier = ">=2.3.0" },
+    { name = "pre-commit", specifier = ">=4.2.0" },
+    { name = "pyfakefs", specifier = ">=5.9.1" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-golden", specifier = ">=0.2.2" },
+    { name = "pytest-mock", specifier = ">=3.14.1" },
+    { name = "python-semantic-release", specifier = "==10.2.0" },
+    { name = "ruff", specifier = ">=0.12.2" },
+    { name = "types-pyyaml", specifier = ">=6.0.12" },
+    { name = "vulture", specifier = ">=2.14" },
+]
+docs = [
+    { name = "mkdocs", specifier = ">=1.6.0" },
+    { name = "mkdocs-htmlproofer-plugin" },
+    { name = "mkdocs-material", specifier = ">=9.6.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25.0" },
+]
+lint = [
+    { name = "mypy", specifier = ">=1.17.0" },
+    { name = "ruff", specifier = ">=0.12.2" },
+    { name = "vulture", specifier = ">=2.14" },
+]
+release = [{ name = "python-semantic-release", specifier = "==10.2.0" }]
+test = [
+    { name = "pyfakefs", specifier = ">=5.9.1" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-golden", specifier = ">=0.2.2" },
+    { name = "pytest-mock", specifier = ">=3.14.1" },
+]
+types = [
+    { name = "pandas-stubs", specifier = ">=2.3.0" },
+    { name = "types-pyyaml", specifier = ">=6.0.12" },
+]
 
 [[package]]
 name = "pre-commit"
@@ -1566,15 +1556,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9f/bb/18dc3062d37db6c491392007dfd1a7f524bb95886eb956569ac38a23a784/PyPDF2-3.0.1.tar.gz", hash = "sha256:a74408f69ba6271f71b9352ef4ed03dc53a31aa404d29b5d31f53bfecfee1440", size = 227419, upload-time = "2022-12-31T10:36:13.13Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8e/5e/c86a5643653825d3c913719e788e41386bee415c2b87b4f955432f2de6b2/pypdf2-3.0.1-py3-none-any.whl", hash = "sha256:d16e4205cfee272fbdc0568b68d82be796540b1537508cef59388f839c191928", size = 232572, upload-time = "2022-12-31T10:36:10.327Z" },
-]
-
-[[package]]
-name = "pyproject-hooks"
-version = "1.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e7/82/28175b2414effca1cdac8dc99f76d660e7a4fb0ceefa4b4ab8f5f6742925/pyproject_hooks-1.2.0.tar.gz", hash = "sha256:1e859bd5c40fae9448642dd871adf459e5e2084186e8d2c2a79a824c970da1f8", size = 19228, upload-time = "2024-09-29T09:24:13.293Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/bd/24/12818598c362d7f300f18e74db45963dbcb85150324092410c8b49405e42/pyproject_hooks-1.2.0-py3-none-any.whl", hash = "sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913", size = 10216, upload-time = "2024-09-29T09:24:11.978Z" },
 ]
 
 [[package]]
@@ -1871,15 +1852,6 @@ wheels = [
 ]
 
 [[package]]
-name = "setuptools"
-version = "80.10.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/76/95/faf61eb8363f26aa7e1d762267a8d602a1b26d4f3a1e758e92cb3cb8b054/setuptools-80.10.2.tar.gz", hash = "sha256:8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70", size = 1200343, upload-time = "2026-01-25T22:38:17.252Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/b8/f1f62a5e3c0ad2ff1d189590bfa4c46b4f3b6e49cef6f26c6ee4e575394d/setuptools-80.10.2-py3-none-any.whl", hash = "sha256:95b30ddfb717250edb492926c92b5221f7ef3fbcc2b07579bcd4a27da21d0173", size = 1064234, upload-time = "2026-01-25T22:38:15.216Z" },
-]
-
-[[package]]
 name = "shellingham"
 version = "1.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -2070,18 +2042,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/86/eb/20b6cdf273913d0ad05a6a14aed4b9a85591c18a987a3d47f20fa13dcc47/websockets-15.0.1-cp313-cp313-win32.whl", hash = "sha256:ba9e56e8ceeeedb2e080147ba85ffcd5cd0711b89576b83784d8605a7df455fa", size = 176393, upload-time = "2025-03-05T20:02:53.814Z" },
     { url = "https://files.pythonhosted.org/packages/1b/6c/c65773d6cab416a64d191d6ee8a8b1c68a09970ea6909d16965d26bfed1e/websockets-15.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:e09473f095a819042ecb2ab9465aee615bd9c2028e4ef7d933600a8401c79561", size = 176837, upload-time = "2025-03-05T20:02:55.237Z" },
     { url = "https://files.pythonhosted.org/packages/fa/a8/5b41e0da817d64113292ab1f8247140aac61cbf6cfd085d6a0fa77f4984f/websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f", size = 169743, upload-time = "2025-03-05T20:03:39.41Z" },
-]
-
-[[package]]
-name = "wheel"
-version = "0.46.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/89/24/a2eb353a6edac9a0303977c4cb048134959dd2a51b48a269dfc9dde00c8a/wheel-0.46.3.tar.gz", hash = "sha256:e3e79874b07d776c40bd6033f8ddf76a7dad46a7b8aa1b2787a83083519a1803", size = 60605, upload-time = "2026-01-22T12:39:49.136Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/22/b76d483683216dde3d67cba61fb2444be8d5be289bf628c13fc0fd90e5f9/wheel-0.46.3-py3-none-any.whl", hash = "sha256:4b399d56c9d9338230118d705d9737a2a468ccca63d5e813e2a4fc7815d8bc4d", size = 30557, upload-time = "2026-01-22T12:39:48.099Z" },
 ]
 
 [[package]]

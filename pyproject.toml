@@ -29,30 +29,46 @@ Repository = "https://github.com/seanbrar/pollux"
 Changelog = "https://github.com/seanbrar/pollux/blob/main/CHANGELOG.md"
 Issues = "https://github.com/seanbrar/pollux/issues"
 
+# User-facing optional features (published to PyPI)
 [project.optional-dependencies]
-dev = [
-    "mypy>=1.17.0",
-    "pandas-stubs>=2.3.0",
-    "pip-tools>=7.4.1",
-    "pre-commit>=4.2.0",
+viz = ["matplotlib~=3.10", "pandas~=2.3", "seaborn~=0.13"]
+
+# Development-only tooling (PEP 735 - NOT published to PyPI)
+[dependency-groups]
+test = [
     "pyfakefs>=5.9.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.2.1",
     "pytest-golden>=0.2.2",
     "pytest-mock>=3.14.1",
-    "python-semantic-release==10.2.0",
+]
+lint = [
+    "mypy>=1.17.0",
     "ruff>=0.12.2",
     "vulture>=2.14",
-    # Docs tooling
+]
+types = [
+    "pandas-stubs>=2.3.0",
+    "types-PyYAML>=6.0.12",
+]
+docs = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.6.0",
     "mkdocstrings[python]>=0.25.0",
     "mkdocs-htmlproofer-plugin",
-    "types-PyYAML>=6.0.12",
 ]
-viz = ["matplotlib~=3.10", "pandas~=2.3", "seaborn~=0.13"]
-all = ["pollux[dev,viz]"]
+release = [
+    "python-semantic-release==10.2.0",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "types" },
+    { include-group = "docs" },
+    { include-group = "release" },
+    "pre-commit>=4.2.0",
+]
 
 # --- Console Scripts ---
 [project.scripts]
