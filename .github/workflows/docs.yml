@@ -43,8 +43,8 @@ jobs:
           enable-cache: true
           python-version: "3.13"
 
-      - name: Install project (dev extras)
-        run: uv sync --all-extras
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras
 
       - name: Build site (strict)
         run: uv run mkdocs build --strict --clean
