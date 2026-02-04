@@ -15,8 +15,9 @@ requires-python = ">=3.13"
 dependencies = [
     "Pillow~=11.2",
     "PyPDF2~=3.0",
-    "google-genai~=1.20",
+    "google-genai~=1.61",
     "httpx~=0.27",
+    "openai>=2.16.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.8.0",
     "python-dotenv~=1.1",
@@ -71,8 +72,7 @@ dev = [
 ]
 
 # --- Console Scripts ---
-[project.scripts]
-pollux-config = "pollux.config.core:main"
+
 
 # --- Tool Configurations ---
 
