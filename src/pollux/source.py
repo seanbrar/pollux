@@ -68,12 +68,13 @@ class Source:
     @classmethod
     def from_youtube(cls, url: str) -> Source:
         """Create a Source from a YouTube URL."""
+        encoded = f"youtube:{url}".encode()
         return cls(
             source_type="youtube",
             identifier=url,
             mime_type="video/mp4",
             size_bytes=0,
-            content_loader=lambda: b"",
+            content_loader=lambda: encoded,
         )
 
     @classmethod
@@ -81,12 +82,13 @@ class Source:
         cls, uri: str, *, mime_type: str = "application/octet-stream"
     ) -> Source:
         """Create a Source from a URI."""
+        encoded = f"uri:{mime_type}:{uri}".encode()
         return cls(
             source_type="uri",
             identifier=uri,
             mime_type=mime_type,
             size_bytes=0,
-            content_loader=lambda: b"",
+            content_loader=lambda: encoded,
         )
 
     @classmethod

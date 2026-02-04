@@ -300,6 +300,28 @@ def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
     assert key_a != key_b
 
 
+def test_cache_identity_distinguishes_youtube_urls() -> None:
+    """Different YouTube URLs should never share the same cache key."""
+    source_a = Source.from_youtube("https://www.youtube.com/watch?v=video-a")
+    source_b = Source.from_youtube("https://www.youtube.com/watch?v=video-b")
+
+    key_a = compute_cache_key("gemini-2.0-flash", (source_a,))
+    key_b = compute_cache_key("gemini-2.0-flash", (source_b,))
+
+    assert key_a != key_b
+
+
+def test_cache_identity_distinguishes_uri_sources() -> None:
+    """Different URI sources should never share the same cache key."""
+    source_a = Source.from_uri("https://example.com/a.pdf", mime_type="application/pdf")
+    source_b = Source.from_uri("https://example.com/b.pdf", mime_type="application/pdf")
+
+    key_a = compute_cache_key("gemini-2.0-flash", (source_a,))
+    key_b = compute_cache_key("gemini-2.0-flash", (source_b,))
+
+    assert key_a != key_b
+
+
 def test_cache_registry_expires_stale_entries(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cache entries should be evicted after TTL expires."""
     import pollux.cache as cache_module
