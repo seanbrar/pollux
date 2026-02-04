@@ -1,85 +1,148 @@
-"""Pollux: Efficient, scenario-first batch interactions with Gemini APIs."""
+"""Pollux: Efficient batch interactions with LLM APIs.
+
+Public API:
+    - run(): Single prompt execution
+    - batch(): Multi-prompt vectorized execution
+    - Source: Explicit input types
+    - Config: Configuration dataclass
+"""
 
 from __future__ import annotations
 
-import importlib
-import importlib.metadata
-import logging
-from typing import TYPE_CHECKING
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any
 
-from pollux.core.exceptions import PolluxError
+from pollux.cache import CacheRegistry
+from pollux.config import Config
+from pollux.errors import (
+    APIError,
+    CacheError,
+    ConfigurationError,
+    PlanningError,
+    PolluxError,
+    RateLimitError,
+    SourceError,
+)
+from pollux.execute import execute_plan
+from pollux.options import Options
+from pollux.plan import build_plan
+from pollux.request import normalize_request
+from pollux.result import ResultEnvelope, build_result
+from pollux.source import Source
 
 if TYPE_CHECKING:
-    import pollux.exceptions as exceptions
-    from pollux.executor import Executor, create_executor
-    from pollux.frontdoor import (
-        run_batch,
-        run_multi,
-        run_parallel,
-        run_rag,
-        run_simple,
-        run_synthesis,
-    )
-    import pollux.research as research
-    import pollux.types as types
+    from pollux.providers.base import Provider
 
-# Version handling
-try:
-    __version__ = importlib.metadata.version("pollux")
-except importlib.metadata.PackageNotFoundError:  # pragma: no cover - dev mode
-    __version__ = "development"
+__version__ = "0.9.0"
 
-# Set up a null handler for the library's root logger to be polite to apps
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+# Module-level cache registry for reuse across calls
+_registry = CacheRegistry()
 
-__all__ = [  # noqa: RUF022
-    # Primary entry points
-    "Executor",
-    "create_executor",
-    "run_simple",
-    "run_batch",
-    "run_rag",
-    "run_multi",
-    "run_synthesis",
-    "run_parallel",
-    # Root exception and curated namespaces
+
+async def run(
+    prompt: str,
+    *,
+    source: Source | None = None,
+    config: Config,
+    options: Options | None = None,
+) -> ResultEnvelope:
+    """Run a single prompt, optionally with a source for context.
+
+    Args:
+        prompt: The prompt to run.
+        source: Optional source for context (file, text, URL).
+        config: Configuration specifying provider and model.
+        options: Optional additive features (schema, reasoning, delivery mode).
+
+    Returns:
+        ResultEnvelope with answers and metrics.
+
+    Example:
+        config = Config(provider="gemini", model="gemini-2.0-flash")
+        result = await run("Summarize this document", source=Source.from_file("doc.pdf"), config=config)
+        print(result["answers"][0])
+    """
+    sources = (source,) if source else ()
+    return await batch(prompt, sources=sources, config=config, options=options)
+
+
+async def batch(
+    prompts: str | list[str] | tuple[str, ...],
+    *,
+    sources: tuple[Source, ...] | list[Source] = (),
+    config: Config,
+    options: Options | None = None,
+) -> ResultEnvelope:
+    """Run multiple prompts with shared sources for efficient batching.
+
+    Args:
+        prompts: One or more prompts to run.
+        sources: Optional sources for shared context.
+        config: Configuration specifying provider and model.
+        options: Optional additive features (schema, reasoning, delivery mode).
+
+    Returns:
+        ResultEnvelope with answers (one per prompt) and metrics.
+
+    Example:
+        config = Config(provider="gemini", model="gemini-2.0-flash")
+        result = await batch(
+            ["Question 1?", "Question 2?"],
+            sources=[Source.from_text("Context...")],
+            config=config,
+        )
+        for answer in result["answers"]:
+            print(answer)
+    """
+    request = normalize_request(prompts, sources, config, options=options)
+    plan = build_plan(request)
+    provider = _get_provider(request.config)
+
+    try:
+        trace = await execute_plan(plan, provider, _registry)
+    finally:
+        aclose = getattr(provider, "aclose", None)
+        if callable(aclose):
+            with suppress(Exception):
+                await aclose()
+
+    return build_result(plan, trace)
+
+
+def _get_provider(config: Config) -> Provider:
+    """Get the appropriate provider based on configuration."""
+    if config.use_mock:
+        from pollux.providers.mock import MockProvider
+
+        return MockProvider()
+
+    if config.provider == "openai":
+        from pollux.providers.openai import OpenAIProvider
+
+        if not config.api_key:
+            raise ConfigurationError("api_key required for real API")
+        return OpenAIProvider(config.api_key)
+
+    from pollux.providers.gemini import GeminiProvider
+
+    if not config.api_key:
+        raise ConfigurationError("api_key required for real API")
+    return GeminiProvider(config.api_key)
+
+
+# Re-export for convenience
+__all__ = [
+    "APIError",
+    "CacheError",
+    "Config",
+    "ConfigurationError",
+    "Options",
+    "PlanningError",
     "PolluxError",
-    "types",
-    "exceptions",
-    "research",
+    "RateLimitError",
+    "ResultEnvelope",
+    "Source",
+    "SourceError",
+    "batch",
+    "run",
 ]
-
-_LAZY_ATTRS: dict[str, tuple[str, str]] = {
-    "Executor": ("pollux.executor", "Executor"),
-    "create_executor": ("pollux.executor", "create_executor"),
-    "run_simple": ("pollux.frontdoor", "run_simple"),
-    "run_batch": ("pollux.frontdoor", "run_batch"),
-    "run_rag": ("pollux.frontdoor", "run_rag"),
-    "run_multi": ("pollux.frontdoor", "run_multi"),
-    "run_synthesis": ("pollux.frontdoor", "run_synthesis"),
-    "run_parallel": ("pollux.frontdoor", "run_parallel"),
-}
-
-_LAZY_MODULES: dict[str, str] = {
-    "exceptions": "pollux.exceptions",
-    "research": "pollux.research",
-    "types": "pollux.types",
-}
-
-
-def __getattr__(name: str) -> object:
-    if name in _LAZY_MODULES:
-        module = importlib.import_module(_LAZY_MODULES[name])
-        globals()[name] = module
-        return module
-    if name in _LAZY_ATTRS:
-        module_name, attr_name = _LAZY_ATTRS[name]
-        module = importlib.import_module(module_name)
-        value = getattr(module, attr_name)
-        globals()[name] = value
-        return value
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def __dir__() -> list[str]:
-    return sorted(list(globals().keys()) + list(_LAZY_ATTRS) + list(_LAZY_MODULES))
