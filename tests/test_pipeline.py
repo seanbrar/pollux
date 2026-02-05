@@ -39,11 +39,11 @@ async def test_run_returns_result_envelope() -> None:
 
 
 @pytest.mark.asyncio
-async def test_batch_returns_one_answer_per_prompt() -> None:
+async def test_run_many_returns_one_answer_per_prompt() -> None:
     """Vectorized prompts should produce one answer per prompt."""
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
-    result = await pollux.batch(
+    result = await pollux.run_many(
         prompts=("Q1?", "Q2?"),
         sources=(Source.from_text("shared context"),),
         config=cfg,
@@ -70,11 +70,11 @@ def test_request_rejects_non_source_objects() -> None:
 
 
 @pytest.mark.asyncio
-async def test_batch_with_empty_prompts_returns_empty_result() -> None:
+async def test_run_many_with_empty_prompts_returns_empty_result() -> None:
     """Empty prompt list should return empty answers (idempotent behavior)."""
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
-    result = await pollux.batch(prompts=[], config=cfg)
+    result = await pollux.run_many(prompts=[], config=cfg)
 
     assert result["status"] == "ok"
     assert result["answers"] == []
@@ -167,8 +167,8 @@ async def test_cache_creation_is_single_flight(monkeypatch: pytest.MonkeyPatch) 
     source = Source.from_text("cache me", identifier="same-id")
 
     await asyncio.gather(
-        pollux.batch(("A",), sources=(source,), config=cfg),
-        pollux.batch(("B",), sources=(source,), config=cfg),
+        pollux.run_many(("A",), sources=(source,), config=cfg),
+        pollux.run_many(("B",), sources=(source,), config=cfg),
     )
 
     assert fake.cache_calls == 1
@@ -186,7 +186,7 @@ async def test_file_placeholders_are_uploaded_before_generate(
     file_path.write_text("hello")
 
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-    await pollux.batch(
+    await pollux.run_many(
         ("Read this",), sources=(Source.from_file(file_path),), config=cfg
     )
 
@@ -219,7 +219,7 @@ async def test_concurrent_calls_share_file_upload(
     file_path.write_bytes(b"%PDF-1.4 fake")
 
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-    await pollux.batch(
+    await pollux.run_many(
         prompts=("Q1", "Q2"),
         sources=(Source.from_file(file_path, mime_type="application/pdf"),),
         config=cfg,
@@ -278,7 +278,7 @@ async def test_cached_context_is_not_resent_on_each_call(
         use_mock=True,
         enable_caching=True,
     )
-    await pollux.batch(
+    await pollux.run_many(
         prompts=("A", "B"),
         sources=(Source.from_text("shared context"),),
         config=cfg,
@@ -425,7 +425,7 @@ async def test_options_are_forwarded_when_provider_supports_features(
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
-    await pollux.batch(
+    await pollux.run_many(
         ("Q1?",),
         sources=(Source.from_text("context"),),
         config=cfg,
@@ -464,7 +464,7 @@ async def test_delivery_mode_deferred_is_explicitly_not_implemented(
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
     with pytest.raises(ConfigurationError, match="not implemented yet"):
-        await pollux.batch(
+        await pollux.run_many(
             ("Q1?",),
             config=cfg,
             options=Options(delivery_mode="deferred"),
@@ -580,7 +580,7 @@ async def test_conversation_options_are_lifecycle_gated_by_default(
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
     with pytest.raises(ConfigurationError, match="reserved for a future release"):
-        await pollux.batch(
+        await pollux.run_many(
             ("Q1?",),
             config=cfg,
             options=Options(history=[{"role": "user", "content": "hello"}]),
@@ -606,7 +606,7 @@ async def test_conversation_options_can_be_enabled_for_development(
     monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
-    await pollux.batch(
+    await pollux.run_many(
         ("Q1?",),
         config=cfg,
         options=Options(history=[{"role": "user", "content": "hello"}]),

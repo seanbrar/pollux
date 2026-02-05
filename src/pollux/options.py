@@ -19,7 +19,7 @@ ResponseSchemaInput = type[BaseModel] | dict[str, Any]
 
 @dataclass(frozen=True)
 class Options:
-    """Optional execution features for `run()` and `batch()`."""
+    """Optional execution features for `run()` and `run_many()`."""
 
     response_schema: ResponseSchemaInput | None = None
     reasoning_effort: ReasoningEffort | None = None
@@ -68,7 +68,7 @@ class Options:
         if self.continue_from is not None and not isinstance(self.continue_from, dict):
             raise ConfigurationError(
                 "continue_from must be a prior Pollux result envelope",
-                hint="Pass the dict returned by run() or batch().",
+                hint="Pass the dict returned by run() or run_many().",
             )
 
     def response_schema_json(self) -> dict[str, Any] | None:
