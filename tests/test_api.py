@@ -68,17 +68,17 @@ async def test_gemini_with_text_source(
 
 
 @pytest.mark.asyncio
-async def test_gemini_batch_returns_multiple_answers(
+async def test_gemini_run_many_returns_multiple_answers(
     gemini_api_key: str, gemini_test_model: str
 ) -> None:
-    """Smoke: Gemini batch produces one answer per prompt."""
+    """Smoke: Gemini run_many produces one answer per prompt."""
     config = Config(
         provider="gemini",
         model=gemini_test_model,
         api_key=gemini_api_key,
     )
 
-    result = await pollux.batch(
+    result = await pollux.run_many(
         prompts=["What is 1+1?", "What is 2+2?"],
         config=config,
     )
@@ -136,17 +136,17 @@ async def test_openai_with_text_source(
 
 
 @pytest.mark.asyncio
-async def test_openai_batch_returns_multiple_answers(
+async def test_openai_run_many_returns_multiple_answers(
     openai_api_key: str, openai_test_model: str
 ) -> None:
-    """Smoke: OpenAI batch produces one answer per prompt."""
+    """Smoke: OpenAI run_many produces one answer per prompt."""
     config = Config(
         provider="openai",
         model=openai_test_model,
         api_key=openai_api_key,
     )
 
-    result = await pollux.batch(
+    result = await pollux.run_many(
         prompts=["What is 1+1?", "What is 2+2?"],
         config=config,
     )

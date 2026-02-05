@@ -1,8 +1,8 @@
-"""Pollux: Efficient batch interactions with LLM APIs.
+"""Pollux: Efficient multi-prompt interactions with LLM APIs.
 
 Public API:
     - run(): Single prompt execution
-    - batch(): Multi-prompt vectorized execution
+    - run_many(): Multi-prompt vectorized execution
     - Source: Explicit input types
     - Config: Configuration dataclass
 """
@@ -63,10 +63,10 @@ async def run(
         print(result["answers"][0])
     """
     sources = (source,) if source else ()
-    return await batch(prompt, sources=sources, config=config, options=options)
+    return await run_many(prompt, sources=sources, config=config, options=options)
 
 
-async def batch(
+async def run_many(
     prompts: str | list[str] | tuple[str, ...],
     *,
     sources: tuple[Source, ...] | list[Source] = (),
@@ -86,7 +86,7 @@ async def batch(
 
     Example:
         config = Config(provider="gemini", model="gemini-2.0-flash")
-        result = await batch(
+        result = await run_many(
             ["Question 1?", "Question 2?"],
             sources=[Source.from_text("Context...")],
             config=config,
@@ -143,6 +143,6 @@ __all__ = [
     "ResultEnvelope",
     "Source",
     "SourceError",
-    "batch",
     "run",
+    "run_many",
 ]
