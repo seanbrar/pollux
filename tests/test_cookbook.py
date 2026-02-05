@@ -6,6 +6,7 @@ and recipe execution.
 
 from __future__ import annotations
 
+import runpy
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -42,14 +43,14 @@ class TestCookbookRunner:
         f = tmp_path / "doc.txt"
         f.write_text("hello")
 
-        async def fake_run_simple(prompt: str, **_kwargs: Any) -> dict[str, Any]:
-            return {
-                "status": "ok",
-                "answers": [f"echo:{prompt}"],
-                "usage": {"total_token_count": 1},
-            }
+        called: dict[str, Any] = {}
 
-        monkeypatch.setattr("pollux.frontdoor.run_simple", fake_run_simple)
+        def fake_run_path(path: str, run_name: str) -> dict[str, Any]:
+            called["path"] = path
+            called["run_name"] = run_name
+            return {}
+
+        monkeypatch.setattr(runpy, "run_path", fake_run_path)
 
         code = runner.main(
             [
@@ -62,3 +63,7 @@ class TestCookbookRunner:
             ]
         )
         assert code == 0
+        assert called["run_name"] == "__main__"
+        assert called["path"].endswith(
+            "cookbook/getting-started/analyze-single-paper.py"
+        )

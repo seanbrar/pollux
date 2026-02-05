@@ -217,13 +217,13 @@ Boundaries are specific to each project. Pollux adopts the following boundaries.
 
 <!-- BEGIN CUSTOMIZATION: Replace this table with your project's boundaries -->
 
-| Boundary | Responsibility |
-|----------|----------------|
-| Configuration and CLI | Config resolution (env/project/home/overrides), validation, and redaction; `pollux-config` outputs |
-| Public Python API | `run_simple`, `run_batch`, `create_executor`, and frontdoor input normalization |
-| Pipeline execution | End-to-end command pipeline from `InitialCommand` to `ResultEnvelope`, including caching/upload stages |
-| External provider integration | Gemini adapter calls, file uploads, cache creation, token counting, and real API IO |
-| Extensions and persistence | Conversation store/engine, research helpers, and provider upload utilities |
+| Boundary | Test File | Responsibility |
+|----------|-----------|----------------|
+| Configuration | `test_config.py` | Config resolution, validation, API key handling, redaction |
+| Pipeline + Public API | `test_pipeline.py` | `run()`, `batch()`, request normalization, Source factories, caching, uploads |
+| Provider internals | `test_providers.py` | Request/response shape characterization for each provider |
+| External APIs | `test_api.py` | Real API integration (Gemini, OpenAI) with live credentials |
+| Cookbook CLI | `test_cookbook.py` | Recipe resolution and execution |
 
 <!-- END CUSTOMIZATION -->
 
@@ -238,26 +238,26 @@ For any new test, determine placement by boundary responsibility.
 <!-- BEGIN CUSTOMIZATION: Replace with your project's test placement guide -->
 
 ```
-Is this an architectural invariant that spans modules?
-  → Contract tests (tests/test_contracts.py)
-
-Does this test configuration or CLI behavior?
+Does this test Config creation, API key resolution, or redaction?
   → tests/test_config.py
 
-Does this test public API entry points or frontdoor input handling?
-  → tests/test_frontdoor.py (or the closest boundary file)
-
-Does this test pipeline execution or end-to-end flows?
+Does this test public API entry points (run, batch) or request handling?
   → tests/test_pipeline.py
 
-Does this test extensions or persistence boundaries?
-  → tests/test_extensions.py (or the closest boundary file)
+Does this test Source factory methods or Source validation?
+  → tests/test_pipeline.py (Source factories section)
 
-Does this require a real external service?
-  → A dedicated test file marked `api` and gated by ENABLE_API_TESTS
+Does this test provider-specific request/response shaping?
+  → tests/test_providers.py (characterization tests)
+
+Does this require a real external API call?
+  → tests/test_api.py (marked @pytest.mark.api, requires ENABLE_API_TESTS=1)
+
+Does this test cookbook CLI behavior?
+  → tests/test_cookbook.py
 
 None of the above?
-  → Probably belongs in an existing boundary file.
+  → Probably belongs in test_pipeline.py.
      If genuinely new, justify the new boundary.
 ```
 
@@ -269,11 +269,12 @@ None of the above?
 
 <!-- BEGIN CUSTOMIZATION: Add your project's conventions -->
 
-- Boundary tests live in `tests/test_{boundary}.py` and stay flat at the repo root.
+- Boundary tests live in `tests/test_{boundary}.py` at the repo root (flat structure).
 - Use module-level markers (`pytestmark`) to declare the primary test type.
-- Characterization (golden) tests live under `tests/characterization/` and are always marked `characterization`.
-- External-service tests must be marked `api` and require an explicit enable flag plus API credentials.
-- Shared fixtures and helpers remain centralized in `tests/conftest.py` and `tests/helpers.py`.
+- Provider characterization tests verify request/response shapes without network calls.
+- External API tests are marked `@pytest.mark.api` and require `ENABLE_API_TESTS=1`.
+- API fixtures (`gemini_api_key`, `openai_api_key`) skip tests when credentials are unavailable.
+- Shared fixtures live in `tests/conftest.py` with autouse isolation fixtures.
 
 <!-- END CUSTOMIZATION -->
 
