@@ -38,6 +38,23 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Cookbook:
+      - Overview: cookbook/index.md
+      - Getting Started:
+          - Analyze Single Paper: cookbook/getting-started/analyze-single-paper.md
+          - Batch Process Files: cookbook/getting-started/batch-process-files.md
+          - Extract Video Insights: cookbook/getting-started/extract-video-insights.md
+      - Optimization:
+          - Context Caching Explicit: cookbook/optimization/context-caching-explicit.md
+          - Cache Warming and TTL: cookbook/optimization/cache-warming-and-ttl.md
+          - Large-Scale Batching: cookbook/optimization/large-scale-batching.md
+      - Research Workflows:
+          - Comparative Analysis: cookbook/research-workflows/comparative-analysis.md
+          - Multi-Video Batch: cookbook/research-workflows/multi-video-batch.md
+      - Production:
+          - Rate Limits and Concurrency: cookbook/production/rate-limits-and-concurrency.md
+          - Resume on Failure: cookbook/production/resume-on-failure.md
+      - Templates: cookbook/templates.md
   - Guides:
       - Installation: guides/installation.md
       - Configuration: guides/configuration.md
