@@ -1,55 +1,84 @@
-"""Configuration boundary tests.
-
-Tests for the public config API surface: resolution helpers, audit utilities,
-and DX conveniences. Security-related tests for secret redaction are here
-as they protect the user-facing boundary.
-"""
+"""Configuration boundary tests for the simplified v1 API."""
 
 from __future__ import annotations
 
-import os
-from unittest.mock import patch
-
 import pytest
 
-from pollux.config import (
-    audit_lines,
-    check_environment,
-    resolve_config,
-    to_redacted_dict,
-)
+from pollux.config import Config
+from pollux.errors import ConfigurationError
 
 pytestmark = pytest.mark.unit
 
 
-class TestConfigDXHelpers:
-    """Tests for developer experience helpers that must never leak secrets."""
+def test_config_creation_with_mock_mode() -> None:
+    """Config can be created with mock mode (no API key needed)."""
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    assert cfg.provider == "gemini"
+    assert cfg.model == "gemini-2.0-flash"
 
-    def test_check_environment_filters_and_redacts(self) -> None:
-        """Only GEMINI_/POLLUX_ keys are returned and secrets are redacted."""
-        env_vars = {
-            "POLLUX_MODEL": "test-model",
-            "GEMINI_API_KEY": "secret-key-123",
-            "POLLUX_TOKEN": "secret-token-456",
-            "OTHER_VAR": "should-not-appear",
-        }
-        with patch.dict(os.environ, env_vars, clear=True):
-            result = check_environment()
 
-        assert set(result.keys()) == {"POLLUX_MODEL", "GEMINI_API_KEY", "POLLUX_TOKEN"}
-        assert result["POLLUX_MODEL"] == "test-model"
-        assert result["GEMINI_API_KEY"] == "***redacted***"
-        assert result["POLLUX_TOKEN"] == "***redacted***"
+def test_config_auto_resolves_api_key_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """API key should be auto-resolved from environment."""
+    monkeypatch.setenv("GEMINI_API_KEY", "env-key")
 
-    def test_audit_lines_and_redacted_dict_never_leak_secrets(self) -> None:
-        """Audit output and structured logs must redact sensitive fields."""
-        cfg, sources = resolve_config(
-            overrides={"api_key": "secret-key-123", "model": "test-model"}, explain=True
-        )
+    cfg = Config(provider="gemini", model="gemini-2.0-flash")
 
-        lines = audit_lines(cfg, sources)
-        assert not any("secret-key-123" in line for line in lines)
-        assert any(line.startswith("api_key:") and "REDACTED" in line for line in lines)
+    assert cfg.api_key == "env-key"
 
-        redacted = to_redacted_dict(cfg)
-        assert redacted["api_key"] == "***redacted***"
+
+def test_explicit_api_key_takes_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit api_key should override env."""
+    monkeypatch.setenv("GEMINI_API_KEY", "env-key")
+
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", api_key="explicit-key")
+
+    assert cfg.api_key == "explicit-key"
+
+
+def test_openai_provider_uses_openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider-specific env key selection should prefer OPENAI_API_KEY."""
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    cfg = Config(provider="openai", model="gpt-4o")
+
+    assert cfg.provider == "openai"
+    assert cfg.api_key == "openai-secret"
+
+
+def test_missing_api_key_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing API key without mock mode must fail clearly."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError, match="API key required"):
+        Config(provider="gemini", model="gemini-2.0-flash")
+
+
+def test_mock_mode_does_not_require_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock mode should work without an API key."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    assert cfg.use_mock is True
+    assert cfg.api_key is None
+
+
+def test_unknown_provider_raises_error() -> None:
+    """Unknown provider should raise a clear error."""
+    with pytest.raises(ConfigurationError, match="Unknown provider"):
+        Config(provider="unknown", model="some-model", use_mock=True)  # type: ignore[arg-type]
+
+
+def test_config_str_and_repr_redact_api_key() -> None:
+    """String representations must not leak secrets."""
+    secret = "top-secret-key"
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", api_key=secret)
+
+    assert secret not in str(cfg)
+    assert secret not in repr(cfg)
+    assert "[REDACTED]" in str(cfg)

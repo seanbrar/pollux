@@ -43,8 +43,8 @@ check: lint typecheck test ## Run all checks (lint + typecheck + tests)
 # Testing
 # ------------------------------------------------------------------------------
 
-test: ## Run all tests (except API tests)
-	$(PYTEST) $(PYTEST_ARGS) -m "not api"
+test: ## Run all tests
+	$(PYTEST) $(PYTEST_ARGS)
 
 test-api: .check-api-key ## Run API tests (requires GEMINI_API_KEY)
 	$(PYTEST) $(PYTEST_ARGS) -m "api"
