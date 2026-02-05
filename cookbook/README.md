@@ -1,75 +1,76 @@
 # Pollux Cookbook
 
-Problem-first recipes for real-world multimodal batch analysis.
+Practical, problem-first recipes for multimodal batch analysis with Pollux.
+
+## Philosophy
+
+Each recipe is designed to be:
+
+- **Runnable**: one command from the repo root.
+- **Teachable**: scenario-first framing, not just API calls.
+- **Production-minded**: shows operational patterns, not toy snippets.
 
 ## Quick Start
 
 ```bash
-# List available recipes
+# 1) List recipes
 python -m cookbook --list
 
-# Run a recipe
-python -m cookbook getting-started/analyze-single-paper -- --limit 1
+# 2) Run the baseline recipe in mock mode (default)
+python -m cookbook getting-started/analyze-single-paper -- --input path/to/file.pdf
+
+# 3) Run against a real provider
+python -m cookbook getting-started/analyze-single-paper -- \
+  --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 
-**Notes:**
+Notes:
 
-- Pass recipe flags after `--`
-- Many recipes accept `--input` (file or directory) and `--limit`
-- Demo data: `make demo-data` (optional)
+- Pass recipe-specific flags after `--`.
+- Use `make demo-data` for local sample inputs.
+- Most recipes support `--mock/--no-mock`, `--provider`, and `--model`.
 
-## Recipes
+## Recipe Catalog
 
 ### Getting Started
 
-| Recipe | What it does |
-|--------|--------------|
-| `analyze-single-paper.py` | Extract insights from a single file |
-| `batch-process-files.py` | Process multiple documents at once |
-| `conversation-follow-ups.py` | Multi-turn conversations with persistence |
-| `extract-video-insights.py` | Pull highlights from video content |
+| Recipe | Focus |
+| --- | --- |
+| `analyze-single-paper.py` | Single-source baseline and output inspection |
+| `batch-process-files.py` | Multi-file processing with shared prompts |
+| `extract-video-insights.py` | Video analysis basics |
 
 ### Optimization
 
-| Recipe | What it does |
-|--------|--------------|
-| `cache-warming-and-ttl.py` | Warm caches with deterministic keys |
-| `context-caching-explicit.py` | Explicit cache create/reuse |
-| `large-scale-batching.py` | Fan-out with bounded concurrency |
+| Recipe | Focus |
+| --- | --- |
+| `cache-warming-and-ttl.py` | Warm/reuse cache and compare usage |
+| `context-caching-explicit.py` | Explicit cache workflow |
+| `large-scale-batching.py` | Bounded client-side concurrency |
 
 ### Research Workflows
 
-| Recipe | What it does |
-|--------|--------------|
-| `comparative-analysis.py` | Compare sources side-by-side |
-| `multi-video-batch.py` | Compare/summarize across videos |
+| Recipe | Focus |
+| --- | --- |
+| `comparative-analysis.py` | Structured source-to-source comparison |
+| `multi-video-batch.py` | Cross-video synthesis |
 
 ### Production
 
-| Recipe | What it does |
-|--------|--------------|
-| `rate-limits-and-concurrency.py` | Tier config and concurrency behavior |
-| `resume-on-failure.py` | Persist state, retry failed items |
+| Recipe | Focus |
+| --- | --- |
+| `rate-limits-and-concurrency.py` | Throughput controls and concurrency tuning |
+| `resume-on-failure.py` | Durable manifest + retry/resume pattern |
 
 ### Templates
 
-| Template | What it does |
-|----------|--------------|
-| `recipe-template.py` | Boilerplate for new recipes |
-| `custom-schema-template.py` | Schema-first extraction |
-
-## Configuration
-
-Mock mode is default. For real API calls:
-
-```bash
-export GEMINI_API_KEY=...
-export POLLUX_TIER=tier_1
-export POLLUX_USE_REAL_API=true
-```
+| Template | Purpose |
+| --- | --- |
+| `recipe-template.py` | Starting point for new recipes |
+| `custom-schema-template.py` | Schema-first extraction flow |
 
 ## Troubleshooting
 
-- **No demo data**: Run `make demo-data` or use `--input /path/to/files`
-- **429s / throttling**: Set `POLLUX_TIER` to match your billing tier
-- **Slow runs**: Start with small text files before large PDFs/videos
+- **No demo files**: run `make demo-data` or provide `--input`.
+- **API auth errors**: set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
+- **Rate limits**: lower concurrency and retry with smaller `--limit` values.

@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
-"""🎯 Recipe: [Problem Statement].
+"""Template: Scenario-first cookbook recipe.
 
-When you need to: [Specific scenario]
-
-Ingredients:
-- [Required setup]
-
-What you'll learn:
-- [Learning objective 1]
-- [Learning objective 2]
-- [Learning objective 3]
-
-Difficulty: ⭐⭐
-Time: ~X-Y minutes
+Copy this file when creating a new recipe, then replace placeholders in:
+- Problem framing
+- Prompt set
+- Success checks and output interpretation
 """
 
 from __future__ import annotations
@@ -20,30 +12,48 @@ from __future__ import annotations
 import argparse
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from pollux import types
-from pollux.frontdoor import run_batch
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.runtime import (
+    add_runtime_args,
+    build_config_or_exit,
+    print_run_mode,
+)
+from pollux import Config, Source, batch
 
-if TYPE_CHECKING:
-    from pollux.core.result_envelope import ResultEnvelope
+PROMPTS = ["[Replace with a concrete prompt]"]
 
 
-async def main_async(directory: Path) -> ResultEnvelope:
-    prompts = ["[Your prompt here]"]
-    sources = types.sources_from_directory(directory)
-    return await run_batch(prompts, sources, prefer_json=False)
+async def main_async(directory: Path, *, limit: int, config: Config) -> None:
+    files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
+    if not files:
+        raise SystemExit(f"No files found under: {directory}")
+
+    sources = [Source.from_file(path) for path in files]
+    envelope = await batch(PROMPTS, sources=sources, config=config)
+
+    print("\nResult")
+    print(f"- Status: {envelope.get('status', 'ok')}")
+    print(f"- Answers: {len(envelope.get('answers', []))}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="[Recipe name]")
+    parser = argparse.ArgumentParser(description="Template cookbook recipe")
     parser.add_argument("--input", type=Path, default=None, help="Directory of files")
+    parser.add_argument("--limit", type=int, default=2, help="Max files to include")
+    add_runtime_args(parser)
     args = parser.parse_args()
-    directory = args.input or Path("cookbook/data/demo/text-medium")
-    if not directory.exists():
-        raise SystemExit("No input provided. Run `make demo-data` or pass --input.")
-    env = asyncio.run(main_async(directory))
-    print(env.get("status", "ok"))
+
+    directory = resolve_dir_or_exit(
+        args.input,
+        DEFAULT_TEXT_DEMO_DIR,
+        hint="No input directory found. Run `make demo-data` or pass --input /path/to/dir.",
+    )
+    config = build_config_or_exit(args)
+
+    print("Template recipe")
+    print_run_mode(config)
+    asyncio.run(main_async(directory, limit=max(1, int(args.limit)), config=config))
 
 
 if __name__ == "__main__":

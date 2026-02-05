@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""🎯 Recipe: Batch Process Multiple Files Efficiently.
+"""Recipe: Batch process a directory of files with shared prompts.
 
-When you need to: Run a few questions across a directory of files in one go.
+Problem:
+    You need consistent answers across many files without writing orchestration code.
 
-Ingredients:
-- A directory of files (PDF, text, image, audio, video)
-- `GEMINI_API_KEY` set in the environment
+When to use:
+    - You have one directory and a fixed question set.
+    - You want a first throughput baseline before adding production controls.
 
-What you'll learn:
-- Build `Source` objects from a directory
-- Vectorize prompts via `run_batch`
-- Inspect answers and per-prompt metrics
+When not to use:
+    - You need resume/retry guarantees (use production recipes).
 
-Difficulty: ⭐⭐
-Time: ~8 minutes
+Run:
+    python -m cookbook getting-started/batch-process-files -- --input ./docs --limit 4
 """
 
 from __future__ import annotations
@@ -21,68 +20,92 @@ from __future__ import annotations
 import argparse
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from cookbook.utils.demo_inputs import (
-    DEFAULT_TEXT_DEMO_DIR,
-    pick_files_by_ext,
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.runtime import (
+    add_runtime_args,
+    build_config_or_exit,
+    print_run_mode,
+    usage_tokens,
 )
-from pollux import types
-from pollux.frontdoor import run_batch
+from pollux import Config, Source, batch
 
-if TYPE_CHECKING:
-    from pollux.core.result_envelope import ResultEnvelope
-
-
-def _print_summary(env: ResultEnvelope) -> None:
-    answers = env.get("answers", [])
-    metrics = env.get("metrics", {})
-    usage = env.get("usage", {})
-    print(f"Answers returned: {len(answers)}")
-    if isinstance(usage, dict):
-        tok = usage.get("total_token_count")
-        if tok is not None:
-            print(f"🔢 Total tokens: {tok}")
-    if isinstance(metrics, dict) and metrics.get("per_prompt"):
-        print("\n⏱️  Per-prompt snapshots:")
-        for p in metrics["per_prompt"]:
-            idx = p.get("index")
-            dur = (p.get("durations") or {}).get("execute.total")
-            print(f"  Prompt[{idx}] duration: {dur if dur is not None else 'N/A'}s")
+DEFAULT_PROMPTS = [
+    "List 3 key takeaways.",
+    "Extract the main entities and roles.",
+]
 
 
-async def main_async(directory: Path, limit: int) -> None:
-    prompts = [
-        "List 3 key takeaways.",
-        "Extract the main entities mentioned.",
-    ]
-    files = pick_files_by_ext(
-        directory,
-        [".pdf", ".txt", ".png", ".jpg", ".jpeg", ".mp4", ".mov"],
-        limit=limit,
-    )
-    sources = tuple(types.Source.from_file(p) for p in files)
-    if not sources:
-        raise SystemExit(f"No files found under {directory}")
+async def main_async(
+    directory: Path,
+    *,
+    limit: int,
+    prompts: list[str],
+    config: Config,
+) -> None:
+    files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
+    if not files:
+        raise SystemExit(f"No files found under: {directory}")
 
-    env = await run_batch(prompts, sources, prefer_json=False)
-    print(f"Status: {env.get('status', 'ok')}")
-    _print_summary(env)
+    sources = [Source.from_file(path) for path in files]
+    envelope = await batch(prompts, sources=sources, config=config)
+
+    answers = [str(answer) for answer in envelope.get("answers", [])]
+    print("\nBatch result")
+    print(f"- Status: {envelope.get('status', 'ok')}")
+    print(f"- Files processed: {len(files)}")
+    print(f"- Prompts: {len(prompts)}")
+
+    for index, answer in enumerate(answers, start=1):
+        excerpt = answer[:280] + ("..." if len(answer) > 280 else "")
+        print(f"\nAnswer {index}\n{excerpt}")
+
+    metrics = envelope.get("metrics")
+    if isinstance(metrics, dict) and "duration_s" in metrics:
+        print(f"\nMetrics\n- Duration (s): {metrics['duration_s']}")
+
+    tokens = usage_tokens(envelope)
+    if tokens is not None:
+        print(f"- Total tokens: {tokens}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Batch process multiple files")
+    parser = argparse.ArgumentParser(
+        description="Run shared prompts over multiple files in one batch call.",
+    )
     parser.add_argument("--input", type=Path, default=None, help="Directory of files")
-    parser.add_argument("--limit", type=int, default=2, help="Max files to read")
+    parser.add_argument("--limit", type=int, default=3, help="Max files to include")
+    parser.add_argument(
+        "--prompt",
+        action="append",
+        dest="prompts",
+        default=[],
+        help=(
+            "Prompt to run (repeat flag for multiple prompts). "
+            "Defaults to two baseline prompts."
+        ),
+    )
+    add_runtime_args(parser)
     args = parser.parse_args()
-    if args.input is not None:
-        directory = args.input
-    else:
-        directory = DEFAULT_TEXT_DEMO_DIR
-        if not directory.exists():
-            raise SystemExit("No input provided. Run `make demo-data` or pass --input.")
-    print("Note: File size/count affect runtime and tokens.")
-    asyncio.run(main_async(directory, max(1, int(args.limit))))
+
+    directory = resolve_dir_or_exit(
+        args.input,
+        DEFAULT_TEXT_DEMO_DIR,
+        hint="No input directory found. Run `make demo-data` or pass --input /path/to/dir.",
+    )
+    prompts = args.prompts or DEFAULT_PROMPTS
+    config = build_config_or_exit(args)
+
+    print("Directory batch baseline")
+    print_run_mode(config)
+    asyncio.run(
+        main_async(
+            directory,
+            limit=max(1, int(args.limit)),
+            prompts=prompts,
+            config=config,
+        )
+    )
 
 
 if __name__ == "__main__":

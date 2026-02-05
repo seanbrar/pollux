@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""🎯 Template: Schema-First Extraction.
-
-When you need to: Ask for structured JSON and parse into a Pydantic model.
-
-Note:
-- This template uses a tiny helper (`cookbook.utils.json_tools.coerce_json`) to
-  extract JSON robustly even when answers are wrapped in Markdown fences or
-  include minor formatting noise, then validates it with Pydantic.
-"""
+"""Template: Schema-first extraction with robust JSON parsing."""
 
 from __future__ import annotations
 
@@ -17,10 +9,14 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, pick_file_by_ext
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_file_or_exit
 from cookbook.utils.json_tools import coerce_json
-from pollux import types
-from pollux.frontdoor import run_batch
+from cookbook.utils.runtime import (
+    add_runtime_args,
+    build_config_or_exit,
+    print_run_mode,
+)
+from pollux import Config, Source, batch
 
 
 class MySchema(BaseModel):
@@ -31,7 +27,8 @@ class MySchema(BaseModel):
 PROMPT = "Return JSON with keys: title (str), items (list[str])."
 
 
-def _parse(answer: str) -> MySchema | None:
+def parse_schema(answer: str) -> MySchema | None:
+    """Parse model output into schema object."""
     data = coerce_json(answer)
     if data is None:
         return None
@@ -41,34 +38,43 @@ def _parse(answer: str) -> MySchema | None:
         return None
 
 
-async def main_async(path: Path) -> None:
-    src = types.Source.from_file(path)
-    env = await run_batch([PROMPT], [src], prefer_json=True)
-    ans = (env.get("answers") or [""])[0]
-    data = _parse(str(ans))
-    if data:
-        print("✅ Parsed JSON successfully:")
-        print(data)
-    else:
-        print("⚠️ Could not parse JSON (likely in mock mode). Raw response:")
-        print(str(ans)[:400])
+async def main_async(path: Path, *, config: Config) -> None:
+    envelope = await batch([PROMPT], sources=[Source.from_file(path)], config=config)
+    answer = str((envelope.get("answers") or [""])[0])
+    parsed = parse_schema(answer)
+
+    print("\nSchema extraction")
+    print(f"- Status: {envelope.get('status', 'ok')}")
+    print(f"- Source: {path}")
+    if parsed is None:
+        excerpt = answer[:400] + ("..." if len(answer) > 400 else "")
+        print("- Could not parse schema. Raw excerpt:")
+        print(excerpt)
+        return
+
+    print("- Parsed title:", parsed.title)
+    print("- Parsed items:", len(parsed.items))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Schema-first extraction template")
-    parser.add_argument("--input", type=Path, default=None, help="Path to a file")
+    parser.add_argument(
+        "--input", type=Path, default=None, help="Path to an input file"
+    )
+    add_runtime_args(parser)
     args = parser.parse_args()
-    path = args.input
-    if path is None:
-        base = DEFAULT_TEXT_DEMO_DIR
-        if not base.exists():
-            raise SystemExit("No input provided. Run `make demo-data` or pass --input.")
-        path = pick_file_by_ext(base, [".txt", ".md", ".pdf"]) or None
-        if path is None:
-            raise SystemExit(
-                "No suitable files in demo dir. Run `make demo-data` or pass --input."
-            )
-    asyncio.run(main_async(path))
+
+    path = resolve_file_or_exit(
+        args.input,
+        search_dir=DEFAULT_TEXT_DEMO_DIR,
+        exts=[".txt", ".md", ".pdf"],
+        hint="No input file found. Run `make demo-data` or pass --input /path/to/file.",
+    )
+    config = build_config_or_exit(args)
+
+    print("Schema-first template")
+    print_run_mode(config)
+    asyncio.run(main_async(path, config=config))
 
 
 if __name__ == "__main__":

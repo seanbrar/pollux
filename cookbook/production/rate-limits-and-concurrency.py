@@ -1,90 +1,101 @@
 #!/usr/bin/env python3
-"""🎯 Recipe: Rate Limits and Request Concurrency
+"""Recipe: Compare sequential vs bounded-concurrency execution settings.
 
-When you need to: Understand how tier constraints and `request_concurrency`
-affect vectorized execution, and compare sequential vs bounded fan-out.
+Problem:
+    You need to tune request concurrency while respecting provider rate limits.
 
-Ingredients:
-- A directory with a few files (2-6) or one large file with multiple prompts
-- `GEMINI_API_KEY` set in the environment
-
-What you'll learn:
-- Override per-call `request_concurrency` using `make_execution_options`
-- Observe `metrics.concurrency_used` and per-call meta timings
-- Behavior with and without constraints (illustrative; provider limits apply)
-
-Difficulty: ⭐⭐⭐
-Time: ~10 minutes
+Pattern:
+    - Run the same workload with concurrency=1 and concurrency=N.
+    - Compare status and duration metrics.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from cookbook.utils.demo_inputs import (
-    DEFAULT_TEXT_DEMO_DIR,
-    pick_files_by_ext,
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.runtime import (
+    add_runtime_args,
+    build_config_or_exit,
+    print_run_mode,
 )
-from pollux import types
-from pollux.frontdoor import run_batch
-from pollux.types import make_execution_options
+from pollux import Config, Source, batch
 
-if TYPE_CHECKING:
-    from pollux.core.result_envelope import ResultEnvelope
-
-
-def _summ(env: ResultEnvelope) -> None:
-    m = env.get("metrics") or {}
-    answers = env.get("answers", [])
-    print(f"Answers: {len(answers)} | concurrency_used: {m.get('concurrency_used')}")
-    per = m.get("per_call_meta") or ()
-    if per:
-        print("  per_call_meta (first 3):")
-        for i, meta in enumerate(per[:3]):
-            dur = meta.get("duration_s")
-            api = meta.get("api_time_s")
-            non = meta.get("non_api_time_s")
-            print(f"   - call[{i}]: duration={dur}, api={api}, non_api={non}")
+PROMPTS = [
+    "Identify 3 key facts.",
+    "List main entities.",
+    "Summarize in 3 bullets.",
+]
 
 
-async def main_async(directory: Path, concurrency: int, limit: int = 2) -> None:
-    prompts = [
-        "Identify 3 key facts.",
-        "List main entities.",
-        "Summarize in 3 bullets.",
-    ]
-    files = pick_files_by_ext(directory, [".pdf", ".txt"], limit=limit)
-    sources = tuple(types.Source.from_file(p) for p in files)
-    if not sources:
-        raise SystemExit(f"No files found under {directory}")
+def duration_s(envelope: dict[str, object]) -> object:
+    """Extract duration metric when available."""
+    metrics = envelope.get("metrics")
+    if isinstance(metrics, dict):
+        return metrics.get("duration_s", "n/a")
+    return "n/a"
 
-    opts_seq = make_execution_options(request_concurrency=1)
-    opts_bounded = make_execution_options(request_concurrency=max(1, concurrency))
 
-    print("\n⏱️  Sequential (concurrency=1)")
-    seq = await run_batch(prompts, sources, options=opts_seq)
-    _summ(seq)
+async def main_async(
+    directory: Path, *, limit: int, config: Config, concurrency: int
+) -> None:
+    files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
+    if not files:
+        raise SystemExit(f"No files found under: {directory}")
 
-    print("\n⚡ Bounded fan-out (concurrency=", max(1, concurrency), ")", sep="")
-    par = await run_batch(prompts, sources, options=opts_bounded)
-    _summ(par)
+    sources = [Source.from_file(path) for path in files]
+    config_seq = replace(config, request_concurrency=1)
+    config_par = replace(config, request_concurrency=max(1, concurrency))
+
+    sequential = await batch(PROMPTS, sources=sources, config=config_seq)
+    parallel = await batch(PROMPTS, sources=sources, config=config_par)
+
+    print("\nConcurrency comparison")
+    print(
+        f"- sequential(c=1): status={sequential.get('status', 'ok')} "
+        f"duration_s={duration_s(sequential)}"
+    )
+    print(
+        f"- bounded(c={max(1, concurrency)}): status={parallel.get('status', 'ok')} "
+        f"duration_s={duration_s(parallel)}"
+    )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Rate limits & concurrency demo")
-    parser.add_argument("--input", type=Path, default=None, help="Directory with files")
-    parser.add_argument("--concurrency", type=int, default=4)
-    parser.add_argument("--limit", type=int, default=2, help="Max files to read")
-    parser.add_argument("--data-dir", type=Path, default=None, help=argparse.SUPPRESS)
+    parser = argparse.ArgumentParser(
+        description="Compare request_concurrency settings on the same workload.",
+    )
+    parser.add_argument("--input", type=Path, default=None, help="Directory of files")
+    parser.add_argument("--limit", type=int, default=3, help="Max files to include")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=4,
+        help="Bounded concurrency for comparison run.",
+    )
+    add_runtime_args(parser)
     args = parser.parse_args()
-    directory = args.input or args.data_dir or DEFAULT_TEXT_DEMO_DIR
-    if not directory.exists():
-        raise SystemExit("No input provided. Run `make demo-data` or pass --input.")
-    print("Note: File size/count affect runtime and tokens.")
-    asyncio.run(main_async(directory, args.concurrency, max(1, int(args.limit))))
+
+    directory = resolve_dir_or_exit(
+        args.input,
+        DEFAULT_TEXT_DEMO_DIR,
+        hint="No input directory found. Run `make demo-data` or pass --input /path/to/dir.",
+    )
+    config = build_config_or_exit(args)
+
+    print("Rate limits and concurrency tuning")
+    print_run_mode(config)
+    asyncio.run(
+        main_async(
+            directory,
+            limit=max(1, int(args.limit)),
+            config=config,
+            concurrency=max(1, int(args.concurrency)),
+        )
+    )
 
 
 if __name__ == "__main__":
