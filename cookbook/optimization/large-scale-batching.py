@@ -18,10 +18,15 @@ import asyncio
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
 )
 from pollux import Config, Source, run
 
@@ -50,11 +55,28 @@ async def main_async(
 
     results = await asyncio.gather(*(run_one(path) for path in files))
     ok_count = sum(1 for row in results if row["status"] == "ok")
+    failures = [row["path"] for row in results if row["status"] != "ok"]
 
-    print("\nFan-out summary")
-    print(f"- Files: {len(files)}")
-    print(f"- Concurrency: {max(1, concurrency)}")
-    print(f"- ok: {ok_count} / {len(results)}")
+    print_section("Fan-out summary")
+    print_kv_rows(
+        [
+            ("Files", len(files)),
+            ("Concurrency", max(1, concurrency)),
+            ("ok", f"{ok_count} / {len(results)}"),
+        ]
+    )
+    if failures:
+        print_kv_rows([("First failed item", Path(failures[0]).name)])
+    print_learning_hints(
+        [
+            (
+                "Next: step concurrency up gradually while reliability remains healthy."
+                if not failures
+                else "Next: reduce in-flight requests and retry because failures appeared."
+            ),
+            "Next: tune concurrency with representative file sizes, not only smoke-test inputs.",
+        ]
+    )
 
 
 def main() -> None:
@@ -80,8 +102,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Large-scale batching with bounded fan-out")
-    print_run_mode(config)
+    print_header("Large-scale batching with bounded fan-out", config=config)
     asyncio.run(
         main_async(
             directory,

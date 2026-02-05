@@ -30,10 +30,15 @@ from pathlib import Path
 from typing import Any
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, pick_files_by_ext
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
 )
 from pollux import Config, Source, run
 
@@ -167,13 +172,28 @@ def summarize(items: list[WorkItem], manifest_path: Path) -> None:
     for item in items:
         counts[item.status] = counts.get(item.status, 0) + 1
 
-    print("\nRun summary")
-    print(
-        "- ok={ok} partial={partial} error={error} pending={pending}".format(
-            **counts,
-        )
+    print_section("Run summary")
+    print_kv_rows(
+        [
+            (
+                "Item status",
+                "ok={ok} partial={partial} error={error} pending={pending}".format(
+                    **counts
+                ),
+            ),
+            ("Manifest", manifest_path),
+        ]
     )
-    print(f"- Manifest: {manifest_path}")
+    print_learning_hints(
+        [
+            (
+                "Next: rerun with `--failed-only` to verify that completed work is skipped."
+                if counts.get("error", 0) == 0 and counts.get("pending", 0) == 0
+                else "Next: use `--failed-only` to retry unresolved work without reprocessing successes."
+            ),
+            "Next: treat the manifest as the source of truth for recovery and auditing.",
+        ]
+    )
 
 
 def main() -> None:
@@ -234,8 +254,7 @@ def main() -> None:
     config = build_config_or_exit(args)
     items = build_items(args.input, args.prompt, args.limit)
 
-    print("Resumable production batch")
-    print_run_mode(config)
+    print_header("Resumable production batch", config=config)
     merged = asyncio.run(
         run_resumable(
             items=items,

@@ -1,19 +1,22 @@
 # Cookbook
 
-Scenario-first recipes for Pollux, written to be run and adapted in real projects.
+Scenario-first recipes for Pollux that are designed to be runnable, teachable, and production-minded.
 
-## What makes these recipes "gold standard"
+## Recipe quality bar
 
-- **Problem-first:** each recipe starts with a concrete operational need.
-- **Runnable:** command examples work from the repo root.
-- **Interpretable:** each page tells you what "good" output looks like.
-- **Extensible:** every recipe ends with practical next experiments.
+Every recipe in this cookbook should meet this contract:
+
+- **Problem-first:** states when to use and when not to use the pattern.
+- **Runnable:** commands work from repo root with `python -m cookbook ...`.
+- **Interpretable:** page explains what healthy output looks like.
+- **Operational:** includes failure modes and concrete tuning levers.
+- **Extensible:** ends with practical follow-on experiments.
 
 ## Recommended workflow
 
-1. Start in `--mock` mode (default) to validate flow and CLI args.
-2. Move to `--no-mock` when your input/prompt looks right.
-3. Scale up file counts, concurrency, and complexity gradually.
+1. Start in `--mock` mode (default) to validate flow and args.
+2. Switch to `--no-mock` when prompts and inputs are stable.
+3. Scale file counts/concurrency incrementally and observe metrics.
 
 ## Learning paths
 
@@ -51,10 +54,9 @@ python -m cookbook --list
 
 ## Input setup
 
-Use demo inputs for a fast start:
+Seed demo inputs for deterministic runs:
 
 ```bash
 make demo-data
 ```
 
-Then pass `--input` explicitly for deterministic runs.

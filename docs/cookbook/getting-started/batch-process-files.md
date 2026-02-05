@@ -1,48 +1,51 @@
 # Batch Process Files
 
-Run a fixed prompt set across many files with one command.
+Process a directory with shared prompts to get your first throughput baseline.
 
 ## At a glance
 
-- **Best for:** consistent extraction over a directory.
-- **Input:** directory of files + prompt set.
-- **Output:** one answer per prompt, plus summary metrics.
+- **Best for:** consistent analysis across many local files.
+- **Input:** directory of supported files.
+- **Output:** aggregate status, per-answer excerpts, and duration/tokens.
+
+## Before you run
+
+- Keep prompts fixed while validating throughput.
+- Start with a small `--limit` before full-dataset runs.
 
 ## Command
 
 ```bash
 python -m cookbook getting-started/batch-process-files -- \
-  --input ./docs --limit 4
+  --input cookbook/data/demo/text-medium --limit 3 --mock
 ```
 
-Custom prompts:
+Custom prompt set:
 
 ```bash
 python -m cookbook getting-started/batch-process-files -- \
-  --input ./docs \
-  --prompt "List key risks" \
-  --prompt "Summarize decisions"
+  --input ./docs --limit 4 --prompt "List 3 takeaways" --prompt "Extract entities"
 ```
 
-## Expected signal
+## What to look for
 
-- `Files processed` matches `--limit`
-- Number of answers matches number of prompts
-- Status is `ok` for baseline runs
+- `Status: ok` with expected file/prompt counts.
+- Answer excerpts are differentiated by prompt intent.
+- Duration and token totals scale roughly with `files x prompts`.
 
-## Interpret the result
+## Tuning levers
 
-- If answers look repetitive, prompts are too broad.
-- If token usage spikes, reduce `--limit` or shorten prompts.
-- If runtime is high, move to concurrency-focused recipes.
+- Increase `--limit` gradually to find practical throughput limits.
+- Use repeated `--prompt` flags to keep each question narrowly scoped.
 
-## Common pitfalls
+## Failure modes
 
-- Empty directory -> ensure files exist under `--input`.
-- Prompt drift -> keep prompt wording stable for comparisons.
-- Overloading the run -> scale in small increments.
+- Huge prompt sets can produce noisy, unfocused outputs.
+- Mixed file quality lowers aggregate output quality.
+- Rate limits in real mode -> lower `--limit` and stage runs.
 
-## Try next
+## Extend this recipe
 
-- Compare with [Large-Scale Batching](../optimization/large-scale-batching.md).
-- Add retry/resume with [Resume on Failure](../production/resume-on-failure.md).
+- Pair with [Rate Limits and Concurrency](../production/rate-limits-and-concurrency.md).
+- Promote durable workloads to [Resume on Failure](../production/resume-on-failure.md).
+

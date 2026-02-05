@@ -15,14 +15,23 @@ import argparse
 import asyncio
 from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
 )
 from pollux import Config, Source, batch
+
+if TYPE_CHECKING:
+    from pollux.result import ResultEnvelope
 
 PROMPTS = [
     "Identify 3 key facts.",
@@ -31,12 +40,19 @@ PROMPTS = [
 ]
 
 
-def duration_s(envelope: dict[str, object]) -> object:
+def duration_s(envelope: ResultEnvelope) -> object:
     """Extract duration metric when available."""
     metrics = envelope.get("metrics")
     if isinstance(metrics, dict):
         return metrics.get("duration_s", "n/a")
     return "n/a"
+
+
+def as_float(value: object) -> float | None:
+    """Return float value when conversion is safe."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
 
 
 async def main_async(
@@ -52,15 +68,36 @@ async def main_async(
 
     sequential = await batch(PROMPTS, sources=sources, config=config_seq)
     parallel = await batch(PROMPTS, sources=sources, config=config_par)
+    seq_d = as_float(duration_s(sequential))
+    par_d = as_float(duration_s(parallel))
+    speedup = None
+    if seq_d is not None and par_d is not None and par_d > 0:
+        speedup = seq_d / par_d
 
-    print("\nConcurrency comparison")
-    print(
-        f"- sequential(c=1): status={sequential.get('status', 'ok')} "
-        f"duration_s={duration_s(sequential)}"
+    print_section("Concurrency comparison")
+    print_kv_rows(
+        [
+            (
+                "sequential(c=1)",
+                f"status={sequential.get('status', 'ok')} duration_s={duration_s(sequential)}",
+            ),
+            (
+                f"bounded(c={max(1, concurrency)})",
+                f"status={parallel.get('status', 'ok')} duration_s={duration_s(parallel)}",
+            ),
+        ]
     )
-    print(
-        f"- bounded(c={max(1, concurrency)}): status={parallel.get('status', 'ok')} "
-        f"duration_s={duration_s(parallel)}"
+    if speedup is not None:
+        print_kv_rows([("Speedup", f"{speedup:.2f}x")])
+    print_learning_hints(
+        [
+            (
+                "Next: keep bounded concurrency as your default candidate because it is faster and stable."
+                if speedup is not None and speedup > 1.0
+                else "Next: repeat runs or lower concurrency because no clear speedup was observed."
+            ),
+            "Next: finalize production concurrency using median duration from multiple runs.",
+        ]
     )
 
 
@@ -86,8 +123,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Rate limits and concurrency tuning")
-    print_run_mode(config)
+    print_header("Rate limits and concurrency tuning", config=config)
     asyncio.run(
         main_async(
             directory,

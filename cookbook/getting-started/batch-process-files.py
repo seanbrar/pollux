@@ -22,11 +22,17 @@ import asyncio
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.presentation import (
+    print_excerpt,
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+    print_usage,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
-    usage_tokens,
 )
 from pollux import Config, Source, batch
 
@@ -51,22 +57,33 @@ async def main_async(
     envelope = await batch(prompts, sources=sources, config=config)
 
     answers = [str(answer) for answer in envelope.get("answers", [])]
-    print("\nBatch result")
-    print(f"- Status: {envelope.get('status', 'ok')}")
-    print(f"- Files processed: {len(files)}")
-    print(f"- Prompts: {len(prompts)}")
+    print_section("Batch result")
+    print_kv_rows(
+        [
+            ("Status", envelope.get("status", "ok")),
+            ("Files processed", len(files)),
+            ("Prompts", len(prompts)),
+        ]
+    )
 
     for index, answer in enumerate(answers, start=1):
-        excerpt = answer[:280] + ("..." if len(answer) > 280 else "")
-        print(f"\nAnswer {index}\n{excerpt}")
+        print_excerpt(f"Answer {index}", answer, limit=280)
 
     metrics = envelope.get("metrics")
     if isinstance(metrics, dict) and "duration_s" in metrics:
-        print(f"\nMetrics\n- Duration (s): {metrics['duration_s']}")
-
-    tokens = usage_tokens(envelope)
-    if tokens is not None:
-        print(f"- Total tokens: {tokens}")
+        print_section("Metrics")
+        print_kv_rows([("Duration (s)", metrics["duration_s"])])
+    print_usage(envelope)
+    print_learning_hints(
+        [
+            (
+                "Next: tune prompt quality now that answer coverage matches prompt count."
+                if len(answers) == len(prompts)
+                else "Next: inspect prompt/source compatibility because answer coverage is incomplete."
+            ),
+            "Next: raise `--limit` gradually and watch duration/tokens before switching to real API mode.",
+        ]
+    )
 
 
 def main() -> None:
@@ -96,8 +113,7 @@ def main() -> None:
     prompts = args.prompts or DEFAULT_PROMPTS
     config = build_config_or_exit(args)
 
-    print("Directory batch baseline")
-    print_run_mode(config)
+    print_header("Directory batch baseline", config=config)
     asyncio.run(
         main_async(
             directory,

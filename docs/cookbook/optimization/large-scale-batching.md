@@ -1,39 +1,44 @@
 # Large-Scale Batching
 
-Increase throughput with bounded client-side concurrency.
+Fan out per-file work with bounded concurrency to control in-flight load.
 
 ## At a glance
 
-- **Best for:** many independent file-level runs.
-- **Input:** directory, prompt, limit, concurrency.
-- **Output:** aggregate success ratio under bounded fan-out.
+- **Best for:** increasing throughput without unbounded request bursts.
+- **Input:** directory of files + one prompt.
+- **Output:** aggregate success count for a bounded fan-out run.
+
+## Before you run
+
+- Start with low concurrency and increase gradually.
+- Keep prompt short and stable during throughput tuning.
 
 ## Command
 
 ```bash
 python -m cookbook optimization/large-scale-batching -- \
-  --input ./docs --limit 12 --concurrency 4
+  --input cookbook/data/demo/text-medium --limit 8 --concurrency 4 --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Throughput improves relative to sequential execution.
-- Error rates stay controlled at selected concurrency.
-- Summary shows expected file count and `ok` ratio.
+- `ok` count should stay near total file count.
+- Higher concurrency should improve throughput until limits are hit.
+- Failures at higher concurrency usually signal rate/latency pressure.
 
-## Interpret the result
+## Tuning levers
 
-- If failures rise quickly, lower concurrency.
-- If gains flatten, you may be rate-limit bound.
-- File-size variance can hide true concurrency effects.
+- `--concurrency` controls client-side in-flight work.
+- `--limit` controls batch size and test duration.
 
-## Common pitfalls
+## Failure modes
 
-- Starting at high concurrency without baseline.
-- Ignoring provider tier constraints.
-- Comparing runs with different file mixes.
+- Aggressive concurrency can trigger transient provider errors.
+- Very large files can bottleneck individual workers.
+- Mixed workload sizes hide optimal concurrency settings.
 
-## Try next
+## Extend this recipe
 
-- Sweep `--concurrency` and chart success/latency.
-- Add resumability via [Resume on Failure](../production/resume-on-failure.md).
+- Compare with [Rate Limits and Concurrency](../production/rate-limits-and-concurrency.md).
+- Add per-item latency logging for deeper tuning.
+

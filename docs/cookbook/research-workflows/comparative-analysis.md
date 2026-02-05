@@ -1,45 +1,52 @@
 # Comparative Analysis
 
-Generate structured similarities/differences across two sources.
+Generate structured differences and similarities between two sources.
 
 ## At a glance
 
-- **Best for:** review workflows needing explicit comparisons.
-- **Input:** two files (or fallback directory auto-pick).
-- **Output:** parsed JSON summary with key comparison buckets.
+- **Best for:** side-by-side research review and decision support.
+- **Input:** two file paths (or fallback directory with at least two files).
+- **Output:** parsed JSON comparison summary and key difference signal.
+
+## Before you run
+
+- Choose sources that are comparable in scope.
+- Prefer explicit file paths for reproducible comparisons.
 
 ## Command
 
 ```bash
 python -m cookbook research-workflows/comparative-analysis -- \
-  file_a.pdf file_b.pdf
+  cookbook/data/demo/text-medium/input.txt \
+  cookbook/data/demo/text-medium/compare.txt --mock
 ```
 
-Fallback pair from directory:
+Fallback directory mode:
 
 ```bash
 python -m cookbook research-workflows/comparative-analysis -- \
-  --input cookbook/data/demo/text-medium
+  --input cookbook/data/demo/text-medium --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Parsed output includes `similarities`, `differences`, `strengths`, `weaknesses`.
-- Summary shows useful counts and an actionable first difference.
+- Parsed output should include similarities, differences, strengths, weaknesses.
+- Count summary helps detect under-specified responses quickly.
+- First key difference should be concrete and decision-relevant.
 
-## Interpret the result
+## Tuning levers
 
-- If parsing fails, tighten prompt constraints around strict JSON.
-- If differences are shallow, sources may be too similar or too short.
-- Stable structure is more important than stylistic phrasing.
+- Tighten JSON schema language in prompt if parsing fails.
+- Constrain comparison dimensions (method, evidence, risk, cost).
 
-## Common pitfalls
+## Failure modes
 
-- Letting prose slip into response instead of JSON.
-- Comparing mismatched source types with low shared context.
-- Modifying key names in prompt/output contract.
+- Non-JSON output indicates prompt or model adherence issues.
+- Weak differences often mean sources are too similar or too broad.
+- Missing files in fallback mode -> ensure at least two candidates.
 
-## Try next
+## Extend this recipe
 
-- Validate output with a strict Pydantic schema.
-- Add weighted scoring for disagreement severity.
+- Add Pydantic validation from [Custom Schema Template](../templates.md).
+- Pair with [Multi-Video Batch](multi-video-batch.md) for multimodal comparisons.
+

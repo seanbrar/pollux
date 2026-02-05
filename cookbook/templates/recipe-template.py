@@ -14,10 +14,15 @@ import asyncio
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
 )
 from pollux import Config, Source, batch
 
@@ -32,9 +37,19 @@ async def main_async(directory: Path, *, limit: int, config: Config) -> None:
     sources = [Source.from_file(path) for path in files]
     envelope = await batch(PROMPTS, sources=sources, config=config)
 
-    print("\nResult")
-    print(f"- Status: {envelope.get('status', 'ok')}")
-    print(f"- Answers: {len(envelope.get('answers', []))}")
+    print_section("Result")
+    print_kv_rows(
+        [
+            ("Status", envelope.get("status", "ok")),
+            ("Answers", len(envelope.get("answers", []))),
+        ]
+    )
+    print_learning_hints(
+        [
+            "Next: replace placeholder prompts with explicit output constraints.",
+            "Next: define what good output looks like for this scenario before scaling.",
+        ]
+    )
 
 
 def main() -> None:
@@ -51,8 +66,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Template recipe")
-    print_run_mode(config)
+    print_header("Template recipe", config=config)
     asyncio.run(main_async(directory, limit=max(1, int(args.limit)), config=config))
 
 

@@ -23,12 +23,18 @@ import asyncio
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_MEDIA_DEMO_DIR, resolve_file_or_exit
+from cookbook.utils.presentation import (
+    print_excerpt,
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+    print_usage,
+)
 from cookbook.utils.retry import retry_async
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
-    usage_tokens,
 )
 from pollux import Config, Source, batch
 
@@ -48,17 +54,28 @@ async def main_async(path: Path, *, config: Config) -> None:
     )
 
     answers = [str(answer) for answer in envelope.get("answers", [])]
-    print("\nVideo result")
-    print(f"- Status: {envelope.get('status', 'ok')}")
-    print(f"- Video: {path}")
+    print_section("Video result")
+    print_kv_rows(
+        [
+            ("Status", envelope.get("status", "ok")),
+            ("Video", path),
+            ("Prompts", len(DEFAULT_PROMPTS)),
+        ]
+    )
 
     for index, answer in enumerate(answers, start=1):
-        excerpt = answer[:320] + ("..." if len(answer) > 320 else "")
-        print(f"\nPrompt {index} excerpt\n{excerpt}")
-
-    tokens = usage_tokens(envelope)
-    if tokens is not None:
-        print(f"\nUsage\n- Total tokens: {tokens}")
+        print_excerpt(f"Prompt {index} excerpt", answer, limit=320)
+    print_usage(envelope)
+    print_learning_hints(
+        [
+            "Next: ask for source-labeled bullets and timestamps if entity extraction is vague.",
+            (
+                "Next: scale to multi-video only after this single-video quality is stable."
+                if len(answers) == len(DEFAULT_PROMPTS)
+                else "Next: simplify prompts because one or more prompt outputs are empty."
+            ),
+        ]
+    )
 
 
 def main() -> None:
@@ -77,8 +94,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Single-video insight extraction")
-    print_run_mode(config)
+    print_header("Single-video insight extraction", config=config)
     asyncio.run(main_async(path, config=config))
 
 

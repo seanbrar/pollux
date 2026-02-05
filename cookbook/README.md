@@ -2,13 +2,14 @@
 
 Practical, problem-first recipes for multimodal batch analysis with Pollux.
 
-## Philosophy
+## Quality standard
 
-Each recipe is designed to be:
+Every recipe should be:
 
-- **Runnable**: one command from the repo root.
-- **Teachable**: scenario-first framing, not just API calls.
-- **Production-minded**: shows operational patterns, not toy snippets.
+- **Runnable:** one command from the repo root.
+- **Teachable:** explains success signals and failure modes.
+- **Operational:** shows tuning levers for reliability and cost.
+- **Extensible:** points to concrete next experiments.
 
 ## Quick Start
 
@@ -16,8 +17,9 @@ Each recipe is designed to be:
 # 1) List recipes
 python -m cookbook --list
 
-# 2) Run the baseline recipe in mock mode (default)
-python -m cookbook getting-started/analyze-single-paper -- --input path/to/file.pdf
+# 2) Run a baseline recipe in mock mode (default)
+python -m cookbook getting-started/analyze-single-paper -- \
+  --input cookbook/data/demo/text-medium/input.txt
 
 # 3) Run against a real provider
 python -m cookbook getting-started/analyze-single-paper -- \
@@ -71,6 +73,6 @@ Notes:
 
 ## Troubleshooting
 
-- **No demo files**: run `make demo-data` or provide `--input`.
-- **API auth errors**: set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
-- **Rate limits**: lower concurrency and retry with smaller `--limit` values.
+- **No demo files:** run `make demo-data` or provide explicit input paths.
+- **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
+- **Rate limits:** lower concurrency and stage workload size with `--limit`.

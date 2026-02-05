@@ -1,12 +1,17 @@
 # Resume on Failure
 
-Persist progress so reruns process only unfinished work.
+Persist manifest state so retries process only unfinished or failed work.
 
 ## At a glance
 
-- **Best for:** long jobs where occasional failures are expected.
-- **Input:** directory, manifest path, output directory.
-- **Output:** durable per-item status + resumable retries.
+- **Best for:** long-running jobs where partial failures are expected.
+- **Input:** directory + manifest path + output directory.
+- **Output:** durable per-item statuses and resumable reruns.
+
+## Before you run
+
+- Use a stable input directory between retries.
+- Keep manifest and output artifacts in persistent storage.
 
 ## Command
 
@@ -14,35 +19,37 @@ Initial run:
 
 ```bash
 python -m cookbook production/resume-on-failure -- \
-  --input ./docs --limit 10 --manifest outputs/manifest.json
+  --input cookbook/data/demo/text-medium --limit 4 \
+  --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
 
-Resume failed items:
+Retry only unresolved items:
 
 ```bash
 python -m cookbook production/resume-on-failure -- \
-  --input ./docs --failed-only --manifest outputs/manifest.json
+  --input cookbook/data/demo/text-medium --failed-only \
+  --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Manifest is updated after each processed item.
-- Per-item result artifacts appear in `--output-dir`.
-- `--failed-only` skips previously successful items.
+- Manifest updates after each item (not only at run end).
+- Re-runs with `--failed-only` skip previously `ok` work.
+- Per-item JSON artifacts preserve answers, usage, and metrics.
 
-## Interpret the result
+## Tuning levers
 
-- Rising error counts indicate either retry policy issues or bad inputs.
-- Frequent partial statuses suggest prompt/input or provider instability.
-- Manifest is your source of truth for job state.
+- `--max-retries` and `--backoff-seconds` control retry aggressiveness.
+- `--limit` sets workload size for staged production rollout.
 
-## Common pitfalls
+## Failure modes
 
-- Unstable item IDs between runs.
-- Writing manifest too infrequently.
-- Retrying non-retriable validation failures.
+- Changing item identity logic breaks resumability.
+- Writing manifest too infrequently risks progress loss.
+- Retrying non-retriable validation errors wastes time/cost.
 
-## Try next
+## Extend this recipe
 
-- Split retry policies by error category.
-- Export manifest metrics to monitoring dashboards.
+- Split retries by error category (rate-limit vs validation).
+- Export manifest rollups to dashboards for operational visibility.
+

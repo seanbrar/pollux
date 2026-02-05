@@ -17,15 +17,20 @@ import argparse
 import asyncio
 from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
-from cookbook.utils.runtime import (
-    add_runtime_args,
-    build_config_or_exit,
-    print_run_mode,
-    usage_tokens,
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
 )
+from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
 from pollux import Config, Source, batch
+
+if TYPE_CHECKING:
+    from pollux.result import ResultEnvelope
 
 PROMPTS = [
     "List 5 key concepts with one-sentence explanations.",
@@ -33,7 +38,7 @@ PROMPTS = [
 ]
 
 
-def describe(run_name: str, envelope: dict[str, object]) -> None:
+def describe(run_name: str, envelope: ResultEnvelope) -> None:
     """Print compact run diagnostics."""
     metrics = envelope.get("metrics")
     cache_used = None
@@ -56,10 +61,27 @@ async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -
 
     warm = await batch(PROMPTS, sources=sources, config=cached_config)
     reuse = await batch(PROMPTS, sources=sources, config=cached_config)
+    warm_tokens = usage_tokens(warm)
+    reuse_tokens = usage_tokens(reuse)
+    saved = None
+    if isinstance(warm_tokens, int) and isinstance(reuse_tokens, int):
+        saved = warm_tokens - reuse_tokens
 
-    print("\nCache comparison")
+    print_section("Cache comparison")
     describe("warm", warm)
     describe("reuse", reuse)
+    if saved is not None:
+        print_kv_rows([("Token delta (warm - reuse)", saved)])
+    print_learning_hints(
+        [
+            (
+                "Next: keep caching enabled for this workload because reuse is cheaper."
+                if isinstance(saved, int) and saved > 0
+                else "Next: retry with larger repeated context because savings are currently small."
+            ),
+            "Next: keep prompts and sources fixed for clean cache-impact comparisons.",
+        ]
+    )
 
 
 def main() -> None:
@@ -79,8 +101,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Cache warming and TTL")
-    print_run_mode(config)
+    print_header("Cache warming and TTL", config=config)
     asyncio.run(
         main_async(
             directory,

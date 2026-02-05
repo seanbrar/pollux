@@ -19,12 +19,13 @@ from dataclasses import replace
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
-from cookbook.utils.runtime import (
-    add_runtime_args,
-    build_config_or_exit,
-    print_run_mode,
-    usage_tokens,
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
 )
+from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
 from pollux import Config, Source, batch
 
 PROMPTS = [
@@ -46,22 +47,39 @@ async def main_async(directory: Path, *, limit: int, config: Config) -> None:
 
     warm_tokens = usage_tokens(warm)
     reuse_tokens = usage_tokens(reuse)
-    saved = (warm_tokens - reuse_tokens) if warm_tokens and reuse_tokens else None
+    saved = None
+    if isinstance(warm_tokens, int) and isinstance(reuse_tokens, int):
+        saved = warm_tokens - reuse_tokens
 
-    print("\nCache reuse report")
-    print(f"- Warm status: {warm.get('status', 'ok')}")
-    print(f"- Reuse status: {reuse.get('status', 'ok')}")
-    print(f"- Warm tokens: {warm_tokens if warm_tokens is not None else 'n/a'}")
-    print(f"- Reuse tokens: {reuse_tokens if reuse_tokens is not None else 'n/a'}")
+    print_section("Cache reuse report")
+    print_kv_rows(
+        [
+            ("Warm status", warm.get("status", "ok")),
+            ("Reuse status", reuse.get("status", "ok")),
+            ("Warm tokens", warm_tokens if warm_tokens is not None else "n/a"),
+            ("Reuse tokens", reuse_tokens if reuse_tokens is not None else "n/a"),
+        ]
+    )
     if saved is not None:
-        pct = (saved / warm_tokens * 100) if warm_tokens else 0.0
-        print(f"- Reported savings: {saved} tokens ({pct:.1f}%)")
+        warm_total = warm_tokens if isinstance(warm_tokens, int) else 0
+        pct = (saved / warm_total * 100) if warm_total > 0 else 0.0
+        print_kv_rows([("Reported savings", f"{saved} tokens ({pct:.1f}%)")])
 
     reuse_metrics = reuse.get("metrics")
     cache_used = None
     if isinstance(reuse_metrics, dict):
         cache_used = reuse_metrics.get("cache_used")
-    print(f"- cache_used on reuse: {cache_used}")
+    print_kv_rows([("cache_used on reuse", cache_used)])
+    print_learning_hints(
+        [
+            (
+                "Next: promote caching to representative workloads because savings are meaningful."
+                if isinstance(saved, int) and saved > 0
+                else "Next: rerun with larger repeated context because savings are inconclusive."
+            ),
+            "Next: compare median savings across repeated runs, not a single benchmark.",
+        ]
+    )
 
 
 def main() -> None:
@@ -80,8 +98,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Context caching baseline")
-    print_run_mode(config)
+    print_header("Context caching baseline", config=config)
     asyncio.run(main_async(directory, limit=max(1, int(args.limit)), config=config))
 
 

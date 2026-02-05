@@ -26,11 +26,17 @@ import asyncio
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_file_or_exit
+from cookbook.utils.presentation import (
+    print_excerpt,
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+    print_usage,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
-    usage_tokens,
 )
 from pollux import Config, Source, run
 
@@ -43,19 +49,29 @@ async def main_async(path: Path, prompt: str, *, config: Config) -> None:
     status = envelope.get("status", "ok")
     answers = envelope.get("answers", [])
     answer = str(answers[0]) if answers else ""
-    excerpt = answer[:600] + ("..." if len(answer) > 600 else "")
 
-    print("\nResult")
-    print(f"- Status: {status}")
-    print(f"- Source: {path}")
-
-    if excerpt:
-        print("\nAnswer excerpt")
-        print(excerpt)
-
-    tokens = usage_tokens(envelope)
-    if tokens is not None:
-        print(f"\nUsage\n- Total tokens: {tokens}")
+    print_section("Result")
+    print_kv_rows(
+        [
+            ("Status", status),
+            ("Source", path),
+        ]
+    )
+    print_excerpt("Answer excerpt", answer, limit=600)
+    print_usage(envelope)
+    hints = [
+        (
+            "Next: tighten `--prompt` with explicit output format (bullets/table/JSON)."
+            if status == "ok"
+            else "Next: resolve non-ok status before scaling this prompt to larger batches."
+        ),
+        (
+            "Next: add stronger task constraints to improve answer specificity."
+            if len(answer.strip()) < 80
+            else "Next: validate factual precision on this baseline before batching."
+        ),
+    ]
+    print_learning_hints(hints)
 
 
 def main() -> None:
@@ -81,8 +97,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Single-source baseline")
-    print_run_mode(config)
+    print_header("Single-source baseline", config=config)
     asyncio.run(main_async(path, args.prompt, config=config))
 
 

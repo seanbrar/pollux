@@ -17,11 +17,17 @@ import asyncio
 from pathlib import Path
 
 from cookbook.utils.demo_inputs import DEFAULT_MEDIA_DEMO_DIR, pick_files_by_ext
+from cookbook.utils.presentation import (
+    print_excerpt,
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+    print_usage,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
-    usage_tokens,
 )
 from pollux import Config, Source, batch
 
@@ -54,18 +60,27 @@ async def main_async(sources: list[Source], *, config: Config) -> None:
     envelope = await batch(PROMPTS, sources=sources, config=config)
 
     answers = [str(answer) for answer in envelope.get("answers", [])]
-    print("\nMulti-video result")
-    print(f"- Status: {envelope.get('status', 'ok')}")
-    print(f"- Sources: {len(sources)}")
-
+    print_section("Multi-video result")
+    print_kv_rows(
+        [
+            ("Status", envelope.get("status", "ok")),
+            ("Sources", len(sources)),
+            ("Prompts", len(PROMPTS)),
+        ]
+    )
     if answers:
-        excerpt = answers[0][:500] + ("..." if len(answers[0]) > 500 else "")
-        print("\nFirst prompt excerpt")
-        print(excerpt)
-
-    tokens = usage_tokens(envelope)
-    if tokens is not None:
-        print(f"\nUsage\n- Total tokens: {tokens}")
+        print_excerpt("First prompt excerpt", answers[0], limit=500)
+    print_usage(envelope)
+    print_learning_hints(
+        [
+            (
+                "Next: start with two sources and scale up because attribution is usually stronger."
+                if len(sources) > 2
+                else "Next: tighten prompts to demand source-labeled evidence at this source count."
+            ),
+            "Next: keep source quality consistent to reduce noisy cross-video synthesis.",
+        ]
+    )
 
 
 def main() -> None:
@@ -79,13 +94,17 @@ def main() -> None:
     )
     parser.add_argument(
         "--input-dir",
+        "--input",
         type=Path,
+        dest="input_dir",
         default=None,
         help="Fallback directory to auto-pick local video files.",
     )
     parser.add_argument(
         "--max-sources",
+        "--limit",
         type=int,
+        dest="max_sources",
         default=4,
         help="Maximum number of sources to include (cap: 10).",
     )
@@ -111,8 +130,7 @@ def main() -> None:
     max_sources = min(10, max(1, int(args.max_sources)))
     sources = build_sources(raw_inputs, max_sources=max_sources)
 
-    print("Cross-video synthesis")
-    print_run_mode(config)
+    print_header("Cross-video synthesis", config=config)
     asyncio.run(main_async(sources, config=config))
 
 

@@ -1,48 +1,60 @@
 # Multi-Video Batch
 
-Synthesize themes and disagreements across multiple video sources.
+Synthesize cross-source themes and disagreements across multiple videos.
 
 ## At a glance
 
-- **Best for:** cross-video synthesis in one pass.
-- **Input:** local files and/or YouTube URLs.
-- **Output:** per-prompt synthesis with cross-source signal.
+- **Best for:** multi-video synthesis in a single batch call.
+- **Input:** video file paths and/or YouTube URLs.
+- **Output:** per-prompt synthesis, disagreement signals, cross-video summary.
+
+## Before you run
+
+- Start with `--max-sources 2` for clarity and faster iteration.
+- Ensure each source is valid (existing file path or reachable URL).
 
 ## Command
 
-Local files:
+Explicit sources:
 
 ```bash
 python -m cookbook research-workflows/multi-video-batch -- \
-  ./video1.mp4 ./video2.mp4 --max-sources 2
+  ./video1.mp4 ./video2.mp4 --max-sources 2 --mock
+```
+
+Auto-pick from a directory:
+
+```bash
+python -m cookbook research-workflows/multi-video-batch -- \
+  --input-dir cookbook/data/demo/multimodal-basic --max-sources 2 --mock
 ```
 
 Mixed local + URL:
 
 ```bash
 python -m cookbook research-workflows/multi-video-batch -- \
-  "https://youtube.com/watch?v=..." ./video2.mp4 --max-sources 2
+  "https://youtube.com/watch?v=..." ./video2.mp4 --max-sources 2 --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Prompt 1 maps themes by source.
-- Prompt 2 captures disagreements.
-- Prompt 3 produces a compact cross-video synthesis.
+- Prompt 1 maps themes per source instead of generic blending.
+- Prompt 2 highlights genuine disagreements.
+- Prompt 3 synthesizes tradeoffs across all included sources.
 
-## Interpret the result
+## Tuning levers
 
-- If synthesis is vague, reduce source count and tighten prompts.
-- If source attribution is weak, require source labels in prompt text.
-- Start with `--max-sources 2` and scale up gradually.
+- Reduce source count if attribution quality drops.
+- Ask for source-labeled bullets to improve traceability.
 
-## Common pitfalls
+## Failure modes
 
-- Invalid mixed inputs (bad file path/URL).
-- Too many sources for prompt complexity.
-- Missing source-level constraints in prompt wording.
+- Invalid path/URL causes immediate input rejection.
+- Too many sources can collapse into shallow synthesis.
+- Long videos may increase latency/cost significantly.
 
-## Try next
+## Extend this recipe
 
-- Enforce source citations in outputs.
-- Pair with [Comparative Analysis](comparative-analysis.md) for deeper diffs.
+- Add source citation constraints and confidence tags.
+- Combine with [Comparative Analysis](comparative-analysis.md) for deeper structured diffs.
+

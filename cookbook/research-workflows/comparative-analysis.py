@@ -18,10 +18,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cookbook.utils.json_tools import coerce_json
+from cookbook.utils.presentation import (
+    print_excerpt,
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
 )
 from pollux import Config, Source, batch
 
@@ -59,12 +65,7 @@ def parse_comparison(raw: str) -> Comparison | None:
     )
 
 
-def pick_default_pair(directory: Path) -> list[Path]:
-    """Select two deterministic files from a directory."""
-    candidates = sorted(path for path in directory.rglob("*") if path.is_file())
-    if len(candidates) < 2:
-        raise SystemExit(f"Need at least two files under: {directory}")
-    return candidates[:2]
+
 
 
 async def main_async(paths: list[Path], *, config: Config) -> None:
@@ -74,25 +75,56 @@ async def main_async(paths: list[Path], *, config: Config) -> None:
     answer = str((envelope.get("answers") or [""])[0])
     parsed = parse_comparison(answer)
 
-    print("\nComparative analysis")
-    print(f"- Status: {envelope.get('status', 'ok')}")
-    print(f"- Sources: {', '.join(str(path) for path in paths)}")
+    print_section("Comparative analysis")
+    print_kv_rows(
+        [
+            ("Status", envelope.get("status", "ok")),
+            ("Sources", ", ".join(str(path) for path in paths)),
+        ]
+    )
 
     if parsed is None:
-        excerpt = answer[:400] + ("..." if len(answer) > 400 else "")
-        print("- Could not parse JSON. Raw excerpt:")
-        print(excerpt)
+        print_kv_rows([("Parse status", "Could not parse JSON output")])
+        print_excerpt("Raw excerpt", answer, limit=400)
+        print_learning_hints(
+            [
+                "Next: tighten JSON-only instructions and required keys in the prompt.",
+                "Next: keep source scope narrow so comparisons stay concrete.",
+            ]
+        )
         return
 
-    print(
-        "- Counts: "
-        f"similarities={len(parsed.similarities)} "
-        f"differences={len(parsed.differences)} "
-        f"strengths={len(parsed.strengths)} "
-        f"weaknesses={len(parsed.weaknesses)}"
+    print_kv_rows(
+        [
+            (
+                "Counts",
+                " ".join(
+                    [
+                        f"similarities={len(parsed.similarities)}",
+                        f"differences={len(parsed.differences)}",
+                        f"strengths={len(parsed.strengths)}",
+                        f"weaknesses={len(parsed.weaknesses)}",
+                    ]
+                ),
+            ),
+        ]
     )
     if parsed.differences:
-        print(f"- First key difference: {parsed.differences[0]}")
+        print_kv_rows([("First key difference", parsed.differences[0])])
+    print_learning_hints(
+        [
+            "Next: constrain comparison dimensions (method, evidence, risk) if differences are weak.",
+            "Next: add schema validation before using outputs in downstream systems.",
+        ]
+    )
+
+
+def pick_paths(directory: Path, limit: int) -> list[Path]:
+    """Select deterministic files from a directory up to a limit."""
+    candidates = sorted(path for path in directory.rglob("*") if path.is_file())
+    if len(candidates) < 2:
+        raise SystemExit(f"Need at least two files under: {directory}")
+    return candidates[:limit]
 
 
 def main() -> None:
@@ -106,6 +138,12 @@ def main() -> None:
         default=Path("cookbook/data/demo/text-medium"),
         help="Fallback directory when fewer than two paths are provided.",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=2,
+        help="Max files to compare (default: 2)",
+    )
     add_runtime_args(parser)
     args = parser.parse_args()
 
@@ -115,12 +153,11 @@ def main() -> None:
             raise SystemExit(
                 "Need two files. Run `make demo-data` or provide two explicit paths."
             )
-        paths = pick_default_pair(args.input)
+        paths = pick_paths(args.input, args.limit)
 
     config = build_config_or_exit(args)
-    print("Research comparison baseline")
-    print_run_mode(config)
-    asyncio.run(main_async(paths[:2], config=config))
+    print_header("Research comparison baseline", config=config)
+    asyncio.run(main_async(paths[: args.limit], config=config))
 
 
 if __name__ == "__main__":

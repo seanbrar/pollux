@@ -1,18 +1,23 @@
 # Analyze Single Paper
 
-The baseline recipe: one source, one prompt, clear output.
+Start with one source so you can tune prompt quality before scaling.
 
 ## At a glance
 
-- **Best for:** prompt quality checks before batching.
+- **Best for:** establishing a quality baseline and cost signal.
 - **Input:** one local file (`pdf/txt/md/png/jpg/jpeg`).
-- **Output:** status, answer excerpt, token usage (if provided).
+- **Output:** run status, answer excerpt, and token count (when available).
+
+## Before you run
+
+- Run `make demo-data` for deterministic local input.
+- Start in `--mock` to validate paths and prompt structure.
 
 ## Command
 
 ```bash
 python -m cookbook getting-started/analyze-single-paper -- \
-  --input path/to/file.pdf
+  --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
 Real API mode:
@@ -22,29 +27,25 @@ python -m cookbook getting-started/analyze-single-paper -- \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 
-## Expected signal
+## What to look for
 
-```text
-Single-source baseline
-Mode: mock | provider=gemini | model=gemini-2.5-flash-lite
-Result
-- Status: ok
-...
-```
+- `Status: ok` confirms the request path is healthy.
+- The excerpt should be specific to your source, not generic boilerplate.
+- Token usage gives your first cost-per-document estimate.
 
-## Interpret the result
+## Tuning levers
 
-- `Status: ok` means the run completed cleanly.
-- If the answer is generic, tighten task framing in `--prompt`.
-- Token count helps estimate cost before scaling.
+- Use `--prompt` to tighten format requirements (bullets/table/JSON).
+- Keep this recipe as a golden baseline before changing models.
 
-## Common pitfalls
+## Failure modes
 
-- Wrong file path -> verify `--input` is a real file.
-- Vague prompt -> ask for explicit format (e.g., bullets, table, JSON).
-- API setup errors -> run in `--mock` first, then switch to `--no-mock`.
+- Bad file path -> verify `--input` points to a readable file.
+- Vague output -> make task constraints explicit in the prompt.
+- API errors -> retry in `--mock`, then re-enable `--no-mock`.
 
-## Try next
+## Extend this recipe
 
-- Compare two prompt variants on the same source.
-- Move to [Batch Process Files](batch-process-files.md).
+- Run the same file with two prompt variants and compare precision.
+- Move to [Batch Process Files](batch-process-files.md) once quality is stable.
+

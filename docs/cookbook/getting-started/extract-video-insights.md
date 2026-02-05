@@ -1,39 +1,44 @@
 # Extract Video Insights
 
-Pull highlights and entities from one video before moving to multi-video synthesis.
+Extract fast highlights from one video before multi-video synthesis.
 
 ## At a glance
 
-- **Best for:** first-pass analysis of one clip.
-- **Input:** one `mp4`/`mov` file.
-- **Output:** prompt-wise excerpts + usage summary.
+- **Best for:** validating video prompts and output structure.
+- **Input:** one local `mp4`/`mov`.
+- **Output:** per-prompt excerpts and token usage.
+
+## Before you run
+
+- Use a short clip first (faster feedback, easier debugging).
+- Keep prompts concrete (moments, entities, timestamps).
 
 ## Command
 
 ```bash
 python -m cookbook getting-started/extract-video-insights -- \
-  --input ./clip.mp4
+  --input cookbook/data/demo/multimodal-basic/sample_video.mp4 --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Prompt 1 returns moments/highlights.
-- Prompt 2 returns entities/objects and roles.
-- Status is `ok` and output is concise enough for decisions.
+- Prompt 1 should identify moments, ideally time-anchored.
+- Prompt 2 should call out entities/objects with clear roles.
+- Output should be specific to observed scenes, not generic summaries.
 
-## Interpret the result
+## Tuning levers
 
-- Missing timestamps are normal for some sources; ask for event order.
-- Weak entity quality usually means prompts need tighter scope.
-- Retries are built in for transient provider delays.
+- Refine prompt verbs (`identify`, `compare`, `justify`) for sharper outputs.
+- Keep source clips short while iterating on prompt design.
 
-## Common pitfalls
+## Failure modes
 
-- Bad path -> verify `--input` points to a real file.
-- Low-value output -> ask for stricter structure in prompt wording.
-- Large clips -> start with shorter samples to tune prompts first.
+- Unsupported path or extension -> pass a real `mp4`/`mov` file.
+- Weak source attribution -> ask for per-moment evidence in prompt text.
+- Unstable network/provider responses -> rely on built-in retry behavior.
 
-## Try next
+## Extend this recipe
 
-- Run multiple clips with [Multi-Video Batch](../research-workflows/multi-video-batch.md).
-- Add schema constraints for machine-readable outputs.
+- Scale to [Multi-Video Batch](../research-workflows/multi-video-batch.md).
+- Add schema constraints with [Custom Schema Template](../templates.md).
+

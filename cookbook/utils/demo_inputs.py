@@ -1,3 +1,5 @@
+"""Helpers for resolving cookbook demo inputs and user-provided paths."""
+
 from __future__ import annotations
 
 from pathlib import Path

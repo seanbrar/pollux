@@ -1,6 +1,6 @@
 # Recipe Templates
 
-Use these templates to add new cookbook recipes.
+Use these templates to add cookbook recipes that match the cookbook quality bar.
 
 ## Templates
 
@@ -9,11 +9,24 @@ Use these templates to add new cookbook recipes.
 - `cookbook/templates/custom-schema-template.py`
   - JSON/schema-first extraction scaffold.
 
-## Author checklist
+## Recipe author checklist
 
-- Start with concrete problem framing in the module docstring.
-- Use shared runtime args from `cookbook.utils.runtime`.
-- Include runnable `--mock` and `--no-mock` examples.
-- Print concise, success-oriented output (status + key metrics).
-- Add or update a page under `docs/cookbook/`.
-- Link the page from `mkdocs.yml` cookbook navigation.
+- Start with clear problem framing and use/non-use guidance.
+- Reuse shared runtime args from `cookbook.utils.runtime`.
+- Provide runnable `--mock` and `--no-mock` command examples.
+- Print success-oriented output: status, key metrics, and action-ready excerpts.
+- Include failure-mode guidance and tuning levers in the docs page.
+- Add/update `docs/cookbook/<category>/<recipe>.md` and navigation in `mkdocs.yml`.
+
+## Documentation section contract
+
+Each recipe page should include these sections:
+
+1. `At a glance`
+2. `Before you run`
+3. `Command`
+4. `What to look for`
+5. `Tuning levers`
+6. `Failure modes`
+7. `Extend this recipe`
+

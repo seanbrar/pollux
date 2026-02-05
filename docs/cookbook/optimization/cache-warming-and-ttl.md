@@ -1,39 +1,44 @@
 # Cache Warming and TTL
 
-Warm cache deliberately, then validate reuse within a defined TTL window.
+Warm shared context once, then reuse it under a controlled TTL.
 
 ## At a glance
 
-- **Best for:** policy-level cache tuning.
-- **Input:** fixed files, prompts, and TTL.
-- **Output:** warm/reuse comparison with cache signal.
+- **Best for:** reducing repeated token spend on stable workloads.
+- **Input:** fixed file set + fixed prompt set.
+- **Output:** warm/reuse status, cache signal, token comparison.
+
+## Before you run
+
+- Keep files and prompts unchanged across both runs.
+- Choose a TTL that matches your expected reuse window.
 
 ## Command
 
 ```bash
 python -m cookbook optimization/cache-warming-and-ttl -- \
-  --input ./docs --limit 2 --ttl 3600
+  --input cookbook/data/demo/text-medium --limit 2 --ttl 3600 --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Warm run initializes cacheable context.
-- Reuse run indicates cache usage.
-- Token and latency behavior aligns with expectations.
+- Both warm and reuse runs should report `status=ok`.
+- Reuse run should often show cache reuse signals and lower/similar tokens.
+- If savings are flat, context may be too small or already cheap.
 
-## Interpret the result
+## Tuning levers
 
-- If reuse looks identical to warm, inspect TTL and prompt/source stability.
-- TTL should match your real request cadence.
-- Verify across multiple runs before deciding policy.
+- Increase `--limit` to amplify cache economics.
+- Tune `--ttl` to avoid stale cache while preserving reuse wins.
 
-## Common pitfalls
+## Failure modes
 
-- TTL too short for workload intervals.
-- Non-deterministic prompts/sources between runs.
-- Confusing provider totals with effective billed tokens.
+- Changing prompts/files invalidates direct warm-vs-reuse comparison.
+- Overlong TTL can hide when underlying content has drifted.
+- Provider metrics differ; treat token deltas as directional.
 
-## Try next
+## Extend this recipe
 
-- Sweep TTL values and capture a simple comparison table.
-- Combine with [Rate Limits and Concurrency](../production/rate-limits-and-concurrency.md).
+- Add periodic cache regression checks in CI/staging.
+- Pair with [Context Caching Explicit](context-caching-explicit.md) for repeatability tests.
+

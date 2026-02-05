@@ -4,36 +4,41 @@ Compare sequential and bounded-concurrency settings on the same workload.
 
 ## At a glance
 
-- **Best for:** choosing an initial safe concurrency setting.
-- **Input:** same files/prompts, two concurrency profiles.
-- **Output:** side-by-side status and duration comparison.
+- **Best for:** selecting a safe, performant concurrency level.
+- **Input:** same file set evaluated twice.
+- **Output:** status + duration comparison for `c=1` vs `c=N`.
+
+## Before you run
+
+- Keep inputs identical across both runs.
+- Start with conservative concurrency (`2-4`) in real API mode.
 
 ## Command
 
 ```bash
 python -m cookbook production/rate-limits-and-concurrency -- \
-  --input ./docs --limit 3 --concurrency 4
+  --input cookbook/data/demo/text-medium --limit 3 --concurrency 4 --mock
 ```
 
-## Expected signal
+## What to look for
 
-- Sequential and bounded runs both complete.
-- Bounded run improves duration without status regressions.
-- Results are stable across repeated runs.
+- Both runs should finish with healthy statuses.
+- Bounded run should usually reduce duration versus sequential.
+- If bounded run regresses, concurrency is likely too aggressive.
 
-## Interpret the result
+## Tuning levers
 
-- If bounded mode is slower, you are likely throttled.
-- If both modes are similar, workload may be too small.
-- Choose the lowest concurrency that delivers stable gains.
+- Raise `--concurrency` stepwise until reliability drops.
+- Keep prompt/file complexity constant while tuning.
 
-## Common pitfalls
+## Failure modes
 
-- Tuning from one tiny run.
-- Ignoring tier-specific provider limits.
-- Changing inputs between comparisons.
+- Spiky latency can make single-run duration comparisons noisy.
+- Rate limit errors imply concurrency should be reduced.
+- Heterogeneous inputs can distort tuning conclusions.
 
-## Try next
+## Extend this recipe
 
-- Add p95 latency and retry counts to your benchmark log.
-- Combine with [Resume on Failure](resume-on-failure.md) for long-running jobs.
+- Track median durations over multiple runs.
+- Combine with [Resume on Failure](resume-on-failure.md) for robust pipelines.
+

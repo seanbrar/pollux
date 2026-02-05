@@ -11,10 +11,16 @@ from pydantic import BaseModel
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_file_or_exit
 from cookbook.utils.json_tools import coerce_json
+from cookbook.utils.presentation import (
+    print_excerpt,
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
-    print_run_mode,
 )
 from pollux import Config, Source, batch
 
@@ -43,17 +49,36 @@ async def main_async(path: Path, *, config: Config) -> None:
     answer = str((envelope.get("answers") or [""])[0])
     parsed = parse_schema(answer)
 
-    print("\nSchema extraction")
-    print(f"- Status: {envelope.get('status', 'ok')}")
-    print(f"- Source: {path}")
+    print_section("Schema extraction")
+    print_kv_rows(
+        [
+            ("Status", envelope.get("status", "ok")),
+            ("Source", path),
+        ]
+    )
     if parsed is None:
-        excerpt = answer[:400] + ("..." if len(answer) > 400 else "")
-        print("- Could not parse schema. Raw excerpt:")
-        print(excerpt)
+        print_kv_rows([("Parse status", "Could not parse schema output")])
+        print_excerpt("Raw excerpt", answer, limit=400)
+        print_learning_hints(
+            [
+                "Next: strengthen schema instructions with explicit required keys and value types.",
+                "Next: add deterministic examples when extraction quality is uneven.",
+            ]
+        )
         return
 
-    print("- Parsed title:", parsed.title)
-    print("- Parsed items:", len(parsed.items))
+    print_kv_rows(
+        [
+            ("Parsed title", parsed.title),
+            ("Parsed items", len(parsed.items)),
+        ]
+    )
+    print_learning_hints(
+        [
+            "Next: validate every downstream field before promoting this recipe to production.",
+            "Next: track parse-failure rates in tests to catch schema drift early.",
+        ]
+    )
 
 
 def main() -> None:
@@ -72,8 +97,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print("Schema-first template")
-    print_run_mode(config)
+    print_header("Schema-first template", config=config)
     asyncio.run(main_async(path, config=config))
 
 
