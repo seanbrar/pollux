@@ -24,6 +24,7 @@ import argparse
 import asyncio
 from pathlib import Path
 import time
+from typing import TYPE_CHECKING, cast
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_file_or_exit
 from cookbook.utils.presentation import (
@@ -37,6 +38,9 @@ from cookbook.utils.presentation import (
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
 from pollux import Config, Source, run, run_many
 
+if TYPE_CHECKING:
+    from pollux.result import ResultEnvelope
+
 PROMPTS = [
     "Summarize the key ideas in 3 bullets.",
     "Extract 3 concrete action items.",
@@ -44,7 +48,9 @@ PROMPTS = [
 ]
 
 
-async def run_loop(prompts: list[str], *, source: Source, config: Config) -> dict[str, object]:
+async def run_loop(
+    prompts: list[str], *, source: Source, config: Config
+) -> dict[str, object]:
     start = time.perf_counter()
     results = []
     token_sum = 0
@@ -60,7 +66,9 @@ async def run_loop(prompts: list[str], *, source: Source, config: Config) -> dic
     }
 
 
-async def run_batched(prompts: list[str], *, source: Source, config: Config) -> dict[str, object]:
+async def run_batched(
+    prompts: list[str], *, source: Source, config: Config
+) -> dict[str, object]:
     start = time.perf_counter()
     env = await run_many(prompts, sources=[source], config=config)
     elapsed = time.perf_counter() - start
@@ -81,8 +89,16 @@ async def main_async(path: Path, *, config: Config) -> None:
     loop = await run_loop(PROMPTS, source=source, config=config)
     batched = await run_batched(PROMPTS, source=source, config=config)
 
-    loop_elapsed = float(loop["elapsed_s"])
-    batched_elapsed = float(batched["elapsed_s"])
+    loop_elapsed_raw = loop.get("elapsed_s")
+    batched_elapsed_raw = batched.get("elapsed_s")
+    loop_elapsed = (
+        float(loop_elapsed_raw) if isinstance(loop_elapsed_raw, (int, float)) else 0.0
+    )
+    batched_elapsed = (
+        float(batched_elapsed_raw)
+        if isinstance(batched_elapsed_raw, (int, float))
+        else 0.0
+    )
     speedup = (loop_elapsed / batched_elapsed) if batched_elapsed > 0 else None
 
     print_section("Comparison")
@@ -91,17 +107,24 @@ async def main_async(path: Path, *, config: Config) -> None:
             ("Loop `run()` wall time (s)", f"{loop_elapsed:.2f}"),
             ("Batched `run_many()` wall time (s)", f"{batched_elapsed:.2f}"),
             ("Speedup (loop / batched)", f"{speedup:.2f}x" if speedup else "n/a"),
-            ("Loop tokens (sum)", loop["token_sum"] if loop["token_sum"] is not None else "n/a"),
-            ("Batched tokens", batched["tokens"] if batched["tokens"] is not None else "n/a"),
+            (
+                "Loop tokens (sum)",
+                loop["token_sum"] if loop["token_sum"] is not None else "n/a",
+            ),
+            (
+                "Batched tokens",
+                batched["tokens"] if batched["tokens"] is not None else "n/a",
+            ),
         ]
     )
 
-    result = batched["result"]
-    if isinstance(result, dict):
+    result_obj = batched.get("result")
+    if isinstance(result_obj, dict):
+        result = result_obj  # runtime TypedDict is a dict
         answers = [str(a) for a in result.get("answers", [])]
         if answers:
             print_excerpt("Batched first answer excerpt", answers[0], limit=320)
-        print_usage(result)
+        print_usage(cast("ResultEnvelope", result_obj))
 
     print_learning_hints(
         [
@@ -119,7 +142,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compare looped run() vs batched run_many() for one source.",
     )
-    parser.add_argument("--input", type=Path, default=None, help="Path to a source file")
+    parser.add_argument(
+        "--input", type=Path, default=None, help="Path to a source file"
+    )
     add_runtime_args(parser)
     args = parser.parse_args()
 
@@ -137,4 +162,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
