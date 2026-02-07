@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError
@@ -128,18 +130,97 @@ class GeminiProvider:
         except Exception as e:
             raise APIError(f"Gemini generate failed: {e}") from e
 
+    async def _wait_for_file_active(
+        self,
+        file_name: str,
+        *,
+        timeout_seconds: float = 300.0,
+        poll_interval: float = 2.0,
+    ) -> Any:
+        """Poll file status until it becomes ACTIVE or errors out."""
+        client = self._get_client()
+        deadline = time.monotonic() + timeout_seconds
+        last_state = "STATE_UNSPECIFIED"
+
+        while time.monotonic() < deadline:
+            file_obj = await client.aio.files.get(name=file_name)
+            state = self._file_state_name(file_obj)
+            last_state = state
+
+            if state == "ACTIVE":
+                return file_obj
+            if state == "FAILED":
+                raise APIError(
+                    f"File processing failed: {self._file_error_message(file_obj)}"
+                )
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(poll_interval, remaining))
+
+        raise APIError(
+            "File did not become active within "
+            f"{timeout_seconds}s (stuck in {last_state})"
+        )
+
     async def upload_file(self, path: Path, mime_type: str) -> str:
         """Upload a file to Gemini."""
         client = self._get_client()
 
         try:
-            # New SDK uses client.files.upload (or client.aio.files.upload)
             result = await client.aio.files.upload(
                 file=path, config={"mime_type": mime_type}
             )
-            return str(result.uri)
+
+            file_name = getattr(result, "name", None)
+            if not isinstance(file_name, str) or not file_name:
+                raise APIError("Gemini upload did not return a file name")
+
+            state = self._file_state_name(result)
+            if state == "FAILED":
+                raise APIError(
+                    f"File processing failed: {self._file_error_message(result)}"
+                )
+            if state != "ACTIVE":
+                result = await self._wait_for_file_active(file_name)
+
+            file_uri = getattr(result, "uri", None)
+            if not isinstance(file_uri, str) or not file_uri:
+                raise APIError("Gemini upload did not return a file uri")
+
+            return file_uri
+        except APIError:
+            raise
         except Exception as e:
             raise APIError(f"Gemini upload failed: {e}") from e
+
+    @staticmethod
+    def _file_state_name(file_obj: Any) -> str:
+        """Extract a stable string state from Gemini file objects."""
+        state = getattr(file_obj, "state", None)
+        if isinstance(state, str) and state:
+            return state
+
+        for attr in ("name", "value"):
+            value = getattr(state, attr, None)
+            if isinstance(value, str) and value:
+                return value
+
+        return "STATE_UNSPECIFIED"
+
+    @staticmethod
+    def _file_error_message(file_obj: Any) -> str:
+        """Extract a human-readable processing error message."""
+        error = getattr(file_obj, "error", None)
+        if isinstance(error, str) and error:
+            return error
+
+        message = getattr(error, "message", None)
+        if isinstance(message, str) and message:
+            return message
+
+        return "Unknown error"
 
     async def create_cache(
         self,

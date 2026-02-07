@@ -80,22 +80,50 @@ def test_doc_commands_resolve_to_known_recipes() -> None:
 
 
 @pytest.mark.integration
-def test_all_recipes_run_in_mock_mode() -> None:
-    """Smoke test that each recipe runs successfully in mock mode."""
+def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
+    """Smoke test that each recipe runs successfully in mock mode.
+
+    CI does not include the cookbook demo-data packs. This test creates minimal
+    local inputs so recipes can run without network access or pre-seeded files.
+    """
+    text_dir = tmp_path / "text"
+    text_dir.mkdir(parents=True, exist_ok=True)
+    input_txt = text_dir / "input.txt"
+    compare_txt = text_dir / "compare.txt"
+    input_txt.write_text("Pollux cookbook contract test input.\n")
+    compare_txt.write_text("Second document for comparative analysis.\n")
+
+    # Directory-based recipes expect a directory with supported extensions.
+    (text_dir / "doc1.md").write_text("# Title\nSome content.\n")
+    (text_dir / "doc2.txt").write_text("More content.\n")
+
+    media_dir = tmp_path / "media"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    # These don't need to be valid media; the mock provider only requires that files exist.
+    image = media_dir / "sample_image.jpg"
+    video = media_dir / "sample_video.mp4"
+    audio = media_dir / "sample_audio.mp3"
+    image.write_bytes(b"fake-jpg")
+    video.write_bytes(b"fake-mp4")
+    audio.write_bytes(b"fake-mp3")
+
+    manifest = tmp_path / "manifest.json"
+    items_dir = tmp_path / "items"
+
     commands = [
-        "python -m cookbook getting-started/analyze-single-paper --input cookbook/data/demo/text-medium/input.txt --mock",
-        "python -m cookbook getting-started/broadcast-process-files --input cookbook/data/demo/text-medium --limit 1 --mock",
-        "python -m cookbook getting-started/structured-output-extraction --input cookbook/data/demo/text-medium/input.txt --mock",
-        "python -m cookbook getting-started/extract-media-insights --input cookbook/data/demo/multimodal-basic/sample_image.jpg --mock",
-        "python -m cookbook getting-started/extract-media-insights --input cookbook/data/demo/multimodal-basic/sample_video.mp4 --mock",
-        "python -m cookbook getting-started/extract-media-insights --input cookbook/data/demo/multimodal-basic/sample_audio.mp3 --mock",
-        "python -m cookbook optimization/cache-warming-and-ttl --input cookbook/data/demo/text-medium --limit 1 --ttl 300 --mock",
-        "python -m cookbook optimization/large-scale-fan-out --input cookbook/data/demo/text-medium --limit 1 --concurrency 1 --mock",
-        "python -m cookbook optimization/run-vs-run-many --input cookbook/data/demo/text-medium/input.txt --mock",
-        "python -m cookbook production/rate-limits-and-concurrency --input cookbook/data/demo/text-medium --limit 1 --concurrency 2 --mock",
-        "python -m cookbook production/resume-on-failure --input cookbook/data/demo/text-medium --limit 1 --manifest /tmp/pollux_manifest.json --output-dir /tmp/pollux_items --mock",
-        "python -m cookbook research-workflows/comparative-analysis --input cookbook/data/demo/text-medium/input.txt cookbook/data/demo/text-medium/compare.txt --mock",
-        "python -m cookbook research-workflows/multi-video-synthesis --input cookbook/data/demo/multimodal-basic --max-sources 1 --mock",
+        f"python -m cookbook getting-started/analyze-single-paper --input {input_txt} --mock",
+        f"python -m cookbook getting-started/broadcast-process-files --input {text_dir} --limit 1 --mock",
+        f"python -m cookbook getting-started/structured-output-extraction --input {input_txt} --mock",
+        f"python -m cookbook getting-started/extract-media-insights --input {image} --mock",
+        f"python -m cookbook getting-started/extract-media-insights --input {video} --mock",
+        f"python -m cookbook getting-started/extract-media-insights --input {audio} --mock",
+        f"python -m cookbook optimization/cache-warming-and-ttl --input {text_dir} --limit 1 --ttl 300 --mock",
+        f"python -m cookbook optimization/large-scale-fan-out --input {text_dir} --limit 1 --concurrency 1 --mock",
+        f"python -m cookbook optimization/run-vs-run-many --input {input_txt} --mock",
+        f"python -m cookbook production/rate-limits-and-concurrency --input {text_dir} --limit 1 --concurrency 2 --mock",
+        f"python -m cookbook production/resume-on-failure --input {text_dir} --limit 1 --manifest {manifest} --output-dir {items_dir} --mock",
+        f"python -m cookbook research-workflows/comparative-analysis --input {input_txt} {compare_txt} --mock",
+        f"python -m cookbook research-workflows/multi-video-synthesis --input {media_dir} --max-sources 1 --mock",
     ]
     for command in commands:
         parts = shlex.split(command)

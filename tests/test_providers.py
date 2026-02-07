@@ -186,6 +186,122 @@ async def test_gemini_generate_omits_config_when_no_options() -> None:
 
 
 # =============================================================================
+# Gemini Upload Behavior (Characterization)
+# =============================================================================
+
+
+def _fake_gemini_file(
+    *,
+    name: str = "files/abc123",
+    uri: str | None = "https://generativelanguage.googleapis.com/v1beta/files/abc123",
+    state: str = "ACTIVE",
+    error_message: str | None = None,
+) -> Any:
+    """Create a minimal Gemini file object shape for upload tests."""
+    state_obj = type("State", (), {"name": state})()
+    error_obj = (
+        None
+        if error_message is None
+        else type("FileError", (), {"message": error_message})()
+    )
+    return type(
+        "GeminiFile",
+        (),
+        {"name": name, "uri": uri, "state": state_obj, "error": error_obj},
+    )()
+
+
+class _FakeGeminiFiles:
+    """Captures upload/get interactions for Gemini file readiness polling."""
+
+    def __init__(self, *, upload_result: Any, get_results: list[Any] | None) -> None:
+        self.upload_result = upload_result
+        self.get_results = list(get_results or [])
+        self.upload_calls = 0
+        self.get_calls = 0
+        self.last_upload_kwargs: dict[str, Any] | None = None
+        self.last_get_name: str | None = None
+
+    async def upload(self, **kwargs: Any) -> Any:
+        self.upload_calls += 1
+        self.last_upload_kwargs = kwargs
+        return self.upload_result
+
+    async def get(self, *, name: str, config: Any = None) -> Any:  # noqa: ARG002
+        self.get_calls += 1
+        self.last_get_name = name
+        if self.get_results:
+            return self.get_results.pop(0)
+        return self.upload_result
+
+
+def _gemini_provider_with_files(files: Any) -> GeminiProvider:
+    """Create a Gemini provider wired to fake aio.files methods."""
+    provider = GeminiProvider("test-key")
+    provider._client = type(
+        "Client",
+        (),
+        {"aio": type("Aio", (), {"files": files})()},
+    )()
+    return provider
+
+
+@pytest.mark.asyncio
+async def test_gemini_upload_returns_active_without_polling(tmp_path: Any) -> None:
+    """ACTIVE uploads should be returned immediately without files.get polling."""
+    upload_result = _fake_gemini_file(state="ACTIVE")
+    files = _FakeGeminiFiles(upload_result=upload_result, get_results=None)
+    provider = _gemini_provider_with_files(files)
+
+    uri = await provider.upload_file(
+        path=tmp_path / "already-ready.pdf", mime_type="application/pdf"
+    )
+
+    assert uri == str(upload_result.uri)
+    assert files.upload_calls == 1
+    assert files.get_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_gemini_upload_polls_until_active_for_any_mime_type(
+    tmp_path: Any,
+) -> None:
+    """PROCESSING uploads should poll by state, even for non-media MIME types."""
+    processing = _fake_gemini_file(uri=None, state="PROCESSING")
+    active = _fake_gemini_file(
+        uri="https://generativelanguage.googleapis.com/v1beta/files/ready"
+    )
+    files = _FakeGeminiFiles(upload_result=processing, get_results=[active])
+    provider = _gemini_provider_with_files(files)
+
+    uri = await provider.upload_file(
+        path=tmp_path / "still-processing.bin", mime_type="application/octet-stream"
+    )
+
+    assert uri == "https://generativelanguage.googleapis.com/v1beta/files/ready"
+    assert files.upload_calls == 1
+    assert files.get_calls == 1
+    assert files.last_get_name == "files/abc123"
+
+
+@pytest.mark.asyncio
+async def test_gemini_upload_raises_on_failed_processing(tmp_path: Any) -> None:
+    """FAILED uploads should surface processing errors as APIError."""
+    failed = _fake_gemini_file(state="FAILED", error_message="Virus scan failed")
+    files = _FakeGeminiFiles(upload_result=failed, get_results=None)
+    provider = _gemini_provider_with_files(files)
+
+    with pytest.raises(APIError, match="Virus scan failed"):
+        await provider.upload_file(
+            path=tmp_path / "bad.bin",
+            mime_type="application/pdf",
+        )
+
+    assert files.upload_calls == 1
+    assert files.get_calls == 0
+
+
+# =============================================================================
 # OpenAI Schema Normalization
 # =============================================================================
 

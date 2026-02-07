@@ -10,7 +10,7 @@ Public API:
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pollux.cache import CacheRegistry
 from pollux.config import Config
@@ -60,7 +60,8 @@ async def run(
     Example:
         config = Config(provider="gemini", model="gemini-2.0-flash")
         result = await run("Summarize this document", source=Source.from_file("doc.pdf"), config=config)
-        print(result["answers"][0])
+        first_answer = next(iter(result["answers"]), "")
+        print(first_answer)
     """
     sources = (source,) if source else ()
     return await run_many(prompt, sources=sources, config=config, options=options)

@@ -45,7 +45,7 @@ class MockProvider:
         parts: list[Any],
         system_instruction: str | None = None,  # noqa: ARG002
         cache_name: str | None = None,  # noqa: ARG002
-        response_schema: dict[str, Any] | None = None,  # noqa: ARG002
+        response_schema: dict[str, Any] | None = None,
         reasoning_effort: str | None = None,  # noqa: ARG002
         history: list[dict[str, str]] | None = None,  # noqa: ARG002
         delivery_mode: str = "realtime",  # noqa: ARG002
@@ -53,18 +53,18 @@ class MockProvider:
     ) -> dict[str, Any]:
         """Return a deterministic mock response.
 
-        - Otherwise echo the first non-empty string part, falling back to the
-          last string part (typically the prompt). This keeps file-based recipes
-          informative in mock mode.
+        Echo the first non-empty string part, falling back to the last string
+        part (typically the prompt). This keeps file-based recipes informative
+        in mock mode.
         """
-        _ = response_schema
+        # Explicitly discard so ruff doesn't depend on per-version unused-arg rules.
+        del response_schema
 
         string_parts = [p for p in parts if isinstance(p, str) and p.strip()]
         if string_parts:
             text = string_parts[0]
         else:
             text = next((p for p in reversed(parts) if isinstance(p, str)), "")
-
         return {
             "text": f"echo: {text[:100]}",
             "usage": {"prompt_token_count": 10, "total_token_count": 20},

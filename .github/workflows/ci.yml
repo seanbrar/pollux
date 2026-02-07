@@ -1,13 +1,15 @@
-# Runs quality checks on branches and PRs to main
+# Runs quality checks on branches and PRs
 # Uses reusable workflow to avoid duplication with release pipeline
 name: Continuous Integration
 
 "on":
   push:
-    branches: ["**"]
+    # Avoid duplicate CI runs on feature branches that already have a PR.
+    # (Push to a PR branch triggers both `push` and `pull_request`.)
+    branches: [main, "release/**"]
   # Run on pull requests that target the main branch
   pull_request:
-    branches: [main]
+    branches: [main, "release/**"]
 
 jobs:
   lint-workflows:
@@ -22,9 +24,26 @@ jobs:
 
   quality-checks:
     # Runs in parallel with lint-workflows (no dependency)
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     uses: ./.github/workflows/reusable-checks.yml
     secrets: inherit
     with:
-      python-version: "3.13"
+      python-version: ${{ matrix.python-version }}
       test-command: make test
+      enable-api-tests: false
+      upload-coverage: false
+
+  api-tests:
+    # Run API tests exactly once to avoid exhausting shared free-tier quota.
+    # Run on PRs only to avoid quota burn on every branch push.
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/reusable-checks.yml
+    secrets: inherit
+    with:
+      python-version: "3.10"
+      test-command: make test-api
+      enable-api-tests: true
       upload-coverage: false

@@ -11,6 +11,10 @@ name: Reusable Python Checks
       test-command:
         required: true
         type: string
+      enable-api-tests:
+        required: false
+        type: boolean
+        default: false
       upload-coverage:
         required: false
         type: boolean
@@ -41,10 +45,11 @@ jobs:
         run: make typecheck
 
       - name: Run Tests
+        # API tests are opt-in to avoid burning shared quota across matrix jobs.
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ENABLE_API_TESTS: "1"
+          GEMINI_API_KEY: ${{ inputs.enable-api-tests && secrets.GEMINI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ inputs.enable-api-tests && secrets.OPENAI_API_KEY || '' }}
+          ENABLE_API_TESTS: ${{ inputs.enable-api-tests && '1' || '' }}
         run: ${{ inputs.test-command }}
 
       - name: Upload coverage to Codecov
