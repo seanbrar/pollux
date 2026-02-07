@@ -1,93 +1,63 @@
 # Configuration
 
-Set a few values and Pollux will pick sensible defaults for the rest. This guide
-shows the three most common ways to configure behavior.
+Pollux v1.0 uses an explicit `Config` object per call.
 
-## 1) Environment variables (quickest)
+## Core Pattern
 
-Goal: Run with the real API and pick a model.
+```python
+from pollux import Config
+
+config = Config(
+    provider="gemini",          # "gemini" | "openai"
+    model="gemini-2.5-flash-lite",
+)
+```
+
+## API Keys
+
+If `api_key` is omitted, Pollux resolves it from environment variables:
+
+- Gemini -> `GEMINI_API_KEY`
+- OpenAI -> `OPENAI_API_KEY`
 
 ```bash
-export GEMINI_API_KEY="<your key>"
-export POLLUX_MODEL="gemini-2.0-flash"
-export POLLUX_USE_REAL_API="true"
+export GEMINI_API_KEY="your-key"
+export OPENAI_API_KEY="your-key"
 ```
+
+You can also pass `api_key` directly:
 
 ```python
-from pollux.config import resolve_config
-
-config = resolve_config()
-print(f"Using {config.model} with provider {config.provider}")
+config = Config(provider="openai", model="gpt-5-nano", api_key="...")
 ```
 
-Notes:
+## Mock Mode
 
-- If `POLLUX_USE_REAL_API=true`, a key is required. Otherwise mock mode is used.
-- Secrets are always redacted in diagnostics.
-
-## 2) Project defaults in `pyproject.toml`
-
-Goal: Share defaults across your team or CI.
-
-```toml
-# pyproject.toml
-[tool.pollux]
-model = "gemini-2.0-flash"
-use_real_api = false
-enable_caching = false
-ttl_seconds = 3600
-```
+Use `use_mock=True` for local development without external API calls:
 
 ```python
-from pollux.config import resolve_config
-
-config = resolve_config()
-print(config.model)
+config = Config(provider="gemini", model="mock-model", use_mock=True)
 ```
 
-Precedence: programmatic overrides > env > project file > home file > defaults.
-
-## 3) Profiles (per-environment presets)
-
-Goal: Switch between dev and prod without editing code.
-
-```toml
-[tool.pollux.profiles.dev]
-model = "gemini-2.0-flash"
-use_real_api = false
-
-[tool.pollux.profiles.prod]
-model = "gemini-2.0-pro"
-use_real_api = true
-```
-
-```bash
-export POLLUX_PROFILE=prod
-```
-
-Or programmatically:
+## Performance/Cost Controls
 
 ```python
-from pollux.config import resolve_config
-
-config = resolve_config(profile="dev")
+config = Config(
+    provider="gemini",
+    model="gemini-2.5-flash-lite",
+    enable_caching=True,     # provider-dependent
+    ttl_seconds=3600,        # cache TTL
+    request_concurrency=6,   # concurrent requests in batch execution
+)
 ```
 
-## 4) Programmatic overrides (per-run)
+## Safety Notes
 
-Goal: Pin values for a specific run or test.
+- `Config` is immutable (`frozen=True`).
+- String representation redacts API keys.
+- Missing keys in real mode raise `ConfigurationError` with hints.
 
-```python
-from pollux.config import resolve_config
+## Related Docs
 
-config = resolve_config(overrides={"model": "gemini-2.0-flash", "use_real_api": False})
-```
-
-## Diagnostics
-
-Use the CLI to inspect effective configuration:
-
-- `pollux-config show`
-- `pollux-config doctor`
-
-See the [CLI reference](../reference/cli.md) for details.
+- [Usage Patterns](patterns.md)
+- [Provider Capabilities](../reference/provider-capabilities.md)

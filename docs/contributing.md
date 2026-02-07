@@ -19,26 +19,51 @@ make test
 
 ## Before Opening a PR
 
-1. Run checks: `make check`
+1. Run `make check` (lint + typecheck + tests)
 2. If docs changed, preview locally: `make docs-serve`
-3. Keep changes focused: one PR, one idea
+3. Write a test plan—describe how you verified the change and why (see [Testing Philosophy](#testing-philosophy))
+4. Keep changes focused: one PR, one idea
 
 ## Pull Requests
 
 **Title**: Conventional Commits style—`type(scope): subject` (imperative)
 
 Examples:
+
 - `feat(api): add playlist support`
 - `fix(cache): handle expired tokens`
 - `docs(cookbook): add batch processing recipe`
 
-**Body**:
-1. Summary—what does this PR do? One or two sentences.
-2. Notes (optional)—anything reviewers should know.
+**Body** follows the [PR template](https://github.com/seanbrar/pollux/blob/main/.github/PULL_REQUEST_TEMPLATE.md) with four sections:
+
+1. **Summary** — what and why, one or two sentences
+2. **Related issue** — link with closing keywords (`Closes #123`), or "None" for unprompted changes
+3. **Test plan** — describe verification with evidence; if no new tests, explain why (see [Testing Philosophy](#testing-philosophy))
+4. **Notes** (optional) — context not obvious from the diff: rationale, trade-offs, deferred work, when to revisit
+
+**Checklist** (mirrors the template checkboxes):
+
+- [ ] PR title follows conventional commits
+- [ ] `make check` passes
+- [ ] Tests cover meaningful cases, not just the happy path
+- [ ] Docs updated if public API or user-facing behavior changed
+
+## Issues
+
+Issue templates exist for [bugs](https://github.com/seanbrar/pollux/issues/new?template=bug.md) and [feature requests](https://github.com/seanbrar/pollux/issues/new?template=feature.md). The templates carry most of the detail—here's the gist:
+
+- **Bug reports**: what happened, expected behavior, reproduction steps, environment (Pollux + Python version)
+- **Feature requests**: problem or use case, optional suggested approach
+
+When a PR addresses an issue, link it in the **Related issue** section using closing keywords (`Closes #123`, `Fixes #456`).
+
+Issues may also be filed during development when bugs or deferred work items are discovered out of scope of the current task. These follow the same templates and quality bar as any other issue.
 
 ## Testing Philosophy
 
 This project follows the [MTMT (Minimal Tests, Maximum Trust)](https://github.com/seanbrar/minimal-tests-maximum-trust) testing standard. See [TESTING.md](https://github.com/seanbrar/pollux/blob/main/TESTING.md) for guidance on what merits a test.
+
+Every PR includes a test plan. The MTMT criteria—architectural guarantee, boundary coverage, trivial delegation, non-behavioral change—are the vocabulary for explaining why tests were or weren't added.
 
 ## Documentation Standards
 

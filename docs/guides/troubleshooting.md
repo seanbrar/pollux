@@ -2,51 +2,55 @@
 
 Fast fixes for common setup issues.
 
-## Real API enabled but no key
-
-**Symptom:** `pollux-config doctor` reports a missing `api_key`, or responses look like mock.
+## Missing API key
 
 **Fix:**
 
 ```bash
 export GEMINI_API_KEY="<your key>"
-export POLLUX_USE_REAL_API=1
+export OPENAI_API_KEY="<your key>"
 ```
 
-## Hitting rate limits immediately
+Or pass `api_key` explicitly in `Config(...)`.
 
-**Symptom:** requests throttle right after enabling the real API.
+## Unexpected mock responses
 
-**Fix:**
+**Symptom:** outputs look like `echo: ...`.
 
-```bash
-export POLLUX_TIER=free|tier_1|tier_2|tier_3
-```
+**Fix:** ensure `use_mock=False` (default) and key is present.
 
-Then reduce concurrency in your config or per-call options if needed.
+## Provider/model mismatch
 
-## Model/provider mismatch
+**Symptom:** configuration or API errors right at request time.
 
-**Symptom:** `Unknown model; provider defaulted to 'google'.`
+**Fix:** verify the model belongs to the selected provider.
 
-**Fix:** use a valid model string for your provider (e.g., `gemini-2.0-flash`).
+## Option not implemented in v1.0
 
-## Mock answers when expecting real results
+**Symptom:** `ConfigurationError` for:
 
-**Symptom:** outputs look like `echo: ...` or include `mock` metadata.
+- `delivery_mode="deferred"`
+- `history`
+- `continue_from`
 
-**Fix:** ensure the real API is enabled and the key is present, then re-run:
+**Explanation:** these are intentionally reserved/disabled in v1.0.
 
-```bash
-pollux-config doctor
-```
+## OpenAI multimodal limitations
+
+**Symptom:** remote source rejected with unsupported type.
+
+**Explanation (v1.0):** OpenAI remote URL support is explicit:
+
+- PDFs via `input_file.file_url`
+- Images via `input_image.image_url`
+
+Other remote MIME types are rejected by design.
 
 ## Secrets appear missing in logs
 
 **Symptom:** keys show as `***redacted***`.
 
-**Explanation:** redaction is intentional. Use `pollux-config env` or
-`pollux-config doctor` to confirm variables exist.
+**Explanation:** redaction is intentional.
 
 ## Python or import errors
 
@@ -54,8 +58,15 @@ pollux-config doctor
 
 - Use Python `3.13` and a clean virtual environment.
 - Install from releases (wheel) or source with `pip install -e .`.
+- Run:
+  - `make test`
+  - `make lint`
+  - `make typecheck`
 
 ## Still stuck?
 
-- Run `pollux-config doctor` and attach the output to any issue report.
-- See [CLI reference](../reference/cli.md) for diagnostic commands.
+- Include:
+  - provider + model
+  - source type(s)
+  - exact exception message
+- See [Provider Capabilities](../reference/provider-capabilities.md).
