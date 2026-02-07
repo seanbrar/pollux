@@ -38,14 +38,34 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Cookbook:
+      - Overview: cookbook/index.md
+      - Getting Started:
+          - Analyze Single Paper: cookbook/getting-started/analyze-single-paper.md
+          - Broadcast Process Files: cookbook/getting-started/broadcast-process-files.md
+          - Structured Output Extraction: cookbook/getting-started/structured-output-extraction.md
+          - Extract Media Insights: cookbook/getting-started/extract-media-insights.md
+      - Optimization:
+          - Cache Warming and TTL: cookbook/optimization/cache-warming-and-ttl.md
+          - Large-Scale Fan-Out: cookbook/optimization/large-scale-fan-out.md
+          - Run vs RunMany: cookbook/optimization/run-vs-run-many.md
+      - Research Workflows:
+          - Comparative Analysis: cookbook/research-workflows/comparative-analysis.md
+          - Multi-Video Synthesis: cookbook/research-workflows/multi-video-synthesis.md
+      - Production:
+          - Rate Limits and Concurrency: cookbook/production/rate-limits-and-concurrency.md
+          - Resume on Failure: cookbook/production/resume-on-failure.md
+      - Templates: cookbook/templates.md
   - Guides:
       - Installation: guides/installation.md
       - Configuration: guides/configuration.md
       - Usage Patterns: guides/patterns.md
+      - Token Efficiency: guides/token-efficiency.md
       - Caching: guides/caching.md
       - Troubleshooting: guides/troubleshooting.md
   - Reference:
       - API: reference/api.md
+      - Provider Capabilities: reference/provider-capabilities.md
       - CLI: reference/cli.md
   - About: about.md
   - Contributing: contributing.md

@@ -56,6 +56,8 @@ If you add or move pages, update `mkdocs.yml`.
 
 ## Cookbook Recipes
 
+Recipes require a dev install (`uv sync --all-extras` or `pip install -e ".[dev]"`) so that `import pollux` resolves through the package manager.
+
 Recipes live in `cookbook/`, organized by scenario. Each recipe should:
 
 - Start with a specific problem statement

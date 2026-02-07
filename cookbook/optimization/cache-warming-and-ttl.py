@@ -1,186 +1,126 @@
 #!/usr/bin/env python3
-"""🎯 Recipe: Cache Warming with Deterministic Keys and TTL
+"""Recipe: Measure cache impact and pick a sane TTL.
 
-When you need to: Pre-warm shared context caches and then reuse them to
-reduce latency and tokens across repeated analyses.
+Problem:
+    Re-running the same workload can waste latency and tokens when the shared
+    context is unchanged.
 
-Ingredients:
-- Set `enable_caching=True` in config (env or override)
-- Deterministic cache key for the shared context
-- Representative prompts and a directory of files
-
-What you'll learn:
-- Apply `CacheOptions` (deterministic key, TTL, reuse-only)
-- Compare warm vs reuse timings and token usage
-- Understand first-turn-only and token floor policy knobs
-
-Difficulty: ⭐⭐⭐
-Time: ~10-12 minutes
+Pattern:
+    - Keep prompts and sources fixed.
+    - Enable caching with a meaningful TTL.
+    - Run once to warm and once to reuse (back-to-back).
+    - Compare tokens and cache signal.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from cookbook.utils.demo_inputs import (
-    DEFAULT_TEXT_DEMO_DIR,
-    pick_files_by_ext,
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
 )
-from pollux import types
-from pollux.config import resolve_config
-from pollux.core.types import InitialCommand
-from pollux.executor import create_executor
-from pollux.frontdoor import run_batch
-from pollux.types import CacheOptions, CachePolicyHint, make_execution_options
+from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
+from pollux import Config, Source, run_many
 
 if TYPE_CHECKING:
-    from pollux.core.execution_options import ExecutionOptions
+    from pollux.result import ResultEnvelope
+
+PROMPTS = [
+    "List 5 key concepts with one-sentence explanations.",
+    "Extract three actionable recommendations.",
+]
 
 
-def _count_hits_from_metrics(m: dict[str, Any]) -> int:
-    # Prefer aggregate if available; fallback to per-call meta
-    agg = m.get("cache_hit_count")
-    if isinstance(agg, int):
-        return max(0, int(agg))
-    pcm = m.get("per_call_meta") or ()
-    hits = 0
-    for item in pcm:
-        if isinstance(item, dict) and item.get("cache_applied"):
-            hits += 1
-    return hits
+def describe(run_name: str, envelope: ResultEnvelope) -> None:
+    """Print compact run diagnostics."""
+    metrics = envelope.get("metrics")
+    cache_used = None
+    if isinstance(metrics, dict):
+        cache_used = metrics.get("cache_used")
+
+    print(
+        f"- {run_name}: status={envelope.get('status', 'ok')} "
+        f"cache_used={cache_used} tokens={usage_tokens(envelope) or 'n/a'}"
+    )
 
 
-async def _run(
-    prompts: list[str],
-    sources: tuple[types.Source, ...],
-    *,
-    opts: ExecutionOptions,
-    executor: Any | None = None,
-) -> dict[str, Any]:
-    if executor is None:
-        env = await run_batch(prompts, sources, prefer_json=False, options=opts)
-    else:
-        cmd = InitialCommand.strict(
-            sources=sources,
-            prompts=tuple(prompts),
-            config=executor.config,
-            options=opts,
+async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -> None:
+    files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
+    if not files:
+        raise SystemExit(f"No files found under: {directory}")
+
+    sources = [Source.from_file(path) for path in files]
+    cached_config = replace(config, enable_caching=True, ttl_seconds=max(1, ttl))
+
+    warm = await run_many(PROMPTS, sources=sources, config=cached_config)
+    reuse = await run_many(PROMPTS, sources=sources, config=cached_config)
+    warm_tokens = usage_tokens(warm)
+    reuse_tokens = usage_tokens(reuse)
+    saved = None
+    if isinstance(warm_tokens, int) and isinstance(reuse_tokens, int):
+        saved = warm_tokens - reuse_tokens
+
+    print_section("Cache impact report")
+    describe("warm", warm)
+    describe("reuse", reuse)
+    if saved is not None:
+        warm_total = warm_tokens if isinstance(warm_tokens, int) else 0
+        pct = (saved / warm_total * 100) if warm_total > 0 else 0.0
+        print_kv_rows(
+            [
+                ("Token delta (warm - reuse)", saved),
+                ("Reported savings", f"{pct:.1f}%"),
+            ]
         )
-        env = await executor.execute(cmd)
-    return {
-        "status": env.get("status", "ok"),
-        "usage": env.get("usage", {}),
-        "metrics": env.get("metrics", {}),
-    }
-
-
-def _tokens(usage: dict[str, Any]) -> int:
-    try:
-        return int((usage or {}).get("total_token_count", 0) or 0)
-    except Exception:
-        return 0
-
-
-def _cached_tokens(metrics: dict[str, Any], usage: dict[str, Any]) -> int:
-    """Return cached-content tokens using best-effort fallbacks."""
-    try:
-        cc = int(usage.get("cached_content_token_count", 0) or 0)
-        if cc:
-            return max(0, cc)
-    except Exception:
-        pass
-    try:
-        per = metrics.get("per_prompt") or ()
-        total = 0
-        for item in per:
-            if isinstance(item, dict):
-                total += int(item.get("cached_content_token_count", 0) or 0)
-        return max(0, int(total))
-    except Exception:
-        return 0
-
-
-async def main_async(directory: Path, cache_key: str, limit: int = 2) -> None:
-    cfg = resolve_config(overrides={"enable_caching": True})
-    print(f"⚙️  Caching enabled: {cfg.enable_caching}")
-
-    prompts = [
-        "List 5 key concepts with one-sentence explanations.",
-        "Extract three actionable recommendations.",
-    ]
-    files = pick_files_by_ext(directory, [".pdf", ".txt"], limit=limit)
-    sources = tuple(types.Source.from_file(p) for p in files)
-    if not sources:
-        raise SystemExit(f"No files found under {directory}")
-
-    # Warm: allow create
-    warm_opts = make_execution_options(
-        cache=CacheOptions(
-            deterministic_key=cache_key, ttl_seconds=3600, reuse_only=False
-        ),
-        cache_policy=CachePolicyHint(first_turn_only=True),
-    )
-    # Reuse a single executor so the in-memory registry persists
-    executor = create_executor(cfg)
-    warm = await _run(prompts, sources, opts=warm_opts, executor=executor)
-
-    # Reuse: reuse-only true
-    reuse_opts = make_execution_options(
-        cache=CacheOptions(
-            deterministic_key=cache_key, ttl_seconds=3600, reuse_only=True
-        ),
-        cache_policy=CachePolicyHint(first_turn_only=True),
-    )
-    reuse = await _run(prompts, sources, opts=reuse_opts, executor=executor)
-
-    w_tok = _tokens(warm.get("usage", {}))
-    r_tok = _tokens(reuse.get("usage", {}))
-    w_hits = _count_hits_from_metrics(warm.get("metrics", {}) or {})
-    r_hits = _count_hits_from_metrics(reuse.get("metrics", {}) or {})
-    print("\n📊 RESULTS")
-    print("Provider totals (as reported):")
-    print(f"- Warm:  status={warm['status']} | tokens={w_tok:,}")
-    print(f"- Reuse: status={reuse['status']} | tokens={r_tok:,}")
-    if w_hits or r_hits:
-        print(f"- Cache hits (warm→reuse): {w_hits} → {r_hits}")
-
-    # Effective accounting for reuse
-    reuse_cached = _cached_tokens(
-        reuse.get("metrics", {}) or {}, reuse.get("usage", {}) or {}
-    )
-    effective_reuse = max(r_tok - reuse_cached, 0)
-    est_saved = w_tok - effective_reuse
-    print("\nEffective totals (excluding cached content when available):")
-    print(f"- Reuse effective tokens: {effective_reuse:,}")
-    print(
-        f"- Estimated savings:      {est_saved:,} tokens ({(est_saved / w_tok * 100) if w_tok else 0:.1f}%)"
-    )
-
-    print(
-        "\nNote: Providers may include cached tokens in totals; effective view reflects actual reuse."
+    print_learning_hints(
+        [
+            (
+                "Next: keep caching enabled for this workload because reuse is cheaper."
+                if isinstance(saved, int) and saved > 0
+                else "Next: retry with larger repeated context because savings are currently small."
+            ),
+            "Next: keep prompts and sources fixed for clean cache-impact comparisons.",
+        ]
     )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Cache warming and TTL demo")
-    parser.add_argument(
-        "--input", type=Path, default=None, help="Directory to cache context from"
+    parser = argparse.ArgumentParser(
+        description="Measure warm-vs-reuse behavior with caching enabled and a chosen TTL.",
     )
-    parser.add_argument("--limit", type=int, default=2, help="Max files to read")
-    parser.add_argument(
-        "--key",
-        default="cookbook-cache-key",
-        help="Deterministic cache key to use",
-    )
+    parser.add_argument("--input", type=Path, default=None, help="Directory of files")
+    parser.add_argument("--limit", type=int, default=2, help="Max files to include")
+    parser.add_argument("--ttl", type=int, default=3600, help="Cache TTL in seconds")
+    add_runtime_args(parser)
     args = parser.parse_args()
-    print("Note: File size/count affect runtime and tokens.")
-    directory = args.input or DEFAULT_TEXT_DEMO_DIR
-    if not directory.exists():
-        raise SystemExit("No input provided. Run `make demo-data` or pass --input.")
-    asyncio.run(main_async(directory, args.key, max(1, int(args.limit))))
+
+    directory = resolve_dir_or_exit(
+        args.input,
+        DEFAULT_TEXT_DEMO_DIR,
+        hint="No input directory found. Run `make demo-data` or pass --input /path/to/dir.",
+    )
+    config = build_config_or_exit(args)
+    cached_config = replace(
+        config, enable_caching=True, ttl_seconds=max(1, int(args.ttl))
+    )
+
+    print_header("Cache warming and TTL", config=cached_config)
+    asyncio.run(
+        main_async(
+            directory,
+            limit=max(1, int(args.limit)),
+            config=cached_config,
+            ttl=int(args.ttl),
+        )
+    )
 
 
 if __name__ == "__main__":

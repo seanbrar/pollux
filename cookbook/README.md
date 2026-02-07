@@ -1,75 +1,44 @@
 # Pollux Cookbook
 
-Problem-first recipes for real-world multimodal batch analysis.
+Practical, problem-first recipes for multimodal analysis with Pollux.
 
-## Quick Start
+This folder contains the runnable recipe code. The canonical cookbook
+documentation (learning paths, recipe pages, and authoring guidance) lives under
+`docs/cookbook/` and is published on the documentation site.
+
+- Start here: `docs/cookbook/index.md`
+- Recipe templates: `docs/cookbook/templates.md`
+
+## Setup
+
+Recipes require a dev install so that `import pollux` resolves through the package manager:
 
 ```bash
-# List available recipes
+uv sync --all-extras          # or: pip install -e ".[dev]"
+```
+
+Then seed demo inputs:
+
+```bash
+make demo-data
+```
+
+## Quick start
+
+```bash
+# 1) List recipes
 python -m cookbook --list
 
-# Run a recipe
-python -m cookbook getting-started/analyze-single-paper -- --limit 1
+# 2) Run a baseline recipe in mock mode (default)
+python -m cookbook getting-started/analyze-single-paper \
+  --input cookbook/data/demo/text-medium/input.txt
+
+# 3) Run against a real provider
+python -m cookbook getting-started/analyze-single-paper \
+  --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 
-**Notes:**
+Notes:
 
-- Pass recipe flags after `--`
-- Many recipes accept `--input` (file or directory) and `--limit`
-- Demo data: `make demo-data` (optional)
-
-## Recipes
-
-### Getting Started
-
-| Recipe | What it does |
-|--------|--------------|
-| `analyze-single-paper.py` | Extract insights from a single file |
-| `batch-process-files.py` | Process multiple documents at once |
-| `conversation-follow-ups.py` | Multi-turn conversations with persistence |
-| `extract-video-insights.py` | Pull highlights from video content |
-
-### Optimization
-
-| Recipe | What it does |
-|--------|--------------|
-| `cache-warming-and-ttl.py` | Warm caches with deterministic keys |
-| `context-caching-explicit.py` | Explicit cache create/reuse |
-| `large-scale-batching.py` | Fan-out with bounded concurrency |
-
-### Research Workflows
-
-| Recipe | What it does |
-|--------|--------------|
-| `comparative-analysis.py` | Compare sources side-by-side |
-| `multi-video-batch.py` | Compare/summarize across videos |
-
-### Production
-
-| Recipe | What it does |
-|--------|--------------|
-| `rate-limits-and-concurrency.py` | Tier config and concurrency behavior |
-| `resume-on-failure.py` | Persist state, retry failed items |
-
-### Templates
-
-| Template | What it does |
-|----------|--------------|
-| `recipe-template.py` | Boilerplate for new recipes |
-| `custom-schema-template.py` | Schema-first extraction |
-
-## Configuration
-
-Mock mode is default. For real API calls:
-
-```bash
-export GEMINI_API_KEY=...
-export POLLUX_TIER=tier_1
-export POLLUX_USE_REAL_API=true
-```
-
-## Troubleshooting
-
-- **No demo data**: Run `make demo-data` or use `--input /path/to/files`
-- **429s / throttling**: Set `POLLUX_TIER` to match your billing tier
-- **Slow runs**: Start with small text files before large PDFs/videos
+- Use `make demo-data` for local sample inputs.
+- Most recipes support `--mock/--no-mock`, `--provider`, and `--model`.

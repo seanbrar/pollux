@@ -85,7 +85,7 @@ Examples:
 python -m cookbook --list
 
 # Run via path and pass recipe args
-python -m cookbook optimization/context-caching-explicit -- --limit 2
+python -m cookbook optimization/cache-warming-and-ttl -- --limit 2 --ttl 3600
 
 # Run via dotted spec
 python -m cookbook production.resume_on_failure -- --limit 1
@@ -102,7 +102,7 @@ Notes:
 
 ```bash
 python -m cookbook --list
-python -m cookbook optimization/context-caching-explicit -- --limit 2
+python -m cookbook optimization/cache-warming-and-ttl -- --limit 2 --ttl 3600
 python -m cookbook production.resume_on_failure -- --limit 1
 ```
 
@@ -111,18 +111,18 @@ python -m cookbook production.resume_on_failure -- --limit 1
 ```powershell
 # Prefer the dotted form for portability
 py -m cookbook --list
-py -m cookbook optimization.context_caching_explicit -- --limit 2
+py -m cookbook optimization.cache_warming_and_ttl -- --limit 2 --ttl 3600
 py -m cookbook production.resume_on_failure -- --limit 1
 
 # You can also use paths; forward slashes work cross-platform
-py -m cookbook optimization/context-caching-explicit.py -- --limit 2
+py -m cookbook optimization/cache-warming-and-ttl.py -- --limit 2 --ttl 3600
 ```
 
 === "CMD (Windows)"
 
 ```bat
 py -m cookbook --list
-py -m cookbook optimization\context-caching-explicit.py -- --limit 2
+py -m cookbook optimization\\cache-warming-and-ttl.py -- --limit 2 --ttl 3600
 py -m cookbook production.resume_on_failure -- --limit 1
 ```
 
