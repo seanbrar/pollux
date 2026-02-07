@@ -7,11 +7,11 @@ build-backend = "hatchling.build"
 [project]
 name = "pollux"
 version = "0.9.0"
-description = "A framework for batch processing with Google's Gemini API"
+description = "Multimodal orchestration for LLM analysis"
 readme = "README.md"
 authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
 license = { text = "MIT" }
-requires-python = ">=3.13"
+requires-python = ">=3.10, <3.15"
 dependencies = [
     "Pillow~=11.2",
     "PyPDF2~=3.0",
@@ -103,9 +103,15 @@ directory = "coverage_html_report"
 
 # --- MyPy ---
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.10"
 disallow_untyped_defs = true
 
+# Typecheck library + tests (recipes/docs are user-facing, but not part of the
+# strict library contract).
+#
+# Note: our Makefile calls `mypy .`, so we must explicitly exclude non-library
+# trees here rather than relying on `files = [...]`.
+exclude = "^(cookbook|docs|notebooks|scripts|site|outputs)/"
 
 namespace_packages = true
 show_error_codes = true
@@ -149,7 +155,7 @@ markers = [
 
 # --- Ruff ---
 [tool.ruff]
-target-version = "py313"
+target-version = "py310"
 line-length = 88
 exclude = [
     ".git",
@@ -209,7 +215,7 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
+
 "cookbook/*" = ["S105", "S106", "T20", "D103", "D", "S", "RUF001", "RUF002"]
 "scripts/*" = ["T201", "S310"]
 "notebooks/*" = ["T201", "RET504", "S110", "RUF001", "N814", "UP038", "E402"]
@@ -245,7 +251,7 @@ prerelease = false
 
 [tool.semantic_release.changelog]
 template_dir = "templates"
-mode = "update"
+mode = "init"
 insertion_flag = "<!-- PSR-INSERT-FLAG -->"
 exclude_commit_patterns = [
     "build(.*):",    # build system - internal dependency management
