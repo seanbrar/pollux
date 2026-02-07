@@ -16,14 +16,14 @@ Use a schema to get typed, validated output instead of parsing JSON by hand.
 ## Command
 
 ```bash
-python -m cookbook getting-started/structured-output-extraction -- \
+python -m cookbook getting-started/structured-output-extraction \
   --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
 Real API mode:
 
 ```bash
-python -m cookbook getting-started/structured-output-extraction -- \
+python -m cookbook getting-started/structured-output-extraction \
   --input path/to/file.pdf --no-mock --provider openai --model gpt-4.1-mini
 ```
 

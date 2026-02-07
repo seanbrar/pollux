@@ -18,22 +18,22 @@ Synthesize cross-source themes and disagreements across multiple videos.
 Explicit sources:
 
 ```bash
-python -m cookbook research-workflows/multi-video-synthesis -- \
-  ./video1.mp4 ./video2.mp4 --max-sources 2 --mock
+python -m cookbook research-workflows/multi-video-synthesis \
+  --input ./video1.mp4 ./video2.mp4 --max-sources 2 --mock
 ```
 
 Auto-pick from a directory:
 
 ```bash
-python -m cookbook research-workflows/multi-video-synthesis -- \
-  --input-dir cookbook/data/demo/multimodal-basic --max-sources 2 --mock
+python -m cookbook research-workflows/multi-video-synthesis \
+  --input cookbook/data/demo/multimodal-basic --max-sources 2 --mock
 ```
 
 Mixed local + URL:
 
 ```bash
-python -m cookbook research-workflows/multi-video-synthesis -- \
-  "https://youtube.com/watch?v=..." ./video2.mp4 --max-sources 2 --mock
+python -m cookbook research-workflows/multi-video-synthesis \
+  --input "https://youtube.com/watch?v=..." ./video2.mp4 --max-sources 2 --mock
 ```
 
 ## What to look for

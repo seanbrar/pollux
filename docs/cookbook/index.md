@@ -2,6 +2,27 @@
 
 Scenario-first recipes for Pollux that are designed to be runnable, teachable, and production-minded.
 
+## Setup
+
+Recipes require a one-time dev install so that `import pollux` works:
+
+```bash
+git clone https://github.com/seanbrar/pollux.git && cd pollux
+uv sync --all-extras          # or: pip install -e ".[dev]"
+```
+
+Verify the install:
+
+```bash
+python -m cookbook --list
+```
+
+Then seed demo inputs for deterministic runs:
+
+```bash
+make demo-data
+```
+
 ## Recipe quality bar
 
 Every recipe in this cookbook should meet this contract:

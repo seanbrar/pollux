@@ -16,14 +16,14 @@ Process a directory by running the same prompt set per file.
 ## Command
 
 ```bash
-python -m cookbook getting-started/broadcast-process-files -- \
+python -m cookbook getting-started/broadcast-process-files \
   --input cookbook/data/demo/text-medium --limit 3 --mock
 ```
 
 Custom prompt set:
 
 ```bash
-python -m cookbook getting-started/broadcast-process-files -- \
+python -m cookbook getting-started/broadcast-process-files \
   --input ./docs --limit 4 --prompt "List 3 takeaways" --prompt "Extract entities"
 ```
 

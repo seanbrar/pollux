@@ -17,7 +17,7 @@ When not to use:
     - You need durable resume/retry guarantees (use production recipes).
 
 Run:
-    python -m cookbook getting-started/broadcast-process-files -- --input ./docs --limit 4
+    python -m cookbook getting-started/broadcast-process-files --input ./docs --limit 4
 """
 
 from __future__ import annotations

@@ -12,7 +12,7 @@ When not to use:
     - You need throughput across many files (use multi-source recipes).
 
 Run:
-    python -m cookbook getting-started/analyze-single-paper -- --input path/to/file.pdf
+    python -m cookbook getting-started/analyze-single-paper --input path/to/file.pdf
 
 Success check:
     - Status is "ok".

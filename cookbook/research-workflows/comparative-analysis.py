@@ -17,6 +17,7 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR
 from cookbook.utils.json_tools import coerce_json
 from cookbook.utils.presentation import (
     print_excerpt,
@@ -128,12 +129,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Produce a structured source-to-source comparison.",
     )
-    parser.add_argument("paths", type=Path, nargs="*", help="Two input files")
     parser.add_argument(
         "--input",
         type=Path,
-        default=Path("cookbook/data/demo/text-medium"),
-        help="Fallback directory when fewer than two paths are provided.",
+        nargs="+",
+        default=None,
+        help="Two or more input files, or a single directory to auto-pick from.",
     )
     parser.add_argument(
         "--limit",
@@ -144,13 +145,17 @@ def main() -> None:
     add_runtime_args(parser)
     args = parser.parse_args()
 
-    paths = list(args.paths)
-    if len(paths) < 2:
-        if not args.input.exists():
+    inputs: list[Path] = list(args.input) if args.input else []
+    if len(inputs) == 1 and inputs[0].is_dir():
+        paths = pick_paths(inputs[0], args.limit)
+    elif len(inputs) >= 2:
+        paths = inputs
+    else:
+        if not DEFAULT_TEXT_DEMO_DIR.exists():
             raise SystemExit(
-                "Need two files. Run `make demo-data` or provide two explicit paths."
+                "Need two files. Run `make demo-data` or provide --input with two paths."
             )
-        paths = pick_paths(args.input, args.limit)
+        paths = pick_paths(DEFAULT_TEXT_DEMO_DIR, args.limit)
 
     config = build_config_or_exit(args)
     print_header("Research comparison baseline", config=config)

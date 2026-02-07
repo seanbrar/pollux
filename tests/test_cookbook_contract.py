@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+import sys
 
 import pytest
 
@@ -82,23 +83,25 @@ def test_doc_commands_resolve_to_known_recipes() -> None:
 def test_all_recipes_run_in_mock_mode() -> None:
     """Smoke test that each recipe runs successfully in mock mode."""
     commands = [
-        "python -m cookbook getting-started/analyze-single-paper -- --input cookbook/data/demo/text-medium/input.txt --mock",
-        "python -m cookbook getting-started/broadcast-process-files -- --input cookbook/data/demo/text-medium --limit 1 --mock",
-        "python -m cookbook getting-started/structured-output-extraction -- --input cookbook/data/demo/text-medium/input.txt --mock",
-        "python -m cookbook getting-started/extract-media-insights -- --input cookbook/data/demo/multimodal-basic/sample_image.jpg --mock",
-        "python -m cookbook getting-started/extract-media-insights -- --input cookbook/data/demo/multimodal-basic/sample_video.mp4 --mock",
-        "python -m cookbook getting-started/extract-media-insights -- --input cookbook/data/demo/multimodal-basic/sample_audio.mp3 --mock",
-        "python -m cookbook optimization/cache-warming-and-ttl -- --input cookbook/data/demo/text-medium --limit 1 --ttl 300 --mock",
-        "python -m cookbook optimization/large-scale-fan-out -- --input cookbook/data/demo/text-medium --limit 1 --concurrency 1 --mock",
-        "python -m cookbook optimization/run-vs-run-many -- --input cookbook/data/demo/text-medium/input.txt --mock",
-        "python -m cookbook production/rate-limits-and-concurrency -- --input cookbook/data/demo/text-medium --limit 1 --concurrency 2 --mock",
-        "python -m cookbook production/resume-on-failure -- --input cookbook/data/demo/text-medium --limit 1 --manifest /tmp/pollux_manifest.json --output-dir /tmp/pollux_items --mock",
-        "python -m cookbook research-workflows/comparative-analysis -- cookbook/data/demo/text-medium/input.txt cookbook/data/demo/text-medium/compare.txt --mock",
-        "python -m cookbook research-workflows/multi-video-synthesis -- --input-dir cookbook/data/demo/multimodal-basic --max-sources 1 --mock",
+        "python -m cookbook getting-started/analyze-single-paper --input cookbook/data/demo/text-medium/input.txt --mock",
+        "python -m cookbook getting-started/broadcast-process-files --input cookbook/data/demo/text-medium --limit 1 --mock",
+        "python -m cookbook getting-started/structured-output-extraction --input cookbook/data/demo/text-medium/input.txt --mock",
+        "python -m cookbook getting-started/extract-media-insights --input cookbook/data/demo/multimodal-basic/sample_image.jpg --mock",
+        "python -m cookbook getting-started/extract-media-insights --input cookbook/data/demo/multimodal-basic/sample_video.mp4 --mock",
+        "python -m cookbook getting-started/extract-media-insights --input cookbook/data/demo/multimodal-basic/sample_audio.mp3 --mock",
+        "python -m cookbook optimization/cache-warming-and-ttl --input cookbook/data/demo/text-medium --limit 1 --ttl 300 --mock",
+        "python -m cookbook optimization/large-scale-fan-out --input cookbook/data/demo/text-medium --limit 1 --concurrency 1 --mock",
+        "python -m cookbook optimization/run-vs-run-many --input cookbook/data/demo/text-medium/input.txt --mock",
+        "python -m cookbook production/rate-limits-and-concurrency --input cookbook/data/demo/text-medium --limit 1 --concurrency 2 --mock",
+        "python -m cookbook production/resume-on-failure --input cookbook/data/demo/text-medium --limit 1 --manifest /tmp/pollux_manifest.json --output-dir /tmp/pollux_items --mock",
+        "python -m cookbook research-workflows/comparative-analysis --input cookbook/data/demo/text-medium/input.txt cookbook/data/demo/text-medium/compare.txt --mock",
+        "python -m cookbook research-workflows/multi-video-synthesis --input cookbook/data/demo/multimodal-basic --max-sources 1 --mock",
     ]
     for command in commands:
+        parts = shlex.split(command)
+        parts[0] = sys.executable
         result = subprocess.run(  # noqa: S603 - fixed local command list in test
-            shlex.split(command),
+            parts,
             cwd=ROOT,
             capture_output=True,
             text=True,

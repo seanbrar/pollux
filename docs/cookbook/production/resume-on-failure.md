@@ -18,7 +18,7 @@ Persist manifest state so retries process only unfinished or failed work.
 Initial run:
 
 ```bash
-python -m cookbook production/resume-on-failure -- \
+python -m cookbook production/resume-on-failure \
   --input cookbook/data/demo/text-medium --limit 4 \
   --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
@@ -26,7 +26,7 @@ python -m cookbook production/resume-on-failure -- \
 Retry only unresolved items:
 
 ```bash
-python -m cookbook production/resume-on-failure -- \
+python -m cookbook production/resume-on-failure \
   --input cookbook/data/demo/text-medium --failed-only \
   --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```

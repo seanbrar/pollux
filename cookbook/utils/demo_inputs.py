@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-DEFAULT_TEXT_DEMO_DIR = Path("cookbook/data/demo/text-medium")
-DEFAULT_MEDIA_DEMO_DIR = Path("cookbook/data/demo/multimodal-basic")
+_COOKBOOK_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_TEXT_DEMO_DIR = _COOKBOOK_ROOT / "data" / "demo" / "text-medium"
+DEFAULT_MEDIA_DEMO_DIR = _COOKBOOK_ROOT / "data" / "demo" / "multimodal-basic"
 
 
 def resolve_dir_or_exit(user_path: Path | None, fallback: Path, *, hint: str) -> Path:

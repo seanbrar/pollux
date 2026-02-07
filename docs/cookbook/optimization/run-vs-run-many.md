@@ -16,14 +16,14 @@ Batch prompts with `run_many()` instead of writing a `run()` loop.
 ## Command
 
 ```bash
-python -m cookbook optimization/run-vs-run-many -- \
+python -m cookbook optimization/run-vs-run-many \
   --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
 Real API mode:
 
 ```bash
-python -m cookbook optimization/run-vs-run-many -- \
+python -m cookbook optimization/run-vs-run-many \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 

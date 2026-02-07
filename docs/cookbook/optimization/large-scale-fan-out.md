@@ -16,7 +16,7 @@ Fan out per-file work with bounded concurrency to control in-flight load.
 ## Command
 
 ```bash
-python -m cookbook optimization/large-scale-fan-out -- \
+python -m cookbook optimization/large-scale-fan-out \
   --input cookbook/data/demo/text-medium --limit 8 --concurrency 4 --mock
 ```
 

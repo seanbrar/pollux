@@ -17,7 +17,7 @@ Tune `request_concurrency` safely against rate limits.
 ## Command
 
 ```bash
-python -m cookbook production/rate-limits-and-concurrency -- \
+python -m cookbook production/rate-limits-and-concurrency \
   --input cookbook/data/demo/text-medium --limit 1 \
   --prompts 12 --trials 3 --concurrency 4 --mock
 ```

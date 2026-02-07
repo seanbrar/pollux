@@ -18,21 +18,21 @@ Extract fast highlights from one media source (image, audio, or video) before sc
 Image:
 
 ```bash
-python -m cookbook getting-started/extract-media-insights -- \
+python -m cookbook getting-started/extract-media-insights \
   --input cookbook/data/demo/multimodal-basic/sample_image.jpg --mock
 ```
 
 Video:
 
 ```bash
-python -m cookbook getting-started/extract-media-insights -- \
+python -m cookbook getting-started/extract-media-insights \
   --input cookbook/data/demo/multimodal-basic/sample_video.mp4 --mock
 ```
 
 Audio:
 
 ```bash
-python -m cookbook getting-started/extract-media-insights -- \
+python -m cookbook getting-started/extract-media-insights \
   --input cookbook/data/demo/multimodal-basic/sample_audio.mp3 --mock
 ```
 

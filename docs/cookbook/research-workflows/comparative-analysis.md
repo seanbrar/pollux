@@ -16,15 +16,15 @@ Generate structured differences and similarities between two sources.
 ## Command
 
 ```bash
-python -m cookbook research-workflows/comparative-analysis -- \
-  cookbook/data/demo/text-medium/input.txt \
+python -m cookbook research-workflows/comparative-analysis \
+  --input cookbook/data/demo/text-medium/input.txt \
   cookbook/data/demo/text-medium/compare.txt --mock
 ```
 
 Fallback directory mode:
 
 ```bash
-python -m cookbook research-workflows/comparative-analysis -- \
+python -m cookbook research-workflows/comparative-analysis \
   --input cookbook/data/demo/text-medium --mock
 ```
 

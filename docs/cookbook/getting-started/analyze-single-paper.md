@@ -16,14 +16,14 @@ Start with one source so you can tune prompt quality before scaling.
 ## Command
 
 ```bash
-python -m cookbook getting-started/analyze-single-paper -- \
+python -m cookbook getting-started/analyze-single-paper \
   --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
 Real API mode:
 
 ```bash
-python -m cookbook getting-started/analyze-single-paper -- \
+python -m cookbook getting-started/analyze-single-paper \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 

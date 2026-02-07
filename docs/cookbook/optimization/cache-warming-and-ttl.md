@@ -16,7 +16,7 @@ Measure cache impact and pick a sane TTL for reuse.
 ## Command
 
 ```bash
-python -m cookbook optimization/cache-warming-and-ttl -- \
+python -m cookbook optimization/cache-warming-and-ttl \
   --input cookbook/data/demo/text-medium --limit 2 --ttl 3600 --mock
 ```
 

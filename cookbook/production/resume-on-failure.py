@@ -11,8 +11,8 @@ Pattern:
     - On rerun, process only non-"ok" items.
 
 Run:
-    python -m cookbook production/resume-on-failure -- --input ./my_docs
-    python -m cookbook production/resume-on-failure -- --input ./my_docs --failed-only
+    python -m cookbook production/resume-on-failure --input ./my_docs
+    python -m cookbook production/resume-on-failure --input ./my_docs --failed-only
 
 Success check:
     - `outputs/manifest.json` is created and updated incrementally.

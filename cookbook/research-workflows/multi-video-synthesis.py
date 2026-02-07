@@ -88,17 +88,10 @@ def main() -> None:
         description="Synthesize insights across up to 10 video sources.",
     )
     parser.add_argument(
-        "inputs",
-        nargs="*",
-        help="Video file paths and/or URLs (YouTube supported).",
-    )
-    parser.add_argument(
-        "--input-dir",
         "--input",
-        type=Path,
-        dest="input_dir",
+        nargs="+",
         default=None,
-        help="Fallback directory to auto-pick local video files.",
+        help="Video file paths, URLs, or a single directory to auto-pick from.",
     )
     parser.add_argument(
         "--max-sources",
@@ -111,15 +104,19 @@ def main() -> None:
     add_runtime_args(parser)
     args = parser.parse_args()
 
-    raw_inputs = list(args.inputs)
-    if not raw_inputs:
-        directory = args.input_dir or DEFAULT_MEDIA_DEMO_DIR
-        if not directory.exists():
+    raw_inputs = list(args.input) if args.input else []
+    if len(raw_inputs) == 1 and Path(raw_inputs[0]).is_dir():
+        picks = pick_files_by_ext(
+            Path(raw_inputs[0]), [".mp4", ".mov"], limit=max(1, args.max_sources)
+        )
+        raw_inputs = [str(path) for path in picks]
+    elif not raw_inputs:
+        if not DEFAULT_MEDIA_DEMO_DIR.exists():
             raise SystemExit(
-                "No inputs found. Provide paths/URLs or run `make demo-data`."
+                "No inputs found. Provide --input with paths/URLs or run `make demo-data`."
             )
         picks = pick_files_by_ext(
-            directory, [".mp4", ".mov"], limit=max(1, args.max_sources)
+            DEFAULT_MEDIA_DEMO_DIR, [".mp4", ".mov"], limit=max(1, args.max_sources)
         )
         raw_inputs = [str(path) for path in picks]
 
