@@ -1,4 +1,4 @@
-# Large-Scale Batching
+# Large-Scale Fan-Out
 
 Fan out per-file work with bounded concurrency to control in-flight load.
 
@@ -16,7 +16,7 @@ Fan out per-file work with bounded concurrency to control in-flight load.
 ## Command
 
 ```bash
-python -m cookbook optimization/large-scale-batching -- \
+python -m cookbook optimization/large-scale-fan-out -- \
   --input cookbook/data/demo/text-medium --limit 8 --concurrency 4 --mock
 ```
 
@@ -29,7 +29,7 @@ python -m cookbook optimization/large-scale-batching -- \
 ## Tuning levers
 
 - `--concurrency` controls client-side in-flight work.
-- `--limit` controls batch size and test duration.
+- `--limit` controls workload size and test duration.
 
 ## Failure modes
 

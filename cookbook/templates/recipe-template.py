@@ -24,7 +24,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 PROMPTS = ["[Replace with a concrete prompt]"]
 
@@ -35,7 +35,7 @@ async def main_async(directory: Path, *, limit: int, config: Config) -> None:
         raise SystemExit(f"No files found under: {directory}")
 
     sources = [Source.from_file(path) for path in files]
-    envelope = await batch(PROMPTS, sources=sources, config=config)
+    envelope = await run_many(PROMPTS, sources=sources, config=config)
 
     print_section("Result")
     print_kv_rows(

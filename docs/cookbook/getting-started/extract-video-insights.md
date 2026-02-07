@@ -39,6 +39,6 @@ python -m cookbook getting-started/extract-video-insights -- \
 
 ## Extend this recipe
 
-- Scale to [Multi-Video Batch](../research-workflows/multi-video-batch.md).
+- Scale to [Multi-Video Synthesis](../research-workflows/multi-video-synthesis.md).
 - Add schema constraints with [Custom Schema Template](../templates.md).
 

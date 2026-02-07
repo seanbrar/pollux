@@ -23,14 +23,14 @@ Every recipe in this cookbook should meet this contract:
 ### Path A: First successful runs
 
 1. [Analyze Single Paper](getting-started/analyze-single-paper.md)
-2. [Batch Process Files](getting-started/batch-process-files.md)
+2. [Broadcast Process Files](getting-started/broadcast-process-files.md)
 3. [Comparative Analysis](research-workflows/comparative-analysis.md)
 
 ### Path B: Efficiency and scale
 
 1. [Context Caching Explicit](optimization/context-caching-explicit.md)
 2. [Cache Warming and TTL](optimization/cache-warming-and-ttl.md)
-3. [Large-Scale Batching](optimization/large-scale-batching.md)
+3. [Large-Scale Fan-Out](optimization/large-scale-fan-out.md)
 
 ### Path C: Production hardening
 

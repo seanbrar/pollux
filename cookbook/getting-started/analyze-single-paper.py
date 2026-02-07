@@ -9,7 +9,7 @@ When to use:
     - You want a quick read on answer quality and token usage.
 
 When not to use:
-    - You need throughput across many files (use batch recipes).
+    - You need throughput across many files (use multi-source recipes).
 
 Run:
     python -m cookbook getting-started/analyze-single-paper -- --input path/to/file.pdf
@@ -63,12 +63,12 @@ async def main_async(path: Path, prompt: str, *, config: Config) -> None:
         (
             "Next: tighten `--prompt` with explicit output format (bullets/table/JSON)."
             if status == "ok"
-            else "Next: resolve non-ok status before scaling this prompt to larger batches."
+            else "Next: resolve non-ok status before scaling this prompt to more sources."
         ),
         (
             "Next: add stronger task constraints to improve answer specificity."
             if len(answer.strip()) < 80
-            else "Next: validate factual precision on this baseline before batching."
+            else "Next: validate factual precision on this baseline before running across more sources."
         ),
     ]
     print_learning_hints(hints)

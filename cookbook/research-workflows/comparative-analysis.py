@@ -29,7 +29,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 PROMPT = (
     "Return application/json only with keys: similarities (list), differences (list), "
@@ -70,7 +70,7 @@ def parse_comparison(raw: str) -> Comparison | None:
 
 async def main_async(paths: list[Path], *, config: Config) -> None:
     sources = [Source.from_file(path) for path in paths]
-    envelope = await batch([PROMPT], sources=sources, config=config)
+    envelope = await run_many([PROMPT], sources=sources, config=config)
 
     answer = str((envelope.get("answers") or [""])[0])
     parsed = parse_comparison(answer)

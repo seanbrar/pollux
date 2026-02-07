@@ -36,7 +36,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 DEFAULT_PROMPTS = [
     "List 3 key moments with timestamps when visible.",
@@ -47,7 +47,7 @@ DEFAULT_PROMPTS = [
 async def main_async(path: Path, *, config: Config) -> None:
     source = Source.from_file(path)
     envelope = await retry_async(
-        lambda: batch(DEFAULT_PROMPTS, sources=[source], config=config),
+        lambda: run_many(DEFAULT_PROMPTS, sources=[source], config=config),
         retries=3,
         initial_delay=1.0,
         backoff=1.8,

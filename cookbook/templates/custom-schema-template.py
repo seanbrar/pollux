@@ -22,7 +22,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 
 class MySchema(BaseModel):
@@ -45,7 +45,7 @@ def parse_schema(answer: str) -> MySchema | None:
 
 
 async def main_async(path: Path, *, config: Config) -> None:
-    envelope = await batch([PROMPT], sources=[Source.from_file(path)], config=config)
+    envelope = await run_many([PROMPT], sources=[Source.from_file(path)], config=config)
     answer = str((envelope.get("answers") or [""])[0])
     parsed = parse_schema(answer)
 

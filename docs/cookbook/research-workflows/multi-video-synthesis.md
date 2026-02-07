@@ -1,10 +1,10 @@
-# Multi-Video Batch
+# Multi-Video Synthesis
 
 Synthesize cross-source themes and disagreements across multiple videos.
 
 ## At a glance
 
-- **Best for:** multi-video synthesis in a single batch call.
+- **Best for:** multi-video synthesis in a single call.
 - **Input:** video file paths and/or YouTube URLs.
 - **Output:** per-prompt synthesis, disagreement signals, cross-video summary.
 
@@ -18,21 +18,21 @@ Synthesize cross-source themes and disagreements across multiple videos.
 Explicit sources:
 
 ```bash
-python -m cookbook research-workflows/multi-video-batch -- \
+python -m cookbook research-workflows/multi-video-synthesis -- \
   ./video1.mp4 ./video2.mp4 --max-sources 2 --mock
 ```
 
 Auto-pick from a directory:
 
 ```bash
-python -m cookbook research-workflows/multi-video-batch -- \
+python -m cookbook research-workflows/multi-video-synthesis -- \
   --input-dir cookbook/data/demo/multimodal-basic --max-sources 2 --mock
 ```
 
 Mixed local + URL:
 
 ```bash
-python -m cookbook research-workflows/multi-video-batch -- \
+python -m cookbook research-workflows/multi-video-synthesis -- \
   "https://youtube.com/watch?v=..." ./video2.mp4 --max-sources 2 --mock
 ```
 

@@ -48,5 +48,5 @@ python -m cookbook research-workflows/comparative-analysis -- \
 ## Extend this recipe
 
 - Add Pydantic validation from [Custom Schema Template](../templates.md).
-- Pair with [Multi-Video Batch](multi-video-batch.md) for multimodal comparisons.
+- Pair with [Multi-Video Synthesis](multi-video-synthesis.md) for multimodal comparisons.
 

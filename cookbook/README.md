@@ -1,6 +1,6 @@
 # Pollux Cookbook
 
-Practical, problem-first recipes for multimodal batch analysis with Pollux.
+Practical, problem-first recipes for multimodal analysis with Pollux.
 
 ## Quality standard
 
@@ -39,7 +39,7 @@ Notes:
 | Recipe | Focus |
 | --- | --- |
 | `analyze-single-paper.py` | Single-source baseline and output inspection |
-| `batch-process-files.py` | Multi-file processing with shared prompts |
+| `broadcast-process-files.py` | Multi-file processing with shared prompts |
 | `extract-video-insights.py` | Video analysis basics |
 
 ### Optimization
@@ -48,14 +48,14 @@ Notes:
 | --- | --- |
 | `cache-warming-and-ttl.py` | Warm/reuse cache and compare usage |
 | `context-caching-explicit.py` | Explicit cache workflow |
-| `large-scale-batching.py` | Bounded client-side concurrency |
+| `large-scale-fan-out.py` | Bounded client-side concurrency |
 
 ### Research Workflows
 
 | Recipe | Focus |
 | --- | --- |
 | `comparative-analysis.py` | Structured source-to-source comparison |
-| `multi-video-batch.py` | Cross-video synthesis |
+| `multi-video-synthesis.py` | Cross-video synthesis |
 
 ### Production
 

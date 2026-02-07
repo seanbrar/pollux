@@ -28,7 +28,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 if TYPE_CHECKING:
     from pollux.result import ResultEnvelope
@@ -66,8 +66,8 @@ async def main_async(
     config_seq = replace(config, request_concurrency=1)
     config_par = replace(config, request_concurrency=max(1, concurrency))
 
-    sequential = await batch(PROMPTS, sources=sources, config=config_seq)
-    parallel = await batch(PROMPTS, sources=sources, config=config_par)
+    sequential = await run_many(PROMPTS, sources=sources, config=config_seq)
+    parallel = await run_many(PROMPTS, sources=sources, config=config_par)
     seq_d = as_float(duration_s(sequential))
     par_d = as_float(duration_s(parallel))
     speedup = None

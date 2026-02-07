@@ -47,5 +47,5 @@ python -m cookbook getting-started/analyze-single-paper -- \
 ## Extend this recipe
 
 - Run the same file with two prompt variants and compare precision.
-- Move to [Batch Process Files](batch-process-files.md) once quality is stable.
+- Move to [Broadcast Process Files](broadcast-process-files.md) once quality is stable.
 

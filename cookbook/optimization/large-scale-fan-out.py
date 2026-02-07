@@ -102,7 +102,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print_header("Large-scale batching with bounded fan-out", config=config)
+    print_header("Large-scale fan-out with bounded concurrency", config=config)
     asyncio.run(
         main_async(
             directory,

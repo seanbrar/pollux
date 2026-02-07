@@ -2,7 +2,7 @@
 """Recipe: Resume long runs and retry only failed work.
 
 Problem:
-    Batch runs fail partway through (network blips, provider hiccups, bad inputs)
+    Long runs fail partway through (network blips, provider hiccups, bad inputs)
     and you need to continue without reprocessing successful items.
 
 Pattern:
@@ -198,7 +198,7 @@ def summarize(items: list[WorkItem], manifest_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run a resilient batch with persistent manifest-based resume.",
+        description="Run a resilient pipeline with persistent manifest-based resume.",
     )
     parser.add_argument(
         "--input",
@@ -254,7 +254,7 @@ def main() -> None:
     config = build_config_or_exit(args)
     items = build_items(args.input, args.prompt, args.limit)
 
-    print_header("Resumable production batch", config=config)
+    print_header("Resumable production run", config=config)
     merged = asyncio.run(
         run_resumable(
             items=items,

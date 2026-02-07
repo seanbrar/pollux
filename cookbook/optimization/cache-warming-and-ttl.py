@@ -27,7 +27,7 @@ from cookbook.utils.presentation import (
     print_section,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 if TYPE_CHECKING:
     from pollux.result import ResultEnvelope
@@ -59,8 +59,8 @@ async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -
     sources = [Source.from_file(path) for path in files]
     cached_config = replace(config, enable_caching=True, ttl_seconds=max(1, ttl))
 
-    warm = await batch(PROMPTS, sources=sources, config=cached_config)
-    reuse = await batch(PROMPTS, sources=sources, config=cached_config)
+    warm = await run_many(PROMPTS, sources=sources, config=cached_config)
+    reuse = await run_many(PROMPTS, sources=sources, config=cached_config)
     warm_tokens = usage_tokens(warm)
     reuse_tokens = usage_tokens(reuse)
     saved = None

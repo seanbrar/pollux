@@ -29,7 +29,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 PROMPTS = [
     "List 3 key themes for each video (label by source).",
@@ -57,7 +57,7 @@ def build_sources(inputs: list[str], *, max_sources: int) -> list[Source]:
 
 
 async def main_async(sources: list[Source], *, config: Config) -> None:
-    envelope = await batch(PROMPTS, sources=sources, config=config)
+    envelope = await run_many(PROMPTS, sources=sources, config=config)
 
     answers = [str(answer) for answer in envelope.get("answers", [])]
     print_section("Multi-video result")
