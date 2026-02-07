@@ -1,4 +1,4 @@
-# Runs quality checks on branches and PRs to main
+# Runs quality checks on branches and PRs
 # Uses reusable workflow to avoid duplication with release pipeline
 name: Continuous Integration
 
@@ -7,7 +7,7 @@ name: Continuous Integration
     branches: ["**"]
   # Run on pull requests that target the main branch
   pull_request:
-    branches: [main]
+    branches: [main, "release/**"]
 
 jobs:
   lint-workflows:
@@ -31,4 +31,15 @@ jobs:
     with:
       python-version: ${{ matrix.python-version }}
       test-command: make test
+      enable-api-tests: false
+      upload-coverage: false
+
+  api-tests:
+    # Run API tests exactly once to avoid exhausting shared free-tier quota.
+    uses: ./.github/workflows/reusable-checks.yml
+    secrets: inherit
+    with:
+      python-version: "3.10"
+      test-command: make test-api
+      enable-api-tests: true
       upload-coverage: false
