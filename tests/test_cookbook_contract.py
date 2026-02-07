@@ -84,10 +84,13 @@ def test_all_recipes_run_in_mock_mode() -> None:
     commands = [
         "python -m cookbook getting-started/analyze-single-paper -- --input cookbook/data/demo/text-medium/input.txt --mock",
         "python -m cookbook getting-started/broadcast-process-files -- --input cookbook/data/demo/text-medium --limit 1 --mock",
+        "python -m cookbook getting-started/structured-output-extraction -- --input cookbook/data/demo/text-medium/input.txt --mock",
+        "python -m cookbook getting-started/extract-image-insights -- --input cookbook/data/demo/multimodal-basic/sample_image.jpg --mock",
         "python -m cookbook getting-started/extract-video-insights -- --input cookbook/data/demo/multimodal-basic/sample_video.mp4 --mock",
         "python -m cookbook optimization/cache-warming-and-ttl -- --input cookbook/data/demo/text-medium --limit 1 --ttl 300 --mock",
         "python -m cookbook optimization/context-caching-explicit -- --input cookbook/data/demo/text-medium --limit 1 --mock",
         "python -m cookbook optimization/large-scale-fan-out -- --input cookbook/data/demo/text-medium --limit 1 --concurrency 1 --mock",
+        "python -m cookbook optimization/run-vs-run-many -- --input cookbook/data/demo/text-medium/input.txt --mock",
         "python -m cookbook production/rate-limits-and-concurrency -- --input cookbook/data/demo/text-medium --limit 1 --concurrency 2 --mock",
         "python -m cookbook production/resume-on-failure -- --input cookbook/data/demo/text-medium --limit 1 --manifest /tmp/pollux_manifest.json --output-dir /tmp/pollux_items --mock",
         "python -m cookbook research-workflows/comparative-analysis -- cookbook/data/demo/text-medium/input.txt cookbook/data/demo/text-medium/compare.txt --mock",

@@ -24,13 +24,15 @@ Every recipe in this cookbook should meet this contract:
 
 1. [Analyze Single Paper](getting-started/analyze-single-paper.md)
 2. [Broadcast Process Files](getting-started/broadcast-process-files.md)
-3. [Comparative Analysis](research-workflows/comparative-analysis.md)
+3. [Structured Output Extraction](getting-started/structured-output-extraction.md)
+4. [Comparative Analysis](research-workflows/comparative-analysis.md)
 
 ### Path B: Efficiency and scale
 
-1. [Context Caching Explicit](optimization/context-caching-explicit.md)
-2. [Cache Warming and TTL](optimization/cache-warming-and-ttl.md)
-3. [Large-Scale Fan-Out](optimization/large-scale-fan-out.md)
+1. [Run vs RunMany](optimization/run-vs-run-many.md)
+2. [Context Caching Explicit](optimization/context-caching-explicit.md)
+3. [Cache Warming and TTL](optimization/cache-warming-and-ttl.md)
+4. [Large-Scale Fan-Out](optimization/large-scale-fan-out.md)
 
 ### Path C: Production hardening
 
@@ -59,4 +61,3 @@ Seed demo inputs for deterministic runs:
 ```bash
 make demo-data
 ```
-
