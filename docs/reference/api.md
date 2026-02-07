@@ -1,37 +1,37 @@
 # API Reference
 
-Quick reference for the public API. For usage examples, see the [Quickstart](../quickstart.md).
+Quick reference for the current public API.
 
----
+For provider-level feature differences, see [Provider Capabilities](provider-capabilities.md).
 
 ## Entry Points
 
-The main way to use Pollux:
+The primary execution functions are exported from `pollux`:
 
-::: pollux.frontdoor.run_simple
+::: pollux.run
 
-::: pollux.frontdoor.run_batch
+::: pollux.run_many
 
----
+## Core Types
 
-## Executor (Advanced)
+::: pollux.Source
 
-For fine-grained control:
+::: pollux.Config
 
-::: pollux.executor.create_executor
+::: pollux.ResultEnvelope
 
-::: pollux.executor.Executor
+## Error Types
 
----
+::: pollux.PolluxError
 
-## Sources
+::: pollux.ConfigurationError
 
-::: pollux.types.Source
+::: pollux.SourceError
 
----
+::: pollux.APIError
 
-## Configuration
+::: pollux.RateLimitError
 
-::: pollux.config.resolve_config
+::: pollux.CacheError
 
-::: pollux.config.FrozenConfig
+::: pollux.PlanningError

@@ -50,24 +50,21 @@ make lint
 
 ## Enable the real API (optional)
 
-Mock mode is the default and needs no key. For real API calls:
+For real API calls, set an API key:
 
 === "Bash/Zsh"
 
 ```bash
 export GEMINI_API_KEY="<your key>"
-export POLLUX_TIER=free      # free | tier_1 | tier_2 | tier_3
-export POLLUX_USE_REAL_API=1
+export OPENAI_API_KEY="<your key>"
 ```
 
 === "PowerShell"
 
 ```powershell
 $Env:GEMINI_API_KEY = "<your key>"
-$Env:POLLUX_TIER = "free"
-$Env:POLLUX_USE_REAL_API = "1"
+$Env:OPENAI_API_KEY = "<your key>"
 ```
 
 !!! warning "Secrets & costs"
-    Never commit keys. Real API usage may incur costs - set `POLLUX_TIER` to match
-    your account.
+    Never commit keys. Real API usage may incur costs.

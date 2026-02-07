@@ -2,13 +2,13 @@
 
 ## Origins
 
-Pollux began as a Google Summer of Code 2025 project with Google DeepMind. The goal: make multimodal batch processing on Gemini efficient, reliable, and accessible.
+Pollux began as a Google Summer of Code 2025 project with Google DeepMind. The goal: make multimodal analysis on Gemini efficient, reliable, and accessible.
 
 The project has since evolved beyond its GSoC roots into a production-ready library, but the research-minded approach remains. Every design decision is deliberate. Every abstraction was earned, not assumed.
 
 ## Philosophy
 
-**Absorbed complexity.** The library handles batching, caching, rate limiting, and retries so your code doesn't have to. You describe *what* to analyze. Pollux handles *how*.
+**Absorbed complexity.** The library handles source patterns, context caching, rate limiting, and retries so your code doesn't have to. You describe *what* to analyze. Pollux handles *how*.
 
 **Multimodal-native.** PDFs, videos, images, and YouTube URLs are first-class citizens alongside text. Not an afterthought—the core design.
 

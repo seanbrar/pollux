@@ -1,141 +1,83 @@
 # Usage Patterns
 
-Core patterns for working with Pollux, from simple queries to multi-turn conversations.
+Core usage patterns for the v1.0 API.
 
-## Single Source Analysis
-
-The simplest pattern: one prompt, one source.
+## Pattern 1: Single Prompt + Optional Source
 
 ```python
 import asyncio
-from pollux import run_simple, types
+from pollux import Config, Source, run
 
-async def main():
-    result = await run_simple(
+async def main() -> None:
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+    result = await run(
         "What are the main conclusions?",
-        source=types.Source.from_file("paper.pdf"),
+        source=Source.from_file("paper.pdf"),
+        config=config,
     )
     print(result["answers"][0])
 
 asyncio.run(main())
 ```
 
-Sources can be files, URLs, text, or directories:
-
-```python
-types.Source.from_file("document.pdf")
-types.Source.from_url("https://youtube.com/watch?v=...")
-types.Source.from_text("Raw text content")
-types.Source.from_directory("papers/")
-```
-
-## Batch Processing
-
-Multiple prompts across multiple sources in a single call.
+## Pattern 2: Multi-Prompt Batching
 
 ```python
 import asyncio
-from pollux import run_batch, types
+from pollux import Config, Source, batch
 
-async def main():
+async def main() -> None:
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
     sources = [
-        types.Source.from_text("Paper A: attention mechanisms"),
-        types.Source.from_text("Paper B: transformer architectures"),
+        Source.from_text("Paper A: attention mechanisms"),
+        Source.from_text("Paper B: transformer architectures"),
     ]
     prompts = [
         "List 3 key ideas shared across sources.",
         "What would you investigate next?",
     ]
 
-    envelope = await run_batch(prompts, sources=sources)
-
-    print(envelope["status"])  # "ok"
+    envelope = await batch(prompts, sources=sources, config=config)
+    print(envelope["status"])
     for i, answer in enumerate(envelope["answers"], 1):
         print(f"Q{i}: {answer}")
 
 asyncio.run(main())
 ```
 
-### Tips
-
-- Use `types.make_execution_options(request_concurrency=1)` to control parallelism
-- Replace `from_text` with `from_file`, `from_url`, or `from_directory` for real content
-
-## Multi-Turn Conversations
-
-For workflows requiring follow-up questions and context retention.
+## Pattern 3: Structured Output
 
 ```python
-from pollux import create_executor, types
-from pollux.extensions import Conversation
+from pydantic import BaseModel
+from pollux import Config, Options, run
 
-executor = create_executor()
-conv = Conversation.start(
-    executor,
-    sources=[types.Source.from_file("./whitepaper.pdf")],
-)
+class PaperSummary(BaseModel):
+    title: str
+    findings: list[str]
 
-# Ask a single question
-conv = await conv.ask("Summarize the abstract in 3 bullets.")
-print(conv.state.turns[-1].assistant)
+config = Config(provider="openai", model="gpt-5-nano")
+options = Options(response_schema=PaperSummary)
+
+result = await run("Extract structured summary", config=config, options=options)
+print(result["structured"][0])
 ```
 
-### Sequential Questions
+## Source Constructors
 
-```python
-from pollux.extensions import PromptSet
+- `Source.from_text(...)`
+- `Source.from_file(...)`
+- `Source.from_arxiv(...)`
+- `Source.from_youtube(...)`
+- `Source.from_uri(...)`
 
-conv, answers, _ = await conv.run(
-    PromptSet.sequential("Key claims?", "Caveats?")
-)
-```
+## v1.0 Notes
 
-### Vectorized Prompts
-
-Run multiple prompts in a single synthetic turn:
-
-```python
-conv, answers, _ = await conv.run(
-    PromptSet.vectorized("Experiment A?", "Experiment B?", "Experiment C?")
-)
-```
-
-### History Management
-
-Keep only recent turns to manage context size:
-
-```python
-from pollux.extensions import ConversationPolicy
-
-conv = conv.with_policy(ConversationPolicy(keep_last_n=3))
-```
-
-### Persistence
-
-Save conversation state across sessions:
-
-```python
-from pollux.extensions.conversation_engine import ConversationEngine
-from pollux.extensions.conversation_store import JSONStore
-
-store = JSONStore("./conversations.json")
-engine = ConversationEngine(executor, store)
-
-exchange = await engine.ask("session-1", "Hello?")
-print(exchange.assistant)
-```
-
-## Choosing the Right Pattern
-
-| Pattern | Use when... |
-|---------|-------------|
-| `run_simple` | Single prompt, single source |
-| `run_batch` | Multiple prompts or sources, no conversation state |
-| `Conversation` | Multi-turn workflows, follow-up questions |
-| `ConversationEngine` | Persistent conversations across sessions |
+- Conversation continuity (`history`, `continue_from`) is reserved and disabled in v1.0.
+- `delivery_mode="deferred"` is reserved and disabled in v1.0.
+- Provider support differs by feature. See [Provider Capabilities](../reference/provider-capabilities.md).
 
 ## Next Steps
 
 - [Caching](caching.md) - Reduce costs with context caching
-- [Configuration](configuration.md) - Models, tiers, and options
-- [Troubleshooting](troubleshooting.md) - Common issues
+- [Configuration](configuration.md) - Core configuration model
+- [Troubleshooting](troubleshooting.md) - Common issues and fixes

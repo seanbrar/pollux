@@ -23,12 +23,14 @@ export GEMINI_API_KEY="your-key-here"
 
 ```python
 import asyncio
-from pollux import run_simple, types
+from pollux import Config, Source, run
 
 async def main() -> None:
-    result = await run_simple(
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+    result = await run(
         "What are the key points?",
-        source=types.Source.from_file("document.pdf"),
+        source=Source.from_file("document.pdf"),
+        config=config,
     )
     print(result["answers"][0])
 
@@ -39,6 +41,7 @@ Expected result: a short answer printed to your terminal.
 
 ## Next Steps
 
-- **[Usage Patterns](guides/patterns.md)** — Batch processing, conversations
+- **[Usage Patterns](guides/patterns.md)** — Single-call and batched execution patterns
 - **[Configuration](guides/configuration.md)** — Models, tiers, and options
-- **[Cookbook](https://github.com/seanbrar/pollux/tree/main/cookbook)** — Ready-to-run recipes
+- **[Provider Capabilities](reference/provider-capabilities.md)** — Provider-specific features and limits
+- **[Cookbook](cookbook/index.md)** — Ready-to-run recipes

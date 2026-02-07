@@ -1,8 +1,8 @@
 # Pollux
 
-Efficient multimodal analysis on Google's Gemini API.
+Multimodal orchestration for Gemini.
 
-> You describe what to analyze. Pollux handles batching, caching, rate limits, and retries—so you don't.
+> You describe what to analyze. Pollux handles source patterns, context caching, and multimodal complexity—so you don't.
 
 [Documentation](https://seanbrar.github.io/pollux/) ·
 [Quickstart](https://seanbrar.github.io/pollux/quickstart/) ·
@@ -18,12 +18,14 @@ Efficient multimodal analysis on Google's Gemini API.
 
 ```python
 import asyncio
-from pollux import run_simple, types
+from pollux import Config, Source, run
 
-async def main():
-    result = await run_simple(
+async def main() -> None:
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+    result = await run(
         "What are the key findings?",
-        source=types.Source.from_file("paper.pdf"),
+        source=Source.from_file("paper.pdf"),
+        config=config,
     )
     print(result["answers"][0])
 
@@ -33,9 +35,9 @@ asyncio.run(main())
 ## Why Pollux?
 
 - **Multimodal-first**: PDFs, images, videos, YouTube—same API
-- **Intelligent batching**: Fan-out across prompts and sources efficiently
-- **Context caching**: Reuse uploaded content, save tokens and money
-- **Production-ready**: Rate limiting, retries, async pipelines
+- **Source patterns**: Fan-out (one source → many prompts), fan-in, and broadcast
+- **Context caching**: Upload once, reuse across prompts—save tokens and money
+- **Production-ready core**: async execution, explicit capability checks, clear errors
 
 ## Installation
 
@@ -53,26 +55,21 @@ Get a key from [Google AI Studio](https://ai.dev/), then:
 export GEMINI_API_KEY="your-key-here"
 ```
 
-### Verify Setup
-
-```bash
-pollux-config doctor
-```
-
 ## Usage
 
-### Batch Processing
+### Multi-Source Analysis
 
 ```python
-from pollux import run_batch, types
+from pollux import Config, Source, batch
 
+config = Config(provider="gemini", model="gemini-2.5-flash-lite")
 sources = [
-    types.Source.from_file("paper1.pdf"),
-    types.Source.from_file("paper2.pdf"),
+    Source.from_file("paper1.pdf"),
+    Source.from_file("paper2.pdf"),
 ]
 prompts = ["Summarize the main argument.", "List key findings."]
 
-envelope = await run_batch(prompts, sources=sources)
+envelope = await batch(prompts, sources=sources, config=config)
 for answer in envelope["answers"]:
     print(answer)
 ```
@@ -80,26 +77,28 @@ for answer in envelope["answers"]:
 ### Configuration
 
 ```python
-from pollux import create_executor
-from pollux.config import resolve_config
+from pollux import Config
 
-config = resolve_config(overrides={
-    "model": "gemini-2.0-flash",
-    "tier": "tier_1",
-    "enable_caching": True,
-})
-
-executor = create_executor(config)
+config = Config(
+    provider="gemini",
+    model="gemini-2.5-flash-lite",
+    enable_caching=True,
+)
 ```
 
 See the [Configuration Guide](https://seanbrar.github.io/pollux/guides/configuration/) for details.
+
+### Provider Differences
+
+Pollux does not force strict feature parity across providers in v1.0.
+See the capability matrix: [Provider Capabilities](https://seanbrar.github.io/pollux/reference/provider-capabilities/).
 
 ## Documentation
 
 - [Quickstart](https://seanbrar.github.io/pollux/quickstart/) — First result in 2 minutes
 - [Guides](https://seanbrar.github.io/pollux/guides/installation/) — Installation, configuration, patterns
 - [API Reference](https://seanbrar.github.io/pollux/reference/api/) — Entry points and types
-- [Cookbook](./cookbook/) — 11 ready-to-run recipes
+- [Cookbook](./cookbook/) — scenario-driven, ready-to-run recipes
 
 ## Origins
 
