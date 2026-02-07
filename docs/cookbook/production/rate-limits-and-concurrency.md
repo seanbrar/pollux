@@ -1,44 +1,46 @@
 # Rate Limits and Concurrency
 
-Compare sequential and bounded-concurrency settings on the same workload.
+Tune `request_concurrency` safely against rate limits.
 
 ## At a glance
 
-- **Best for:** selecting a safe, performant concurrency level.
-- **Input:** same file set evaluated twice.
-- **Output:** status + duration comparison for `c=1` vs `c=N`.
+- **Best for:** selecting a safe, performant per-plan concurrency level.
+- **Input:** fixed context set + fixed prompt count, repeated across multiple trials.
+- **Output:** ok-rate + median duration comparison for `c=1` vs `c=N`.
 
 ## Before you run
 
-- Keep inputs identical across both runs.
+- Keep inputs and prompt count identical across comparisons.
 - Start with conservative concurrency (`2-4`) in real API mode.
+- Use multiple trials; latency is noisy.
 
 ## Command
 
 ```bash
 python -m cookbook production/rate-limits-and-concurrency -- \
-  --input cookbook/data/demo/text-medium --limit 3 --concurrency 4 --mock
+  --input cookbook/data/demo/text-medium --limit 1 \
+  --prompts 12 --trials 3 --concurrency 4 --mock
 ```
 
 ## What to look for
 
-- Both runs should finish with healthy statuses.
-- Bounded run should usually reduce duration versus sequential.
-- If bounded run regresses, concurrency is likely too aggressive.
+- `bounded ok rate` stays at `N / N`.
+- `bounded median duration` improves without increasing error rate.
+- If the ok-rate drops at higher concurrency, you’re pushing too hard.
 
 ## Tuning levers
 
 - Raise `--concurrency` stepwise until reliability drops.
-- Keep prompt/file complexity constant while tuning.
+- Increase `--trials` to reduce noise.
+- Keep `--limit` and `--prompts` constant while tuning.
 
 ## Failure modes
 
-- Spiky latency can make single-run duration comparisons noisy.
+- Spiky latency can make single-run comparisons misleading; rely on medians.
 - Rate limit errors imply concurrency should be reduced.
-- Heterogeneous inputs can distort tuning conclusions.
+- Too few prompts can hide the effect of concurrency; use `--prompts 12+`.
 
 ## Extend this recipe
 
-- Track median durations over multiple runs.
+- Use [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md) for concurrency across files/items.
 - Combine with [Resume on Failure](resume-on-failure.md) for robust pipelines.
-
