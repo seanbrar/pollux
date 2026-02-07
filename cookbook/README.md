@@ -41,15 +41,13 @@ Notes:
 | `analyze-single-paper.py` | Single-source baseline and output inspection |
 | `broadcast-process-files.py` | Multi-file processing with shared prompts |
 | `structured-output-extraction.py` | Schema-first extraction (typed structured output) |
-| `extract-image-insights.py` | Image analysis basics |
-| `extract-video-insights.py` | Video analysis basics |
+| `extract-media-insights.py` | Single-image/audio/video analysis baseline |
 
 ### Optimization
 
 | Recipe | Focus |
 | --- | --- |
 | `cache-warming-and-ttl.py` | Warm/reuse cache and compare usage |
-| `context-caching-explicit.py` | Explicit cache workflow |
 | `large-scale-fan-out.py` | Bounded client-side concurrency |
 | `run-vs-run-many.py` | Prompt batching and API overhead comparison |
 

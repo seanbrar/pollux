@@ -48,3 +48,4 @@ python -m cookbook getting-started/structured-output-extraction -- \
 
 - Add downstream validation and persistence (write `structured` to JSONL).
 - Pair with [Run vs RunMany](../optimization/run-vs-run-many.md) for multi-question extraction.
+- For multimodal baselines, start with [Extract Media Insights](extract-media-insights.md).

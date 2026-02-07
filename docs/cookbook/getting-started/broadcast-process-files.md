@@ -48,3 +48,4 @@ python -m cookbook getting-started/broadcast-process-files -- \
 
 - Scale throughput with bounded in-flight calls via [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md).
 - Promote durable workloads to [Resume on Failure](../production/resume-on-failure.md).
+- For multimodal prompt baselines, start with [Extract Media Insights](extract-media-insights.md).

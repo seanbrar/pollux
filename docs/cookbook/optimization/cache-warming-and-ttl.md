@@ -1,6 +1,6 @@
 # Cache Warming and TTL
 
-Warm shared context once, then reuse it under a controlled TTL.
+Measure cache impact and pick a sane TTL for reuse.
 
 ## At a glance
 
@@ -23,8 +23,8 @@ python -m cookbook optimization/cache-warming-and-ttl -- \
 ## What to look for
 
 - Both warm and reuse runs should report `status=ok`.
-- Reuse run should often show cache reuse signals and lower/similar tokens.
-- If savings are flat, context may be too small or already cheap.
+- Reuse run should show a cache reuse signal and lower/similar tokens (directional).
+- If savings are flat, the repeated context may be too small or already cheap.
 
 ## Tuning levers
 
@@ -40,5 +40,4 @@ python -m cookbook optimization/cache-warming-and-ttl -- \
 ## Extend this recipe
 
 - Add periodic cache regression checks in CI/staging.
-- Pair with [Context Caching Explicit](context-caching-explicit.md) for repeatability tests.
-
+- Scale throughput separately (fan-out/concurrency); caching is about repeated context economics.

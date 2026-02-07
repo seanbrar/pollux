@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Recipe: Warm cache once, then reuse it with TTL.
+"""Recipe: Measure cache impact and pick a sane TTL.
 
 Problem:
-    Re-running the same analysis wastes latency and tokens when shared context is
-    unchanged.
+    Re-running the same workload can waste latency and tokens when the shared
+    context is unchanged.
 
 Pattern:
+    - Keep prompts and sources fixed.
     - Enable caching with a meaningful TTL.
-    - Run once to warm.
-    - Run again with identical prompts/sources and compare metrics.
+    - Run once to warm and once to reuse (back-to-back).
+    - Compare tokens and cache signal.
 """
 
 from __future__ import annotations
@@ -20,12 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
-from cookbook.utils.presentation import (
-    print_header,
-    print_kv_rows,
-    print_learning_hints,
-    print_section,
-)
+from cookbook.utils.presentation import print_header, print_kv_rows, print_learning_hints, print_section
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
 from pollux import Config, Source, run_many
 
@@ -67,11 +63,18 @@ async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -
     if isinstance(warm_tokens, int) and isinstance(reuse_tokens, int):
         saved = warm_tokens - reuse_tokens
 
-    print_section("Cache comparison")
+    print_section("Cache impact report")
     describe("warm", warm)
     describe("reuse", reuse)
     if saved is not None:
-        print_kv_rows([("Token delta (warm - reuse)", saved)])
+        warm_total = warm_tokens if isinstance(warm_tokens, int) else 0
+        pct = (saved / warm_total * 100) if warm_total > 0 else 0.0
+        print_kv_rows(
+            [
+                ("Token delta (warm - reuse)", saved),
+                ("Reported savings", f"{pct:.1f}%"),
+            ]
+        )
     print_learning_hints(
         [
             (
@@ -86,7 +89,7 @@ async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Demonstrate cache warming and TTL-based reuse.",
+        description="Measure warm-vs-reuse behavior with caching enabled and a chosen TTL.",
     )
     parser.add_argument("--input", type=Path, default=None, help="Directory of files")
     parser.add_argument("--limit", type=int, default=2, help="Max files to include")

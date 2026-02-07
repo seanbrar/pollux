@@ -58,3 +58,5 @@ python -m cookbook research-workflows/multi-video-synthesis -- \
 - Add source citation constraints and confidence tags.
 - Combine with [Comparative Analysis](comparative-analysis.md) for deeper structured diffs.
 
+Tip: build and validate your single-source multimodal prompts first with
+[Extract Media Insights](../getting-started/extract-media-insights.md).

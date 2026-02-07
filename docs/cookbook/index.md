@@ -30,9 +30,8 @@ Every recipe in this cookbook should meet this contract:
 ### Path B: Efficiency and scale
 
 1. [Run vs RunMany](optimization/run-vs-run-many.md)
-2. [Context Caching Explicit](optimization/context-caching-explicit.md)
-3. [Cache Warming and TTL](optimization/cache-warming-and-ttl.md)
-4. [Large-Scale Fan-Out](optimization/large-scale-fan-out.md)
+2. [Cache Warming and TTL](optimization/cache-warming-and-ttl.md)
+3. [Large-Scale Fan-Out](optimization/large-scale-fan-out.md)
 
 ### Path C: Production hardening
 

@@ -44,10 +44,8 @@ nav:
           - Analyze Single Paper: cookbook/getting-started/analyze-single-paper.md
           - Broadcast Process Files: cookbook/getting-started/broadcast-process-files.md
           - Structured Output Extraction: cookbook/getting-started/structured-output-extraction.md
-          - Extract Image Insights: cookbook/getting-started/extract-image-insights.md
-          - Extract Video Insights: cookbook/getting-started/extract-video-insights.md
+          - Extract Media Insights: cookbook/getting-started/extract-media-insights.md
       - Optimization:
-          - Context Caching Explicit: cookbook/optimization/context-caching-explicit.md
           - Cache Warming and TTL: cookbook/optimization/cache-warming-and-ttl.md
           - Large-Scale Fan-Out: cookbook/optimization/large-scale-fan-out.md
           - Run vs RunMany: cookbook/optimization/run-vs-run-many.md
