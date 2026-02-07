@@ -71,7 +71,9 @@ async def main_async(
 
     print_section("Per-file results")
     for idx, path in enumerate(files, start=1):
-        envelope = await run_many(prompts, sources=[Source.from_file(path)], config=config)
+        envelope = await run_many(
+            prompts, sources=[Source.from_file(path)], config=config
+        )
         status = str(envelope.get("status", "ok"))
         status_counts[status] = status_counts.get(status, 0) + 1
         total_tokens += int(usage_tokens(envelope) or 0)

@@ -65,9 +65,6 @@ def parse_comparison(raw: str) -> Comparison | None:
     )
 
 
-
-
-
 async def main_async(paths: list[Path], *, config: Config) -> None:
     sources = [Source.from_file(path) for path in paths]
     envelope = await run_many([PROMPT], sources=sources, config=config)

@@ -25,11 +25,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 from dataclasses import replace
-import statistics
 from pathlib import Path
+import statistics
 from typing import TYPE_CHECKING, Any
 
-from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, pick_files_by_ext, resolve_dir_or_exit
+from cookbook.utils.demo_inputs import (
+    DEFAULT_TEXT_DEMO_DIR,
+    pick_files_by_ext,
+    resolve_dir_or_exit,
+)
 from cookbook.utils.presentation import (
     print_header,
     print_kv_rows,
@@ -172,7 +176,9 @@ async def main_async(
     par_median = statistics.median(par_durations) if par_durations else None
     speedup = (
         (seq_median / par_median)
-        if isinstance(seq_median, float) and isinstance(par_median, float) and par_median > 0
+        if isinstance(seq_median, float)
+        and isinstance(par_median, float)
+        and par_median > 0
         else None
     )
 
@@ -181,8 +187,14 @@ async def main_async(
         [
             ("sequential ok rate", f"{seq_ok} / {n_trials}"),
             ("bounded ok rate", f"{par_ok} / {n_trials}"),
-            ("sequential median duration (s)", f"{seq_median:.2f}" if isinstance(seq_median, float) else "n/a"),
-            ("bounded median duration (s)", f"{par_median:.2f}" if isinstance(par_median, float) else "n/a"),
+            (
+                "sequential median duration (s)",
+                f"{seq_median:.2f}" if isinstance(seq_median, float) else "n/a",
+            ),
+            (
+                "bounded median duration (s)",
+                f"{par_median:.2f}" if isinstance(par_median, float) else "n/a",
+            ),
             ("median speedup", f"{speedup:.2f}x" if speedup is not None else "n/a"),
         ]
     )

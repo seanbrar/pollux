@@ -21,7 +21,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_dir_or_exit
-from cookbook.utils.presentation import print_header, print_kv_rows, print_learning_hints, print_section
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
 from pollux import Config, Source, run_many
 

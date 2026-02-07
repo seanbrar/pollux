@@ -45,8 +45,7 @@ class KeyPoints(BaseModel):
 
 
 PROMPT = (
-    "Extract key points from the source. "
-    "Be specific and avoid generic boilerplate."
+    "Extract key points from the source. Be specific and avoid generic boilerplate."
 )
 
 
@@ -125,7 +124,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Extract structured key points using a Pydantic response schema.",
     )
-    parser.add_argument("--input", type=Path, default=None, help="Path to a source file")
+    parser.add_argument(
+        "--input", type=Path, default=None, help="Path to a source file"
+    )
     add_runtime_args(parser)
     args = parser.parse_args()
 
