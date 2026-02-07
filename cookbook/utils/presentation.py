@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cookbook.utils.runtime import print_run_mode, usage_tokens
+from cookbook.utils.runtime import print_run_mode
 
 if TYPE_CHECKING:
     from pollux import Config
