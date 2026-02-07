@@ -52,9 +52,7 @@ def describe(run_name: str, envelope: ResultEnvelope) -> None:
     )
 
 
-async def main_async(
-    directory: Path, *, limit: int, config: Config, ttl: int
-) -> None:
+async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -> None:
     files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
     if not files:
         raise SystemExit(f"No files found under: {directory}")
