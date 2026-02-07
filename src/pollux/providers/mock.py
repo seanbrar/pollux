@@ -51,14 +51,20 @@ class MockProvider:
         delivery_mode: str = "realtime",  # noqa: ARG002
         previous_response_id: str | None = None,  # noqa: ARG002
     ) -> dict[str, Any]:
-        """Return a mock response echoing the first text part."""
-        text = ""
-        if parts:
-            first = parts[0]
-            if isinstance(first, str):
-                text = first
-            elif hasattr(first, "text"):
-                text = first.text
+        """Return a deterministic mock response.
+
+        - Otherwise echo the first non-empty string part, falling back to the
+          last string part (typically the prompt). This keeps file-based recipes
+          informative in mock mode.
+        """
+        _ = response_schema
+
+        string_parts = [p for p in parts if isinstance(p, str) and p.strip()]
+        if string_parts:
+            text = string_parts[0]
+        else:
+            text = next((p for p in reversed(parts) if isinstance(p, str)), "")
+
         return {
             "text": f"echo: {text[:100]}",
             "usage": {"prompt_token_count": 10, "total_token_count": 20},
