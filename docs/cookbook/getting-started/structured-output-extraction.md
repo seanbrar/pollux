@@ -6,11 +6,11 @@ Use a schema to get typed, validated output instead of parsing JSON by hand.
 
 - **Best for:** pipelines that need validated fields (ETL, evaluation, indexing).
 - **Input:** one local file (`pdf/txt/md`).
-- **Output:** a structured payload in `envelope["structured"]` plus the raw answer text.
+- **Output:** in real API mode, a structured payload in `envelope["structured"]` plus the raw answer text. In `--mock` mode, this recipe prints a schema preview (the mock provider does not emit structured payloads).
 
 ## Before you run
 
-- Start in `--mock` to validate the flow and schema shape.
+- Start in `--mock` to validate the flow and schema shape (you’ll see a schema preview section).
 - Switch to `--no-mock` once your schema is stable, and track validation failures.
 
 ## Command
@@ -29,7 +29,8 @@ python -m cookbook getting-started/structured-output-extraction \
 
 ## What to look for
 
-- `Structured output` prints counts for `bullets` and `risks`.
+- In `--no-mock`, `Structured output` prints counts for `bullets` and `risks`.
+- In `--mock`, you should see `Schema preview (mock mode)` and a raw excerpt (but no real `envelope["structured"]`).
 - The raw answer excerpt should still be readable; structured output is the “contract”.
 - In real mode, schema failures should be rare once prompts are stable.
 
@@ -40,7 +41,7 @@ python -m cookbook getting-started/structured-output-extraction \
 
 ## Failure modes
 
-- If `structured` is missing, the provider/model likely doesn’t support structured outputs.
+- If `structured` is missing in real mode, the provider/model likely doesn’t support structured outputs.
 - If fields are empty, your prompt may be too vague or your schema too strict.
 - Schema drift: changes to prompts/sources can silently change field distributions.
 

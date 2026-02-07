@@ -51,14 +51,10 @@ PROMPT = (
 
 async def main_async(path: Path, *, config: Config) -> None:
     if config.use_mock:
-        # Mock provider does not advertise structured-output capability; validate the
-        # schema wiring by creating a small example payload locally.
+        # The mock provider does not support structured outputs; use mock mode to
+        # validate overall flow and iterate on schema shape (see preview below).
         envelope = await run(PROMPT, source=Source.from_file(path), config=config)
-        parsed: KeyPoints | None = KeyPoints(
-            title=f"(mock) {path.stem}",
-            bullets=["example bullet 1", "example bullet 2", "example bullet 3"],
-            risks=["example risk 1", "example risk 2"],
-        )
+        parsed: KeyPoints | None = None
     else:
         envelope = await run(
             PROMPT,
@@ -81,17 +77,48 @@ async def main_async(path: Path, *, config: Config) -> None:
     )
 
     if parsed is None:
-        print_kv_rows([("Parse status", "No structured output returned")])
         answers = [str(a) for a in envelope.get("answers", [])]
         if answers:
             print_excerpt("Raw excerpt", answers[0], limit=400)
         print_usage(envelope)
-        print_learning_hints(
-            [
-                "Next: try a provider/model that supports structured outputs.",
-                "Next: tighten the schema and prompt if fields are missing.",
-            ]
-        )
+        if config.use_mock:
+            # Mock mode is still useful: it lets you iterate on the schema shape
+            # and downstream assumptions without needing provider support.
+            preview = KeyPoints(
+                title=f"(mock preview) {path.stem}",
+                bullets=["example bullet 1", "example bullet 2", "example bullet 3"],
+                risks=["example risk 1", "example risk 2"],
+            )
+            payload = preview.model_dump()
+            print_section("Schema preview (mock mode)")
+            print_kv_rows(
+                [
+                    ("title", payload.get("title")),
+                    ("bullets", len(payload.get("bullets", []) or [])),
+                    ("risks", len(payload.get("risks", []) or [])),
+                ]
+            )
+            print_learning_hints(
+                [
+                    "Next: rerun with --no-mock to get real provider-generated structured output.",
+                    "Next: tighten the schema and prompt if fields are missing or inconsistent.",
+                ]
+            )
+        else:
+            print_kv_rows(
+                [
+                    (
+                        "Structured output",
+                        "No structured output returned (provider/model may not support structured outputs).",
+                    )
+                ]
+            )
+            print_learning_hints(
+                [
+                    "Next: try a provider/model that supports structured outputs.",
+                    "Next: tighten the schema and prompt if fields are missing or inconsistent.",
+                ]
+            )
         return
 
     payload = parsed.model_dump()

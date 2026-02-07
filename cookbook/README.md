@@ -2,14 +2,12 @@
 
 Practical, problem-first recipes for multimodal analysis with Pollux.
 
-## Quality standard
+This folder contains the runnable recipe code. The canonical cookbook
+documentation (learning paths, recipe pages, and authoring guidance) lives under
+`docs/cookbook/` and is published on the documentation site.
 
-Every recipe should be:
-
-- **Runnable:** one command from the repo root.
-- **Teachable:** explains success signals and failure modes.
-- **Operational:** shows tuning levers for reliability and cost.
-- **Extensible:** points to concrete next experiments.
+- Start here: `docs/cookbook/index.md`
+- Recipe templates: `docs/cookbook/templates.md`
 
 ## Setup
 
@@ -25,7 +23,7 @@ Then seed demo inputs:
 make demo-data
 ```
 
-## Quick Start
+## Quick start
 
 ```bash
 # 1) List recipes
@@ -44,49 +42,3 @@ Notes:
 
 - Use `make demo-data` for local sample inputs.
 - Most recipes support `--mock/--no-mock`, `--provider`, and `--model`.
-
-## Recipe Catalog
-
-### Getting Started
-
-| Recipe | Focus |
-| --- | --- |
-| `analyze-single-paper.py` | Single-source baseline and output inspection |
-| `broadcast-process-files.py` | Multi-file processing with shared prompts |
-| `structured-output-extraction.py` | Schema-first extraction (typed structured output) |
-| `extract-media-insights.py` | Single-image/audio/video analysis baseline |
-
-### Optimization
-
-| Recipe | Focus |
-| --- | --- |
-| `cache-warming-and-ttl.py` | Warm/reuse cache and compare usage |
-| `large-scale-fan-out.py` | Bounded client-side concurrency |
-| `run-vs-run-many.py` | Prompt batching and API overhead comparison |
-
-### Research Workflows
-
-| Recipe | Focus |
-| --- | --- |
-| `comparative-analysis.py` | Structured source-to-source comparison |
-| `multi-video-synthesis.py` | Cross-video synthesis |
-
-### Production
-
-| Recipe | Focus |
-| --- | --- |
-| `rate-limits-and-concurrency.py` | Throughput controls and concurrency tuning |
-| `resume-on-failure.py` | Durable manifest + retry/resume pattern |
-
-### Templates
-
-| Template | Purpose |
-| --- | --- |
-| `recipe-template.py` | Starting point for new recipes |
-| `custom-schema-template.py` | Schema-first extraction flow |
-
-## Troubleshooting
-
-- **No demo files:** run `make demo-data` or provide explicit input paths.
-- **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
-- **Rate limits:** lower concurrency and stage workload size with `--limit`.

@@ -52,7 +52,9 @@ def describe(run_name: str, envelope: ResultEnvelope) -> None:
     )
 
 
-async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -> None:
+async def main_async(
+    directory: Path, *, limit: int, config: Config, ttl: int
+) -> None:
     files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
     if not files:
         raise SystemExit(f"No files found under: {directory}")
@@ -108,13 +110,16 @@ def main() -> None:
         hint="No input directory found. Run `make demo-data` or pass --input /path/to/dir.",
     )
     config = build_config_or_exit(args)
+    cached_config = replace(
+        config, enable_caching=True, ttl_seconds=max(1, int(args.ttl))
+    )
 
-    print_header("Cache warming and TTL", config=config)
+    print_header("Cache warming and TTL", config=cached_config)
     asyncio.run(
         main_async(
             directory,
             limit=max(1, int(args.limit)),
-            config=config,
+            config=cached_config,
             ttl=int(args.ttl),
         )
     )

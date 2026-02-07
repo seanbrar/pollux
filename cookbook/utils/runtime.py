@@ -60,7 +60,16 @@ def build_config_or_exit(args: argparse.Namespace) -> Config:
 def print_run_mode(config: Config) -> None:
     """Print a compact runtime mode line for recipe users."""
     mode = "mock" if config.use_mock else "real-api"
-    print(f"Mode: {mode} | provider={config.provider} | model={config.model}")
+    caching = (
+        f"on(ttl={config.ttl_seconds}s)" if config.enable_caching else "off"
+    )
+    extra = ""
+    # Keep the mode line compact; only call out non-default concurrency.
+    if getattr(config, "request_concurrency", 6) != 6:
+        extra = f" | request_concurrency={config.request_concurrency}"
+    print(
+        f"Mode: {mode} | provider={config.provider} | model={config.model} | caching={caching}{extra}"
+    )
 
 
 def usage_tokens(envelope: ResultEnvelope) -> int | None:
