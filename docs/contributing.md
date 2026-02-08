@@ -50,10 +50,10 @@ Examples:
 
 ## Issues
 
-Issue templates exist for [bugs](https://github.com/seanbrar/pollux/issues/new?template=bug.md) and [feature requests](https://github.com/seanbrar/pollux/issues/new?template=feature.md). The templates carry most of the detail—here's the gist:
+Issue templates exist for [bugs](https://github.com/seanbrar/pollux/issues/new?template=bug.md) and [feature requests](https://github.com/seanbrar/pollux/issues/new?template=feature.md). Keep issues small and concrete. The templates carry most of the detail; at a glance:
 
-- **Bug reports**: what happened, expected behavior, reproduction steps, environment (Pollux + Python version)
-- **Feature requests**: problem or use case, optional suggested approach
+- **Bug reports**: what happened, expected behavior, reproduction steps, error output, environment (Pollux/Python/OS, provider + model if applicable)
+- **Feature requests**: problem or use case, optional proposed change, optional acceptance criteria / out of scope
 
 When a PR addresses an issue, link it in the **Related issue** section using closing keywords (`Closes #123`, `Fixes #456`).
 
