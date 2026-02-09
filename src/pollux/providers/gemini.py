@@ -8,6 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError
+from pollux.providers._errors import wrap_transient_api_error
 from pollux.providers.base import ProviderCapabilities
 
 if TYPE_CHECKING:
@@ -127,8 +128,12 @@ class GeminiProvider:
                 config=config or None,
             )
             return self._parse_response(response)
+        except APIError:
+            raise
         except Exception as e:
-            raise APIError(f"Gemini generate failed: {e}") from e
+            raise wrap_transient_api_error(
+                "Gemini generate failed", e, allow_network_errors=True
+            ) from e
 
     async def _wait_for_file_active(
         self,
@@ -193,7 +198,9 @@ class GeminiProvider:
         except APIError:
             raise
         except Exception as e:
-            raise APIError(f"Gemini upload failed: {e}") from e
+            raise wrap_transient_api_error(
+                "Gemini upload failed", e, allow_network_errors=False
+            ) from e
 
     @staticmethod
     def _file_state_name(file_obj: Any) -> str:
@@ -244,8 +251,12 @@ class GeminiProvider:
                 ),
             )
             return str(result.name)
+        except APIError:
+            raise
         except Exception as e:
-            raise APIError(f"Gemini cache creation failed: {e}") from e
+            raise wrap_transient_api_error(
+                "Gemini cache creation failed", e, allow_network_errors=False
+            ) from e
 
     def _parse_response(self, response: Any) -> dict[str, Any]:
         """Parse Gemini response into a standard dict."""

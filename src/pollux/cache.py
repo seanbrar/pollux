@@ -8,9 +8,18 @@ import hashlib
 import time
 from typing import TYPE_CHECKING, Any
 
+from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
+
 if TYPE_CHECKING:
     from pollux.providers.base import Provider
     from pollux.source import Source
+
+
+def _consume_future_exception(fut: asyncio.Future[str]) -> None:
+    try:
+        _ = fut.exception()
+    except asyncio.CancelledError:
+        return
 
 
 @dataclass
@@ -69,6 +78,7 @@ async def get_or_create_cache(
     parts: list[Any],
     system_instruction: str | None,
     ttl_seconds: int,
+    retry_policy: RetryPolicy | None = None,
 ) -> str | None:
     """Get existing cache or create new one with single-flight protection.
 
@@ -92,6 +102,7 @@ async def get_or_create_cache(
             creator = False
         else:
             fut = asyncio.get_running_loop().create_future()
+            fut.add_done_callback(_consume_future_exception)
             registry._inflight[key] = fut
             creator = True
 
@@ -100,12 +111,24 @@ async def get_or_create_cache(
 
     # We are the creator
     try:
-        cache_name = await provider.create_cache(
-            model=model,
-            parts=parts,
-            system_instruction=system_instruction,
-            ttl_seconds=ttl_seconds,
-        )
+        if retry_policy is None or retry_policy.max_attempts <= 1:
+            cache_name = await provider.create_cache(
+                model=model,
+                parts=parts,
+                system_instruction=system_instruction,
+                ttl_seconds=ttl_seconds,
+            )
+        else:
+            cache_name = await retry_async(
+                lambda: provider.create_cache(
+                    model=model,
+                    parts=parts,
+                    system_instruction=system_instruction,
+                    ttl_seconds=ttl_seconds,
+                ),
+                policy=retry_policy,
+                should_retry=should_retry_side_effect,
+            )
         registry.set(key, cache_name, ttl_seconds)
         fut.set_result(cache_name)
         return cache_name

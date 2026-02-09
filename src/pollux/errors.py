@@ -27,6 +27,25 @@ class PlanningError(PolluxError):
 class APIError(PolluxError):
     """API call failed."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        hint: str | None = None,
+        retryable: bool | None = None,
+        status_code: int | None = None,
+        retry_after_s: float | None = None,
+    ) -> None:
+        """Initialize APIError.
+
+        Providers may optionally attach retry metadata so core execution can
+        perform bounded retries without brittle substring matching.
+        """
+        super().__init__(message, hint=hint)
+        self.retryable = retryable
+        self.status_code = status_code
+        self.retry_after_s = retry_after_s
+
 
 class CacheError(PolluxError):
     """Cache operation failed."""
