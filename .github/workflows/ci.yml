@@ -10,6 +10,9 @@ name: Continuous Integration
   # Run on pull requests that target the main branch
   pull_request:
     branches: [main, "release/**"]
+  # Run API tests nightly to detect provider-side drift during quiet periods
+  schedule:
+    - cron: "0 8 * * *" # 8am UTC daily
 
 jobs:
   lint-workflows:
@@ -38,8 +41,8 @@ jobs:
 
   api-tests:
     # Run API tests exactly once to avoid exhausting shared free-tier quota.
-    # Run on PRs only to avoid quota burn on every branch push.
-    if: github.event_name == 'pull_request'
+    # Run on PRs and nightly schedule to detect provider-side drift.
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
     uses: ./.github/workflows/reusable-checks.yml
     secrets: inherit
     with:
