@@ -150,7 +150,6 @@ markers = [
     # Fixture control (opt-out of default isolation)
     "allow_dotenv: Opt-in to load .env in a specific test",
     "allow_env_pollution: Opt-in to keep current env (no cleanup)",
-    "allow_real_home_config: Opt-in to use the real home config path",
 ]
 
 # --- Ruff ---

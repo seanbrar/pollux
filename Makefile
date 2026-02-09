@@ -46,8 +46,8 @@ check: lint typecheck test ## Run all checks (lint + typecheck + tests)
 test: ## Run all tests
 	$(PYTEST) $(PYTEST_ARGS)
 
-test-api: .check-api-key ## Run API tests (requires GEMINI_API_KEY)
-	$(PYTEST) $(PYTEST_ARGS) -m "api"
+test-api: .check-api-keys ## Run API tests (requires ENABLE_API_TESTS=1 + provider API key)
+	ENABLE_API_TESTS=1 $(PYTEST) $(PYTEST_ARGS) -m "api"
 
 # ------------------------------------------------------------------------------
 # Documentation
@@ -84,11 +84,17 @@ clean: ## Clean up all test and build artifacts
 # ------------------------------------------------------------------------------
 # Internal Checks
 # ------------------------------------------------------------------------------
-.PHONY: .check-api-key
+.PHONY: .check-api-keys
 
-.check-api-key:
-	@if [ -z "$$GEMINI_API_KEY" ]; then \
-		echo "ERROR: GEMINI_API_KEY is not set."; \
-		echo "Get a key from https://ai.dev/ and export the variable."; \
+.check-api-keys:
+	@if [ -z "$$GEMINI_API_KEY" ] && [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "ERROR: no provider API key is set."; \
+		echo "Set GEMINI_API_KEY and/or OPENAI_API_KEY, then rerun."; \
 		exit 1; \
+	fi
+	@if [ -z "$$GEMINI_API_KEY" ]; then \
+		echo "NOTE: GEMINI_API_KEY is not set; Gemini API tests will be skipped."; \
+	fi
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "NOTE: OPENAI_API_KEY is not set; OpenAI API tests will be skipped."; \
 	fi
