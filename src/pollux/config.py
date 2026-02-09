@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from typing import Literal
 
 from dotenv import load_dotenv
 
 from pollux.errors import ConfigurationError
+from pollux.retry import RetryPolicy
 
 load_dotenv()
 
@@ -40,6 +41,7 @@ class Config:
     enable_caching: bool = False
     ttl_seconds: int = 3600
     request_concurrency: int = 6
+    retry: RetryPolicy = field(default_factory=RetryPolicy)
 
     def __post_init__(self) -> None:
         """Auto-resolve API key and validate configuration."""

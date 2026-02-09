@@ -28,6 +28,7 @@ from pollux.options import Options
 from pollux.plan import build_plan
 from pollux.request import normalize_request
 from pollux.result import ResultEnvelope, build_result
+from pollux.retry import RetryPolicy
 from pollux.source import Source
 
 if TYPE_CHECKING:
@@ -142,6 +143,7 @@ __all__ = [
     "PolluxError",
     "RateLimitError",
     "ResultEnvelope",
+    "RetryPolicy",
     "Source",
     "SourceError",
     "run",

@@ -11,11 +11,25 @@ from typing import TYPE_CHECKING, Any
 
 from pollux.cache import CacheRegistry, get_or_create_cache
 from pollux.errors import APIError, ConfigurationError
+from pollux.retry import (
+    RetryPolicy,
+    retry_async,
+    should_retry_generate,
+    should_retry_side_effect,
+)
 
 if TYPE_CHECKING:
     from pollux.options import Options
     from pollux.plan import Plan
     from pollux.providers.base import Provider
+
+
+def _consume_future_exception(fut: asyncio.Future[Any]) -> None:
+    """Avoid 'Future exception was never retrieved' for coordination futures."""
+    try:
+        _ = fut.exception()
+    except asyncio.CancelledError:
+        return
 
 
 @dataclass
@@ -49,6 +63,7 @@ async def execute_plan(
     upload_cache: dict[tuple[str, str], str] = {}
     upload_inflight: dict[tuple[str, str], asyncio.Future[str]] = {}
     upload_lock = asyncio.Lock()
+    retry_policy = config.retry
 
     # Handle caching
     cache_name = None
@@ -62,6 +77,7 @@ async def execute_plan(
                 upload_cache=upload_cache,
                 upload_inflight=upload_inflight,
                 upload_lock=upload_lock,
+                retry_policy=retry_policy,
             )
 
         if plan.cache_key:
@@ -73,6 +89,7 @@ async def execute_plan(
                 parts=shared_parts,  # Use resolved parts with URIs
                 system_instruction=None,
                 ttl_seconds=config.ttl_seconds,
+                retry_policy=retry_policy,
             )
 
     # Execute calls with concurrency control
@@ -83,31 +100,59 @@ async def execute_plan(
     async def _execute_call(call_idx: int) -> dict[str, Any]:
         call = plan.calls[call_idx]
         async with sem:
-            # Build parts: shared context + prompt
-            shared_parts = [] if cache_name is not None else list(call.parts)
-            raw_parts = [*shared_parts, call.prompt]
-            parts = await _substitute_upload_parts(
-                raw_parts,
-                provider=provider,
-                upload_cache=upload_cache,
-                upload_inflight=upload_inflight,
-                upload_lock=upload_lock,
-            )
-
             try:
-                return await provider.generate(
-                    model=call.model,
-                    parts=parts,
-                    system_instruction=call.system_instruction,
-                    cache_name=cache_name,
-                    response_schema=schema,
-                    reasoning_effort=options.reasoning_effort,
-                    history=history,
-                    delivery_mode=options.delivery_mode,
-                    previous_response_id=previous_response_id,
+                # Build parts: shared context + prompt
+                shared_parts = [] if cache_name is not None else list(call.parts)
+                raw_parts = [*shared_parts, call.prompt]
+                parts = await _substitute_upload_parts(
+                    raw_parts,
+                    provider=provider,
+                    upload_cache=upload_cache,
+                    upload_inflight=upload_inflight,
+                    upload_lock=upload_lock,
+                    retry_policy=retry_policy,
+                )
+
+                if retry_policy.max_attempts <= 1:
+                    return await provider.generate(
+                        model=call.model,
+                        parts=parts,
+                        system_instruction=call.system_instruction,
+                        cache_name=cache_name,
+                        response_schema=schema,
+                        reasoning_effort=options.reasoning_effort,
+                        history=history,
+                        delivery_mode=options.delivery_mode,
+                        previous_response_id=previous_response_id,
+                    )
+
+                return await retry_async(
+                    lambda: provider.generate(
+                        model=call.model,
+                        parts=parts,
+                        system_instruction=call.system_instruction,
+                        cache_name=cache_name,
+                        response_schema=schema,
+                        reasoning_effort=options.reasoning_effort,
+                        history=history,
+                        delivery_mode=options.delivery_mode,
+                        previous_response_id=previous_response_id,
+                    ),
+                    policy=retry_policy,
+                    should_retry=should_retry_generate,
                 )
             except Exception as e:
-                raise APIError(f"Call {call_idx} failed: {e}") from e
+                if isinstance(e, APIError):
+                    raise APIError(
+                        f"Call {call_idx} failed: {e}",
+                        hint=e.hint,
+                        retryable=e.retryable,
+                        status_code=e.status_code,
+                        retry_after_s=e.retry_after_s,
+                    ) from e
+                raise APIError(
+                    f"Call {call_idx} failed: {type(e).__name__}: {e}"
+                ) from e
 
     # Execute all calls
     results = await asyncio.gather(*[_execute_call(i) for i in range(len(plan.calls))])
@@ -138,6 +183,7 @@ async def _substitute_upload_parts(
     upload_cache: dict[tuple[str, str], str],
     upload_inflight: dict[tuple[str, str], asyncio.Future[str]],
     upload_lock: asyncio.Lock,
+    retry_policy: RetryPolicy,
 ) -> list[Any]:
     """Replace local file placeholders with provider URIs."""
     resolved: list[Any] = []
@@ -165,6 +211,7 @@ async def _substitute_upload_parts(
                     creator = False
                 else:
                     fut = asyncio.get_running_loop().create_future()
+                    fut.add_done_callback(_consume_future_exception)
                     upload_inflight[cache_key] = fut
                     creator = True
 
@@ -177,17 +224,37 @@ async def _substitute_upload_parts(
                     if fut is None:
                         raise APIError("Upload coordination failure")
                     try:
-                        uri = await provider.upload_file(Path(file_path), mime_type)
+                        uploaded_uri: str
+                        if retry_policy.max_attempts <= 1:
+                            uploaded_uri = await provider.upload_file(
+                                Path(file_path), mime_type
+                            )
+                        else:
+
+                            async def _upload(
+                                fp: str = file_path, mt: str = mime_type
+                            ) -> str:
+                                return await provider.upload_file(Path(fp), mt)
+
+                            uploaded_uri = await retry_async(
+                                _upload,
+                                policy=retry_policy,
+                                should_retry=should_retry_side_effect,
+                            )
                         async with upload_lock:
-                            upload_cache[cache_key] = uri
+                            upload_cache[cache_key] = uploaded_uri
+                        uri = uploaded_uri
                     except Exception as e:
                         fut.set_exception(e)
                         raise
                     else:
-                        fut.set_result(uri)
+                        fut.set_result(uploaded_uri)
                     finally:
                         async with upload_lock:
                             upload_inflight.pop(cache_key, None)
+
+            if uri is None:
+                raise APIError("Upload coordination failure")
 
             resolved.append({"uri": uri, "mime_type": mime_type})
             continue

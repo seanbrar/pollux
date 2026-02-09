@@ -12,10 +12,11 @@ import pytest
 import pollux
 from pollux.cache import compute_cache_key
 from pollux.config import Config
-from pollux.errors import ConfigurationError, SourceError
+from pollux.errors import APIError, ConfigurationError, SourceError
 from pollux.options import Options
 from pollux.providers.base import ProviderCapabilities
 from pollux.request import normalize_request
+from pollux.retry import RetryPolicy
 from pollux.source import Source
 from tests.conftest import FakeProvider
 
@@ -90,6 +91,187 @@ async def test_run_without_source_succeeds() -> None:
 
     assert result["status"] == "ok"
     assert len(result["answers"]) == 1
+
+
+# =============================================================================
+# Retry Behavior (Boundary)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_retry_replays_generate_on_retryable_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retry should replay provider.generate() on retryable failures."""
+
+    @dataclass
+    class FlakyGenerateProvider(FakeProvider):
+        generate_calls: int = 0
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            _ = kwargs
+            self.generate_calls += 1
+            if self.generate_calls == 1:
+                raise APIError("rate limited", retryable=True, status_code=429)
+            return {"text": "ok", "usage": {"total_token_count": 1}}
+
+    fake = FlakyGenerateProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(
+        provider="gemini",
+        model="gemini-2.0-flash",
+        use_mock=True,
+        retry=RetryPolicy(
+            max_attempts=2,
+            initial_delay_s=0.0,
+            max_delay_s=0.0,
+            jitter=False,
+        ),
+    )
+
+    result = await pollux.run("hello", config=cfg)
+
+    assert result["answers"] == ["ok"]
+    assert fake.generate_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_retry_does_not_replay_non_retryable_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retry should not replay when provider error is not retryable."""
+
+    @dataclass
+    class FailingProvider(FakeProvider):
+        generate_calls: int = 0
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            _ = kwargs
+            self.generate_calls += 1
+            raise APIError("bad request", retryable=False, status_code=400)
+
+    fake = FailingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(
+        provider="gemini",
+        model="gemini-2.0-flash",
+        use_mock=True,
+        retry=RetryPolicy(
+            max_attempts=3,
+            initial_delay_s=0.0,
+            max_delay_s=0.0,
+            jitter=False,
+        ),
+    )
+
+    with pytest.raises(APIError):
+        await pollux.run("hello", config=cfg)
+
+    assert fake.generate_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_replays_upload_on_retryable_api_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Retry should replay provider.upload_file() on explicit retry signals."""
+
+    @dataclass
+    class FlakyUploadProvider(FakeProvider):
+        upload_attempts: int = 0
+
+        async def upload_file(self, path: Any, mime_type: str) -> str:
+            _ = path, mime_type
+            self.upload_attempts += 1
+            if self.upload_attempts == 1:
+                raise APIError(
+                    "rate limited",
+                    retryable=True,
+                    status_code=429,
+                    retry_after_s=0.0,
+                )
+            return "mock://uploaded/doc.txt"
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            parts = kwargs.get("parts", [])
+            assert any(
+                isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
+                for p in parts
+            )
+            return {"text": "ok", "usage": {"total_token_count": 1}}
+
+    fake = FlakyUploadProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.txt"
+    file_path.write_text("hello")
+
+    cfg = Config(
+        provider="gemini",
+        model="gemini-2.0-flash",
+        use_mock=True,
+        retry=RetryPolicy(
+            max_attempts=2,
+            initial_delay_s=0.0,
+            max_delay_s=0.0,
+            jitter=False,
+        ),
+    )
+
+    result = await pollux.run(
+        "Read this",
+        source=Source.from_file(file_path),
+        config=cfg,
+    )
+
+    assert result["answers"] == ["ok"]
+    assert fake.upload_attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_retry_does_not_replay_upload_without_status_or_retry_after(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Uploads are side-effectful; avoid retrying ambiguous failures by default."""
+
+    @dataclass
+    class AmbiguousUploadProvider(FakeProvider):
+        upload_attempts: int = 0
+
+        async def upload_file(self, path: Any, mime_type: str) -> str:
+            _ = path, mime_type
+            self.upload_attempts += 1
+            raise APIError("upload timed out", retryable=True)
+
+        async def generate(self, **_kwargs: Any) -> dict[str, Any]:
+            raise AssertionError("generate() should not be reached when upload fails")
+
+    fake = AmbiguousUploadProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.txt"
+    file_path.write_text("hello")
+
+    cfg = Config(
+        provider="gemini",
+        model="gemini-2.0-flash",
+        use_mock=True,
+        retry=RetryPolicy(
+            max_attempts=2,
+            initial_delay_s=0.0,
+            max_delay_s=0.0,
+            jitter=False,
+        ),
+    )
+
+    with pytest.raises(APIError):
+        await pollux.run(
+            "Read this",
+            source=Source.from_file(file_path),
+            config=cfg,
+        )
+
+    assert fake.upload_attempts == 1
 
 
 # =============================================================================

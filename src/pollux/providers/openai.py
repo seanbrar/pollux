@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from pollux.errors import APIError
+from pollux.providers._errors import wrap_transient_api_error
 from pollux.providers.base import ProviderCapabilities
 
 if TYPE_CHECKING:
@@ -137,8 +138,12 @@ class OpenAIProvider:
             if structured is not None:
                 payload["structured"] = structured
             return payload
+        except APIError:
+            raise
         except Exception as e:
-            raise APIError(f"OpenAI generate failed: {e}") from e
+            raise wrap_transient_api_error(
+                "OpenAI generate failed", e, allow_network_errors=True
+            ) from e
 
     async def upload_file(self, path: Path, mime_type: str) -> str:
         """Upload a local file and return a URI-like identifier."""
@@ -161,8 +166,12 @@ class OpenAIProvider:
             if not isinstance(file_id, str):
                 raise APIError("OpenAI upload did not return a file id")
             return f"openai://file/{file_id}"
+        except APIError:
+            raise
         except Exception as e:
-            raise APIError(f"OpenAI upload failed: {e}") from e
+            raise wrap_transient_api_error(
+                "OpenAI upload failed", e, allow_network_errors=False
+            ) from e
 
     async def create_cache(
         self,
