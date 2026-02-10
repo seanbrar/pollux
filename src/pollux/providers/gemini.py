@@ -8,7 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError
-from pollux.providers._errors import wrap_transient_api_error
+from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
 
 if TYPE_CHECKING:
@@ -128,11 +128,17 @@ class GeminiProvider:
                 config=config or None,
             )
             return self._parse_response(response)
+        except asyncio.CancelledError:
+            raise
         except APIError:
             raise
         except Exception as e:
-            raise wrap_transient_api_error(
-                "Gemini generate failed", e, allow_network_errors=True
+            raise wrap_provider_error(
+                e,
+                provider="gemini",
+                phase="generate",
+                allow_network_errors=True,
+                message="Gemini generate failed",
             ) from e
 
     async def _wait_for_file_active(
@@ -195,11 +201,17 @@ class GeminiProvider:
                 raise APIError("Gemini upload did not return a file uri")
 
             return file_uri
+        except asyncio.CancelledError:
+            raise
         except APIError:
             raise
         except Exception as e:
-            raise wrap_transient_api_error(
-                "Gemini upload failed", e, allow_network_errors=False
+            raise wrap_provider_error(
+                e,
+                provider="gemini",
+                phase="upload",
+                allow_network_errors=False,
+                message="Gemini upload failed",
             ) from e
 
     @staticmethod
@@ -251,11 +263,17 @@ class GeminiProvider:
                 ),
             )
             return str(result.name)
+        except asyncio.CancelledError:
+            raise
         except APIError:
             raise
         except Exception as e:
-            raise wrap_transient_api_error(
-                "Gemini cache creation failed", e, allow_network_errors=False
+            raise wrap_provider_error(
+                e,
+                provider="gemini",
+                phase="cache",
+                allow_network_errors=False,
+                message="Gemini cache creation failed",
             ) from e
 
     def _parse_response(self, response: Any) -> dict[str, Any]:

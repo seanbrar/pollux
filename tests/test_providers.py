@@ -17,10 +17,159 @@ from unittest.mock import MagicMock
 import pytest
 
 from pollux.errors import APIError
+from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.openai import OpenAIProvider, _to_openai_strict_schema
 
 pytestmark = pytest.mark.unit
+
+
+# =============================================================================
+# Provider Error Mapping (Contract)
+# =============================================================================
+
+
+def test_wrap_provider_error_extracts_status_and_retry_after_from_response_headers() -> (
+    None
+):
+    """Provider SDK errors should map into APIError with structured retry metadata."""
+
+    class _Resp:
+        def __init__(self) -> None:
+            self.status_code = 429
+            self.headers = {"Retry-After": "2"}
+
+    class _SdkError(Exception):
+        def __init__(self) -> None:
+            super().__init__("rate limited")
+            self.response = _Resp()
+
+    err = wrap_provider_error(
+        _SdkError(),
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+        message="OpenAI generate failed",
+    )
+
+    assert isinstance(err, APIError)
+    assert err.status_code == 429
+    assert err.retry_after_s == 2.0
+    assert err.retryable is True
+    assert err.provider == "openai"
+    assert err.phase == "generate"
+    assert "429" in str(err)  # status code included in message
+
+
+def test_wrap_provider_error_enriches_existing_api_error_without_clobbering() -> None:
+    base = APIError("bad request", retryable=False, status_code=400)
+    wrapped = wrap_provider_error(
+        base,
+        provider="gemini",
+        phase="generate",
+        allow_network_errors=True,
+    )
+
+    assert wrapped is base
+    assert wrapped.status_code == 400
+    assert wrapped.retryable is False
+    assert wrapped.provider == "gemini"
+    assert wrapped.phase == "generate"
+
+
+def test_wrap_provider_error_returns_rate_limit_error_for_429() -> None:
+    """429s should be catchable via RateLimitError (subclass of APIError)."""
+    from pollux.errors import RateLimitError
+
+    class _SdkError(Exception):
+        def __init__(self) -> None:
+            super().__init__("rate limited")
+            self.status_code = 429
+
+    err = wrap_provider_error(
+        _SdkError(),
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert isinstance(err, RateLimitError)
+
+
+def test_wrap_provider_error_returns_cache_error_for_cache_phase() -> None:
+    """Cache failures should be catchable via CacheError (subclass of APIError)."""
+    from pollux.errors import CacheError
+
+    class _SdkError(Exception):
+        def __init__(self) -> None:
+            super().__init__("cache failed")
+            self.status_code = 500
+
+    err = wrap_provider_error(
+        _SdkError(),
+        provider="gemini",
+        phase="cache",
+        allow_network_errors=False,
+    )
+    assert isinstance(err, CacheError)
+
+
+def test_extract_retry_after_from_google_retry_info() -> None:
+    """Gemini 429s embed retry timing in JSON body RetryInfo, not HTTP headers."""
+
+    class _GeminiClientError(Exception):
+        def __init__(self) -> None:
+            super().__init__("rate limited")
+            self.status_code = 429
+            self.details = {
+                "error": {
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                            "retryDelay": "8.352104981s",
+                        }
+                    ]
+                }
+            }
+
+    assert extract_retry_after_s(_GeminiClientError()) == 8.352104981
+
+
+def test_extract_retry_after_from_google_retry_info_integer_seconds() -> None:
+    """Whole-second protobuf durations like '8s' should also parse."""
+
+    class _FakeError(Exception):
+        def __init__(self) -> None:
+            super().__init__("rate limited")
+            self.details = {
+                "error": {
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                            "retryDelay": "8s",
+                        }
+                    ]
+                }
+            }
+
+    assert extract_retry_after_s(_FakeError()) == 8.0
+
+
+def test_hint_for_400_with_api_key_message() -> None:
+    """Gemini returns 400 (not 401/403) for invalid API keys; hint should fire."""
+
+    class _SdkError(Exception):
+        def __init__(self) -> None:
+            super().__init__("API key not valid. Please pass a valid API key.")
+            self.status_code = 400
+
+    err = wrap_provider_error(
+        _SdkError(),
+        provider="gemini",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err.hint is not None
+    assert "GEMINI_API_KEY" in err.hint
 
 
 # =============================================================================

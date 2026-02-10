@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from copy import deepcopy
 import json
@@ -9,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from pollux.errors import APIError
-from pollux.providers._errors import wrap_transient_api_error
+from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
 
 if TYPE_CHECKING:
@@ -138,11 +139,17 @@ class OpenAIProvider:
             if structured is not None:
                 payload["structured"] = structured
             return payload
+        except asyncio.CancelledError:
+            raise
         except APIError:
             raise
         except Exception as e:
-            raise wrap_transient_api_error(
-                "OpenAI generate failed", e, allow_network_errors=True
+            raise wrap_provider_error(
+                e,
+                provider="openai",
+                phase="generate",
+                allow_network_errors=True,
+                message="OpenAI generate failed",
             ) from e
 
     async def upload_file(self, path: Path, mime_type: str) -> str:
@@ -166,11 +173,17 @@ class OpenAIProvider:
             if not isinstance(file_id, str):
                 raise APIError("OpenAI upload did not return a file id")
             return f"openai://file/{file_id}"
+        except asyncio.CancelledError:
+            raise
         except APIError:
             raise
         except Exception as e:
-            raise wrap_transient_api_error(
-                "OpenAI upload failed", e, allow_network_errors=False
+            raise wrap_provider_error(
+                e,
+                provider="openai",
+                phase="upload",
+                allow_network_errors=False,
+                message="OpenAI upload failed",
             ) from e
 
     async def create_cache(
