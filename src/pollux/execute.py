@@ -174,27 +174,27 @@ async def execute_plan(
                 retry_policy=retry_policy,
             )
 
-            if plan.cache_key:
-                try:
-                    cache_name = await get_or_create_cache(
-                        provider,
-                        registry,
-                        key=plan.cache_key,
-                        model=config.model,
-                        parts=shared_parts,  # Use resolved parts with URIs
-                        system_instruction=None,
-                        ttl_seconds=config.ttl_seconds,
-                        retry_policy=retry_policy,
-                    )
-                except asyncio.CancelledError:
-                    raise
-                except PolluxError:
-                    raise
-                except Exception as e:
-                    raise InternalError(
-                        f"Cache creation failed: {type(e).__name__}: {e}",
-                        hint="This is a Pollux internal error. Please report it.",
-                    ) from e
+        if plan.cache_key:
+            try:
+                cache_name = await get_or_create_cache(
+                    provider,
+                    registry,
+                    key=plan.cache_key,
+                    model=config.model,
+                    parts=shared_parts,  # Use resolved parts with URIs
+                    system_instruction=None,
+                    ttl_seconds=config.ttl_seconds,
+                    retry_policy=retry_policy,
+                )
+            except asyncio.CancelledError:
+                raise
+            except PolluxError:
+                raise
+            except Exception as e:
+                raise InternalError(
+                    f"Cache creation failed: {type(e).__name__}: {e}",
+                    hint="This is a Pollux internal error. Please report it.",
+                ) from e
 
     # Execute calls with concurrency control
     concurrency = config.request_concurrency
