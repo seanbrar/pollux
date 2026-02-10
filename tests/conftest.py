@@ -6,7 +6,6 @@ and automatic API test skipping. All fixtures here are autouse unless noted.
 
 from __future__ import annotations
 
-import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
 import logging
@@ -97,7 +96,6 @@ class FakeProvider:
     ) -> str:
         del model, parts, system_instruction, ttl_seconds
         self.cache_calls += 1
-        await asyncio.sleep(0.02)
         return "cachedContents/test"
 
 

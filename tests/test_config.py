@@ -44,7 +44,7 @@ def test_openai_provider_uses_openai_api_key(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
-    cfg = Config(provider="openai", model="gpt-4o")
+    cfg = Config(provider="openai", model="gpt-5-nano")
 
     assert cfg.provider == "openai"
     assert cfg.api_key == "openai-secret"

@@ -1,0 +1,15 @@
+request:
+  model: gpt-5-nano
+  input:
+    - role: user
+      content:
+        - type: input_text
+          text: Summarize these assets.
+        - type: input_file
+          file_url: https://example.com/report.pdf
+        - type: input_image
+          image_url: https://example.com/photo.jpg
+        - type: input_file
+          file_id: file_abc123
+        - type: input_text
+          text: Hello World

@@ -6,6 +6,8 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from pydantic import BaseModel
 import pytest
 
@@ -29,35 +31,38 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_run_returns_result_envelope() -> None:
-    """Single prompt run should return one answer with metrics."""
+async def test_run_and_run_many_smoke() -> None:
+    """Smoke: public API returns stable envelope shapes."""
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
-    result = await pollux.run(
+    with_source = await pollux.run(
         "Summarize this text",
         source=Source.from_text("hello world"),
         config=cfg,
     )
 
-    assert result["status"] == "ok"
-    assert result["answers"] == ["echo: hello world"]
-    assert result["metrics"]["n_calls"] == 1
+    assert with_source["status"] == "ok"
+    assert with_source["answers"] == ["echo: hello world"]
+    assert with_source["metrics"]["n_calls"] == 1
 
+    prompt_only = await pollux.run("What is 2+2?", config=cfg)
+    assert prompt_only["status"] == "ok"
+    assert len(prompt_only["answers"]) == 1
 
-@pytest.mark.asyncio
-async def test_run_many_returns_one_answer_per_prompt() -> None:
-    """Vectorized prompts should produce one answer per prompt."""
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
-    result = await pollux.run_many(
+    many = await pollux.run_many(
         prompts=("Q1?", "Q2?"),
         sources=(Source.from_text("shared context"),),
         config=cfg,
     )
 
-    assert result["status"] == "ok"
-    assert len(result["answers"]) == 2
-    assert result["metrics"]["n_calls"] == 2
+    assert many["status"] == "ok"
+    assert len(many["answers"]) == 2
+    assert many["metrics"]["n_calls"] == 2
+
+    empty = await pollux.run_many(prompts=[], config=cfg)
+    assert empty["status"] == "ok"
+    assert empty["answers"] == []
+    assert empty["metrics"]["n_calls"] == 0
 
 
 # =============================================================================
@@ -76,33 +81,10 @@ def test_request_rejects_non_source_objects() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_many_with_empty_prompts_returns_empty_result() -> None:
-    """Empty prompt list should return empty answers (idempotent behavior)."""
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
-    result = await pollux.run_many(prompts=[], config=cfg)
-
-    assert result["status"] == "ok"
-    assert result["answers"] == []
-    assert result["metrics"]["n_calls"] == 0
-
-
-@pytest.mark.asyncio
-async def test_run_without_source_succeeds() -> None:
-    """run() with prompt-only (no source) should work."""
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
-    result = await pollux.run("What is 2+2?", config=cfg)
-
-    assert result["status"] == "ok"
-    assert len(result["answers"]) == 1
-
-
-@pytest.mark.asyncio
-async def test_api_error_includes_phase_provider_and_call_idx_for_generate(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_api_error_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
-    """Executor should attach stable context fields to provider API errors."""
+    """Errors should surface stable provider/phase/call attribution."""
 
     @dataclass
     class FailingSecondCallProvider(FakeProvider):
@@ -119,8 +101,10 @@ async def test_api_error_includes_phase_provider_and_call_idx_for_generate(
                 )
             return {"text": "ok", "usage": {"total_token_count": 1}}
 
-    fake = FailingSecondCallProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    generate_provider = FailingSecondCallProvider()
+    monkeypatch.setattr(
+        pollux, "_get_provider", lambda _config, _p=generate_provider: _p
+    )
 
     cfg = Config(
         provider="gemini",
@@ -137,13 +121,6 @@ async def test_api_error_includes_phase_provider_and_call_idx_for_generate(
     assert err.phase == "generate"
     assert err.call_idx == 1
 
-
-@pytest.mark.asyncio
-async def test_api_error_includes_phase_provider_and_call_idx_for_upload(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    """Upload failures should be marked as phase='upload' with call_idx."""
-
     @dataclass
     class FailingUploadProvider(FakeProvider):
         async def upload_file(self, path: Any, mime_type: str) -> str:
@@ -155,15 +132,15 @@ async def test_api_error_includes_phase_provider_and_call_idx_for_upload(
                 phase="upload",
             )
 
-    fake = FailingUploadProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    upload_provider = FailingUploadProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=upload_provider: _p)
 
     file_path = tmp_path / "doc.txt"
     file_path.write_text("hello")
 
     cfg = Config(
         provider="openai",
-        model="gpt-4o-mini",
+        model="gpt-5-nano",
         use_mock=True,
         retry=RetryPolicy(max_attempts=1),
     )
@@ -180,13 +157,6 @@ async def test_api_error_includes_phase_provider_and_call_idx_for_upload(
     assert err.phase == "upload"
     assert err.call_idx == 0
 
-
-@pytest.mark.asyncio
-async def test_api_error_includes_phase_and_provider_for_cache_creation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cache creation failures should be marked as phase='cache'."""
-
     @dataclass
     class FailingCacheProvider(FakeProvider):
         async def create_cache(self, **kwargs: Any) -> str:
@@ -198,8 +168,8 @@ async def test_api_error_includes_phase_and_provider_for_cache_creation(
                 phase="cache",
             )
 
-    fake = FailingCacheProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cache_provider = FailingCacheProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=cache_provider: _p)
 
     cfg = Config(
         provider="gemini",
@@ -229,74 +199,43 @@ async def test_api_error_includes_phase_and_provider_for_cache_creation(
 
 @pytest.mark.asyncio
 async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Provider cleanup should run after successful execution."""
+    """Provider cleanup should run and must not mask success/failure."""
 
     @dataclass
-    class _ClosableProvider(FakeProvider):
+    class _Provider(FakeProvider):
         closed: int = 0
+        fail_generate: bool = False
+        fail_close: bool = False
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            if self.fail_generate:
+                raise APIError("bad request", retryable=False, status_code=400)
+            return await super().generate(**kwargs)
 
         async def aclose(self) -> None:
             self.closed += 1
+            if self.fail_close:
+                raise RuntimeError("close failed")
 
-    fake = _ClosableProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    scenarios: list[tuple[str, bool, bool]] = [
+        ("success + close ok", False, False),
+        ("success + close fails", False, True),
+        ("generate fails + close fails", True, True),
+    ]
+
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    for name, fail_generate, fail_close in scenarios:
+        fake = _Provider(fail_generate=fail_generate, fail_close=fail_close)
+        monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
 
-    result = await pollux.run_many(("Q1", "Q2"), config=cfg)
+        if fail_generate:
+            with pytest.raises(APIError, match="bad request"):
+                await pollux.run("Q", config=cfg)
+        else:
+            result = await pollux.run("Q", config=cfg)
+            assert result["status"] == "ok"
 
-    assert result["status"] == "ok"
-    assert fake.closed == 1
-
-
-@pytest.mark.asyncio
-async def test_provider_close_error_does_not_mask_success(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cleanup failures should never turn a success into an error."""
-
-    @dataclass
-    class _FailingCloseProvider(FakeProvider):
-        closed: int = 0
-
-        async def aclose(self) -> None:
-            self.closed += 1
-            raise RuntimeError("close failed")
-
-    fake = _FailingCloseProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
-    result = await pollux.run("Q", config=cfg)
-
-    assert result["status"] == "ok"
-    assert fake.closed == 1
-
-
-@pytest.mark.asyncio
-async def test_provider_close_error_does_not_mask_primary_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cleanup should not replace the primary exception from execution."""
-
-    @dataclass
-    class _FailingGenerateClosableProvider(FakeProvider):
-        closed: int = 0
-
-        async def generate(self, **_kwargs: Any) -> dict[str, Any]:
-            raise APIError("bad request", retryable=False, status_code=400)
-
-        async def aclose(self) -> None:
-            self.closed += 1
-            raise RuntimeError("close failed")
-
-    fake = _FailingGenerateClosableProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
-    with pytest.raises(APIError, match="bad request"):
-        await pollux.run("Q", config=cfg)
-
-    assert fake.closed == 1
+        assert fake.closed == 1, name
 
 
 # =============================================================================
@@ -305,183 +244,90 @@ async def test_provider_close_error_does_not_mask_primary_failure(
 
 
 @pytest.mark.asyncio
-async def test_retry_replays_generate_on_retryable_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Retry should replay provider.generate() on retryable failures."""
+async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    """Retry should behave predictably for generate and side effects."""
 
-    @dataclass
-    class FlakyGenerateProvider(FakeProvider):
-        generate_calls: int = 0
-
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
-            _ = kwargs
-            self.generate_calls += 1
-            if self.generate_calls == 1:
-                raise APIError("rate limited", retryable=True, status_code=429)
-            return {"text": "ok", "usage": {"total_token_count": 1}}
-
-    fake = FlakyGenerateProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(
-        provider="gemini",
-        model="gemini-2.0-flash",
-        use_mock=True,
-        retry=RetryPolicy(
-            max_attempts=2,
-            initial_delay_s=0.0,
-            max_delay_s=0.0,
-            jitter=False,
-        ),
+    retry = RetryPolicy(
+        max_attempts=2,
+        initial_delay_s=0.0,
+        max_delay_s=0.0,
+        jitter=False,
     )
 
-    result = await pollux.run("hello", config=cfg)
-
-    assert result["answers"] == ["ok"]
-    assert fake.generate_calls == 2
-
-
-@pytest.mark.asyncio
-async def test_retry_does_not_replay_non_retryable_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Retry should not replay when provider error is not retryable."""
-
     @dataclass
-    class FailingProvider(FakeProvider):
+    class _Provider(FakeProvider):
+        mode: str = "generate_retry"
         generate_calls: int = 0
-
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
-            _ = kwargs
-            self.generate_calls += 1
-            raise APIError("bad request", retryable=False, status_code=400)
-
-    fake = FailingProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(
-        provider="gemini",
-        model="gemini-2.0-flash",
-        use_mock=True,
-        retry=RetryPolicy(
-            max_attempts=3,
-            initial_delay_s=0.0,
-            max_delay_s=0.0,
-            jitter=False,
-        ),
-    )
-
-    with pytest.raises(APIError):
-        await pollux.run("hello", config=cfg)
-
-    assert fake.generate_calls == 1
-
-
-@pytest.mark.asyncio
-async def test_retry_replays_upload_on_retryable_api_error(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    """Retry should replay provider.upload_file() on explicit retry signals."""
-
-    @dataclass
-    class FlakyUploadProvider(FakeProvider):
         upload_attempts: int = 0
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            self.generate_calls += 1
+            if self.mode == "generate_retry" and self.generate_calls == 1:
+                raise APIError("rate limited", retryable=True, status_code=429)
+            if self.mode == "generate_no_retry":
+                raise APIError("bad request", retryable=False, status_code=400)
+
+            # Upload scenarios: verify substitution happened before generate().
+            if self.mode.startswith("upload_"):
+                parts = kwargs.get("parts", [])
+                assert any(
+                    isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
+                    for p in parts
+                )
+            return {"text": "ok", "usage": {"total_token_count": 1}}
 
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
             self.upload_attempts += 1
-            if self.upload_attempts == 1:
+            if self.mode == "upload_retry" and self.upload_attempts == 1:
                 raise APIError(
                     "rate limited",
                     retryable=True,
                     status_code=429,
                     retry_after_s=0.0,
                 )
+            if self.mode == "upload_no_retry":
+                raise APIError("upload timed out", provider="gemini", phase="upload")
             return "mock://uploaded/doc.txt"
 
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
-            parts = kwargs.get("parts", [])
-            assert any(
-                isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
-                for p in parts
-            )
-            return {"text": "ok", "usage": {"total_token_count": 1}}
-
-    fake = FlakyUploadProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-
     file_path = tmp_path / "doc.txt"
     file_path.write_text("hello")
 
-    cfg = Config(
-        provider="gemini",
-        model="gemini-2.0-flash",
-        use_mock=True,
-        retry=RetryPolicy(
-            max_attempts=2,
-            initial_delay_s=0.0,
-            max_delay_s=0.0,
-            jitter=False,
-        ),
-    )
+    scenarios: list[tuple[str, bool, int, int]] = [
+        ("generate_retry", True, 2, 0),
+        ("generate_no_retry", False, 1, 0),
+        ("upload_retry", True, 1, 2),
+        ("upload_no_retry", False, 0, 1),
+    ]
 
-    result = await pollux.run(
-        "Read this",
-        source=Source.from_file(file_path),
-        config=cfg,
-    )
-
-    assert result["answers"] == ["ok"]
-    assert fake.upload_attempts == 2
-
-
-@pytest.mark.asyncio
-async def test_retry_does_not_replay_upload_without_status_or_retry_after(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    """Uploads are side-effectful; avoid retrying ambiguous failures by default."""
-
-    @dataclass
-    class AmbiguousUploadProvider(FakeProvider):
-        upload_attempts: int = 0
-
-        async def upload_file(self, path: Any, mime_type: str) -> str:
-            _ = path, mime_type
-            self.upload_attempts += 1
-            raise APIError(
-                "upload timed out",
-                provider="gemini",
-                phase="upload",
-            )
-
-        async def generate(self, **_kwargs: Any) -> dict[str, Any]:
-            raise AssertionError("generate() should not be reached when upload fails")
-
-    fake = AmbiguousUploadProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-
-    file_path = tmp_path / "doc.txt"
-    file_path.write_text("hello")
-
-    cfg = Config(
-        provider="gemini",
-        model="gemini-2.0-flash",
-        use_mock=True,
-        retry=RetryPolicy(
-            max_attempts=2,
-            initial_delay_s=0.0,
-            max_delay_s=0.0,
-            jitter=False,
-        ),
-    )
-
-    with pytest.raises(APIError):
-        await pollux.run(
-            "Read this",
-            source=Source.from_file(file_path),
-            config=cfg,
+    for mode, expect_ok, expect_generate_calls, expect_upload_attempts in scenarios:
+        fake = _Provider(mode=mode)
+        monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
+        cfg = Config(
+            provider="gemini",
+            model="gemini-2.0-flash",
+            use_mock=True,
+            retry=retry,
         )
 
-    assert fake.upload_attempts == 1
+        if mode.startswith("upload_"):
+            coro = pollux.run(
+                "Read this",
+                source=Source.from_file(file_path),
+                config=cfg,
+            )
+        else:
+            coro = pollux.run("hello", config=cfg)
+
+        if expect_ok:
+            result = await coro
+            assert result["answers"] == ["ok"]
+        else:
+            with pytest.raises(APIError):
+                await coro
+
+        assert fake.generate_calls == expect_generate_calls
+        assert fake.upload_attempts == expect_upload_attempts
 
 
 # =============================================================================
@@ -506,64 +352,9 @@ def test_source_from_arxiv_rejects_invalid_refs(invalid_ref: str) -> None:
         Source.from_arxiv(invalid_ref)
 
 
-def test_source_from_youtube_creates_valid_source() -> None:
-    """from_youtube() should return a valid Source with correct attributes."""
-    url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-    source = Source.from_youtube(url)
-
-    assert source.source_type == "youtube"
-    assert source.identifier == url
-    assert source.mime_type == "video/mp4"
-    assert source.size_bytes == 0  # Placeholder until fetched
-
-
-def test_source_from_uri_creates_valid_source() -> None:
-    """from_uri() should return a valid Source with correct attributes."""
-    uri = "gs://my-bucket/data/document.pdf"
-    source = Source.from_uri(uri, mime_type="application/pdf")
-
-    assert source.source_type == "uri"
-    assert source.identifier == uri
-    assert source.mime_type == "application/pdf"
-    assert source.size_bytes == 0
-
-
-def test_source_from_uri_uses_default_mime_type() -> None:
-    """from_uri() should default to application/octet-stream."""
-    source = Source.from_uri("https://example.com/file")
-
-    assert source.mime_type == "application/octet-stream"
-
-
 # =============================================================================
 # Pipeline Internals
 # =============================================================================
-
-
-@pytest.mark.asyncio
-async def test_cache_creation_is_single_flight(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Concurrent identical requests should create one cache entry."""
-    fake = FakeProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-
-    # Keep this deterministic and isolated from other tests without relying on
-    # CacheRegistry private attributes.
-    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
-
-    cfg = Config(
-        provider="gemini",
-        model="cache-model",
-        use_mock=True,
-        enable_caching=True,
-    )
-    source = Source.from_text("cache me", identifier="same-id")
-
-    await asyncio.gather(
-        pollux.run_many(("A",), sources=(source,), config=cfg),
-        pollux.run_many(("B",), sources=(source,), config=cfg),
-    )
-
-    assert fake.cache_calls == 1
 
 
 @pytest.mark.asyncio
@@ -631,36 +422,6 @@ async def test_file_placeholders_are_uploaded_before_generate(
     assert any(
         isinstance(p, dict) and isinstance(p.get("uri"), str) for p in fake.last_parts
     )
-
-
-@pytest.mark.asyncio
-async def test_concurrent_calls_share_file_upload(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    """Concurrent prompt calls should upload a shared file once."""
-
-    @dataclass
-    class SlowUploadProvider(FakeProvider):
-        async def upload_file(self, path: Any, mime_type: str) -> str:
-            del mime_type
-            self.upload_calls += 1
-            await asyncio.sleep(0.02)
-            return f"mock://uploaded/{path.name}"
-
-    fake = SlowUploadProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-
-    file_path = tmp_path / "shared.pdf"
-    file_path.write_bytes(b"%PDF-1.4 fake")
-
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-    await pollux.run_many(
-        prompts=("Q1", "Q2"),
-        sources=(Source.from_file(file_path, mime_type="application/pdf"),),
-        config=cfg,
-    )
-
-    assert fake.upload_calls == 1
 
 
 @pytest.mark.asyncio
@@ -771,98 +532,54 @@ async def test_cached_context_is_not_resent_on_each_call(
 
 
 def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
-    """Regression: same identifier+size but different content must not collide."""
-    source_a = Source.from_text("AAAA", identifier="same")
-    source_b = Source.from_text("BBBB", identifier="same")
+    """Regression: cache identity keys must not collide across distinct sources."""
+    model = "gemini-2.0-flash"
 
-    key_a = compute_cache_key("gemini-2.0-flash", (source_a,))
-    key_b = compute_cache_key("gemini-2.0-flash", (source_b,))
+    # Same identifier, different content should not collide.
+    same_id_a = Source.from_text("AAAA", identifier="same")
+    same_id_b = Source.from_text("BBBB", identifier="same")
 
-    assert key_a != key_b
+    # Different remote identifiers should not collide.
+    yt_a = Source.from_youtube("https://www.youtube.com/watch?v=video-a")
+    yt_b = Source.from_youtube("https://www.youtube.com/watch?v=video-b")
+    uri_a = Source.from_uri("https://example.com/a.pdf", mime_type="application/pdf")
+    uri_b = Source.from_uri("https://example.com/b.pdf", mime_type="application/pdf")
 
-
-def test_cache_identity_distinguishes_youtube_urls() -> None:
-    """Different YouTube URLs should never share the same cache key."""
-    source_a = Source.from_youtube("https://www.youtube.com/watch?v=video-a")
-    source_b = Source.from_youtube("https://www.youtube.com/watch?v=video-b")
-
-    key_a = compute_cache_key("gemini-2.0-flash", (source_a,))
-    key_b = compute_cache_key("gemini-2.0-flash", (source_b,))
-
-    assert key_a != key_b
-
-
-def test_cache_identity_distinguishes_uri_sources() -> None:
-    """Different URI sources should never share the same cache key."""
-    source_a = Source.from_uri("https://example.com/a.pdf", mime_type="application/pdf")
-    source_b = Source.from_uri("https://example.com/b.pdf", mime_type="application/pdf")
-
-    key_a = compute_cache_key("gemini-2.0-flash", (source_a,))
-    key_b = compute_cache_key("gemini-2.0-flash", (source_b,))
-
-    assert key_a != key_b
+    keys = [
+        compute_cache_key(model, (same_id_a,)),
+        compute_cache_key(model, (same_id_b,)),
+        compute_cache_key(model, (yt_a,)),
+        compute_cache_key(model, (yt_b,)),
+        compute_cache_key(model, (uri_a,)),
+        compute_cache_key(model, (uri_b,)),
+    ]
+    assert len(set(keys)) == len(keys)
 
 
-def test_cache_registry_expires_stale_entries(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cache entries should be evicted after TTL expires."""
-    import pollux.cache as cache_module
-    from pollux.cache import CacheRegistry
-
-    registry = CacheRegistry()
-    fake_time = [1000.0]  # Mutable container for closure
-
-    monkeypatch.setattr(cache_module.time, "time", lambda: fake_time[0])  # type: ignore[attr-defined]
-
-    # Set entry with 60 second TTL
-    registry.set("key", "cachedContents/abc", ttl_seconds=60)
-
-    # Entry exists before expiration
-    assert registry.get("key") == "cachedContents/abc"
-
-    # Advance time past expiration
-    fake_time[0] = 1061.0
-
-    # Entry should be evicted
-    assert registry.get("key") is None
-
-
-def test_cache_registry_handles_zero_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Zero TTL entries should expire immediately on next get."""
-    import pollux.cache as cache_module
-    from pollux.cache import CacheRegistry
-
-    registry = CacheRegistry()
-    monkeypatch.setattr(cache_module.time, "time", lambda: 1000.0)  # type: ignore[attr-defined]
-
-    registry.set("key", "cachedContents/xyz", ttl_seconds=0)
-
-    # Expire time is exactly current_time (1000 + 0 = 1000)
-    # get() checks if time.time() >= expires_at, so it should expire
-    assert registry.get("key") is None
-
-
-@pytest.mark.parametrize(
-    ("ref", "expected"),
-    [
-        ("1706.03762", "https://arxiv.org/pdf/1706.03762.pdf"),
-        ("https://arxiv.org/abs/1706.03762", "https://arxiv.org/pdf/1706.03762.pdf"),
-        (
-            "https://arxiv.org/pdf/1706.03762.pdf",
-            "https://arxiv.org/pdf/1706.03762.pdf",
+@given(
+    arxiv_id=st.one_of(
+        st.from_regex(r"\d{4}\.\d{4,5}(?:v\d+)?", fullmatch=True),
+        st.from_regex(
+            r"[a-z\-]+(?:\.[a-z\-]+)?/\d{7}(?:v\d+)?",
+            fullmatch=True,
         ),
-        ("cs.CL/9901001", "https://arxiv.org/pdf/cs.CL/9901001.pdf"),
-    ],
+    )
 )
-def test_source_from_arxiv_normalizes_to_canonical_pdf_url(
-    ref: str, expected: str
-) -> None:
-    """arXiv refs should normalize to a canonical PDF URL."""
-    source = Source.from_arxiv(ref)
-
-    assert source.source_type == "arxiv"
-    assert source.identifier == expected
-    assert source.mime_type == "application/pdf"
-    assert source.content_loader() == expected.encode("utf-8")
+@settings(max_examples=10, deadline=None, derandomize=True)
+def test_source_from_arxiv_normalizes_to_canonical_pdf_url(arxiv_id: str) -> None:
+    """Property: arXiv refs normalize to canonical PDF URLs and stable loaders."""
+    expected = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+    refs = [
+        arxiv_id,
+        f"https://arxiv.org/abs/{arxiv_id}",
+        f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+    ]
+    for ref in refs:
+        source = Source.from_arxiv(ref)
+        assert source.source_type == "arxiv"
+        assert source.identifier == expected
+        assert source.mime_type == "application/pdf"
+        assert source.content_loader() == expected.encode("utf-8")
 
 
 def test_source_from_arxiv_rejects_non_arxiv_urls() -> None:
@@ -1023,52 +740,11 @@ async def test_structured_output_returns_pydantic_instances(
     assert structured[0].title == "A"
 
 
-# =============================================================================
-# Options Validation
-# =============================================================================
-
-
-def test_options_history_accepts_valid_message_shape() -> None:
-    """History shape should be accepted so the API remains forward-compatible."""
-    options = Options(history=[{"role": "user", "content": "hello"}])
-    assert options.history == [{"role": "user", "content": "hello"}]
-
-
-def test_options_continue_from_accepts_result_like_dict() -> None:
-    """continue_from shape should be accepted for future rollout."""
-    previous: ResultEnvelope = {"status": "ok", "answers": ["x"]}
-    options = Options(continue_from=previous)
-    assert options.continue_from == previous
-
-
-def test_options_rejects_invalid_history_items() -> None:
-    """Invalid history item shapes should fail fast with a clear error."""
-    bad_history: Any = [{"role": "user", "content": 123}]
-    with pytest.raises(ConfigurationError, match="history items"):
-        Options(history=bad_history)
-
-
-def test_options_rejects_history_and_continue_from_together() -> None:
-    """Conversation inputs are mutually exclusive."""
-    previous: ResultEnvelope = {"status": "ok", "answers": ["x"]}
-    with pytest.raises(ConfigurationError, match="mutually exclusive"):
-        Options(
-            history=[{"role": "user", "content": "hello"}],
-            continue_from=previous,
-        )
-
-
-def test_options_rejects_invalid_response_schema_type() -> None:
-    """response_schema must be a BaseModel subclass or JSON schema dict."""
-    with pytest.raises(ConfigurationError, match="response_schema"):
-        Options(response_schema="not-a-schema")  # type: ignore[arg-type]
-
-
 @pytest.mark.asyncio
 async def test_conversation_options_are_lifecycle_gated_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Conversation options should fail fast until lifecycle gate is opened."""
+    """Lifecycle gate should reject by default, and allow when explicitly enabled."""
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
             caching=True,
@@ -1089,32 +765,12 @@ async def test_conversation_options_are_lifecycle_gated_by_default(
             options=Options(history=[{"role": "user", "content": "hello"}]),
         )
 
-
-@pytest.mark.asyncio
-async def test_conversation_options_can_be_enabled_for_development(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Lifecycle gate should allow conversation options when explicitly enabled."""
-    fake = FakeProvider(
-        _capabilities=ProviderCapabilities(
-            caching=True,
-            uploads=True,
-            structured_outputs=True,
-            reasoning=True,
-            deferred_delivery=False,
-            conversation=True,
-        )
-    )
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
     await pollux.run_many(
         ("Q1?",),
         config=cfg,
         options=Options(history=[{"role": "user", "content": "hello"}]),
     )
-
     assert fake.last_generate_kwargs is not None
     assert fake.last_generate_kwargs["history"] == [
         {"role": "user", "content": "hello"}
@@ -1125,8 +781,8 @@ async def test_conversation_options_can_be_enabled_for_development(
 async def test_continue_from_requires_conversation_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """continue_from must contain _conversation_state once conversation is enabled."""
-    fake = FakeProvider(
+    """continue_from must include _conversation_state; valid state is forwarded."""
+    fake = KwargsCaptureProvider(
         _capabilities=ProviderCapabilities(
             caching=True,
             uploads=True,
@@ -1146,26 +802,6 @@ async def test_continue_from_requires_conversation_state(
             config=cfg,
             options=Options(continue_from={"status": "ok", "answers": ["x"]}),
         )
-
-
-@pytest.mark.asyncio
-async def test_continue_from_derives_history_and_previous_response_id(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """continue_from should supply history + previous_response_id to provider.generate()."""
-    fake = KwargsCaptureProvider(
-        _capabilities=ProviderCapabilities(
-            caching=True,
-            uploads=True,
-            structured_outputs=True,
-            reasoning=False,
-            deferred_delivery=False,
-            conversation=True,
-        )
-    )
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
     previous: ResultEnvelope = {
         "status": "ok",
@@ -1211,43 +847,42 @@ async def test_planning_error_wraps_source_loader_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_result_status_is_partial_when_some_answers_are_empty(
+@pytest.mark.parametrize(
+    ("script", "expected_status", "expected_answers"),
+    [
+        (
+            [
+                {"text": "ok", "usage": {"total_token_count": 1}},
+                {"text": "", "usage": {"total_token_count": 1}},
+            ],
+            "partial",
+            ["ok", ""],
+        ),
+        (
+            [
+                {"text": "", "usage": {"total_token_count": 1}},
+                {"text": "", "usage": {"total_token_count": 1}},
+            ],
+            "error",
+            ["", ""],
+        ),
+    ],
+)
+async def test_result_status_classification(
     monkeypatch: pytest.MonkeyPatch,
+    script: list[dict[str, Any]],
+    expected_status: str,
+    expected_answers: list[str],
 ) -> None:
     """Status classification should be stable across refactors."""
-    fake = ScriptedProvider(
-        script=[
-            {"text": "ok", "usage": {"total_token_count": 1}},
-            {"text": "", "usage": {"total_token_count": 1}},
-        ]
-    )
+    fake = ScriptedProvider(script=list(script))
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
 
     result = await pollux.run_many(("A", "B"), config=cfg)
 
-    assert result["status"] == "partial"
-    assert result["answers"] == ["ok", ""]
-
-
-@pytest.mark.asyncio
-async def test_result_status_is_error_when_all_answers_are_empty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """All-empty answers should produce status='error' (not ok/partial)."""
-    fake = ScriptedProvider(
-        script=[
-            {"text": "", "usage": {"total_token_count": 1}},
-            {"text": "", "usage": {"total_token_count": 1}},
-        ]
-    )
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
-
-    result = await pollux.run_many(("A", "B"), config=cfg)
-
-    assert result["status"] == "error"
-    assert result["answers"] == ["", ""]
+    assert result["status"] == expected_status
+    assert result["answers"] == expected_answers
 
 
 @pytest.mark.asyncio

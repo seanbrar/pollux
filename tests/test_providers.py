@@ -131,29 +131,17 @@ def test_wrap_provider_error_reraises_cancelled_error_without_active_exception()
         )
 
 
-def test_extract_retry_after_from_google_retry_info() -> None:
-    """Gemini 429s embed retry timing in JSON body RetryInfo, not HTTP headers."""
-
-    class _GeminiClientError(Exception):
-        def __init__(self) -> None:
-            super().__init__("rate limited")
-            self.status_code = 429
-            self.details = {
-                "error": {
-                    "details": [
-                        {
-                            "@type": "type.googleapis.com/google.rpc.RetryInfo",
-                            "retryDelay": "8.352104981s",
-                        }
-                    ]
-                }
-            }
-
-    assert extract_retry_after_s(_GeminiClientError()) == 8.352104981
-
-
-def test_extract_retry_after_from_google_retry_info_integer_seconds() -> None:
-    """Whole-second protobuf durations like '8s' should also parse."""
+@pytest.mark.parametrize(
+    ("retry_delay", "expected"),
+    [
+        ("8.352104981s", 8.352104981),
+        ("8s", 8.0),
+    ],
+)
+def test_extract_retry_after_from_google_retry_info_variants(
+    retry_delay: str, expected: float
+) -> None:
+    """RetryInfo protobuf durations should parse consistently."""
 
     class _FakeError(Exception):
         def __init__(self) -> None:
@@ -163,13 +151,13 @@ def test_extract_retry_after_from_google_retry_info_integer_seconds() -> None:
                     "details": [
                         {
                             "@type": "type.googleapis.com/google.rpc.RetryInfo",
-                            "retryDelay": "8s",
+                            "retryDelay": retry_delay,
                         }
                     ]
                 }
             }
 
-    assert extract_retry_after_s(_FakeError()) == 8.0
+    assert extract_retry_after_s(_FakeError()) == expected
 
 
 def test_hint_for_400_with_api_key_message() -> None:
@@ -286,8 +274,9 @@ def test_gemini_parse_response_handles_missing_attributes() -> None:
 # =============================================================================
 
 
+@pytest.mark.golden_test("characterization/v1/gemini_generate_config.yaml")
 @pytest.mark.asyncio
-async def test_gemini_generate_characterizes_config_shape() -> None:
+async def test_gemini_generate_characterizes_config_shape(golden: Any) -> None:
     """Characterize the config dict passed to generate_content."""
     captured: dict[str, Any] = {}
 
@@ -319,15 +308,7 @@ async def test_gemini_generate_characterizes_config_shape() -> None:
     )
 
     assert captured["model"] == "gemini-2.0-flash"
-    assert captured["config"] == {
-        "system_instruction": "Be concise.",
-        "cached_content": "cachedContents/abc123",
-        "response_mime_type": "application/json",
-        "response_json_schema": {
-            "type": "object",
-            "properties": {"answer": {"type": "string"}},
-        },
-    }
+    assert golden.out["config"] == captured["config"]
 
 
 @pytest.mark.asyncio
@@ -531,8 +512,11 @@ class _FakeResponses:
         return type("Response", (), {"output_text": "ok", "usage": None})()
 
 
+@pytest.mark.golden_test("characterization/v1/openai_generate_multimodal.yaml")
 @pytest.mark.asyncio
-async def test_openai_generate_characterizes_multimodal_request_shape() -> None:
+async def test_openai_generate_characterizes_multimodal_request_shape(
+    golden: Any,
+) -> None:
     """Characterize the Responses API input shape for text + PDF + image."""
     responses = _FakeResponses()
     fake_client = type("Client", (), {"responses": responses})()
@@ -541,7 +525,7 @@ async def test_openai_generate_characterizes_multimodal_request_shape() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        model="gpt-4o-mini",
+        model="gpt-5-nano",
         parts=[
             "Summarize these assets.",
             {"uri": "https://example.com/report.pdf", "mime_type": "application/pdf"},
@@ -552,26 +536,7 @@ async def test_openai_generate_characterizes_multimodal_request_shape() -> None:
     )
 
     assert responses.last_kwargs is not None
-    user_content = responses.last_kwargs["input"][0]["content"]
-
-    # Text prompt
-    assert user_content[0] == {"type": "input_text", "text": "Summarize these assets."}
-
-    # Remote URL assets
-    assert user_content[1] == {
-        "type": "input_file",
-        "file_url": "https://example.com/report.pdf",
-    }
-    assert user_content[2] == {
-        "type": "input_image",
-        "image_url": "https://example.com/photo.jpg",
-    }
-
-    # Uploaded file (by file_id)
-    assert user_content[3] == {"type": "input_file", "file_id": "file_abc123"}
-
-    # Inline text (decoded from base64)
-    assert user_content[4] == {"type": "input_text", "text": "Hello World"}
+    assert golden.out["request"] == responses.last_kwargs
 
 
 @pytest.mark.asyncio
@@ -586,7 +551,7 @@ async def test_openai_rejects_unsupported_remote_mime_type() -> None:
 
     with pytest.raises(APIError, match="Unsupported remote mime type"):
         await provider.generate(
-            model="gpt-4o-mini",
+            model="gpt-5-nano",
             parts=[{"uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}],
         )
 
@@ -607,61 +572,36 @@ class _FakeFiles:
         return type("File", (), {"id": "file_abc123"})()
 
 
+@pytest.mark.golden_test("characterization/v1/openai_upload_*.yaml")
 @pytest.mark.asyncio
-async def test_openai_upload_binary_characterizes_files_api_call(
-    tmp_path: Any,
-) -> None:
-    """Binary uploads should use Files API with user_data purpose and expiration."""
+async def test_openai_upload_characterization(golden: Any, tmp_path: Any) -> None:
+    """Characterize OpenAI upload behavior (binary uses Files API; text inlines)."""
+    case = golden["case"]
+    expected = golden["expected"]
+
+    mime_type = case["mime_type"]
+    file_name = case["file_name"]
+    file_path = tmp_path / file_name
+
+    if "file_bytes" in case:
+        file_path.write_bytes(case["file_bytes"].encode("utf-8"))
+    else:
+        file_path.write_text(case["file_text"])
+
+    provider = OpenAIProvider("test-key")
     files = _FakeFiles()
-    fake_client = type("Client", (), {"files": files})()
-
-    provider = OpenAIProvider("test-key")
-    provider._client = fake_client
-
-    file_path = tmp_path / "doc.pdf"
-    file_path.write_bytes(b"%PDF-1.4 fake pdf content")
-
-    uri = await provider.upload_file(path=file_path, mime_type="application/pdf")
-
-    assert uri == "openai://file/file_abc123"
-    assert files.last_kwargs is not None
-    assert files.last_kwargs["purpose"] == "user_data"
-    assert files.last_kwargs["expires_after"] == {
-        "anchor": "created_at",
-        "seconds": 86_400,
-    }
-
-
-@pytest.mark.asyncio
-async def test_openai_upload_text_inlines_as_base64_uri(tmp_path: Any) -> None:
-    """Text files should bypass Files API and return inline base64 URIs."""
-    provider = OpenAIProvider("test-key")
-    provider._client = type("Client", (), {"files": None})()  # Should not be called
-
-    file_path = tmp_path / "doc.md"
-    file_path.write_text("# Header\nBody text")
-
-    uri = await provider.upload_file(path=file_path, mime_type="text/markdown")
-
-    # Base64 of "# Header\nBody text"
-    assert uri == "openai://text/IyBIZWFkZXIKQm9keSB0ZXh0"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "mime_type",
-    ["application/json", "application/xml", "text/csv"],
-)
-async def test_openai_upload_text_like_types_inline(
-    tmp_path: Any, mime_type: str
-) -> None:
-    """Common text-like types (JSON, XML, CSV) should inline like text."""
-    provider = OpenAIProvider("test-key")
-    provider._client = type("Client", (), {"files": None})()
-
-    file_path = tmp_path / "data.txt"
-    file_path.write_text("content")
+    provider._client = type("Client", (), {"files": files})()
 
     uri = await provider.upload_file(path=file_path, mime_type=mime_type)
+    assert expected["uri"] == uri
 
-    assert uri.startswith("openai://text/")
+    expected_files_create = expected.get("files_create")
+    if expected_files_create is None:
+        # Text inlines should not touch the Files API.
+        assert files.last_kwargs is None
+        return
+
+    assert files.last_kwargs is not None
+    # Don't characterize the local file object itself; only stable kwargs.
+    normalized = {k: v for k, v in files.last_kwargs.items() if k != "file"}
+    assert expected_files_create == normalized

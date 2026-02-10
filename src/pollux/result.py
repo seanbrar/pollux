@@ -72,7 +72,7 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
         usage=trace.usage,
         metrics={
             "duration_s": trace.duration_s,
-            "n_calls": len(plan.calls),
+            "n_calls": plan.n_calls,
             "cache_used": trace.cache_name is not None,
         },
     )
