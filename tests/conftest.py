@@ -139,21 +139,6 @@ def isolate_provider_env(request, monkeypatch):
     monkeypatch.delenv("POLLUX_DEBUG_CONFIG", raising=False)
 
 
-@pytest.fixture(autouse=True)
-def neutral_home_config(request, monkeypatch, tmp_path):
-    """Point home-config path to an isolated temp file by default.
-
-    Opt-out: @pytest.mark.allow_real_home_config
-    """
-    if request.node.get_closest_marker("allow_real_home_config"):
-        return
-
-    fake_home_dir = tmp_path / "home_config_isolated"
-    fake_home_dir.mkdir(parents=True, exist_ok=True)
-    fake_home_file = fake_home_dir / "pollux.toml"
-    monkeypatch.setenv("POLLUX_CONFIG_HOME", str(fake_home_file))
-
-
 # =============================================================================
 # Logging
 # =============================================================================
