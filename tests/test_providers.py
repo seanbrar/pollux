@@ -113,6 +113,24 @@ def test_wrap_provider_error_returns_cache_error_for_cache_phase() -> None:
     assert isinstance(err, CacheError)
 
 
+def test_wrap_provider_error_reraises_cancelled_error_without_active_exception() -> (
+    None
+):
+    """Regression: CancelledError should be re-raised even without an active exception context."""
+    import asyncio
+
+    err = asyncio.CancelledError("cancelled")
+
+    # This should raise CancelledError, NOT RuntimeError
+    with pytest.raises(asyncio.CancelledError):
+        wrap_provider_error(
+            err,
+            provider="test",
+            phase="test",
+            allow_network_errors=False,
+        )
+
+
 def test_extract_retry_after_from_google_retry_info() -> None:
     """Gemini 429s embed retry timing in JSON body RetryInfo, not HTTP headers."""
 

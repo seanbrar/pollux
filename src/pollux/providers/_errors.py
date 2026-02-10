@@ -134,7 +134,7 @@ def wrap_provider_error(
 ) -> APIError:
     """Map provider SDK exceptions into APIError with stable retry metadata."""
     if isinstance(exc, asyncio.CancelledError):
-        raise
+        raise exc
 
     # Already wrapped — fill in missing context only.
     if isinstance(exc, APIError):
