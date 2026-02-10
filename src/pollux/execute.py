@@ -10,7 +10,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pollux.cache import CacheRegistry, get_or_create_cache
-from pollux.errors import APIError, ConfigurationError
+from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.retry import (
     RetryPolicy,
     retry_async,
@@ -57,6 +57,7 @@ async def execute_plan(
     options = plan.request.options
     _validate_feature_lifecycle(options)
     _validate_provider_capabilities(options, provider)
+    _validate_upload_requirements(plan, provider)
     schema = options.response_schema_json()
     history, previous_response_id = _resolve_conversation_inputs(options)
 
@@ -74,6 +75,7 @@ async def execute_plan(
             shared_parts = await _substitute_upload_parts(
                 shared_parts,
                 provider=provider,
+                call_idx=None,
                 upload_cache=upload_cache,
                 upload_inflight=upload_inflight,
                 upload_lock=upload_lock,
@@ -81,16 +83,28 @@ async def execute_plan(
             )
 
         if plan.cache_key:
-            cache_name = await get_or_create_cache(
-                provider,
-                registry,
-                key=plan.cache_key,
-                model=config.model,
-                parts=shared_parts,  # Use resolved parts with URIs
-                system_instruction=None,
-                ttl_seconds=config.ttl_seconds,
-                retry_policy=retry_policy,
-            )
+            try:
+                cache_name = await get_or_create_cache(
+                    provider,
+                    registry,
+                    key=plan.cache_key,
+                    model=config.model,
+                    parts=shared_parts,  # Use resolved parts with URIs
+                    system_instruction=None,
+                    ttl_seconds=config.ttl_seconds,
+                    retry_policy=retry_policy,
+                )
+            except asyncio.CancelledError:
+                raise
+            except APIError:
+                raise
+            except PolluxError:
+                raise
+            except Exception as e:
+                raise InternalError(
+                    f"Cache creation failed: {type(e).__name__}: {e}",
+                    hint="This is a Pollux internal error. Please report it.",
+                ) from e
 
     # Execute calls with concurrency control
     concurrency = config.request_concurrency
@@ -107,6 +121,7 @@ async def execute_plan(
                 parts = await _substitute_upload_parts(
                     raw_parts,
                     provider=provider,
+                    call_idx=call_idx,
                     upload_cache=upload_cache,
                     upload_inflight=upload_inflight,
                     upload_lock=upload_lock,
@@ -141,17 +156,18 @@ async def execute_plan(
                     policy=retry_policy,
                     should_retry=should_retry_generate,
                 )
+            except asyncio.CancelledError:
+                raise
+            except APIError as e:
+                if e.call_idx is None:
+                    e.call_idx = call_idx
+                raise
+            except PolluxError:
+                raise
             except Exception as e:
-                if isinstance(e, APIError):
-                    raise APIError(
-                        f"Call {call_idx} failed: {e}",
-                        hint=e.hint,
-                        retryable=e.retryable,
-                        status_code=e.status_code,
-                        retry_after_s=e.retry_after_s,
-                    ) from e
-                raise APIError(
-                    f"Call {call_idx} failed: {type(e).__name__}: {e}"
+                raise InternalError(
+                    f"Call {call_idx} failed: {type(e).__name__}: {e}",
+                    hint="This is a Pollux internal error. Please report it.",
                 ) from e
 
     # Execute all calls
@@ -180,6 +196,7 @@ async def _substitute_upload_parts(
     parts: list[Any],
     *,
     provider: Provider,
+    call_idx: int | None,
     upload_cache: dict[tuple[str, str], str],
     upload_inflight: dict[tuple[str, str], asyncio.Future[str]],
     upload_lock: asyncio.Lock,
@@ -195,7 +212,10 @@ async def _substitute_upload_parts(
             and isinstance(part.get("mime_type"), str)
         ):
             if not provider.supports_uploads:
-                raise APIError("Provider does not support file uploads")
+                raise ConfigurationError(
+                    "Provider does not support file uploads",
+                    hint="Choose a provider with uploads support, or remove file sources.",
+                )
 
             file_path = part["file_path"]
             mime_type = part["mime_type"]
@@ -218,11 +238,22 @@ async def _substitute_upload_parts(
             if uri is None:
                 if not creator:
                     if fut is None:
-                        raise APIError("Upload coordination failure")
-                    uri = await fut
+                        raise InternalError(
+                            "Upload coordination failure",
+                            hint="This is a Pollux internal error. Please report it.",
+                        )
+                    try:
+                        uri = await fut
+                    except asyncio.CancelledError:
+                        raise
+                    except APIError:
+                        raise
                 else:
                     if fut is None:
-                        raise APIError("Upload coordination failure")
+                        raise InternalError(
+                            "Upload coordination failure",
+                            hint="This is a Pollux internal error. Please report it.",
+                        )
                     try:
                         uploaded_uri: str
                         if retry_policy.max_attempts <= 1:
@@ -244,9 +275,22 @@ async def _substitute_upload_parts(
                         async with upload_lock:
                             upload_cache[cache_key] = uploaded_uri
                         uri = uploaded_uri
-                    except Exception as e:
-                        fut.set_exception(e)
+                    except asyncio.CancelledError:
+                        fut.cancel()
                         raise
+                    except Exception as e:
+                        if isinstance(e, APIError):
+                            if e.call_idx is None:
+                                e.call_idx = call_idx
+                            fut.set_exception(e)
+                            raise
+
+                        mapped = InternalError(
+                            f"Upload failed: {type(e).__name__}: {e}",
+                            hint="This is a Pollux internal error. Please report it.",
+                        )
+                        fut.set_exception(mapped)
+                        raise mapped from e
                     else:
                         fut.set_result(uploaded_uri)
                     finally:
@@ -254,7 +298,10 @@ async def _substitute_upload_parts(
                             upload_inflight.pop(cache_key, None)
 
             if uri is None:
-                raise APIError("Upload coordination failure")
+                raise InternalError(
+                    "Upload coordination failure",
+                    hint="This is a Pollux internal error. Please report it.",
+                )
 
             resolved.append({"uri": uri, "mime_type": mime_type})
             continue
@@ -291,6 +338,30 @@ def _validate_provider_capabilities(options: Options, provider: Provider) -> Non
         raise ConfigurationError(
             "Provider does not support conversation continuity",
             hint="Remove history/continue_from or choose a provider with conversation support.",
+        )
+
+
+def _validate_upload_requirements(plan: Plan, provider: Provider) -> None:
+    """Fail fast when the plan requires file uploads but provider can't upload."""
+    if provider.supports_uploads:
+        return
+
+    def has_file_part(parts: tuple[Any, ...]) -> bool:
+        for p in parts:
+            if (
+                isinstance(p, dict)
+                and isinstance(p.get("file_path"), str)
+                and isinstance(p.get("mime_type"), str)
+            ):
+                return True
+        return False
+
+    if has_file_part(plan.shared_parts) or any(
+        has_file_part(c.parts) for c in plan.calls
+    ):
+        raise ConfigurationError(
+            "Provider does not support file uploads",
+            hint="Choose a provider with uploads support, or remove file sources.",
         )
 
 

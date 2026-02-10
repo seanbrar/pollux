@@ -132,6 +132,9 @@ async def get_or_create_cache(
         registry.set(key, cache_name, ttl_seconds)
         fut.set_result(cache_name)
         return cache_name
+    except asyncio.CancelledError:
+        fut.cancel()
+        raise
     except Exception as e:
         fut.set_exception(e)
         raise

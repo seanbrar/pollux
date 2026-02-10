@@ -54,8 +54,10 @@ def test_missing_api_key_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -> 
     """Missing API key without mock mode must fail clearly."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
-    with pytest.raises(ConfigurationError, match="API key required"):
+    with pytest.raises(ConfigurationError, match="API key required") as exc:
         Config(provider="gemini", model="gemini-2.0-flash")
+    assert exc.value.hint is not None
+    assert "GEMINI_API_KEY" in exc.value.hint
 
 
 def test_mock_mode_does_not_require_api_key(monkeypatch: pytest.MonkeyPatch) -> None:

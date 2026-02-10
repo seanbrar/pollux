@@ -44,7 +44,7 @@ check: lint typecheck test ## Run all checks (lint + typecheck + tests)
 # ------------------------------------------------------------------------------
 
 test: ## Run all tests
-	$(PYTEST) $(PYTEST_ARGS)
+	$(PYTEST) $(PYTEST_ARGS) -m "not api"
 
 test-api: .check-api-keys ## Run API tests (requires ENABLE_API_TESTS=1 + provider API key)
 	ENABLE_API_TESTS=1 $(PYTEST) $(PYTEST_ARGS) -m "api"

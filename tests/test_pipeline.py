@@ -93,6 +93,130 @@ async def test_run_without_source_succeeds() -> None:
     assert len(result["answers"]) == 1
 
 
+@pytest.mark.asyncio
+async def test_api_error_includes_phase_provider_and_call_idx_for_generate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Executor should attach stable context fields to provider API errors."""
+
+    @dataclass
+    class FailingSecondCallProvider(FakeProvider):
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            parts = kwargs.get("parts", [])
+            prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
+            if prompt == "Q2":
+                raise APIError(
+                    "bad request",
+                    retryable=False,
+                    status_code=400,
+                    provider="gemini",
+                    phase="generate",
+                )
+            return {"text": "ok", "usage": {"total_token_count": 1}}
+
+    fake = FailingSecondCallProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(
+        provider="gemini",
+        model="gemini-2.0-flash",
+        use_mock=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+
+    with pytest.raises(APIError) as exc:
+        await pollux.run_many(prompts=("Q1", "Q2"), config=cfg)
+
+    err = exc.value
+    assert err.provider == "gemini"
+    assert err.phase == "generate"
+    assert err.call_idx == 1
+
+
+@pytest.mark.asyncio
+async def test_api_error_includes_phase_provider_and_call_idx_for_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Upload failures should be marked as phase='upload' with call_idx."""
+
+    @dataclass
+    class FailingUploadProvider(FakeProvider):
+        async def upload_file(self, path: Any, mime_type: str) -> str:
+            _ = path, mime_type
+            raise APIError(
+                "upload failed",
+                retryable=False,
+                provider="openai",
+                phase="upload",
+            )
+
+    fake = FailingUploadProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.txt"
+    file_path.write_text("hello")
+
+    cfg = Config(
+        provider="openai",
+        model="gpt-4o-mini",
+        use_mock=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+
+    with pytest.raises(APIError) as exc:
+        await pollux.run(
+            "Read this",
+            source=Source.from_file(file_path),
+            config=cfg,
+        )
+
+    err = exc.value
+    assert err.provider == "openai"
+    assert err.phase == "upload"
+    assert err.call_idx == 0
+
+
+@pytest.mark.asyncio
+async def test_api_error_includes_phase_and_provider_for_cache_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cache creation failures should be marked as phase='cache'."""
+
+    @dataclass
+    class FailingCacheProvider(FakeProvider):
+        async def create_cache(self, **kwargs: Any) -> str:
+            _ = kwargs
+            raise APIError(
+                "cache failed",
+                retryable=False,
+                provider="gemini",
+                phase="cache",
+            )
+
+    fake = FailingCacheProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(
+        provider="gemini",
+        model="cache-model",
+        use_mock=True,
+        enable_caching=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+
+    with pytest.raises(APIError) as exc:
+        await pollux.run_many(
+            ("Q",),
+            sources=(Source.from_text("cache me"),),
+            config=cfg,
+        )
+
+    err = exc.value
+    assert err.provider == "gemini"
+    assert err.phase == "cache"
+    assert err.call_idx is None
+
+
 # =============================================================================
 # Retry Behavior (Boundary)
 # =============================================================================
@@ -241,7 +365,11 @@ async def test_retry_does_not_replay_upload_without_status_or_retry_after(
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
             self.upload_attempts += 1
-            raise APIError("upload timed out", retryable=True)
+            raise APIError(
+                "upload timed out",
+                provider="gemini",
+                phase="upload",
+            )
 
         async def generate(self, **_kwargs: Any) -> dict[str, Any]:
             raise AssertionError("generate() should not be reached when upload fails")

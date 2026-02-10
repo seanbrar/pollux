@@ -14,14 +14,12 @@ import random
 import time
 from typing import TYPE_CHECKING, TypeVar
 
-from pollux.errors import APIError
+from pollux.errors import APIError, _walk_exception_chain
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterator
+    from collections.abc import Awaitable, Callable
 
 T = TypeVar("T")
-
-_RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 409, 429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -59,27 +57,8 @@ def _retry_after_from_error(exc: BaseException) -> float | None:
     return None
 
 
-def _walk_exception_chain(exc: BaseException) -> Iterator[BaseException]:
-    """Yield exc and its causes/contexts, with cycle protection."""
-    seen: set[int] = set()
-    stack: list[BaseException] = [exc]
-    while stack:
-        cur = stack.pop()
-        if id(cur) in seen:
-            continue
-        seen.add(id(cur))
-        yield cur
-
-        cause = cur.__cause__
-        if isinstance(cause, BaseException):
-            stack.append(cause)
-        context = cur.__context__
-        if isinstance(context, BaseException):
-            stack.append(context)
-
-
 def _is_transient_network_error(exc: BaseException) -> bool:
-    # Core retry should be robust even if provider SDKs wrap underlying errors.
+    """Pragmatic fallback for unwrapped network errors reaching retry."""
     httpx = None
     try:
         import httpx as _httpx
@@ -92,7 +71,6 @@ def _is_transient_network_error(exc: BaseException) -> bool:
         if isinstance(e, (TimeoutError, asyncio.TimeoutError)):
             return True
         if httpx is not None:
-            # RequestError is a stable base class for transport-level failures.
             request_error = getattr(httpx, "RequestError", None)
             timeout_exc = getattr(httpx, "TimeoutException", None)
             if isinstance(timeout_exc, type) and isinstance(e, timeout_exc):
@@ -107,18 +85,14 @@ def should_retry_generate(exc: BaseException) -> bool:
 
     Contract:
     - Cancellation is never retried.
-    - APIError is retried only when provider marks it retryable or includes a
-      known retryable HTTP status code.
-    - A small set of timeout exceptions are retried as a pragmatic fallback.
+    - APIError is retried when the provider marked it retryable.
+    - Unwrapped transient network errors are retried as a pragmatic fallback.
     """
     if isinstance(exc, asyncio.CancelledError):
         return False
 
     if isinstance(exc, APIError):
-        return (exc.retryable is True) or (
-            isinstance(exc.status_code, int)
-            and exc.status_code in _RETRYABLE_STATUS_CODES
-        )
+        return exc.retryable is True
 
     return _is_transient_network_error(exc)
 
@@ -127,21 +101,16 @@ def should_retry_side_effect(exc: BaseException) -> bool:
     """Return True when a side-effectful operation should be retried.
 
     Side effects (uploads, cache creation) can create duplicate artifacts on
-    ambiguous failures. To minimize surprise, retries are only attempted when
-    we have explicit provider signals (HTTP status codes / Retry-After).
+    ambiguous failures. Retries require explicit provider signal (retryable=True
+    is only set for HTTP status codes / Retry-After, not network errors, when
+    allow_network_errors=False).
     """
     if isinstance(exc, asyncio.CancelledError):
         return False
 
     if isinstance(exc, APIError):
-        if _retry_after_from_error(exc) is not None:
-            return True
-        return (
-            isinstance(exc.status_code, int)
-            and exc.status_code in _RETRYABLE_STATUS_CODES
-        )
+        return exc.retryable is True
 
-    # Never retry unknown/raw exceptions for side effects by default.
     return False
 
 
@@ -176,6 +145,8 @@ async def retry_async(
     for attempt in range(1, policy.max_attempts + 1):
         try:
             return await factory()
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             last_exc = exc
             if not should_retry(exc) or attempt >= policy.max_attempts:

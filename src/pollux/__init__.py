@@ -9,7 +9,7 @@ Public API:
 
 from __future__ import annotations
 
-from contextlib import suppress
+import asyncio
 from typing import TYPE_CHECKING
 
 from pollux.cache import CacheRegistry
@@ -18,6 +18,7 @@ from pollux.errors import (
     APIError,
     CacheError,
     ConfigurationError,
+    InternalError,
     PlanningError,
     PolluxError,
     RateLimitError,
@@ -105,8 +106,13 @@ async def run_many(
     finally:
         aclose = getattr(provider, "aclose", None)
         if callable(aclose):
-            with suppress(Exception):
+            try:
                 await aclose()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                # Cleanup should never mask the primary failure.
+                _ = exc
 
     return build_result(plan, trace)
 
@@ -122,13 +128,19 @@ def _get_provider(config: Config) -> Provider:
         from pollux.providers.openai import OpenAIProvider
 
         if not config.api_key:
-            raise ConfigurationError("api_key required for real API")
+            raise ConfigurationError(
+                "api_key required for real API",
+                hint="Set OPENAI_API_KEY or pass Config(api_key=...).",
+            )
         return OpenAIProvider(config.api_key)
 
     from pollux.providers.gemini import GeminiProvider
 
     if not config.api_key:
-        raise ConfigurationError("api_key required for real API")
+        raise ConfigurationError(
+            "api_key required for real API",
+            hint="Set GEMINI_API_KEY or pass Config(api_key=...).",
+        )
     return GeminiProvider(config.api_key)
 
 
@@ -138,6 +150,7 @@ __all__ = [
     "CacheError",
     "Config",
     "ConfigurationError",
+    "InternalError",
     "Options",
     "PlanningError",
     "PolluxError",

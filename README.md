@@ -60,7 +60,7 @@ export GEMINI_API_KEY="your-key-here"
 ### Multi-Source Analysis
 
 ```python
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 config = Config(provider="gemini", model="gemini-2.5-flash-lite")
 sources = [
@@ -69,7 +69,7 @@ sources = [
 ]
 prompts = ["Summarize the main argument.", "List key findings."]
 
-envelope = await batch(prompts, sources=sources, config=config)
+envelope = await run_many(prompts, sources=sources, config=config)
 for answer in envelope["answers"]:
     print(answer)
 ```
