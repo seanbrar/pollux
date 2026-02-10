@@ -1,0 +1,9 @@
+config:
+  system_instruction: Be concise.
+  cached_content: cachedContents/abc123
+  response_mime_type: application/json
+  response_json_schema:
+    type: object
+    properties:
+      answer:
+        type: string

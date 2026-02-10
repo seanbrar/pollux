@@ -37,6 +37,8 @@ viz = ["matplotlib~=3.10", "pandas~=2.3", "seaborn~=0.13"]
 # Development-only tooling (PEP 735 - NOT published to PyPI)
 [dependency-groups]
 test = [
+    "hypothesis>=6.140.0",
+    "mutmut>=3.2.3",
     "pyfakefs>=5.9.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=0.24.0",
@@ -111,7 +113,7 @@ disallow_untyped_defs = true
 #
 # Note: our Makefile calls `mypy .`, so we must explicitly exclude non-library
 # trees here rather than relying on `files = [...]`.
-exclude = "^(cookbook|docs|notebooks|scripts|site|outputs)/"
+exclude = "^(cookbook|docs|notebooks|scripts|site|outputs|mutants)/"
 
 namespace_packages = true
 show_error_codes = true
@@ -167,6 +169,7 @@ exclude = [
     "dist",
     "venv",
     "src/pollux/_legacy",
+    "mutants",
 ]
 
 [tool.ruff.format]
@@ -235,6 +238,16 @@ split-on-trailing-comma = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+# --- Mutmut ---
+[tool.mutmut]
+paths_to_mutate = ["src/pollux"]
+tests_dir = ["tests"]
+pytest_add_cli_args = [
+    "-m", "not api",
+    "--ignore=tests/test_cookbook.py",
+    "--ignore=tests/test_cookbook_contract.py",
+]
 
 # --- Semantic Release ---
 [tool.semantic_release]

@@ -10,6 +10,7 @@ PYTEST_ARGS = -v
 # Main Commands
 # ------------------------------------------------------------------------------
 .PHONY: help install-dev lint format typecheck check test test-api docs-serve docs-build demo-data clean-demo-data clean hooks
+.PHONY: mutmut
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -48,6 +49,13 @@ test: ## Run all tests
 
 test-api: .check-api-keys ## Run API tests (requires ENABLE_API_TESTS=1 + provider API key)
 	ENABLE_API_TESTS=1 $(PYTEST) $(PYTEST_ARGS) -m "api"
+
+# ------------------------------------------------------------------------------
+# Mutation Testing (Local Only)
+# ------------------------------------------------------------------------------
+
+mutmut: ## Run mutation testing for src/pollux (slow; local only)
+	uv run mutmut run
 
 # ------------------------------------------------------------------------------
 # Documentation

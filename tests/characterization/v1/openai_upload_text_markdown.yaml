@@ -1,0 +1,6 @@
+case:
+  mime_type: text/markdown
+  file_name: doc.md
+  file_text: "# Header\nBody text"
+expected:
+  uri: openai://text/IyBIZWFkZXIKQm9keSB0ZXh0

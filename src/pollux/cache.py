@@ -8,18 +8,12 @@ import hashlib
 import time
 from typing import TYPE_CHECKING, Any
 
+from pollux._singleflight import singleflight_cached
 from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 
 if TYPE_CHECKING:
     from pollux.providers.base import Provider
     from pollux.source import Source
-
-
-def _consume_future_exception(fut: asyncio.Future[str]) -> None:
-    try:
-        _ = fut.exception()
-    except asyncio.CancelledError:
-        return
 
 
 @dataclass
@@ -87,57 +81,31 @@ async def get_or_create_cache(
     if not provider.supports_caching:
         return None
 
-    # Check registry first
-    if cached := registry.get(key):
-        return cached
-
-    # Single-flight: share inflight creations
-    async with registry._lock:
-        # Double-check after acquiring lock
-        if cached := registry.get(key):
-            return cached
-
-        if key in registry._inflight:
-            fut = registry._inflight[key]
-            creator = False
-        else:
-            fut = asyncio.get_running_loop().create_future()
-            fut.add_done_callback(_consume_future_exception)
-            registry._inflight[key] = fut
-            creator = True
-
-    if not creator:
-        return await fut
-
-    # We are the creator
-    try:
+    async def _work() -> str:
         if retry_policy is None or retry_policy.max_attempts <= 1:
-            cache_name = await provider.create_cache(
+            return await provider.create_cache(
                 model=model,
                 parts=parts,
                 system_instruction=system_instruction,
                 ttl_seconds=ttl_seconds,
             )
-        else:
-            cache_name = await retry_async(
-                lambda: provider.create_cache(
-                    model=model,
-                    parts=parts,
-                    system_instruction=system_instruction,
-                    ttl_seconds=ttl_seconds,
-                ),
-                policy=retry_policy,
-                should_retry=should_retry_side_effect,
-            )
-        registry.set(key, cache_name, ttl_seconds)
-        fut.set_result(cache_name)
-        return cache_name
-    except asyncio.CancelledError:
-        fut.cancel()
-        raise
-    except Exception as e:
-        fut.set_exception(e)
-        raise
-    finally:
-        async with registry._lock:
-            registry._inflight.pop(key, None)
+
+        return await retry_async(
+            lambda: provider.create_cache(
+                model=model,
+                parts=parts,
+                system_instruction=system_instruction,
+                ttl_seconds=ttl_seconds,
+            ),
+            policy=retry_policy,
+            should_retry=should_retry_side_effect,
+        )
+
+    return await singleflight_cached(
+        key,
+        lock=registry._lock,
+        inflight=registry._inflight,
+        cache_get=registry.get,
+        cache_set=lambda k, v: registry.set(k, v, ttl_seconds),
+        work=_work,
+    )

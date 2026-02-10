@@ -1,0 +1,6 @@
+case:
+  mime_type: text/csv
+  file_name: data.txt
+  file_text: content
+expected:
+  uri: openai://text/Y29udGVudA==

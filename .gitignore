@@ -42,6 +42,10 @@ site/
 .pytest_cache/
 .ruff_cache/
 .benchmarks/
+.hypothesis/
+.mutmut-cache/
+.mutmut-results/
+mutants/
 
 # Jupyter
 .ipynb_checkpoints/

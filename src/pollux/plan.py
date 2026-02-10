@@ -11,24 +11,18 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class Call:
-    """A single API call to execute."""
-
-    model: str
-    prompt: str
-    parts: tuple[Any, ...] = ()
-    system_instruction: str | None = None
-
-
-@dataclass(frozen=True)
 class Plan:
-    """Execution plan with calls and shared context."""
+    """Execution plan with shared context and cache identity."""
 
     request: Request
-    calls: tuple[Call, ...]
     shared_parts: tuple[Any, ...] = ()
     use_cache: bool = False
     cache_key: str | None = None
+
+    @property
+    def n_calls(self) -> int:
+        """Number of provider generate calls this plan will execute."""
+        return len(self.request.prompts)
 
 
 def build_plan(request: Request) -> Plan:
@@ -38,7 +32,6 @@ def build_plan(request: Request) -> Plan:
     """
     config = request.config
     sources = request.sources
-    prompts = request.prompts
 
     # Build shared parts from sources
     shared_parts = _build_shared_parts(sources)
@@ -52,19 +45,8 @@ def build_plan(request: Request) -> Plan:
 
         cache_key = compute_cache_key(config.model, sources)
 
-    # Build calls - one per prompt for vectorized execution
-    calls = tuple(
-        Call(
-            model=config.model,
-            prompt=prompt,
-            parts=tuple(shared_parts),
-        )
-        for prompt in prompts
-    )
-
     return Plan(
         request=request,
-        calls=calls,
         shared_parts=tuple(shared_parts),
         use_cache=use_cache,
         cache_key=cache_key,
