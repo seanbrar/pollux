@@ -4,21 +4,26 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 import pytest
 
 import pollux
-from pollux.cache import compute_cache_key
+from pollux.cache import CacheRegistry, compute_cache_key
 from pollux.config import Config
-from pollux.errors import APIError, ConfigurationError, SourceError
+from pollux.errors import APIError, ConfigurationError, PlanningError, SourceError
 from pollux.options import Options
 from pollux.providers.base import ProviderCapabilities
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 from tests.conftest import FakeProvider
+from tests.helpers import CaptureProvider as KwargsCaptureProvider
+from tests.helpers import GateProvider, ScriptedProvider
+
+if TYPE_CHECKING:
+    from pollux.result import ResultEnvelope
 
 pytestmark = pytest.mark.integration
 
@@ -215,6 +220,83 @@ async def test_api_error_includes_phase_and_provider_for_cache_creation(
     assert err.provider == "gemini"
     assert err.phase == "cache"
     assert err.call_idx is None
+
+
+# =============================================================================
+# Provider Lifecycle (Boundary)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider cleanup should run after successful execution."""
+
+    @dataclass
+    class _ClosableProvider(FakeProvider):
+        closed: int = 0
+
+        async def aclose(self) -> None:
+            self.closed += 1
+
+    fake = _ClosableProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    result = await pollux.run_many(("Q1", "Q2"), config=cfg)
+
+    assert result["status"] == "ok"
+    assert fake.closed == 1
+
+
+@pytest.mark.asyncio
+async def test_provider_close_error_does_not_mask_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cleanup failures should never turn a success into an error."""
+
+    @dataclass
+    class _FailingCloseProvider(FakeProvider):
+        closed: int = 0
+
+        async def aclose(self) -> None:
+            self.closed += 1
+            raise RuntimeError("close failed")
+
+    fake = _FailingCloseProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    result = await pollux.run("Q", config=cfg)
+
+    assert result["status"] == "ok"
+    assert fake.closed == 1
+
+
+@pytest.mark.asyncio
+async def test_provider_close_error_does_not_mask_primary_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cleanup should not replace the primary exception from execution."""
+
+    @dataclass
+    class _FailingGenerateClosableProvider(FakeProvider):
+        closed: int = 0
+
+        async def generate(self, **_kwargs: Any) -> dict[str, Any]:
+            raise APIError("bad request", retryable=False, status_code=400)
+
+        async def aclose(self) -> None:
+            self.closed += 1
+            raise RuntimeError("close failed")
+
+    fake = _FailingGenerateClosableProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    with pytest.raises(APIError, match="bad request"):
+        await pollux.run("Q", config=cfg)
+
+    assert fake.closed == 1
 
 
 # =============================================================================
@@ -464,9 +546,9 @@ async def test_cache_creation_is_single_flight(monkeypatch: pytest.MonkeyPatch) 
     fake = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
 
-    # Keep this deterministic and isolated from other tests.
-    pollux._registry._entries.clear()  # pyright: ignore[reportPrivateUsage]
-    pollux._registry._inflight.clear()  # pyright: ignore[reportPrivateUsage]
+    # Keep this deterministic and isolated from other tests without relying on
+    # CacheRegistry private attributes.
+    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
 
     cfg = Config(
         provider="gemini",
@@ -482,6 +564,49 @@ async def test_cache_creation_is_single_flight(monkeypatch: pytest.MonkeyPatch) 
     )
 
     assert fake.cache_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_cache_single_flight_propagates_failure_and_clears_inflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If cache creation fails, all waiters should see the error and future calls can recover."""
+    fake = GateProvider(kind="cache")
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+
+    cfg = Config(
+        provider="gemini",
+        model="cache-model",
+        use_mock=True,
+        enable_caching=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+    source = Source.from_text("cache me", identifier="same-id")
+
+    t1 = asyncio.create_task(
+        pollux.run_many(("A",), sources=(source,), config=cfg),
+    )
+    await fake.started.wait()
+    t2 = asyncio.create_task(
+        pollux.run_many(("B",), sources=(source,), config=cfg),
+    )
+    fake.release.set()
+
+    results = await asyncio.gather(t1, t2, return_exceptions=True)
+    assert len(results) == 2
+    assert all(isinstance(r, APIError) for r in results)
+    assert fake.cache_calls == 1
+
+    # After the failure, the registry should not be stuck; it should be able to create a cache.
+    result = await pollux.run_many(("C",), sources=(source,), config=cfg)
+    assert result["status"] == "ok"
+    assert fake.cache_calls == 2
+
+    # And after a successful cache, additional calls should not recreate it.
+    result2 = await pollux.run_many(("D",), sources=(source,), config=cfg)
+    assert result2["status"] == "ok"
+    assert fake.cache_calls == 2
 
 
 @pytest.mark.asyncio
@@ -539,13 +664,60 @@ async def test_concurrent_calls_share_file_upload(
 
 
 @pytest.mark.asyncio
+async def test_upload_single_flight_propagates_failure_and_can_recover(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """If an upload fails, waiters should see the error and a later run can succeed."""
+    fake = GateProvider(kind="upload")
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "shared.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(
+        provider="gemini",
+        model="gemini-2.0-flash",
+        use_mock=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+
+    task = asyncio.create_task(
+        pollux.run_many(
+            prompts=("Q1", "Q2"),
+            sources=(Source.from_file(file_path, mime_type="application/pdf"),),
+            config=cfg,
+        )
+    )
+    await fake.started.wait()
+    fake.release.set()
+
+    with pytest.raises(APIError, match="upload failed"):
+        await task
+
+    # Upload should be attempted once due to single-flight coordination.
+    assert fake.upload_calls == 1
+    assert fake.generate_calls == 0
+
+    # A later call should not be stuck and can succeed.
+    result = await pollux.run_many(
+        prompts=("Q3", "Q4"),
+        sources=(Source.from_file(file_path, mime_type="application/pdf"),),
+        config=cfg,
+    )
+    assert result["status"] == "ok"
+    assert result["answers"] == ["ok:Q3", "ok:Q4"]
+    assert fake.upload_calls == 2
+    assert fake.generate_calls == 2
+
+
+@pytest.mark.asyncio
 async def test_cached_context_is_not_resent_on_each_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When cache is active, call payloads should include only prompt-specific parts."""
 
     @dataclass
-    class CaptureProvider(FakeProvider):
+    class PartsCaptureProvider(FakeProvider):
         received_parts: list[list[Any]] = field(default_factory=list)
         cache_names: list[str | None] = field(default_factory=list)
 
@@ -576,11 +748,10 @@ async def test_cached_context_is_not_resent_on_each_call(
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
             return {"text": f"ok:{prompt}", "usage": {"total_token_count": 1}}
 
-    fake = CaptureProvider()
+    fake = PartsCaptureProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
 
-    pollux._registry._entries.clear()  # pyright: ignore[reportPrivateUsage]
-    pollux._registry._inflight.clear()  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
 
     cfg = Config(
         provider="gemini",
@@ -653,7 +824,6 @@ def test_cache_registry_expires_stale_entries(monkeypatch: pytest.MonkeyPatch) -
 
     # Entry should be evicted
     assert registry.get("key") is None
-    assert "key" not in registry._entries  # Verify it was deleted
 
 
 def test_cache_registry_handles_zero_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -866,9 +1036,32 @@ def test_options_history_accepts_valid_message_shape() -> None:
 
 def test_options_continue_from_accepts_result_like_dict() -> None:
     """continue_from shape should be accepted for future rollout."""
-    previous = {"status": "ok", "answers": ["x"]}
-    options = Options(continue_from=previous)  # type: ignore[arg-type]
+    previous: ResultEnvelope = {"status": "ok", "answers": ["x"]}
+    options = Options(continue_from=previous)
     assert options.continue_from == previous
+
+
+def test_options_rejects_invalid_history_items() -> None:
+    """Invalid history item shapes should fail fast with a clear error."""
+    bad_history: Any = [{"role": "user", "content": 123}]
+    with pytest.raises(ConfigurationError, match="history items"):
+        Options(history=bad_history)
+
+
+def test_options_rejects_history_and_continue_from_together() -> None:
+    """Conversation inputs are mutually exclusive."""
+    previous: ResultEnvelope = {"status": "ok", "answers": ["x"]}
+    with pytest.raises(ConfigurationError, match="mutually exclusive"):
+        Options(
+            history=[{"role": "user", "content": "hello"}],
+            continue_from=previous,
+        )
+
+
+def test_options_rejects_invalid_response_schema_type() -> None:
+    """response_schema must be a BaseModel subclass or JSON schema dict."""
+    with pytest.raises(ConfigurationError, match="response_schema"):
+        Options(response_schema="not-a-schema")  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
@@ -926,3 +1119,172 @@ async def test_conversation_options_can_be_enabled_for_development(
     assert fake.last_generate_kwargs["history"] == [
         {"role": "user", "content": "hello"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_continue_from_requires_conversation_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """continue_from must contain _conversation_state once conversation is enabled."""
+    fake = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=True,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    with pytest.raises(ConfigurationError, match="missing _conversation_state"):
+        await pollux.run_many(
+            ("Q1?",),
+            config=cfg,
+            options=Options(continue_from={"status": "ok", "answers": ["x"]}),
+        )
+
+
+@pytest.mark.asyncio
+async def test_continue_from_derives_history_and_previous_response_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """continue_from should supply history + previous_response_id to provider.generate()."""
+    fake = KwargsCaptureProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=True,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    previous: ResultEnvelope = {
+        "status": "ok",
+        "answers": ["x"],
+        "_conversation_state": {
+            "history": [{"role": "user", "content": "hello"}],
+            "response_id": "resp_123",
+        },
+    }
+    await pollux.run_many(
+        ("Next?",),
+        config=cfg,
+        options=Options(continue_from=previous),
+    )
+
+    assert len(fake.generate_kwargs) == 1
+    assert fake.generate_kwargs[0]["history"] == [{"role": "user", "content": "hello"}]
+    assert fake.generate_kwargs[0]["previous_response_id"] == "resp_123"
+
+
+@pytest.mark.asyncio
+async def test_planning_error_wraps_source_loader_failure() -> None:
+    """Source loader failures should surface as PlanningError with context."""
+
+    def _boom() -> bytes:
+        raise RuntimeError("boom")
+
+    bad = Source(
+        source_type="text",
+        identifier="bad-source",
+        mime_type="text/plain",
+        size_bytes=0,
+        content_loader=_boom,
+    )
+
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    with pytest.raises(PlanningError, match="Failed to load content"):
+        await pollux.run_many(
+            ("Q",),
+            sources=(bad,),
+            config=cfg,
+        )
+
+
+@pytest.mark.asyncio
+async def test_result_status_is_partial_when_some_answers_are_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Status classification should be stable across refactors."""
+    fake = ScriptedProvider(
+        script=[
+            {"text": "ok", "usage": {"total_token_count": 1}},
+            {"text": "", "usage": {"total_token_count": 1}},
+        ]
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    result = await pollux.run_many(("A", "B"), config=cfg)
+
+    assert result["status"] == "partial"
+    assert result["answers"] == ["ok", ""]
+
+
+@pytest.mark.asyncio
+async def test_result_status_is_error_when_all_answers_are_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All-empty answers should produce status='error' (not ok/partial)."""
+    fake = ScriptedProvider(
+        script=[
+            {"text": "", "usage": {"total_token_count": 1}},
+            {"text": "", "usage": {"total_token_count": 1}},
+        ]
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    result = await pollux.run_many(("A", "B"), config=cfg)
+
+    assert result["status"] == "error"
+    assert result["answers"] == ["", ""]
+
+
+@pytest.mark.asyncio
+async def test_structured_validation_failure_returns_none_in_structured_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When structured payload fails validation, keep answers but set structured=None."""
+
+    class Paper(BaseModel):
+        title: str
+        year: int
+
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=True,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=False,
+        ),
+        script=[
+            {
+                "text": '{"title":"A"}',
+                "structured": {"title": "A"},
+                "usage": {"total_token_count": 1},
+            }
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+
+    result = await pollux.run(
+        "Extract",
+        config=cfg,
+        options=Options(response_schema=Paper),
+    )
+
+    assert result["answers"] == ['{"title":"A"}']
+    assert result["structured"] == [None]

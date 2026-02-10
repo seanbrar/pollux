@@ -21,7 +21,7 @@ from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.openai import OpenAIProvider, _to_openai_strict_schema
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.contract
 
 
 # =============================================================================

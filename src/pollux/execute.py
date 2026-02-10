@@ -109,7 +109,6 @@ async def execute_plan(
     # Execute calls with concurrency control
     concurrency = config.request_concurrency
     sem = asyncio.Semaphore(concurrency)
-    responses: list[dict[str, Any]] = []
 
     async def _execute_call(call_idx: int) -> dict[str, Any]:
         call = plan.calls[call_idx]
@@ -170,9 +169,26 @@ async def execute_plan(
                     hint="This is a Pollux internal error. Please report it.",
                 ) from e
 
-    # Execute all calls
-    results = await asyncio.gather(*[_execute_call(i) for i in range(len(plan.calls))])
-    responses = list(results)
+    # Execute all calls. We intentionally collect *all* task outcomes before
+    # raising so failures don't leave background tasks with unobserved
+    # exceptions.
+    tasks = [asyncio.create_task(_execute_call(i)) for i in range(len(plan.calls))]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for item in results:
+        if isinstance(item, asyncio.CancelledError):
+            raise item
+        if isinstance(item, BaseException):
+            # Deterministic: prefer lowest call index, not "first to fail".
+            raise item
+
+    responses: list[dict[str, Any]] = []
+    for item in results:
+        if not isinstance(item, dict):
+            raise InternalError(
+                f"Provider returned invalid response type: {type(item).__name__}",
+                hint="Providers must return dict payloads with at least a 'text' field.",
+            )
+        responses.append(item)
 
     # Aggregate usage
     total_usage: dict[str, int] = {}
