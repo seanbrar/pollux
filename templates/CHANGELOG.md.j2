@@ -1,24 +1,17 @@
-{%- import ".macros.j2" as macros -%}
+{% import ".macros.j2" as macros %}
 
 {#-
-This logic determines whether to run in "init" mode or "update" mode.
-- "init" mode is used if the changelog file is empty or doesn't contain the insertion flag.
-- "update" mode is used if the changelog file exists and has the flag.
-This allows for both creating a new changelog and prepending to an existing one.
--#}
-{%- if context.changelog_mode == 'update' -%}
-{%- set prev_content = context.prev_changelog_file | read_file | safe -%}
-{%- set use_init_mode = prev_content | trim | length == 0 or '<!-- PSR-INSERT-FLAG -->' not in prev_content -%}
-{%- else -%}
-{%- set use_init_mode = true -%}
-{%- endif -%}
+Changelog template for python-semantic-release (PSR).
 
-{%- if use_init_mode -%}
-{#-
-INIT MODE: Renders the entire changelog from scratch.
-This includes a header, all historical releases, and the footer with comparison links.
+This template intentionally regenerates the full changelog from git history on
+each run.
+
+Rationale:
+- "Splice" logic (string-splitting existing CHANGELOG.md) is brittle and tends
+  to duplicate blocks or silently skip releases.
+- Deterministic regeneration is easier to reason about and easier to verify.
 -#}
-{%- block header -%}
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -27,45 +20,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
-{% endblock header -%}
 
-{#- Main content block renders unreleased changes and all past releases. -#}
-{%- block content -%}
-{% if context.history.unreleased and macros.has_renderable_commits(context.history.unreleased) -%}
-## [Unreleased]
+{%- set releases = context.history.released.values() | list | sort(attribute='version', reverse=true) %}
 
-{{ macros.render_changelog_entry(context.history.unreleased) -}}
-{% endif -%}
-{% for version, release in context.history.released.items() -%}
-## [{{ release.version }}] - {{ release.tagged_date.strftime('%Y-%m-%d') }}
-
-{{ macros.render_changelog_entry(release.elements) -}}
-{%- endfor -%}
-{%- endblock content -%}
-
-{#- Footer block renders all the comparison links for easy navigation on the VCS. -#}
-{%- block footer -%}
-<!-- PSR-LINKS-START -->
-{{ macros.render_comparison_links(context.history) }}
-{% endblock footer -%}
-{%- else -%}
-{#-
-UPDATE MODE: Prepends the newest release information to the existing changelog.
-It splits the old changelog at the insertion flag, injects the new content,
-and then regenerates the comparison links at the bottom.
--#}
-{%- set content_parts = prev_content.split('<!-- PSR-INSERT-FLAG -->', 1) -%}
-{%- set old_content_and_links = content_parts[1] | default('') -%}
-{%- set old_releases, _, _ = old_content_and_links.partition('<!-- PSR-LINKS-START -->') %}
-{{- content_parts[0] -}}
-<!-- PSR-INSERT-FLAG -->
 {% if context.history.unreleased and macros.has_renderable_commits(context.history.unreleased) %}
 ## [Unreleased]
 
-{{ macros.render_changelog_entry(context.history.unreleased) -}}
+{{ macros.render_changelog_entry(context.history.unreleased) | trim }}
+
 {% endif -%}
-{{- old_releases | trim }}
+
+{%- for release in releases %}
+## [{{ release.version }}] - {{ release.tagged_date.strftime('%Y-%m-%d') }}
+
+{% set body_trimmed = macros.render_changelog_entry(release.elements) | trim -%}
+{% if body_trimmed %}
+{{ body_trimmed }}
+{% else %}
+_No user-facing changes._
+{% endif -%}
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor %}
 
 <!-- PSR-LINKS-START -->
 {{ macros.render_comparison_links(context.history) }}
-{% endif -%}

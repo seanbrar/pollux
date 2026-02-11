@@ -261,9 +261,16 @@ major_on_zero = false
 match = "main"
 prerelease = false
 
+[tool.semantic_release.branches.preview]
+# Allow dry-run previews on non-main branches without changing main release rules.
+# This produces prerelease versions like `0.10.0-preview.1` on feature branches.
+match = "^(?!main$).+"
+prerelease = true
+prerelease_token = "preview"
+
 [tool.semantic_release.changelog]
 template_dir = "templates"
-mode = "init"
+mode = "update"
 insertion_flag = "<!-- PSR-INSERT-FLAG -->"
 exclude_commit_patterns = [
     "build(.*):",    # build system - internal dependency management
