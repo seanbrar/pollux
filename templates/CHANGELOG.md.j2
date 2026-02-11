@@ -21,28 +21,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- PSR-INSERT-FLAG -->
 
-{% set releases = context.history.released.values() | list | sort(attribute='version', reverse=true) %}
+{%- set releases = context.history.released.values() | list | sort(attribute='version', reverse=true) %}
 
-{% if context.history.unreleased and macros.has_renderable_commits(context.history.unreleased) -%}
+{% if context.history.unreleased and macros.has_renderable_commits(context.history.unreleased) %}
 ## [Unreleased]
 
-{{ macros.render_changelog_entry(context.history.unreleased) -}}
-{% endif %}
-
-{% for release in releases -%}
-## [{{ release.version }}] - {{ release.tagged_date.strftime('%Y-%m-%d') }}
-
-{% set body = macros.render_changelog_entry(release.elements) %}
-{% set body_trimmed = body | trim %}
-{% if body_trimmed -%}
-{{ body_trimmed }}
-
-{% else -%}
-_No user-facing changes._
+{{ macros.render_changelog_entry(context.history.unreleased) | trim }}
 
 {% endif -%}
-{% endfor %}
+
+{%- for release in releases %}
+## [{{ release.version }}] - {{ release.tagged_date.strftime('%Y-%m-%d') }}
+
+{% set body_trimmed = macros.render_changelog_entry(release.elements) | trim -%}
+{% if body_trimmed %}
+{{ body_trimmed }}
+{% else %}
+_No user-facing changes._
+{% endif -%}
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor %}
 
 <!-- PSR-LINKS-START -->
 {{ macros.render_comparison_links(context.history) }}
-
