@@ -1,20 +1,9 @@
 # Rate Limits and Concurrency
 
-Tune `request_concurrency` safely against rate limits.
+Find the right `request_concurrency` for your workload by benchmarking
+sequential vs bounded execution across multiple trials.
 
-## At a glance
-
-- **Best for:** selecting a safe, performant per-plan concurrency level.
-- **Input:** fixed context set + fixed prompt count, repeated across multiple trials.
-- **Output:** ok-rate + median duration comparison for `c=1` vs `c=N`.
-
-## Before you run
-
-- Keep inputs and prompt count identical across comparisons.
-- Start with conservative concurrency (`2-4`) in real API mode.
-- Use multiple trials; latency is noisy.
-
-## Command
+## Run It
 
 ```bash
 python -m cookbook production/rate-limits-and-concurrency \
@@ -22,25 +11,31 @@ python -m cookbook production/rate-limits-and-concurrency \
   --prompts 12 --trials 3 --concurrency 4 --mock
 ```
 
-## What to look for
+## Reading the Results
 
-- `bounded ok rate` stays at `N / N`.
-- `bounded median duration` improves without increasing error rate.
-- If the ok-rate drops at higher concurrency, you’re pushing too hard.
+```
+Sequential (c=1):
+  ok rate: 12/12 | median duration: 8.4s
 
-## Tuning levers
+Bounded (c=4):
+  ok rate: 12/12 | median duration: 2.6s
+
+Speedup: 3.2x (ok rate held at 100%)
+```
+
+The key metric is `ok rate` — it should stay at `N / N` as you increase
+concurrency. If the ok-rate drops, you're pushing too hard. Median duration
+is more reliable than single-run timing because latency is noisy.
+
+## Tuning
 
 - Raise `--concurrency` stepwise until reliability drops.
-- Increase `--trials` to reduce noise.
-- Keep `--limit` and `--prompts` constant while tuning.
+- Increase `--trials` to reduce noise in timing comparisons.
+- Keep `--limit` and `--prompts` constant while tuning concurrency.
+- Start conservative (2-4) in real API mode.
 
-## Failure modes
+## Next Steps
 
-- Spiky latency can make single-run comparisons misleading; rely on medians.
-- Rate limit errors imply concurrency should be reduced.
-- Too few prompts can hide the effect of concurrency; use `--prompts 12+`.
-
-## Extend this recipe
-
-- Use [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md) for concurrency across files/items.
-- Combine with [Resume on Failure](resume-on-failure.md) for robust pipelines.
+Use [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md) for
+concurrency across files. Combine with
+[Resume on Failure](resume-on-failure.md) for robust production pipelines.

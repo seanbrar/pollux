@@ -99,7 +99,7 @@ config = Config(
 )
 ```
 
-See the [Configuration Guide](https://seanbrar.github.io/pollux/guides/configuration/) for details.
+See the [Configuration Guide](https://seanbrar.github.io/pollux/configuration/) for details.
 
 ### Provider Differences
 
@@ -110,13 +110,14 @@ See the capability matrix: [Provider Capabilities](https://seanbrar.github.io/po
 
 - [Quickstart](https://seanbrar.github.io/pollux/quickstart/) — First result in 2 minutes
 - [Concepts](https://seanbrar.github.io/pollux/concepts/) — Mental model for source patterns and caching
-- [Guides](https://seanbrar.github.io/pollux/guides/installation/) — Installation, configuration, patterns
+- [Sources and Patterns](https://seanbrar.github.io/pollux/sources-and-patterns/) — Source constructors, run/run_many, ResultEnvelope
+- [Configuration](https://seanbrar.github.io/pollux/configuration/) — Providers, models, retries, caching
 - [API Reference](https://seanbrar.github.io/pollux/reference/api/) — Entry points and types
-- [Cookbook](./cookbook/) — scenario-driven, ready-to-run recipes
+- [Cookbook](./cookbook/) — Scenario-driven, ready-to-run recipes
 
 ## Origins
 
-Pollux was developed as part of Google Summer of Code 2025 with Google DeepMind. [Learn more →](https://seanbrar.github.io/pollux/about/)
+Pollux was developed as part of Google Summer of Code 2025 with Google DeepMind. [Learn more →](https://seanbrar.github.io/pollux/#about)
 
 ## Contributing
 

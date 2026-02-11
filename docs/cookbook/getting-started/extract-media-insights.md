@@ -1,19 +1,9 @@
 # Extract Media Insights
 
-Extract fast highlights from one media source (image, audio, or video) before scaling up.
+Validate multimodal prompts on a single media source — image, audio, or
+video — before scaling up.
 
-## At a glance
-
-- **Best for:** validating multimodal prompts and output expectations.
-- **Input:** one local media file (`png/jpg/jpeg/mp4/mov/mp3/...`).
-- **Output:** per-prompt excerpts plus token usage (when available).
-
-## Before you run
-
-- Start with one source (faster iteration, easier debugging).
-- Keep prompts concrete (objects, attributes, timestamps, quoted text).
-
-## Command
+## Run It
 
 Image:
 
@@ -36,26 +26,35 @@ python -m cookbook getting-started/extract-media-insights \
   --input cookbook/data/demo/multimodal-basic/sample_audio.mp3 --mock
 ```
 
-## What to look for
+## What You'll See
 
-- Outputs should be specific to the media (not generic filler).
-- Video prompts should include timestamps **when visible**.
-- Audio prompts should extract quotes **when present**, and say `no quotes` otherwise.
+```
+Source: sample_image.jpg (image/jpeg)
+Status: ok
 
-## Tuning levers
+Prompt 1 — "Describe the main subject":
+  "A bar chart showing quarterly revenue growth, with Q3 highlighted in blue.
+   The y-axis ranges from $0 to $50M."
 
+Prompt 2 — "List all visible text":
+  "Title: 'Revenue by Quarter'. Labels: Q1, Q2, Q3, Q4. Values: $12M, $28M,
+   $45M, $31M."
+
+Tokens: 890 (prompt: 780 / completion: 110)
+```
+
+Outputs should be specific to the media content. Video prompts should include
+timestamps when visible; audio prompts should extract quotes when present.
+
+## Tuning
+
+- Keep prompts concrete: ask for objects, attributes, timestamps, quoted text.
 - Ask for evidence-labeled bullets when descriptions are vague.
-- Reduce prompt count while iterating, then add prompts once outputs are stable.
+- Reduce prompt count while iterating, then add prompts once outputs stabilize.
 
-## Failure modes
+## Next Steps
 
-- Unsupported path/extension -> pass a real media file.
-- Weak grounding -> ask for concrete details (colors, positions, counts, timestamps).
-- Provider errors in real mode -> retry in `--mock`, then rerun with `--no-mock`.
-
-## Extend this recipe
-
-- Scale to directories with [Broadcast Process Files](broadcast-process-files.md).
-- Increase throughput with [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md).
-- For multi-source video synthesis, use [Multi-Video Synthesis](../research-workflows/multi-video-synthesis.md).
-
+Scale to directories with
+[Broadcast Process Files](broadcast-process-files.md), or synthesize across
+multiple videos with
+[Multi-Video Synthesis](../research-workflows/multi-video-synthesis.md).

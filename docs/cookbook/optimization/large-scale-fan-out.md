@@ -1,44 +1,47 @@
 # Large-Scale Fan-Out
 
-Fan out per-file work with bounded concurrency to control in-flight load.
+Fan out per-file work with bounded concurrency. The knob is
+`--concurrency` — start low and ramp up until reliability drops.
 
-## At a glance
-
-- **Best for:** increasing throughput without unbounded request bursts.
-- **Input:** directory of files + one prompt.
-- **Output:** aggregate success count for a bounded fan-out run.
-
-## Before you run
-
-- Start with low concurrency and increase gradually.
-- Keep prompt short and stable during throughput tuning.
-
-## Command
+## Run It
 
 ```bash
 python -m cookbook optimization/large-scale-fan-out \
   --input cookbook/data/demo/text-medium --limit 8 --concurrency 4 --mock
 ```
 
-## What to look for
+## Ramping Up
 
-- `ok` count should stay near total file count.
-- Higher concurrency should improve throughput until limits are hit.
-- Failures at higher concurrency usually signal rate/latency pressure.
+Start conservative, then increase:
 
-## Tuning levers
+```bash
+# Baseline: sequential
+python -m cookbook optimization/large-scale-fan-out \
+  --input cookbook/data/demo/text-medium --limit 8 --concurrency 1 --mock
 
-- `--concurrency` controls client-side in-flight work.
-- `--limit` controls workload size and test duration.
+# Double it
+python -m cookbook optimization/large-scale-fan-out \
+  --input cookbook/data/demo/text-medium --limit 8 --concurrency 4 --mock
 
-## Failure modes
+# Push further
+python -m cookbook optimization/large-scale-fan-out \
+  --input cookbook/data/demo/text-medium --limit 8 --concurrency 8 --mock
+```
 
-- Aggressive concurrency can trigger transient provider errors.
-- Very large files can bottleneck individual workers.
-- Mixed workload sizes hide optimal concurrency settings.
+Higher concurrency should improve throughput until provider rate limits are
+hit. Failures at higher concurrency usually signal rate or latency pressure.
 
-## Extend this recipe
+## What You'll See
 
-- Compare with [Rate Limits and Concurrency](../production/rate-limits-and-concurrency.md).
-- Add per-item latency logging for deeper tuning.
+```
+Concurrency: 4 | Files: 8
+Results: 8/8 ok | Wall time: 3.1s
+```
 
+The `ok` count should stay near total file count. Watch for drops as you
+increase concurrency.
+
+## Next Steps
+
+Compare with [Rate Limits and Concurrency](../production/rate-limits-and-concurrency.md)
+for a more rigorous benchmarking approach.

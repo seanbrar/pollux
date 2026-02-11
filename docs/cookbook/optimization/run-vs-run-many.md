@@ -1,50 +1,49 @@
 # Run vs RunMany
 
-Batch prompts with `run_many()` instead of writing a `run()` loop.
+An experiment: how much faster is `run_many()` compared to calling `run()` in
+a loop? This recipe runs both approaches on the same input and compares
+wall time and token usage.
 
-## At a glance
-
-- **Best for:** multiple questions about the same source, with minimal orchestration.
-- **Input:** one file (`pdf/txt/md/png/jpg/jpeg`).
-- **Output:** wall-time + token comparison, plus a sample answer excerpt.
-
-## Before you run
-
-- Start in `--mock` to validate inputs and prompt set.
-- Switch to `--no-mock` to observe real provider overhead and upload reuse effects.
-
-## Command
+## Run It
 
 ```bash
 python -m cookbook optimization/run-vs-run-many \
   --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
-Real API mode:
+Real API:
 
 ```bash
 python -m cookbook optimization/run-vs-run-many \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 
-## What to look for
+## What You'll See
 
-- `Batched run_many()` returns **one answer per prompt**.
-- In real mode, `run_many()` is often faster than a `run()` loop for the same prompt set.
-- Token totals should be in the same ballpark; big deltas usually mean prompts/context changed.
+```
+Sequential run() loop (3 prompts):
+  Wall time: 4.2s | Tokens: 3,450
 
-## Tuning levers
+Batched run_many() (3 prompts):
+  Wall time: 1.8s | Tokens: 3,420
+  Answers: 3 / 3
 
-- Keep prompt count small (3-8) while iterating on prompt quality.
-- Use shorter, narrower prompts while you are measuring overhead and throughput.
+Speedup: 2.3x
+```
 
-## Failure modes
+In real mode, `run_many()` is typically faster because it shares uploads and
+runs prompts concurrently. In `--mock` mode the speedup is flat (no real
+network cost) — that's expected.
 
-- Flat speedup in `--mock` is expected (no real network/upload cost).
-- If answers are empty or generic, tighten prompt constraints before scaling prompt sets.
-- Provider errors in real mode: retry in `--mock`, then rerun with smaller prompt sets.
+## Tuning
 
-## Extend this recipe
+- Keep prompt count small (3-8) while iterating on quality.
+- Use shorter prompts while measuring overhead.
+- If answers are empty or generic, tighten prompt constraints before scaling.
 
-- For many files, use [Broadcast Process Files](../getting-started/broadcast-process-files.md).
-- For throughput across files, use [Large-Scale Fan-Out](large-scale-fan-out.md).
+## Next Steps
+
+For many files, use
+[Broadcast Process Files](../getting-started/broadcast-process-files.md).
+For throughput tuning, see
+[Large-Scale Fan-Out](large-scale-fan-out.md).

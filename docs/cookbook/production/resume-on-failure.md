@@ -1,19 +1,26 @@
 # Resume on Failure
 
-Persist manifest state so retries process only unfinished or failed work.
+Persist a manifest so retries process only unfinished or failed items. This
+is the durability pattern for long-running jobs where partial failures are
+expected.
 
-## At a glance
+## How It Works
 
-- **Best for:** long-running jobs where partial failures are expected.
-- **Input:** directory + manifest path + output directory.
-- **Output:** durable per-item statuses and resumable reruns.
+The recipe maintains a JSON manifest that tracks per-item status:
 
-## Before you run
+```json
+{
+  "items": {
+    "input.txt": {"status": "ok", "output": "outputs/items/input.json"},
+    "compare.txt": {"status": "error", "error": "RateLimitError: 429"},
+    "notes.txt": {"status": "pending"}
+  }
+}
+```
 
-- Use a stable input directory between retries.
-- Keep manifest and output artifacts in persistent storage.
+On retry with `--failed-only`, items with `status: "ok"` are skipped.
 
-## Command
+## Run It
 
 Initial run:
 
@@ -23,7 +30,7 @@ python -m cookbook production/resume-on-failure \
   --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
 
-Retry only unresolved items:
+Retry only failed/pending items:
 
 ```bash
 python -m cookbook production/resume-on-failure \
@@ -31,25 +38,40 @@ python -m cookbook production/resume-on-failure \
   --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
 
-## What to look for
+## What You'll See
 
-- Manifest updates after each item (not only at run end).
-- Re-runs with `--failed-only` skip previously `ok` work.
-- Per-item JSON artifacts preserve answers, usage, and metrics.
+Initial run:
 
-## Tuning levers
+```
+Processing 4 items...
+  input.txt: ok
+  compare.txt: ok
+  notes.txt: error (simulated)
+  extra.txt: ok
+
+Manifest: 3 ok, 1 error → outputs/manifest.json
+```
+
+Retry run:
+
+```
+Resuming: 1 item pending/failed
+  notes.txt: ok
+
+Manifest: 4 ok, 0 error → outputs/manifest.json
+```
+
+The manifest updates after each item (not only at run end). Per-item JSON
+artifacts in `--output-dir` preserve answers, usage, and metrics.
+
+## Tuning
 
 - `--max-retries` and `--backoff-seconds` control retry aggressiveness.
 - `--limit` sets workload size for staged production rollout.
+- Use a stable input directory between retries — changing item identity
+  breaks resumability.
 
-## Failure modes
+## Next Steps
 
-- Changing item identity logic breaks resumability.
-- Writing manifest too infrequently risks progress loss.
-- Retrying non-retriable validation errors wastes time/cost.
-
-## Extend this recipe
-
-- Split retries by error category (rate-limit vs validation).
-- Export manifest rollups to dashboards for operational visibility.
-
+Split retries by error category (rate-limit vs validation) for smarter
+retry logic. Export manifest rollups to dashboards for operational visibility.

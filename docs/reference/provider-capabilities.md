@@ -40,6 +40,3 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 When a requested feature is unsupported for the selected provider or release scope, Pollux raises `ConfigurationError` or `APIError` with a concrete hint, instead of degrading silently.
 
-## Design Intent
-
-The goal for v1.0 is a stable and interpretable core. Capability expansion continues in v1.1+ without masking provider realities.

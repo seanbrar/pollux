@@ -1,51 +1,54 @@
 # Broadcast Process Files
 
-Process a directory by running the same prompt set per file.
+Once you've validated prompt quality on a single file, broadcast the same
+prompts across a directory. This is the "map over files" pattern.
 
-## At a glance
+## Run It
 
-- **Best for:** a grokkable "map over files" baseline with consistent prompts.
-- **Input:** directory of supported files.
-- **Output:** per-file statuses and excerpts, plus a compact end-of-run summary.
-
-## Before you run
-
-- Keep prompts fixed while validating output quality.
-- Start with a small `--limit` before full-dataset runs.
-
-## Command
+The transition from [Analyze Single Paper](analyze-single-paper.md) is
+straightforward: swap a file path for a directory, add `--limit` to control
+scope.
 
 ```bash
 python -m cookbook getting-started/broadcast-process-files \
   --input cookbook/data/demo/text-medium --limit 3 --mock
 ```
 
-Custom prompt set:
+Custom prompts:
 
 ```bash
 python -m cookbook getting-started/broadcast-process-files \
   --input ./docs --limit 4 --prompt "List 3 takeaways" --prompt "Extract entities"
 ```
 
-## What to look for
+## What You'll See
 
-- Each file prints `Status: ok` and `Answers: N / N`.
-- Excerpts are specific to each file (not generic boilerplate).
-- Total tokens and wall time scale roughly with `files x prompts`.
+```
+File 1/3: input.txt
+  Status: ok | Answers: 2 / 2
+  Excerpt: "Three main findings: (1) caching reduces..."
 
-## Tuning levers
+File 2/3: compare.txt
+  Status: ok | Answers: 2 / 2
+  Excerpt: "The comparison methodology uses..."
+
+File 3/3: notes.txt
+  Status: ok | Answers: 2 / 2
+  Excerpt: "Key entities: Pollux, context caching..."
+
+Summary: 3/3 ok | Total tokens: 4,120 | Wall time: 2.1s
+```
+
+Each file prints its status and answer count. Excerpts should be specific to
+each file. Total tokens and wall time scale roughly with `files × prompts`.
+
+## Tuning
 
 - Use repeated `--prompt` flags to keep each question narrowly scoped.
 - Increase `--limit` gradually once excerpts look consistently correct.
+- Huge prompt sets produce noisy output — start with 2-3 prompts.
 
-## Failure modes
+## Next Steps
 
-- Huge prompt sets can produce noisy, unfocused outputs.
-- Mixed file quality lowers output quality and makes comparisons misleading.
-- Rate limits in real mode -> lower `--limit` and stage runs.
-
-## Extend this recipe
-
-- Scale throughput with bounded in-flight calls via [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md).
-- Promote durable workloads to [Resume on Failure](../production/resume-on-failure.md).
-- For multimodal prompt baselines, start with [Extract Media Insights](extract-media-insights.md).
+Scale throughput with [Large-Scale Fan-Out](../optimization/large-scale-fan-out.md),
+or add durability with [Resume on Failure](../production/resume-on-failure.md).

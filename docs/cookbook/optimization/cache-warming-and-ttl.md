@@ -1,43 +1,44 @@
 # Cache Warming and TTL
 
-Measure cache impact and pick a sane TTL for reuse.
+Measure the impact of context caching by comparing a warm run (first upload)
+against a reuse run (cache hit).
 
-## At a glance
-
-- **Best for:** reducing repeated token spend on stable workloads.
-- **Input:** fixed file set + fixed prompt set.
-- **Output:** warm/reuse status, cache signal, token comparison.
-
-## Before you run
-
-- Keep files and prompts unchanged across both runs.
-- Choose a TTL that matches your expected reuse window.
-
-## Command
+## Run It
 
 ```bash
 python -m cookbook optimization/cache-warming-and-ttl \
   --input cookbook/data/demo/text-medium --limit 2 --ttl 3600 --mock
 ```
 
-## What to look for
+## Warm vs Reuse
 
-- Both warm and reuse runs should report `status=ok`.
-- Reuse run should show a cache reuse signal and lower/similar tokens (directional).
-- If savings are flat, the repeated context may be too small or already cheap.
+The recipe runs the same prompts and sources twice. The first run warms the
+cache; the second reuses it.
 
-## Tuning levers
+```
+Warm run:
+  Status: ok | Tokens: 2,580 | cache_used: false
 
+Reuse run:
+  Status: ok | Tokens: 1,200 | cache_used: true
+
+Token delta: -1,380 (53% reduction)
+```
+
+Both runs should report `status=ok`. The reuse run should show a cache signal
+and lower token usage. If savings are flat, the source may be too small to
+benefit from caching.
+
+## Tuning
+
+- Keep files and prompts unchanged between runs for a valid comparison.
 - Increase `--limit` to amplify cache economics.
-- Tune `--ttl` to avoid stale cache while preserving reuse wins.
+- Tune `--ttl` to match your expected reuse window — too long risks stale
+  cache, too short wastes warm-up cost.
 
-## Failure modes
+## Next Steps
 
-- Changing prompts/files invalidates direct warm-vs-reuse comparison.
-- Overlong TTL can hide when underlying content has drifted.
-- Provider metrics differ; treat token deltas as directional.
-
-## Extend this recipe
-
-- Add periodic cache regression checks in CI/staging.
-- Scale throughput separately (fan-out/concurrency); caching is about repeated context economics.
+For the economics behind caching, see
+[Caching and Efficiency](../../caching-and-efficiency.md). To scale
+throughput independently, see
+[Large-Scale Fan-Out](large-scale-fan-out.md).

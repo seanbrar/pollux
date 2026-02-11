@@ -18,13 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = ROOT / "docs" / "cookbook"
 
 REQUIRED_DOC_SECTIONS = [
-    "## At a glance",
-    "## Before you run",
-    "## Command",
-    "## What to look for",
-    "## Tuning levers",
-    "## Failure modes",
-    "## Extend this recipe",
+    "## Run It",
 ]
 
 
