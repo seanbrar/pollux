@@ -12,6 +12,8 @@ name: Release
 
 jobs:
   release:
+    # Safety: allow running dry-runs from any branch, but only allow real publishing from `main`.
+    if: ${{ github.event.inputs.dry_run == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Prevent multiple releases from running simultaneously
