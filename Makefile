@@ -17,7 +17,7 @@ help: ## Show this help message
 	sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 install-dev: ## Install all development dependencies
-	uv sync --all-extras
+	uv sync
 
 hooks: ## Install pre-commit hooks
 	@echo "Installing pre-commit hooks..."

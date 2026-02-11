@@ -13,15 +13,11 @@ authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.10, <3.15"
 dependencies = [
-    "Pillow~=11.2",
-    "PyPDF2~=3.0",
-    "google-genai~=1.61",
-    "httpx~=0.28",
+    "google-genai>=1.61",
+    "httpx>=0.24",
     "openai>=2.16.0",
-    "pydantic>=2.11.7",
-    "pydantic-settings>=2.8.0",
-    "python-dotenv~=1.1",
-    "python-magic~=0.4.27",
+    "pydantic>=2.1",
+    "python-dotenv>=0.19",
 ]
 
 [project.urls]
@@ -29,10 +25,6 @@ Homepage = "https://github.com/seanbrar/pollux"
 Repository = "https://github.com/seanbrar/pollux"
 Changelog = "https://github.com/seanbrar/pollux/blob/main/CHANGELOG.md"
 Issues = "https://github.com/seanbrar/pollux/issues"
-
-# User-facing optional features (published to PyPI)
-[project.optional-dependencies]
-viz = ["matplotlib~=3.10", "pandas~=2.3", "seaborn~=0.13"]
 
 # Development-only tooling (PEP 735 - NOT published to PyPI)
 [dependency-groups]
@@ -51,10 +43,6 @@ lint = [
     "ruff>=0.12.2",
     "vulture>=2.14",
 ]
-types = [
-    "pandas-stubs>=2.3.0",
-    "types-PyYAML>=6.0.12",
-]
 docs = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.6.0",
@@ -67,14 +55,10 @@ release = [
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
-    { include-group = "types" },
     { include-group = "docs" },
     { include-group = "release" },
     "pre-commit>=4.2.0",
 ]
-
-# --- Console Scripts ---
-
 
 # --- Tool Configurations ---
 
@@ -85,9 +69,7 @@ packages = ["src/pollux"]
 [tool.coverage.run]
 source = ["src/pollux"]
 omit = [
-    "setup.py",
     "src/pollux/__init__.py",
-    "src/pollux/extensions/visualization.py",
     "tests/*",
 ]
 
@@ -168,8 +150,8 @@ exclude = [
     "build",
     "dist",
     "venv",
-    "src/pollux/_legacy",
     "mutants",
+    "notebooks",
 ]
 
 [tool.ruff.format]
@@ -220,7 +202,6 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 "cookbook/*" = ["S105", "S106", "T20", "D103", "D", "S", "RUF001", "RUF002"]
 "scripts/*" = ["T201", "S310"]
-"notebooks/*" = ["T201", "RET504", "S110", "RUF001", "N814", "UP038", "E402"]
 "tests/helpers.py" = ["S603"]
 "tests/*" = ["D", "N806", "S101", "S105", "S106", "S108"]
 
