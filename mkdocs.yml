@@ -39,6 +39,7 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - Concepts: concepts.md
+  - Glossary: glossary.md
   - Cookbook:
       - Overview: cookbook/index.md
       - Getting Started:

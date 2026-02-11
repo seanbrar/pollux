@@ -14,6 +14,23 @@ Fast fixes for common setup issues.
 - confirm `use_mock` matches your expectation
 - reduce to a minimal `run()` call before scaling complexity
 
+## Failure triage flow
+
+Use this order; most failures resolve by step 2.
+
+1. Auth and mode check
+   - Confirm `use_mock` is what you expect.
+   - For real mode, ensure the matching key exists (`GEMINI_API_KEY` or `OPENAI_API_KEY`).
+2. Provider/model pairing check
+   - Verify the model belongs to the selected provider.
+   - Re-run the same minimal prompt after fixing model/provider mismatch.
+3. Unsupported feature check
+   - Compare your options against [Provider Capabilities](../reference/provider-capabilities.md).
+   - In v1.0, `delivery_mode="deferred"`, `history`, and `continue_from` are reserved.
+4. Source and payload check
+   - Reduce to one source + one prompt and retry.
+   - For OpenAI remote URLs in v1.0, only PDF and image URLs are supported.
+
 ## Missing API key
 
 **Fix:**

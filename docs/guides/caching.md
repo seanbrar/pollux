@@ -66,6 +66,20 @@ You should see:
 - second run reports cache reuse when provider supports it
 - token/latency behavior is directionally improved or stable in reuse runs
 
+## Output contract
+
+Healthy output:
+
+- first and second runs both print `ok`
+- in real Gemini runs, second pass often reports `cache_used=True`
+- second pass is typically faster or similar latency for identical inputs
+
+Suspicious output:
+
+- second pass returns `cache_used=False` consistently with stable inputs
+- cache behavior changes while prompts/sources/model were unchanged
+- repeated provider errors at low request volume
+
 ## Next Steps
 
 - [Token Efficiency](token-efficiency.md) - Broader cost model and source-pattern economics

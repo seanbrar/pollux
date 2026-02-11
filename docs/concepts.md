@@ -25,6 +25,8 @@ Use these terms consistently:
 - **Source patterns**: fan-out, fan-in, broadcast collectively.
 - **Deferred mode**: future provider async batch API mode (reserved in v1.0).
 
+Need quick definitions while reading? See the [Glossary](glossary.md).
+
 ## Pipeline Mental Model
 
 Every call follows the same four-phase pipeline:

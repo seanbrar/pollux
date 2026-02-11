@@ -1,8 +1,11 @@
 # Pollux
 
-Multimodal orchestration for Gemini.
+Multimodal orchestration for LLM APIs.
 
 > You describe what to analyze. Pollux handles source patterns, context caching, and multimodal complexity—so you don't.
+>
+> Originally built for Gemini during Google Summer of Code 2025. Pollux now
+> supports both Gemini and OpenAI with explicit capability differences.
 
 [Documentation](https://seanbrar.github.io/pollux/) ·
 [Quickstart](https://seanbrar.github.io/pollux/quickstart/) ·
@@ -20,17 +23,22 @@ Multimodal orchestration for Gemini.
 import asyncio
 from pollux import Config, Source, run
 
-async def main() -> None:
-    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
-    result = await run(
+result = asyncio.run(
+    run(
         "What are the key findings?",
-        source=Source.from_file("paper.pdf"),
-        config=config,
+        source=Source.from_text(
+            "Pollux supports fan-out, fan-in, and broadcast source patterns. "
+            "It also supports context caching for repeated prompts."
+        ),
+        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
     )
-    print(result["answers"][0])
-
-asyncio.run(main())
+)
+print(result["answers"][0])
 ```
+
+For a full 2-minute walkthrough (install, key setup, success checks), use
+[Quickstart](https://seanbrar.github.io/pollux/quickstart/). For local-file
+analysis, swap to `Source.from_file("paper.pdf")`.
 
 ## Why Pollux?
 
