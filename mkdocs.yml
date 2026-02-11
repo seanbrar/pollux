@@ -38,6 +38,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Concepts: concepts.md
   - Cookbook:
       - Overview: cookbook/index.md
       - Getting Started:

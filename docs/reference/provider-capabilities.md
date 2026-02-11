@@ -15,7 +15,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Capability | Gemini | OpenAI | Notes |
 |---|---|---|---|
 | Text generation | ✅ | ✅ | Core feature |
-| Batch prompts (`batch`) | ✅ | ✅ | One call per prompt, shared context |
+| Multi-prompt execution (`run_many`) | ✅ | ✅ | One call per prompt, shared context |
 | Local file inputs | ✅ | ✅ | OpenAI uses Files API upload |
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | |

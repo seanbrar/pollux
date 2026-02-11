@@ -2,6 +2,11 @@
 
 Get your first answer in under 2 minutes.
 
+## Use this page when
+
+- you want the fastest path to a working Pollux call
+- you prefer one happy-path example before exploring alternatives
+
 ## 1) Install
 
 ```bash
@@ -39,9 +44,15 @@ asyncio.run(main())
 
 Expected result: a short answer printed to your terminal.
 
+Success check:
+
+- call completes without exceptions
+- output is specific to your input source (not generic boilerplate)
+
 ## Next Steps
 
-- **[Usage Patterns](guides/patterns.md)** — Single-call and batched execution patterns
-- **[Configuration](guides/configuration.md)** — Models, tiers, and options
+- **[Concepts](concepts.md)** — Mental model for source patterns and context caching
+- **[Usage Patterns](guides/patterns.md)** — Single-call and multi-prompt execution patterns
+- **[Configuration](guides/configuration.md)** — Providers, models, and options
 - **[Provider Capabilities](reference/provider-capabilities.md)** — Provider-specific features and limits
 - **[Cookbook](cookbook/index.md)** — Ready-to-run recipes

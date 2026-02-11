@@ -32,7 +32,7 @@ Examples:
 
 - `feat(api): add playlist support`
 - `fix(cache): handle expired tokens`
-- `docs(cookbook): add batch processing recipe`
+- `docs(cookbook): add source-pattern recipe`
 
 **Body** follows the [PR template](https://github.com/seanbrar/pollux/blob/main/.github/PULL_REQUEST_TEMPLATE.md) with four sections:
 
@@ -94,7 +94,7 @@ Recipes live in `cookbook/`, organized by scenario. Each recipe should:
 
 ```bash
 python -m cookbook --list
-python -m cookbook getting-started/analyze-single-paper -- --limit 1
+python -m cookbook getting-started/analyze-single-paper --mock
 ```
 
 **Recipe template:**
@@ -113,11 +113,13 @@ What you'll learn:
 """
 
 import asyncio
-from pollux import run_simple, types
+from pollux import Config, Source, run
 
-async def main():
+async def main() -> None:
     # Implementation
-    ...
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite", use_mock=True)
+    result = await run("Summarize", source=Source.from_text("..."), config=config)
+    print(result["answers"][0])
 
 if __name__ == "__main__":
     asyncio.run(main())

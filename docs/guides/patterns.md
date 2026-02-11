@@ -2,6 +2,20 @@
 
 Core usage patterns for the v1.0 API.
 
+## Use this page when
+
+- You know what you want to analyze but need the right execution shape.
+- You are deciding between `run()` and `run_many()`.
+- You want a minimal, correct baseline before scaling to cookbook workflows.
+
+## Pattern Selector
+
+| Situation | Recommended API |
+|---|---|
+| One question about one source | `run()` |
+| Multiple questions about shared source(s) | `run_many()` |
+| Schema-validated extraction | `run(..., options=Options(response_schema=...))` |
+
 ## Pattern 1: Single Prompt + Optional Source
 
 ```python
@@ -20,11 +34,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-## Pattern 2: Multi-Prompt Batching
+## Pattern 2: Multi-Prompt Execution
 
 ```python
 import asyncio
-from pollux import Config, Source, batch
+from pollux import Config, Source, run_many
 
 async def main() -> None:
     config = Config(provider="gemini", model="gemini-2.5-flash-lite")
@@ -37,7 +51,7 @@ async def main() -> None:
         "What would you investigate next?",
     ]
 
-    envelope = await batch(prompts, sources=sources, config=config)
+    envelope = await run_many(prompts, sources=sources, config=config)
     print(envelope["status"])
     for i, answer in enumerate(envelope["answers"], 1):
         print(f"Q{i}: {answer}")
@@ -48,6 +62,8 @@ asyncio.run(main())
 ## Pattern 3: Structured Output
 
 ```python
+import asyncio
+
 from pydantic import BaseModel
 from pollux import Config, Options, run
 
@@ -55,11 +71,13 @@ class PaperSummary(BaseModel):
     title: str
     findings: list[str]
 
-config = Config(provider="openai", model="gpt-5-nano")
-options = Options(response_schema=PaperSummary)
+async def main() -> None:
+    config = Config(provider="openai", model="gpt-5-nano")
+    options = Options(response_schema=PaperSummary)
+    result = await run("Extract structured summary", config=config, options=options)
+    print(result["structured"][0])
 
-result = await run("Extract structured summary", config=config, options=options)
-print(result["structured"][0])
+asyncio.run(main())
 ```
 
 ## Source Constructors
@@ -76,8 +94,17 @@ print(result["structured"][0])
 - `delivery_mode="deferred"` is reserved and disabled in v1.0.
 - Provider support differs by feature. See [Provider Capabilities](../reference/provider-capabilities.md).
 
+## Success check
+
+You should be able to:
+
+- explain why your use case maps to `run()` or `run_many()`
+- run one snippet without code changes beyond model/source values
+- identify when to switch to cookbook recipes for scale or production constraints
+
 ## Next Steps
 
+- [Concepts](../concepts.md) - Mental model behind source patterns and orchestration
+- [Token Efficiency](token-efficiency.md) - Cost/latency reasoning for repeated context
 - [Caching](caching.md) - Reduce costs with context caching
-- [Configuration](configuration.md) - Core configuration model
-- [Troubleshooting](troubleshooting.md) - Common issues and fixes
+- [Cookbook](../cookbook/index.md) - Scenario-driven recipes for scale and production

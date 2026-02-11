@@ -11,7 +11,7 @@ Multimodal orchestration for Gemini.
 ![CI](https://github.com/seanbrar/pollux/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/seanbrar/pollux/graph/badge.svg)](https://codecov.io/gh/seanbrar/pollux)
 [![Testing: MTMT](https://img.shields.io/badge/testing-MTMT_v0.1.0-blue)](https://github.com/seanbrar/minimal-tests-maximum-trust)
-![Python](https://img.shields.io/badge/Python-3.13+-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ## Quick Start
@@ -60,18 +60,23 @@ export GEMINI_API_KEY="your-key-here"
 ### Multi-Source Analysis
 
 ```python
+import asyncio
+
 from pollux import Config, Source, run_many
 
-config = Config(provider="gemini", model="gemini-2.5-flash-lite")
-sources = [
-    Source.from_file("paper1.pdf"),
-    Source.from_file("paper2.pdf"),
-]
-prompts = ["Summarize the main argument.", "List key findings."]
+async def main() -> None:
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+    sources = [
+        Source.from_file("paper1.pdf"),
+        Source.from_file("paper2.pdf"),
+    ]
+    prompts = ["Summarize the main argument.", "List key findings."]
 
-envelope = await run_many(prompts, sources=sources, config=config)
-for answer in envelope["answers"]:
-    print(answer)
+    envelope = await run_many(prompts, sources=sources, config=config)
+    for answer in envelope["answers"]:
+        print(answer)
+
+asyncio.run(main())
 ```
 
 ### Configuration
@@ -96,6 +101,7 @@ See the capability matrix: [Provider Capabilities](https://seanbrar.github.io/po
 ## Documentation
 
 - [Quickstart](https://seanbrar.github.io/pollux/quickstart/) — First result in 2 minutes
+- [Concepts](https://seanbrar.github.io/pollux/concepts/) — Mental model for source patterns and caching
 - [Guides](https://seanbrar.github.io/pollux/guides/installation/) — Installation, configuration, patterns
 - [API Reference](https://seanbrar.github.io/pollux/reference/api/) — Entry points and types
 - [Cookbook](./cookbook/) — scenario-driven, ready-to-run recipes

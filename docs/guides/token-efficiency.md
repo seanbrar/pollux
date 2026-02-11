@@ -2,6 +2,12 @@
 
 Pollux helps you get more value from every API call through **context caching** and **source patterns**. This guide explains the underlying economics and how to leverage them.
 
+## Use this page when
+
+- You run repeated prompts on shared context and want to control cost.
+- You need to choose between single-call and multi-prompt execution patterns.
+- You are tuning workloads before production rollout.
+
 ## The Problem: Redundant Context
 
 When you ask multiple questions about the same content, naive approaches send that content repeatedly:
@@ -65,6 +71,8 @@ Pollux supports three patterns for multi-prompt/multi-source analysis:
 The most common efficiency pattern. Upload one piece of content, ask many questions.
 
 ```python
+import asyncio
+
 from pollux import Config, Source, run_many
 
 config = Config(provider="gemini", model="gemini-2.5-flash-lite")
@@ -77,7 +85,7 @@ prompts = [
     "How does this relate to prior work?",
 ]
 
-envelope = await run_many(prompts, sources=[video], config=config)
+envelope = asyncio.run(run_many(prompts, sources=[video], config=config))
 ```
 
 ### Fan-In: Many Sources → One Prompt
@@ -85,16 +93,23 @@ envelope = await run_many(prompts, sources=[video], config=config)
 Synthesize across multiple sources with a single question.
 
 ```python
+import asyncio
+
+from pollux import Config, Source, run_many
+
+config = Config(provider="gemini", model="gemini-2.5-flash-lite")
 papers = [
     Source.from_file("paper1.pdf"),
     Source.from_file("paper2.pdf"),
     Source.from_file("paper3.pdf"),
 ]
 
-envelope = await run_many(
-    ["Compare the methodologies across these papers."],
-    sources=papers,
-    config=config,
+envelope = asyncio.run(
+    run_many(
+        ["Compare the methodologies across these papers."],
+        sources=papers,
+        config=config,
+    )
 )
 ```
 
@@ -103,10 +118,15 @@ envelope = await run_many(
 Apply the same analysis template across multiple sources.
 
 ```python
+import asyncio
+
+from pollux import Config, Source, run_many
+
+config = Config(provider="gemini", model="gemini-2.5-flash-lite")
 papers = [Source.from_file(f"paper{i}.pdf") for i in range(1, 6)]
 prompts = ["Summarize findings.", "List limitations.", "Rate methodology 1-5."]
 
-envelope = await run_many(prompts, sources=papers, config=config)
+envelope = asyncio.run(run_many(prompts, sources=papers, config=config))
 # Returns 5 papers × 3 prompts = 15 answers
 ```
 
@@ -129,8 +149,18 @@ envelope = await run_many(prompts, sources=papers, config=config)
 
 4. **Start simple.** Use `run()` for prototyping, then switch to `run_many()` once your prompts are stable.
 
+## Success check
+
+After reading this guide, you should be able to:
+
+- predict when `run_many()` should outperform repeated `run()` calls
+- explain why context reuse improves economics for repeated prompts
+- choose fan-out, fan-in, or broadcast based on analysis goal
+
 ## Further Reading
 
+- [Concepts](../concepts.md) — Mental model for orchestration and tradeoffs
 - [Context Caching Guide](caching.md) — TTL management and cache behavior
 - [Usage Patterns](patterns.md) — More examples of `run()` and `run_many()`
 - [Provider Capabilities](../reference/provider-capabilities.md) — Provider-specific limits and features
+- [Cookbook](../cookbook/index.md) — Scenario-driven recipes for throughput and production hardening

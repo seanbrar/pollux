@@ -31,8 +31,16 @@ asyncio.run(main())
 
 **[Quickstart →](quickstart.md)** — First result in 2 minutes
 
+**[Concepts →](concepts.md)** — Mental model for source patterns and caching
+
 **[Guides →](guides/installation.md)** — Installation, configuration, patterns
 
 **[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
 
 **[Provider Capabilities](reference/provider-capabilities.md)** — Provider-by-provider feature matrix
+
+## Choose Your Path
+
+- **Evaluating fit**: start with [Concepts](concepts.md), then [Provider Capabilities](reference/provider-capabilities.md)
+- **Building quickly**: follow [Quickstart](quickstart.md), then [Usage Patterns](guides/patterns.md)
+- **Optimizing and operating**: use [Token Efficiency](guides/token-efficiency.md), [Caching](guides/caching.md), then [Cookbook](cookbook/index.md)

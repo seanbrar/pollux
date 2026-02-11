@@ -2,6 +2,18 @@
 
 Fast fixes for common setup issues.
 
+## Use this page when
+
+- setup succeeds partially but requests fail
+- output behavior is different from what you expect
+- provider/model/input combinations fail with configuration or API errors
+
+## Before you debug
+
+- confirm your provider/model pairing is intentional
+- confirm `use_mock` matches your expectation
+- reduce to a minimal `run()` call before scaling complexity
+
 ## Missing API key
 
 **Fix:**
@@ -56,7 +68,7 @@ Other remote MIME types are rejected by design.
 
 **Fixes:**
 
-- Use Python `3.13` and a clean virtual environment.
+- Use a supported Python version (`>=3.10,<3.15`; 3.13 is common in local dev) and a clean virtual environment.
 - Install from releases (wheel) or source with `pip install -e .`.
 - Run:
   - `make test`
@@ -70,3 +82,6 @@ Other remote MIME types are rejected by design.
   - source type(s)
   - exact exception message
 - See [Provider Capabilities](../reference/provider-capabilities.md).
+- Open an issue with concrete repro details:
+  - [Bug report template](https://github.com/seanbrar/pollux/issues/new?template=bug.md)
+  - [Feature request template](https://github.com/seanbrar/pollux/issues/new?template=feature.md)

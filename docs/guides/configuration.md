@@ -2,6 +2,12 @@
 
 Pollux v1.0 uses an explicit `Config` object per call.
 
+## Use this page when
+
+- You want predictable provider/model selection.
+- You need to tune cost, latency, retries, or caching behavior.
+- You need local mock runs before real API usage.
+
 ## Core Pattern
 
 ```python
@@ -12,6 +18,23 @@ config = Config(
     model="gemini-2.5-flash-lite",
 )
 ```
+
+## Quick Decision Guide
+
+| Need | Configuration direction |
+|---|---|
+| Fast local iteration without API calls | `use_mock=True` |
+| Real provider calls | set provider-specific API key and `use_mock=False` (default) |
+| Repeated questions over shared context | `enable_caching=True` (provider-dependent) |
+| Higher throughput for many prompts/sources | tune `request_concurrency` |
+| Better resilience to transient API failures | customize `retry=RetryPolicy(...)` |
+
+## Provider-specific caveats
+
+- Context caching is currently Gemini-only in v1.0.
+- Feature availability can differ by provider/model.
+- Always confirm assumptions against
+  [Provider Capabilities](../reference/provider-capabilities.md).
 
 ## API Keys
 
@@ -47,7 +70,7 @@ config = Config(
     model="gemini-2.5-flash-lite",
     enable_caching=True,     # provider-dependent
     ttl_seconds=3600,        # cache TTL
-    request_concurrency=6,   # concurrent requests in batch execution
+    request_concurrency=6,   # concurrent requests in multi-prompt execution
 )
 ```
 
@@ -86,7 +109,20 @@ whichever is longer: the computed backoff or the server hint).
 - String representation redacts API keys.
 - Missing keys in real mode raise `ConfigurationError` with hints.
 
+## Success check
+
+A valid config should construct without exceptions and print with redacted keys:
+
+```python
+from pollux import Config
+
+config = Config(provider="gemini", model="gemini-2.5-flash-lite", use_mock=True)
+print(config)
+```
+
 ## Related Docs
 
+- [Concepts](../concepts.md)
+- [Installation](installation.md)
 - [Usage Patterns](patterns.md)
 - [Provider Capabilities](../reference/provider-capabilities.md)

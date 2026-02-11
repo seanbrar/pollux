@@ -2,9 +2,15 @@
 
 Install Pollux quickly and choose a setup that matches your workflow.
 
+## Use this page when
+
+- You are setting up Pollux for the first time.
+- You need to choose between PyPI, release wheel, or source install.
+- You need a clean contributor/dev environment.
+
 ## Requirements
 
-- Python `3.13`
+- Python `>=3.10,<3.15` (3.13 recommended for local development)
 - macOS, Linux, or Windows (WSL recommended)
 
 ## Option A: PyPI (fastest)
@@ -48,6 +54,14 @@ make test
 make lint
 ```
 
+## Success check
+
+After install, this command should print a version string:
+
+```bash
+python -c "import pollux as p; print(p.__version__)"
+```
+
 ## Enable the real API (optional)
 
 For real API calls, set an API key:
@@ -68,3 +82,9 @@ $Env:OPENAI_API_KEY = "<your key>"
 
 !!! warning "Secrets & costs"
     Never commit keys. Real API usage may incur costs.
+
+## Next Steps
+
+- [Quickstart](../quickstart.md) - Run your first request end-to-end
+- [Configuration](configuration.md) - Configure provider, model, retries, and caching
+- [Troubleshooting](troubleshooting.md) - Resolve environment and API setup issues
