@@ -1,0 +1,599 @@
+/* Phase 1 visual customization: palette tokens, nav/ToC treatment, footer rhythm. */
+
+:root {
+  --pollux-radius: 0.5rem;
+  --pollux-border-width: 1px;
+  --pollux-layout-max: 61rem;
+  --pollux-sidebar-width: 12.1rem;
+  --pollux-content-offset: 1.2rem;
+  --pollux-page-left: 1rem;
+  --pollux-header-offset: 2.4rem;
+  --pollux-sidebar-bottom-space: 1.25rem;
+  --pollux-nav-gutter: 0.25rem;
+  --pollux-nav-indent: 0.45rem;
+  --pollux-content-gutter: 2rem;
+}
+
+body[data-md-color-scheme="default"] {
+  --pollux-nav-hover-bg: rgba(15, 23, 42, 0.04);
+  --pollux-nav-active-bg: rgba(220, 38, 38, 0.1);
+  --pollux-nav-active-color: rgb(127, 29, 29);
+  --pollux-nav-border: rgba(15, 23, 42, 0.1);
+  --pollux-toc-border: rgba(15, 23, 42, 0.16);
+  --pollux-accent: rgb(220, 38, 38);
+  --pollux-footer-border: rgba(15, 23, 42, 0.08);
+  --pollux-pill-bg: rgba(15, 23, 42, 0.06);
+  --pollux-pill-hover-bg: rgba(15, 23, 42, 0.1);
+  --pollux-pill-color: rgb(15, 23, 42);
+  --pollux-meta-color: rgba(15, 23, 42, 0.55);
+  --pollux-title-color: rgb(15, 23, 42);
+  --pollux-title-hover-color: rgba(15, 23, 42, 0.65);
+}
+
+body[data-md-color-scheme="slate"] {
+  --pollux-nav-hover-bg: rgba(255, 255, 255, 0.06);
+  --pollux-nav-active-bg: rgba(248, 113, 113, 0.18);
+  --pollux-nav-active-color: rgb(254, 202, 202);
+  --pollux-nav-border: rgba(255, 255, 255, 0.12);
+  --pollux-toc-border: rgba(255, 255, 255, 0.22);
+  --pollux-accent: rgb(248, 113, 113);
+  --pollux-footer-border: rgba(255, 255, 255, 0.1);
+  --pollux-pill-bg: rgba(255, 255, 255, 0.08);
+  --pollux-pill-hover-bg: rgba(255, 255, 255, 0.14);
+  --pollux-pill-color: rgba(255, 255, 255, 0.85);
+  --pollux-meta-color: rgba(255, 255, 255, 0.45);
+  --pollux-title-color: rgba(255, 255, 255, 0.92);
+  --pollux-title-hover-color: rgba(255, 255, 255, 0.6);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+
+.md-sidebar--primary {
+  border-inline-end: var(--pollux-border-width) solid var(--pollux-nav-border);
+}
+
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Keep base text sizing stable across ultra-wide viewports. */
+@media screen and (min-width: 100em) {
+  html {
+    font-size: 125%;
+  }
+}
+
+/* ── Navigation links ────────────────────────────────────────── */
+
+.md-nav__item--section > .md-nav__link {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.md-nav__link {
+  border-radius: var(--pollux-radius);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.md-nav__item > .md-nav__link:hover {
+  background: var(--pollux-nav-hover-bg);
+}
+
+.md-nav__item--active > .md-nav__link,
+.md-nav__item--active > .md-nav__link:hover {
+  background: var(--pollux-nav-active-bg);
+  color: var(--pollux-nav-active-color);
+  font-weight: 600;
+}
+
+/* ── Integrated ToC (all viewports) ──────────────────────────── */
+/* Color + weight overrides only; layout is scoped to desktop.    */
+
+.md-nav--secondary .md-nav__link:hover {
+  background: transparent;
+  color: var(--pollux-accent);
+}
+
+.md-nav--secondary .md-nav__link--active {
+  color: var(--pollux-accent);
+  font-weight: 600;
+}
+
+/* ── Footer: base ────────────────────────────────────────────── */
+
+.md-footer {
+  margin-top: 2.5rem;
+  background: none;
+  color: inherit;
+}
+
+/* ── Footer: prev/next pill navigation ───────────────────────── */
+
+.pollux-footer-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.pollux-footer-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.pollux-footer-nav__item--next {
+  margin-inline-start: auto;
+  align-items: flex-end;
+}
+
+.pollux-footer-nav__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.8rem;
+  border-radius: 999px;
+  background: var(--pollux-pill-bg);
+  color: var(--pollux-pill-color);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.pollux-footer-nav__pill:hover {
+  background: var(--pollux-pill-hover-bg);
+  color: var(--pollux-pill-color);
+}
+
+.pollux-footer-nav__icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+}
+
+.pollux-footer-nav__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--pollux-title-color);
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.pollux-footer-nav__title:hover {
+  color: var(--pollux-title-hover-color);
+}
+
+/* ── Footer: copyright + social meta row ─────────────────────── */
+
+.pollux-footer-meta {
+  margin-top: 2rem;
+}
+
+.pollux-footer-meta__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--pollux-footer-border);
+  padding-top: 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
+.pollux-footer-meta__copyright {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--pollux-meta-color);
+}
+
+.pollux-footer-meta__social {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.pollux-footer-meta__social-link {
+  color: var(--pollux-meta-color);
+  transition: color 180ms ease;
+}
+
+.pollux-footer-meta__social-link:hover {
+  color: var(--pollux-accent);
+}
+
+.pollux-footer-meta__social-link svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentcolor;
+}
+
+/* ── Desktop layout (>=51.2em) ────────────────────────────────── */
+/* 51.2em ~= 1024px at Material's default 125% root font-size (20px). */
+@media screen and (min-width: 51.2em) {
+  /* Left anchor stays constant; free width opens to the right. */
+  .md-grid {
+    margin-left: var(--pollux-page-left);
+    margin-right: 0;
+    max-width: var(--pollux-layout-max);
+  }
+
+  /* Force desktop header controls from the desktop threshold upward:
+     removes the "in-between" drawer behavior. */
+  .md-header__button[for="__drawer"] {
+    display: none;
+  }
+
+  .md-header__button.md-logo {
+    display: inline-flex;
+  }
+
+  /* Material's mid-width rules treat primary nav as an off-canvas drawer.
+     Reset to desktop nav behavior from the desktop threshold upward. */
+  [dir="ltr"] .md-sidebar--primary {
+    left: auto;
+  }
+
+  [dir="rtl"] .md-sidebar--primary {
+    right: auto;
+  }
+
+  .md-sidebar--primary {
+    background: none;
+    box-shadow: none;
+    height: 0;
+    position: sticky;
+    top: var(--pollux-header-offset) !important;
+    transform: none !important;
+    z-index: 2;
+  }
+
+  /* Remove built-in desktop sidebar padding so nav starts directly below
+     the fixed header, instead of aligning with content heading offset. */
+  .md-sidebar {
+    padding: 0;
+  }
+
+  /* Decouple top spacing: keep breathing room for content without pushing
+     the sidebar down to align with the page title. */
+  .md-main__inner {
+    margin-top: 0;
+  }
+
+  [data-md-toggle="drawer"]:checked ~ .md-container .md-sidebar--primary {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .md-sidebar--primary .md-sidebar__scrollwrap {
+    bottom: auto;
+    left: auto;
+    margin: 0 0.2rem;
+    overflow-y: auto;
+    position: static;
+    right: auto;
+    scroll-snap-type: none;
+    top: auto;
+  }
+
+  .md-nav--primary {
+    background-color: initial;
+    display: block;
+    flex-direction: initial;
+    height: auto;
+    left: auto;
+    position: static;
+    right: auto;
+    top: auto;
+    z-index: auto;
+  }
+
+  /* Reset nested nav containers out of drawer-panel mode. */
+  .md-nav--primary .md-nav {
+    background-color: initial;
+    display: block;
+    flex-direction: initial;
+    height: auto;
+    left: auto;
+    opacity: 1;
+    position: static;
+    right: auto;
+    top: auto;
+    transform: none;
+  }
+
+  /* Desktop/tablet section expansion should be inline, not slide-over. */
+  .md-nav--primary .md-nav__toggle ~ .md-nav {
+    display: none;
+    opacity: 1;
+    transform: none;
+    transition: none;
+    visibility: visible;
+  }
+
+  .md-nav--primary .md-nav__toggle:checked ~ .md-nav,
+  .md-nav--primary .md-nav__toggle.md-toggle--indeterminate ~ .md-nav {
+    display: block;
+  }
+
+  .md-nav--primary .md-nav__toggle ~ .md-nav > .md-nav__list {
+    overflow: visible;
+  }
+
+  .md-nav--primary .md-nav__item--nested > .md-nav > .md-nav__title {
+    display: none;
+  }
+
+  /* Remove duplicate site title row inside desktop sidebar. */
+  .md-nav--primary > .md-nav__title {
+    display: none;
+  }
+
+  .md-nav--primary > .md-nav__list {
+    background-color: transparent;
+    box-shadow: none;
+    overflow-y: visible;
+    scroll-snap-type: none;
+    touch-action: auto;
+  }
+
+  .md-nav--primary .md-nav__item {
+    border-top: 0;
+  }
+
+  .md-nav--primary .md-nav__link {
+    margin-top: 0.625em;
+    padding: 0;
+  }
+
+  .md-nav--integrated .md-nav__link[for="__toc"] {
+    display: none;
+  }
+
+  .md-nav--integrated .md-nav__link[for="__toc"] + .md-nav__link {
+    display: flex;
+  }
+
+  .md-nav--integrated .md-nav__link[for="__toc"] ~ .md-nav {
+    display: none;
+  }
+
+  .md-overlay {
+    display: none;
+  }
+
+  .md-container {
+    position: relative;
+  }
+
+  /* Full-height sidebar border: extends through the footer area so the
+     sidebar column doesn't end abruptly when scrolled to the bottom. */
+  [dir="ltr"] .md-container::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--pollux-page-left) + var(--pollux-sidebar-width));
+    width: 0;
+    border-inline-end: var(--pollux-border-width) solid var(--pollux-nav-border);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  [dir="rtl"] .md-container::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: calc(var(--pollux-page-left) + var(--pollux-sidebar-width));
+    width: 0;
+    border-inline-start: var(--pollux-border-width) solid var(--pollux-nav-border);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Sidebar's own border is replaced by the full-height pseudo-element. */
+  .md-sidebar--primary {
+    border-inline-end: none;
+  }
+
+  /* Material sets inline heights on scrollwrap via JS.
+     Pin the desktop nav scroll area to viewport height to prevent collapse
+     near the footer boundary. */
+  .md-sidebar .md-sidebar__scrollwrap {
+    height: calc(100vh - var(--pollux-header-offset)) !important;
+    overscroll-behavior: none;
+  }
+
+  .md-header--lifted ~ .md-container .md-sidebar .md-sidebar__scrollwrap {
+    height: calc(100vh - var(--pollux-header-offset)) !important;
+  }
+
+  /* Keep desktop sidebar anchored; don't follow header height transitions. */
+  .md-sidebar {
+    top: var(--pollux-header-offset) !important;
+  }
+
+  .md-header--lifted ~ .md-container .md-sidebar {
+    top: var(--pollux-header-offset) !important;
+  }
+
+  /* Sidebar content fills the JS-controlled scroll area. */
+  .md-sidebar--primary .md-sidebar__inner {
+    min-height: 100%;
+  }
+
+  [dir="ltr"] .md-sidebar--primary .md-nav__list {
+    padding-left: var(--pollux-nav-gutter);
+  }
+
+  [dir="rtl"] .md-sidebar--primary .md-nav__list {
+    padding-right: var(--pollux-nav-gutter);
+  }
+
+  .md-sidebar--primary .md-nav__list {
+    padding-bottom: var(--pollux-sidebar-bottom-space);
+    scroll-padding-bottom: var(--pollux-sidebar-bottom-space);
+  }
+
+  /* ── Section group guide lines + indentation ─── */
+
+  .md-nav__item--section > .md-nav > .md-nav__list {
+    border-inline-start: 1px solid var(--pollux-nav-border);
+    margin-inline-start: 0.2rem;
+    padding-inline-start: var(--pollux-nav-indent);
+  }
+
+  /* ── Integrated ToC layout (desktop only) ─── */
+
+  .md-nav--secondary {
+    margin: 0.25rem 0 0.5rem 0.2rem;
+    padding-inline-start: var(--pollux-nav-indent);
+    border-inline-start: 1px solid var(--pollux-toc-border);
+  }
+
+  .md-nav--secondary > .md-nav__title {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .md-nav--secondary .md-nav__item {
+    position: relative;
+  }
+
+  .md-nav--secondary .md-nav__link {
+    position: relative;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    padding-block: 0.18rem;
+  }
+
+  .md-nav--secondary .md-nav__link--active::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: -0.85rem;
+    top: 0.22rem;
+    bottom: 0.22rem;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--pollux-accent);
+  }
+
+  .md-content > .md-content__inner {
+    margin-top: 1.5rem;
+    margin-inline: var(--pollux-content-gutter);
+  }
+
+  /* ── Footer offset ─── */
+
+  [dir="ltr"] .md-footer {
+    margin-left: calc(
+      var(--pollux-page-left) + var(--pollux-sidebar-width) +
+        var(--pollux-content-offset)
+    );
+    margin-right: var(--pollux-content-gutter);
+    width: auto;
+  }
+
+  [dir="rtl"] .md-footer {
+    margin-right: calc(
+      var(--pollux-page-left) + var(--pollux-sidebar-width) +
+        var(--pollux-content-offset)
+    );
+    margin-left: var(--pollux-content-gutter);
+    width: auto;
+  }
+}
+
+/* ── Drawer behavior (<51.2em) ────────────────────────────────── */
+/* This now covers all non-desktop widths; there is no separate "tablet"
+   mode between desktop and mobile. */
+@media screen and (max-width: 51.199em) {
+  .md-nav--primary .md-nav--secondary {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* Keep the back-arrow icon visible on the ToC drawer title
+     so users have a clear way to dismiss the ToC panel. */
+  .md-nav--primary .md-nav--secondary .md-nav__title .md-nav__icon {
+    display: block;
+  }
+
+  /* Compact the title bar (Material default: 5.6rem / 3rem top padding).
+     Keep enough left padding for the absolutely-positioned back icon. */
+  .md-nav--primary .md-nav--secondary .md-nav__title {
+    align-items: center;
+    display: flex;
+    height: 3rem;
+    line-height: 1.2;
+    padding: 0.6rem 0.8rem 0.6rem 2.2rem;
+  }
+
+  /* Nudge the back icon to vertically align with the compacted title. */
+  .md-nav--primary .md-nav--secondary .md-nav__title .md-nav__icon {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* Ensure the ToC item list gets remaining height and can scroll. */
+  .md-nav--primary .md-nav--secondary > .md-nav__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-snap-type: none;
+    -webkit-overflow-scrolling: auto;
+  }
+}
+
+/* ── Narrow viewport (<51.2em) ────────────────────────────────── */
+
+@media screen and (max-width: 51.199em) {
+  /* Keep footer nav in one horizontal row on mobile,
+     with content-aligned gutters on both sides. */
+  .md-footer {
+    padding-inline: clamp(1rem, 4vw, 1.25rem);
+  }
+
+  .pollux-footer-nav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 0.9rem;
+    row-gap: 0.5rem;
+    align-items: start;
+  }
+
+  .pollux-footer-nav__item {
+    min-width: 0;
+    gap: 0.45rem;
+  }
+
+  .pollux-footer-nav__item--prev {
+    grid-column: 1;
+    align-items: flex-start;
+    justify-self: start;
+  }
+
+  .pollux-footer-nav__item--next {
+    grid-column: 2;
+    margin-inline-start: 0;
+    align-items: flex-end;
+    justify-self: end;
+  }
+
+  .pollux-footer-nav__title {
+    max-width: 14rem;
+  }
+
+  .pollux-footer-nav__item--next .pollux-footer-nav__title {
+    text-align: right;
+  }
+
+  .pollux-footer-meta__inner {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
