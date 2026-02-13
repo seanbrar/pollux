@@ -207,24 +207,16 @@ body {
 }
 
 /* ── Breakpoint strategy ─────────────────────────────────────────
-   Material defines three layout modes:
-     < 60em        → Mobile:  hamburger drawer
-     60em–76.234em → Tablet:  drawer (off-canvas, flex-column nav)
-     ≥ 76.25em     → Desktop: sidebar always visible
-
-   This stylesheet forces desktop behavior from 51.2em (~1024 px at
-   Material's default 125 % root font-size) via a single breakpoint.
-
-   Because Material's tablet drawer rules (max-width: 76.234375em)
-   still apply in the 60 em – 76.234375 em overlap, a dedicated
-   neutralization block resets the properties those rules set.
+   Material defines three layout modes (mobile / tablet / desktop) with
+   breakpoints at ~60 em and ~76.25 em.  The hooks/patch_material_css.py
+   hook rewrites these to 51.2 em at build time, collapsing the model to
+   two states: mobile (< 51.2 em) and desktop (≥ 51.2 em).  This means
+   extra.css only needs to handle these two cases.
 
    Block order:
    1. min-width: 51.2em   – all non-mobile layout + visuals
-   2. max-width: 76.234…  – tablet neutralization (after 1 so it can
-                             further refine specificity if needed)
-   3. max-width: 51.199em – mobile/drawer-only rules
-   4. min-width: 100em    – ultra-wide font-size bump
+   2. max-width: 51.199em – mobile/drawer-only rules
+   3. min-width: 100em    – ultra-wide font-size bump
    ────────────────────────────────────────────────────────────── */
 
 /* ── Non-mobile layout + visuals (≥ 51.2 em) ─────────────────── */
@@ -241,9 +233,8 @@ body {
     padding: 0;
   }
 
-  /* Boosted-specificity active link: matches Material's tablet selector
-     weight (.md-nav--primary prefix = 0,3,0) so the custom color wins
-     in the 60–76.234 em overlap zone. */
+  /* Boosted-specificity active link: .md-nav--primary prefix matches
+     Material's selector weight (0,3,0) so the custom color wins. */
   .md-nav--primary .md-nav__item--active > .md-nav__link,
   .md-nav--primary .md-nav__item--active > .md-nav__link:hover {
     background: var(--pollux-nav-active-bg);
@@ -259,8 +250,7 @@ body {
     display: flex;
   }
 
-  /* Keep integrated ToC inline in tablet+desktop mode, overriding
-     Material's 60em-76.234375em panel-style ToC behavior. */
+  /* Keep integrated ToC inline in desktop mode. */
   .md-nav--integrated .md-nav__link[for="__toc"] ~ .md-nav {
     display: block;
   }
@@ -538,77 +528,6 @@ body {
     );
     margin-left: var(--pollux-content-gutter);
     width: auto;
-  }
-}
-
-/* ── Tablet neutralization (60 em – 76.234375 em) ────────────────
-   Material's @media (max-width: 76.234375em) block sets ~40 properties
-   for drawer mode. In the 60–76.234375 em overlap where both this and
-   the min-width: 51.2em block are active, these rules explicitly counter
-   every tablet drawer property that conflicts with desktop appearance.
-   ─────────────────────────────────────────────────────────────── */
-@media screen and (max-width: 76.234375em) {
-  /* --- Nav structure: undo drawer flex-column overlay --- */
-  .md-nav--primary,
-  .md-nav--primary .md-nav {
-    background-color: initial;
-    display: block;
-    flex-direction: initial;
-    height: auto;
-    left: auto;
-    position: static;
-    right: auto;
-    top: auto;
-    z-index: auto;
-  }
-
-  /* --- Nav items: undo drawer font-size, borders, line-height --- */
-  .md-nav--primary .md-nav__item,
-  .md-nav--primary .md-nav__title {
-    font-size: inherit;
-    line-height: inherit;
-  }
-
-  .md-nav--primary .md-nav__item {
-    border-top: 0;
-  }
-
-  /* --- Nav links: undo drawer padding --- */
-  .md-nav--primary .md-nav__link {
-    margin-top: var(--pollux-nav-link-margin-top);
-    padding: 0;
-  }
-
-  /* --- Active link color: match desktop --- */
-  .md-nav--primary .md-nav__item--active > .md-nav__link,
-  .md-nav--primary .md-nav__item--active > .md-nav__link:hover {
-    color: var(--pollux-nav-active-color);
-  }
-
-  /* --- Title bar: undo drawer header styling --- */
-  .md-nav--primary .md-nav__title {
-    background-color: initial;
-    color: inherit;
-    cursor: initial;
-    height: auto;
-    line-height: inherit;
-    padding: 0;
-    position: static;
-    white-space: normal;
-  }
-
-  /* --- List container: undo drawer box-shadow/scroll --- */
-  .md-nav--primary .md-nav__title ~ .md-nav__list {
-    background-color: initial;
-    box-shadow: none;
-    overflow-y: visible;
-    scroll-snap-type: none;
-    touch-action: auto;
-  }
-
-  /* --- Overlay: suppress --- */
-  .md-overlay {
-    display: none;
   }
 }
 
