@@ -6,7 +6,7 @@ production-minded.
 ## Setup
 
 ```bash
-uv sync --all-extras          # or: pip install -e ".[dev]"
+uv sync --all-extras          # installs all dev/test/docs/lint deps
 python -m cookbook --list      # verify install
 make demo-data                # seed demo inputs
 ```

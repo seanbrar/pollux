@@ -9,9 +9,11 @@ rationale are what move this project forward.
 We use `uv` for dependency management:
 
 ```bash
-uv sync --all-extras          # or: pip install -e ".[dev]"
+uv sync --all-extras          # installs all dev/test/docs/lint deps
 make check                    # lint + typecheck + tests
 ```
+
+Requires Python `>=3.10,<3.15` (3.13 recommended).
 
 ## Before Opening a PR
 

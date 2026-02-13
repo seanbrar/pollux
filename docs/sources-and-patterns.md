@@ -9,8 +9,8 @@ This page covers how to create sources, choose between `run()` and
 |---|---|---|
 | `Source.from_text(text)` | Plain string | Identifier defaults to first 50 chars |
 | `Source.from_file(path)` | Local file path | Supports PDF, images, video, audio, text |
-| `Source.from_youtube(url)` | YouTube URL | Gemini-native; limited on OpenAI in v1.0 |
-| `Source.from_arxiv(ref)` | arXiv ID or URL | Downloads the PDF automatically |
+| `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI in v1.0 |
+| `Source.from_arxiv(ref)` | arXiv ID or URL | Normalizes to canonical PDF URL (no download at construction time) |
 | `Source.from_uri(uri, mime_type=...)` | Remote URI | Generic fallback for any hosted content |
 
 Examples:
@@ -149,7 +149,7 @@ Every call returns a `ResultEnvelope` dict. Here are all fields:
 | `reasoning` | `list[str \| None]` | No | Provider reasoning traces (when available) |
 | `confidence` | `float` | Yes | `0.9` for ok, `0.5` otherwise |
 | `extraction_method` | `str` | Yes | Always `"text"` in v1.0 |
-| `usage` | `dict[str, int]` | Yes | Token counts (`prompt_tokens`, `completion_tokens`, `total_tokens`) |
+| `usage` | `dict[str, int]` | Yes | Token counts (`prompt_token_count`, `candidates_token_count`, `total_token_count`) |
 | `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` |
 
 Example of a complete envelope:
@@ -160,7 +160,7 @@ Example of a complete envelope:
     "answers": ["The paper concludes that..."],
     "confidence": 0.9,
     "extraction_method": "text",
-    "usage": {"prompt_tokens": 1250, "completion_tokens": 89, "total_tokens": 1339},
+    "usage": {"prompt_token_count": 1250, "candidates_token_count": 89, "total_token_count": 1339},
     "metrics": {"duration_s": 1.42, "n_calls": 1, "cache_used": False},
 }
 ```

@@ -8,6 +8,21 @@ Fast fixes for common setup and runtime issues.
 - Confirm `use_mock` matches your expectation.
 - Reduce to a minimal `run()` call before scaling complexity.
 
+## Common Error Types
+
+| Error | Meaning |
+|---|---|
+| `ConfigurationError` | Bad config, missing API key, or unsupported feature for the selected provider |
+| `SourceError` | File not found, invalid arXiv reference, or malformed source input |
+| `PlanningError` | Execution plan could not be built from the given request |
+| `InternalError` | A bug or invariant violation inside Pollux — please report it |
+| `APIError` | Provider call failed (check `.retryable` and `.status_code`) |
+| `RateLimitError` | HTTP 429 — always retryable; Pollux auto-retries per `RetryPolicy` |
+| `CacheError` | Cache creation or lookup failed |
+
+All Pollux errors carry a `.hint` attribute with actionable guidance. Check
+`e.hint` before searching for solutions.
+
 ## Failure Triage
 
 Use this order — most failures resolve by step 2.
@@ -80,7 +95,7 @@ it from string representations.
 
 - Use a supported Python version (`>=3.10,<3.15`; 3.13 recommended) with a
   clean virtual environment.
-- Install from releases or source: `pip install -e ".[dev]"`.
+- Install dev dependencies: `uv sync --all-extras` (or `pip install -e .` for the library only).
 - Run `make check` to verify the full setup.
 
 ## Still Stuck?

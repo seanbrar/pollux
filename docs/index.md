@@ -38,7 +38,10 @@ print(result["answers"][0])
 
 - **[Quickstart](quickstart.md)** — First result in 2 minutes
 - **[Concepts](concepts.md)** — Mental model for the pipeline and source patterns
+- **[Sources and Patterns](sources-and-patterns.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
+- **[Configuration](configuration.md)** — Config fields, API key resolution, retry, and mock mode
 - **[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
+- **[Troubleshooting](troubleshooting.md)** — Fast fixes for common setup and runtime issues
 - **[API Reference](reference/api.md)** — Entry points and types
 
 ---

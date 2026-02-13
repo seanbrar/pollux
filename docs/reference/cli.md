@@ -9,7 +9,7 @@ Pollux currently ships one documented CLI surface:
 Install dev dependencies so recipe imports resolve correctly:
 
 ```bash
-uv sync --all-extras          # or: pip install -e ".[dev]"
+uv sync --all-extras          # installs all dev/test/docs/lint deps
 ```
 
 ## Command Shape
@@ -89,6 +89,6 @@ py -m cookbook production.resume_on_failure --limit 1
 
 ## Troubleshooting
 
-- `could not import pollux`: run `uv sync --all-extras` (or `pip install -e ".[dev]"`).
+- `could not import pollux`: run `uv sync --all-extras`.
 - `Recipe not found`: verify the spec with `python -m cookbook --list`.
 - Unexpected relative-path behavior: use `--no-cwd-repo-root` only when you need CWD-local paths.

@@ -32,10 +32,12 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.SourceError
 
+::: pollux.PlanningError
+
+::: pollux.InternalError
+
 ::: pollux.APIError
 
 ::: pollux.RateLimitError
 
 ::: pollux.CacheError
-
-::: pollux.PlanningError
