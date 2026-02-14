@@ -52,16 +52,15 @@ def describe(run_name: str, envelope: ResultEnvelope) -> None:
     )
 
 
-async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -> None:
+async def main_async(directory: Path, *, limit: int, config: Config) -> None:
     files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
     if not files:
         raise SystemExit(f"No files found under: {directory}")
 
     sources = [Source.from_file(path) for path in files]
-    cached_config = replace(config, enable_caching=True, ttl_seconds=max(1, ttl))
 
-    warm = await run_many(PROMPTS, sources=sources, config=cached_config)
-    reuse = await run_many(PROMPTS, sources=sources, config=cached_config)
+    warm = await run_many(PROMPTS, sources=sources, config=config)
+    reuse = await run_many(PROMPTS, sources=sources, config=config)
     warm_tokens = usage_tokens(warm)
     reuse_tokens = usage_tokens(reuse)
     saved = None
@@ -118,7 +117,6 @@ def main() -> None:
             directory,
             limit=max(1, int(args.limit)),
             config=cached_config,
-            ttl=int(args.ttl),
         )
     )
 
