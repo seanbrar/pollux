@@ -57,4 +57,3 @@ config = Config(
 
 The error is raised at execution time (not at `Config` creation) because
 caching support is a provider capability checked during plan execution.
-
