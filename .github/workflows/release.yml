@@ -20,6 +20,9 @@ jobs:
     # Safety: allow dry-runs from any branch. Restrict real publishing to main/release branches.
     if: ${{ inputs.dry_run || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') }}
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pollux-ai/
     timeout-minutes: 15
     # Prevent multiple releases from running simultaneously
     concurrency:
