@@ -12,14 +12,8 @@ name: Release
       force:
         description: 'Optional forced release bump'
         required: false
-        type: choice
-        default: auto
-        options:
-          - auto
-          - prerelease
-          - patch
-          - minor
-          - major
+        type: string
+        default: ""
 
 jobs:
   release:
@@ -62,7 +56,7 @@ jobs:
           prerelease: ${{ startsWith(github.ref, 'refs/heads/release/') && 'true' || '' }}
           prerelease_token: ${{ startsWith(github.ref, 'refs/heads/release/') && 'rc' || '' }}
           # Optional manual override for first major/prerelease cutovers.
-          force: ${{ inputs.force == 'auto' && '' || inputs.force }}
+          force: ${{ inputs.force }}
 
       - name: Publish to GitHub Release
         if: steps.release.outputs.released == 'true' && !inputs.dry_run
