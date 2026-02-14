@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import logging
 import random
 import time
 from typing import TYPE_CHECKING, TypeVar
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -171,6 +174,13 @@ async def retry_async(
                     raise
                 delay = min(delay, remaining)
 
+            logger.debug(
+                "Retrying after %s (attempt %d/%d, delay %.2fs)",
+                type(exc).__name__,
+                attempt,
+                policy.max_attempts,
+                delay,
+            )
             if delay > 0:
                 await asyncio.sleep(delay)
 
