@@ -1,8 +1,4 @@
-"""Pytest configuration and fixtures.
-
-Provides environment isolation, logging configuration, marker registration,
-and automatic API test skipping. All fixtures here are autouse unless noted.
-"""
+"""Shared pytest fixtures and test doubles."""
 
 from __future__ import annotations
 
@@ -16,18 +12,16 @@ import pytest
 
 from pollux.providers.base import ProviderCapabilities
 
-# =============================================================================
-# Test Doubles
-# =============================================================================
+GEMINI_MODEL = "gemini-2.0-flash"
+OPENAI_MODEL = "gpt-5-nano"
+CACHE_MODEL = "cache-model"
+GEMINI_API_TEST_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
+OPENAI_API_TEST_MODEL = OPENAI_MODEL
 
 
 @dataclass
 class FakeProvider:
-    """Provider test double for pipeline behavior verification.
-
-    Captures method calls and returns configurable responses. Use to test
-    pipeline behavior without making real API calls.
-    """
+    """Provider double that captures calls for pipeline assertions."""
 
     cache_calls: int = 0
     upload_calls: int = 0
@@ -99,11 +93,6 @@ class FakeProvider:
         return "cachedContents/test"
 
 
-# =============================================================================
-# Environment Isolation (Autouse)
-# =============================================================================
-
-
 @pytest.fixture(autouse=True)
 def block_dotenv(request, monkeypatch):
     """Prevent python-dotenv from loading project .env files during tests.
@@ -137,21 +126,12 @@ def isolate_provider_env(request, monkeypatch):
     monkeypatch.delenv("POLLUX_DEBUG_CONFIG", raising=False)
 
 
-# =============================================================================
-# Logging
-# =============================================================================
-
-
 @pytest.fixture(scope="session", autouse=True)
 def quiet_noisy_libraries():
     """Suppress noisy third-party loggers."""
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("requests").setLevel(logging.WARNING)
 
-
-# =============================================================================
-# Pytest Hooks
-# =============================================================================
 
 API_TESTS_REASON = "API tests require ENABLE_API_TESTS=1"
 
@@ -170,15 +150,22 @@ def pytest_collection_modifyitems(items):
             item.add_marker(skip_api)
 
 
-# =============================================================================
-# API Test Configuration
-# =============================================================================
+@pytest.fixture
+def gemini_model() -> str:
+    """Return the canonical Gemini model for non-API tests."""
+    return GEMINI_MODEL
 
-# Models used for API tests. Chosen for cost efficiency:
-# - Gemini: 2.5-flash-lite-preview is same price as 2.0-flash with better performance
-# - OpenAI: gpt-5-nano is 3x cheaper input, 15x cheaper output than gpt-4o-mini
-_GEMINI_TEST_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
-_OPENAI_TEST_MODEL = "gpt-5-nano"
+
+@pytest.fixture
+def openai_model() -> str:
+    """Return the canonical OpenAI model for non-API tests."""
+    return OPENAI_MODEL
+
+
+@pytest.fixture
+def cache_model() -> str:
+    """Return the canonical cache test model name."""
+    return CACHE_MODEL
 
 
 @pytest.fixture
@@ -193,7 +180,7 @@ def gemini_api_key():
 @pytest.fixture
 def gemini_test_model():
     """Return the model to use for Gemini API tests."""
-    return _GEMINI_TEST_MODEL
+    return GEMINI_API_TEST_MODEL
 
 
 @pytest.fixture
@@ -208,4 +195,4 @@ def openai_api_key():
 @pytest.fixture
 def openai_test_model():
     """Return the model to use for OpenAI API tests."""
-    return _OPENAI_TEST_MODEL
+    return OPENAI_API_TEST_MODEL
