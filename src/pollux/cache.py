@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 import hashlib
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +15,8 @@ from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 if TYPE_CHECKING:
     from pollux.providers.base import Provider
     from pollux.source import Source
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,6 +35,7 @@ class CacheRegistry:
         name, expires_at = entry
         if time.time() >= expires_at:
             del self._entries[key]
+            logger.debug("Cache expired key=%s…", key[:8])
             return None
         return name
 
@@ -82,6 +86,7 @@ async def get_or_create_cache(
         return None
 
     async def _work() -> str:
+        logger.debug("Creating cache key=%s…", key[:8])
         if retry_policy is None or retry_policy.max_attempts <= 1:
             return await provider.create_cache(
                 model=model,

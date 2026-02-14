@@ -10,6 +10,7 @@ Public API:
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING
 
 from pollux.cache import CacheRegistry
@@ -36,6 +37,11 @@ if TYPE_CHECKING:
     from pollux.providers.base import Provider
 
 __version__ = "0.9.0"
+
+# Library-level NullHandler: stay silent unless the consumer configures logging.
+logging.getLogger("pollux").addHandler(logging.NullHandler())
+
+logger = logging.getLogger(__name__)
 
 # Module-level cache registry for reuse across calls
 _registry = CacheRegistry()
@@ -112,7 +118,7 @@ async def run_many(
                 raise
             except Exception as exc:
                 # Cleanup should never mask the primary failure.
-                _ = exc
+                logger.warning("Provider cleanup failed: %s", exc)
 
     return build_result(plan, trace)
 
