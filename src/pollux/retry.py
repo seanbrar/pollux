@@ -28,11 +28,13 @@ class RetryPolicy:
 
     # Defaults are intentionally conservative: retries should help without
     # surprising tail-latency.
+    #: Total attempts including the initial call (``2`` = one retry).
     max_attempts: int = 2
     initial_delay_s: float = 0.5
     backoff_multiplier: float = 2.0
     max_delay_s: float = 5.0
     jitter: bool = True  # "full jitter" when enabled
+    #: Wall-clock deadline across all attempts; *None* disables the deadline.
     max_elapsed_s: float | None = 15.0
 
     def __post_init__(self) -> None:
@@ -50,6 +52,7 @@ class RetryPolicy:
 
 
 def _retry_after_from_error(exc: BaseException) -> float | None:
+    """Extract retry-after delay from an APIError, if present."""
     if isinstance(exc, APIError):
         v = exc.retry_after_s
         if isinstance(v, (int, float)) and v >= 0:
@@ -119,6 +122,7 @@ should_retry = should_retry_generate
 
 
 def _compute_backoff_delay(policy: RetryPolicy, *, retry_index: int) -> float:
+    """Compute backoff delay with full jitter when enabled."""
     # retry_index starts at 1 for the first retry sleep.
     base = policy.initial_delay_s * (
         policy.backoff_multiplier ** max(0, retry_index - 1)
@@ -138,7 +142,11 @@ async def retry_async(
     policy: RetryPolicy,
     should_retry: Callable[[BaseException], bool] = should_retry_generate,
 ) -> T:
-    """Run an async factory with bounded retries."""
+    """Run an async factory with bounded retries.
+
+    The *should_retry* callback controls which exceptions are retried;
+    non-retryable exceptions propagate immediately.
+    """
     start = time.monotonic()
     last_exc: BaseException | None = None
 

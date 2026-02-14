@@ -21,10 +21,15 @@ ResponseSchemaInput = type[BaseModel] | dict[str, Any]
 class Options:
     """Optional execution features for `run()` and `run_many()`."""
 
+    #: Pydantic ``BaseModel`` subclass or JSON Schema dict for structured output.
     response_schema: ResponseSchemaInput | None = None
+    #: Reserved — not yet wired in v1.0.
     reasoning_effort: ReasoningEffort | None = None
+    #: ``"deferred"`` is reserved for future provider batch APIs.
     delivery_mode: DeliveryMode = "realtime"
+    #: Mutually exclusive with *continue_from*.
     history: list[dict[str, str]] | None = None
+    #: Mutually exclusive with *history*.
     continue_from: ResultEnvelope | None = None
 
     def __post_init__(self) -> None:

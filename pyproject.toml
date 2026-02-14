@@ -192,6 +192,7 @@ select = [
 ignore = [
     "COM812", # Trailing comma missing
     "COM819", # Trailing comma prohibited
+    "D107",   # Missing docstring in __init__ (class docstring suffices)
     "E501",   # Line too long (handled by formatter)
 ]
 fixable = ["ALL"]
