@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 # --- Project Metadata ---
 [project]
 name = "pollux-ai"
-version = "0.9.0"
+version = "1.0.0-rc.1"
 description = "Multimodal orchestration for LLM analysis"
 readme = "README.md"
 authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
