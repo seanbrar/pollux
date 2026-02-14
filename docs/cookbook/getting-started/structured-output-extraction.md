@@ -1,52 +1,71 @@
 # Structured Output Extraction
 
-Use a schema to get typed, validated output instead of parsing JSON by hand.
+Use a Pydantic schema to get typed, validated output instead of parsing JSON
+by hand.
 
-## At a glance
+## Defining the Schema
 
-- **Best for:** pipelines that need validated fields (ETL, evaluation, indexing).
-- **Input:** one local file (`pdf/txt/md`).
-- **Output:** in real API mode, a structured payload in `envelope["structured"]` plus the raw answer text. In `--mock` mode, this recipe prints a schema preview (the mock provider does not emit structured payloads).
+The recipe uses a `DocumentSummary` schema with `bullets` and `risks` fields.
+In your own code, define whatever structure fits your extraction task:
 
-## Before you run
+```python
+from pydantic import BaseModel
 
-- Start in `--mock` to validate the flow and schema shape (you’ll see a schema preview section).
-- Switch to `--no-mock` once your schema is stable, and track validation failures.
+class DocumentSummary(BaseModel):
+    bullets: list[str]
+    risks: list[str]
+```
 
-## Command
+Pollux passes this schema to the provider via `Options(response_schema=...)`.
+The provider returns structured JSON; Pollux validates and parses it into your
+model.
+
+## Run It
+
+Mock mode (validates flow and schema shape):
 
 ```bash
 python -m cookbook getting-started/structured-output-extraction \
   --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
-Real API mode:
+Real API (returns actual structured data):
 
 ```bash
 python -m cookbook getting-started/structured-output-extraction \
   --input path/to/file.pdf --no-mock --provider openai --model gpt-4.1-mini
 ```
 
-## What to look for
+## What You'll See
 
-- In `--no-mock`, `Structured output` prints counts for `bullets` and `risks`.
-- In `--mock`, you should see `Schema preview (mock mode)` and a raw excerpt (but no real `envelope["structured"]`).
-- The raw answer excerpt should still be readable; structured output is the “contract”.
-- In real mode, schema failures should be rare once prompts are stable.
+In `--no-mock` mode:
 
-## Tuning levers
+```
+Status: ok
+Structured output:
+  bullets (3): ["Context caching reduces cost by 90%", ...]
+  risks (2): ["Provider lock-in for caching features", ...]
+Raw answer (excerpt): The document describes three key findings...
+```
 
-- Tighten the schema (required fields, enums, min/max lengths) as you learn edge cases.
-- Make the prompt demand specificity (source-labeled bullets, concrete facts).
+The `structured` field in the envelope contains a parsed `DocumentSummary`
+object. The raw text answer is still available in `answers` as a fallback.
 
-## Failure modes
+In `--mock` mode, you'll see a schema preview instead — the mock provider
+doesn't emit real structured payloads.
 
-- If `structured` is missing in real mode, the provider/model likely doesn’t support structured outputs.
-- If fields are empty, your prompt may be too vague or your schema too strict.
-- Schema drift: changes to prompts/sources can silently change field distributions.
+## Tuning
 
-## Extend this recipe
+- Tighten the schema (required fields, enums, constraints) as you learn
+  edge cases from real output.
+- Make the prompt demand specificity: "source-labeled bullets with concrete
+  facts" works better than "summarize".
+- If `structured` is missing in real mode, the provider/model may not
+  support structured outputs — check
+  [Provider Capabilities](../../reference/provider-capabilities.md).
 
-- Add downstream validation and persistence (write `structured` to JSONL).
-- Pair with [Run vs RunMany](../optimization/run-vs-run-many.md) for multi-question extraction.
-- For multimodal baselines, start with [Extract Media Insights](extract-media-insights.md).
+## Next Steps
+
+Pair with [Run vs RunMany](../optimization/run-vs-run-many.md) for
+multi-question extraction, or add validation pipelines downstream by
+writing `structured` to JSONL.

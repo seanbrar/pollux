@@ -15,7 +15,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Capability | Gemini | OpenAI | Notes |
 |---|---|---|---|
 | Text generation | ✅ | ✅ | Core feature |
-| Batch prompts (`batch`) | ✅ | ✅ | One call per prompt, shared context |
+| Multi-prompt execution (`run_many`) | ✅ | ✅ | One call per prompt, shared context |
 | Local file inputs | ✅ | ✅ | OpenAI uses Files API upload |
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | |
@@ -40,6 +40,20 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 When a requested feature is unsupported for the selected provider or release scope, Pollux raises `ConfigurationError` or `APIError` with a concrete hint, instead of degrading silently.
 
-## Design Intent
+For example, enabling caching with OpenAI:
 
-The goal for v1.0 is a stable and interpretable core. Capability expansion continues in v1.1+ without masking provider realities.
+```python
+from pollux import Config
+
+config = Config(
+    provider="openai",
+    model="gpt-5-nano",
+    enable_caching=True,  # not supported for OpenAI in v1.0
+)
+# At execution time, Pollux raises:
+# ConfigurationError: Provider does not support caching
+# hint: "Disable caching or choose a provider with caching support."
+```
+
+The error is raised at execution time (not at `Config` creation) because
+caching support is a provider capability checked during plan execution.

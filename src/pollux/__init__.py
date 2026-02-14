@@ -2,7 +2,7 @@
 
 Public API:
     - run(): Single prompt execution
-    - run_many(): Multi-prompt vectorized execution
+    - run_many(): Multi-prompt source-pattern execution
     - Source: Explicit input types
     - Config: Configuration dataclass
 """
@@ -76,7 +76,7 @@ async def run_many(
     config: Config,
     options: Options | None = None,
 ) -> ResultEnvelope:
-    """Run multiple prompts with shared sources for efficient batching.
+    """Run multiple prompts with shared sources for source-pattern execution.
 
     Args:
         prompts: One or more prompts to run.

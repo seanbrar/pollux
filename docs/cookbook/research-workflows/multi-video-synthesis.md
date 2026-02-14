@@ -1,19 +1,15 @@
 # Multi-Video Synthesis
 
-Synthesize cross-source themes and disagreements across multiple videos.
+Synthesize themes, disagreements, and tradeoffs across multiple video sources
+in a single call. Build from single-video prompts to multi-video synthesis.
 
-## At a glance
+## Start with One, Then Add More
 
-- **Best for:** multi-video synthesis in a single call.
-- **Input:** video file paths and/or YouTube URLs.
-- **Output:** per-prompt synthesis, disagreement signals, cross-video summary.
+If you haven't validated your multimodal prompts yet, start with
+[Extract Media Insights](../getting-started/extract-media-insights.md) on a
+single video. Once prompts are stable, scale here.
 
-## Before you run
-
-- Start with `--max-sources 2` for clarity and faster iteration.
-- Ensure each source is valid (existing file path or reachable URL).
-
-## Command
+## Run It
 
 Explicit sources:
 
@@ -36,27 +32,33 @@ python -m cookbook research-workflows/multi-video-synthesis \
   --input "https://youtube.com/watch?v=..." ./video2.mp4 --max-sources 2 --mock
 ```
 
-## What to look for
+## What You'll See
 
-- Prompt 1 maps themes per source instead of generic blending.
-- Prompt 2 highlights genuine disagreements.
-- Prompt 3 synthesizes tradeoffs across all included sources.
+```
+Sources: 2 (video1.mp4, video2.mp4)
+Status: ok
 
-## Tuning levers
+Prompt 1 — "Map themes per source":
+  Video 1: distributed systems, consensus protocols
+  Video 2: eventual consistency, partition tolerance
 
-- Reduce source count if attribution quality drops.
+Prompt 2 — "Highlight disagreements":
+  Video 1 advocates strong consistency; Video 2 argues for availability.
+
+Prompt 3 — "Synthesize tradeoffs":
+  Both acknowledge the CAP theorem but prioritize differently...
+```
+
+Each prompt maps themes per source, highlights genuine disagreements, and
+synthesizes tradeoffs — rather than blending everything generically.
+
+## Tuning
+
+- Start with `--max-sources 2` for clarity, then increase.
 - Ask for source-labeled bullets to improve traceability.
+- Long videos increase latency and cost significantly.
 
-## Failure modes
+## Next Steps
 
-- Invalid path/URL causes immediate input rejection.
-- Too many sources can collapse into shallow synthesis.
-- Long videos may increase latency/cost significantly.
-
-## Extend this recipe
-
-- Add source citation constraints and confidence tags.
-- Combine with [Comparative Analysis](comparative-analysis.md) for deeper structured diffs.
-
-Tip: build and validate your single-source multimodal prompts first with
-[Extract Media Insights](../getting-started/extract-media-insights.md).
+Combine with [Comparative Analysis](comparative-analysis.md) for structured
+diffs across sources.

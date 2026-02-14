@@ -12,7 +12,6 @@ class PolluxError(Exception):
     """Base exception for all Pollux errors."""
 
     def __init__(self, message: str, *, hint: str | None = None) -> None:
-        """Initialize PolluxError."""
         super().__init__(message)
         self.hint = hint
 
@@ -52,7 +51,6 @@ class APIError(PolluxError):
         phase: str | None = None,
         call_idx: int | None = None,
     ) -> None:
-        """Initialize APIError."""
         super().__init__(message, hint=hint)
         self.retryable = retryable
         self.status_code = status_code

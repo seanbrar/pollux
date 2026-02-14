@@ -2,50 +2,45 @@
 
 Start with one source so you can tune prompt quality before scaling.
 
-## At a glance
+The goal is a quality baseline: one file, one prompt, one answer you can
+inspect manually. Get this right first — everything else builds on it.
 
-- **Best for:** establishing a quality baseline and cost signal.
-- **Input:** one local file (`pdf/txt/md/png/jpg/jpeg`).
-- **Output:** run status, answer excerpt, and token count (when available).
-
-## Before you run
-
-- Run `make demo-data` for deterministic local input.
-- Start in `--mock` to validate paths and prompt structure.
-
-## Command
+## Run It
 
 ```bash
 python -m cookbook getting-started/analyze-single-paper \
   --input cookbook/data/demo/text-medium/input.txt --mock
 ```
 
-Real API mode:
+With a real API:
 
 ```bash
 python -m cookbook getting-started/analyze-single-paper \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 
-## What to look for
+## What You'll See
 
-- `Status: ok` confirms the request path is healthy.
-- The excerpt should be specific to your source, not generic boilerplate.
-- Token usage gives your first cost-per-document estimate.
+```
+Status: ok
+Answer (excerpt): The paper presents three main findings: (1) context caching
+reduces repeated token cost by 85-92%, (2) fan-out patterns benefit most from
+caching, and (3) broadcast execution scales linearly with source count...
 
-## Tuning levers
+Tokens: 1,340 (prompt: 1,250 / completion: 90)
+```
 
-- Use `--prompt` to tighten format requirements (bullets/table/JSON).
-- Keep this recipe as a golden baseline before changing models.
+`Status: ok` means the request path is healthy. The excerpt should be specific
+to your source — not generic boilerplate. Token usage gives your first
+cost-per-document estimate.
 
-## Failure modes
+## Tuning
 
-- Bad file path -> verify `--input` points to a readable file.
-- Vague output -> make task constraints explicit in the prompt.
-- API errors -> retry in `--mock`, then re-enable `--no-mock`.
+- Use `--prompt` to tighten format requirements (bullets, table, JSON).
+- Keep this recipe as a golden baseline before changing models or scaling.
+- If the output is vague, make task constraints explicit in the prompt.
 
-## Extend this recipe
+## Next Steps
 
-- Run the same file with two prompt variants and compare precision.
-- Move to [Broadcast Process Files](broadcast-process-files.md) once quality is stable.
-
+Once your single-source output looks good, scale to multiple files with
+[Broadcast Process Files](broadcast-process-files.md).

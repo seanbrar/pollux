@@ -33,7 +33,12 @@ class Source:
 
     @classmethod
     def from_text(cls, text: str, *, identifier: str | None = None) -> Source:
-        """Create a Source from text content."""
+        """Create a Source from text content.
+
+        Args:
+            text: The text content.
+            identifier: Display label. Defaults to the first 50 characters of *text*.
+        """
         content = text.encode("utf-8")
         ident = identifier or text[:50]
         return cls(
@@ -46,7 +51,12 @@ class Source:
 
     @classmethod
     def from_file(cls, path: str | Path, *, mime_type: str | None = None) -> Source:
-        """Create a Source from a local file."""
+        """Create a Source from a local file.
+
+        Args:
+            path: Path to the file. Must exist or ``SourceError`` is raised.
+            mime_type: MIME type override. Auto-detected from extension when *None*.
+        """
         p = Path(path)
         if not p.exists():
             raise SourceError(f"File not found: {p}")
@@ -67,7 +77,7 @@ class Source:
 
     @classmethod
     def from_youtube(cls, url: str) -> Source:
-        """Create a Source from a YouTube URL."""
+        """Create a Source from a YouTube URL reference (no download)."""
         encoded = f"youtube:{url}".encode()
         return cls(
             source_type="youtube",
@@ -81,7 +91,12 @@ class Source:
     def from_uri(
         cls, uri: str, *, mime_type: str = "application/octet-stream"
     ) -> Source:
-        """Create a Source from a URI."""
+        """Create a Source from a URI.
+
+        Args:
+            uri: Remote URI (e.g. ``gs://`` or ``https://``).
+            mime_type: MIME type. Defaults to ``application/octet-stream``.
+        """
         encoded = f"uri:{mime_type}:{uri}".encode()
         return cls(
             source_type="uri",
@@ -93,7 +108,11 @@ class Source:
 
     @classmethod
     def from_arxiv(cls, ref: str) -> Source:
-        """Create an arXiv PDF Source from id or URL."""
+        """Create an arXiv PDF Source from an arXiv ID or URL.
+
+        Args:
+            ref: An arXiv ID (e.g. ``"2301.07041"``) or full arXiv URL.
+        """
         if not isinstance(ref, str):
             raise TypeError("ref must be a str")
 

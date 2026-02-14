@@ -18,6 +18,10 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.Config
 
+::: pollux.Options
+
+::: pollux.RetryPolicy
+
 ::: pollux.ResultEnvelope
 
 ## Error Types
@@ -28,10 +32,12 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.SourceError
 
+::: pollux.PlanningError
+
+::: pollux.InternalError
+
 ::: pollux.APIError
 
 ::: pollux.RateLimitError
 
 ::: pollux.CacheError
-
-::: pollux.PlanningError

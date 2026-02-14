@@ -1,38 +1,63 @@
 # Pollux
 
-Multimodal orchestration for Gemini.
+**Multimodal orchestration for LLM APIs.** You describe what to analyze.
+Pollux handles source patterns, context caching, and multimodal
+complexity — so you don't.
 
-> You describe what to analyze. Pollux handles source patterns, context caching, and multimodal complexity—so you don't.
+## Why Pollux?
+
+- **Multimodal-first** — PDFs, images, videos, YouTube URLs. Same API.
+- **Source patterns** — Fan-out, fan-in, and broadcast execution over your content.
+- **Context caching** — Upload once, reuse across prompts. Save tokens and money.
+- **Production-ready core** — Async pipeline, explicit capability checks, clear errors.
+
+## Install
+
+```bash
+pip install pollux
+```
 
 ```python
 import asyncio
 from pollux import Config, Source, run
 
-async def main() -> None:
-    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
-    result = await run(
+result = asyncio.run(
+    run(
         "What are the key findings?",
-        source=Source.from_file("paper.pdf"),
-        config=config,
+        source=Source.from_text(
+            "Pollux supports fan-out, fan-in, and broadcast source patterns. "
+            "It also supports context caching for repeated prompts."
+        ),
+        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
     )
-    print(result["answers"][0])
-
-asyncio.run(main())
+)
+print(result["answers"][0])
 ```
 
-## Why Pollux?
+## Where to Go Next
 
-- **Multimodal-first** — PDFs, images, videos, YouTube URLs. Same API.
-- **Source patterns** — Fan-out (one source → many prompts), fan-in, and broadcast.
-- **Context caching** — Upload once, reuse across prompts. Save tokens and money.
-- **Production-ready core** — Async execution, explicit capability checks, clear errors.
+- **[Quickstart](quickstart.md)** — First result in 2 minutes
+- **[Concepts](concepts.md)** — Mental model for the pipeline and source patterns
+- **[Sources and Patterns](sources-and-patterns.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
+- **[Configuration](configuration.md)** — Config fields, API key resolution, retry, and mock mode
+- **[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
+- **[Troubleshooting](troubleshooting.md)** — Fast fixes for common setup and runtime issues
+- **[API Reference](reference/api.md)** — Entry points and types
 
-## Get Started
+---
 
-**[Quickstart →](quickstart.md)** — First result in 2 minutes
+## About Pollux {: #about }
 
-**[Guides →](guides/installation.md)** — Installation, configuration, patterns
+Pollux began as a Google Summer of Code 2025 project with Google DeepMind.
+The goal: make multimodal analysis on Gemini efficient, reliable, and
+accessible.
 
-**[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
+The project has since evolved into a production-ready library, but the
+research-minded approach remains. Every design decision is deliberate; every
+abstraction was earned, not assumed.
 
-**[Provider Capabilities](reference/provider-capabilities.md)** — Provider-by-provider feature matrix
+**The name:** Pollux is the brightest star in the Gemini constellation. The
+library clears away infrastructure complexity so Gemini's capabilities reach
+your code cleanly.
+
+**Acknowledgments:** Google Summer of Code 2025, Google DeepMind mentorship.
