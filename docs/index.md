@@ -14,7 +14,7 @@ complexity — so you don't.
 ## Install
 
 ```bash
-pip install pollux
+pip install pollux-ai
 ```
 
 ```python

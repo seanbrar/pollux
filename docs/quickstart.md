@@ -5,7 +5,7 @@ Get your first answer in under 2 minutes.
 ## 1. Install
 
 ```bash
-pip install pollux
+pip install pollux-ai
 ```
 
 Or download the latest wheel from
