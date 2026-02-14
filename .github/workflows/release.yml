@@ -43,7 +43,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      # No uv sync needed: PSR action builds via `uv build` (see pyproject.toml)
+      # No uv sync needed; we build distributions later in this job.
 
       # Main release step using PSR action
       - name: Create and Publish Release
@@ -60,6 +60,12 @@ jobs:
           prerelease_token: ${{ startsWith(github.ref, 'refs/heads/release/') && 'rc' || '' }}
           # Optional manual override for first major/prerelease cutovers.
           force: ${{ inputs.force }}
+          # Build distributions on the runner (with uv) after versioning/tagging.
+          build: false
+
+      - name: Build distributions
+        if: steps.release.outputs.released == 'true' && !inputs.dry_run
+        run: uv build
 
       - name: Publish to GitHub Release
         if: steps.release.outputs.released == 'true' && !inputs.dry_run
