@@ -73,7 +73,7 @@ class FakeProvider:
             "previous_response_id": previous_response_id,
         }
         prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-        return {"text": f"ok:{prompt}", "usage": {"total_token_count": 1}}
+        return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
 
     async def upload_file(self, path: Any, mime_type: str) -> str:
         del mime_type

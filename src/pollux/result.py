@@ -28,7 +28,7 @@ class ResultEnvelope(TypedDict, total=False):
     confidence: float
     #: Always ``"text"`` in v1.0.
     extraction_method: str
-    #: Keys: ``prompt_token_count``, ``candidates_token_count``, ``total_token_count``.
+    #: Keys: ``input_tokens``, ``output_tokens``, ``total_tokens``.
     usage: dict[str, int]
     #: Keys: ``duration_s``, ``n_calls``, ``cache_used``.
     metrics: dict[str, Any]

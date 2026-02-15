@@ -67,7 +67,7 @@ class MockProvider:
             text = next((p for p in reversed(parts) if isinstance(p, str)), "")
         return {
             "text": f"echo: {text[:100]}",
-            "usage": {"prompt_token_count": 10, "total_token_count": 20},
+            "usage": {"input_tokens": 10, "total_tokens": 20},
             "mock": True,
         }
 

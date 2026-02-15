@@ -35,7 +35,7 @@ lint: ## Check formatting and lint code
 format: ## Format code and fix linting issues
 	uv run ruff format .
 	uv run ruff check --fix .
-	uv run rumdl fix .
+	uv run rumdl fmt .
 
 typecheck: ## Static type checking with mypy
 	uv run mypy .
