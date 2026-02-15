@@ -202,9 +202,9 @@ def test_gemini_parse_response_extracts_text_and_usage() -> None:
 
     assert result["text"] == "The answer is 42."
     assert result["usage"] == {
-        "prompt_token_count": 10,
-        "candidates_token_count": 25,
-        "total_token_count": 35,
+        "input_tokens": 10,
+        "output_tokens": 25,
+        "total_tokens": 35,
     }
     assert "structured" not in result  # None parsed = no structured key
 

@@ -99,7 +99,7 @@ async def test_api_error_metadata(
                     provider="gemini",
                     phase="generate",
                 )
-            return {"text": "ok", "usage": {"total_token_count": 1}}
+            return {"text": "ok", "usage": {"total_tokens": 1}}
 
     generate_provider = FailingSecondCallProvider()
     monkeypatch.setattr(
@@ -274,7 +274,7 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
                     isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
                     for p in parts
                 )
-            return {"text": "ok", "usage": {"total_token_count": 1}}
+            return {"text": "ok", "usage": {"total_tokens": 1}}
 
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
@@ -507,7 +507,7 @@ async def test_cached_context_is_not_resent_on_each_call(
             self.received_parts.append(parts)
             self.cache_names.append(cache_name)
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-            return {"text": f"ok:{prompt}", "usage": {"total_token_count": 1}}
+            return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
 
     fake = PartsCaptureProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -718,7 +718,7 @@ async def test_structured_output_returns_pydantic_instances(
             return {
                 "text": '{"title":"A","findings":["x","y"]}',
                 "structured": {"title": "A", "findings": ["x", "y"]},
-                "usage": {"total_token_count": 1},
+                "usage": {"total_tokens": 1},
             }
 
     fake = _StructuredProvider()
@@ -852,16 +852,16 @@ async def test_planning_error_wraps_source_loader_failure() -> None:
     [
         (
             [
-                {"text": "ok", "usage": {"total_token_count": 1}},
-                {"text": "", "usage": {"total_token_count": 1}},
+                {"text": "ok", "usage": {"total_tokens": 1}},
+                {"text": "", "usage": {"total_tokens": 1}},
             ],
             "partial",
             ["ok", ""],
         ),
         (
             [
-                {"text": "", "usage": {"total_token_count": 1}},
-                {"text": "", "usage": {"total_token_count": 1}},
+                {"text": "", "usage": {"total_tokens": 1}},
+                {"text": "", "usage": {"total_tokens": 1}},
             ],
             "error",
             ["", ""],
@@ -908,7 +908,7 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
             {
                 "text": '{"title":"A"}',
                 "structured": {"title": "A"},
-                "usage": {"total_token_count": 1},
+                "usage": {"total_tokens": 1},
             }
         ],
     )

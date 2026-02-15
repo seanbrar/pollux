@@ -298,12 +298,11 @@ class GeminiProvider:
         try:
             if hasattr(response, "usage_metadata"):
                 um = response.usage_metadata
-                # Attributes might differ slightly in new SDK vs old, check types if possible.
-                # Usually: prompt_token_count, candidates_token_count, total_token_count
+                # Gemini SDK attrs → provider-agnostic keys
                 usage = {
-                    "prompt_token_count": getattr(um, "prompt_token_count", 0),
-                    "candidates_token_count": getattr(um, "candidates_token_count", 0),
-                    "total_token_count": getattr(um, "total_token_count", 0),
+                    "input_tokens": getattr(um, "prompt_token_count", 0),
+                    "output_tokens": getattr(um, "candidates_token_count", 0),
+                    "total_tokens": getattr(um, "total_token_count", 0),
                 }
         except Exception:
             usage = {}

@@ -129,11 +129,9 @@ class OpenAIProvider:
             usage: dict[str, int] = {}
             if usage_raw is not None:
                 usage = {
-                    "prompt_token_count": int(getattr(usage_raw, "input_tokens", 0)),
-                    "candidates_token_count": int(
-                        getattr(usage_raw, "output_tokens", 0)
-                    ),
-                    "total_token_count": int(getattr(usage_raw, "total_tokens", 0)),
+                    "input_tokens": int(getattr(usage_raw, "input_tokens", 0)),
+                    "output_tokens": int(getattr(usage_raw, "output_tokens", 0)),
+                    "total_tokens": int(getattr(usage_raw, "total_tokens", 0)),
                 }
             payload: dict[str, Any] = {"text": text, "usage": usage}
             if structured is not None:

@@ -149,7 +149,7 @@ Every call returns a `ResultEnvelope` dict. Here are all fields:
 | `reasoning` | `list[str \| None]` | No | Provider reasoning traces (when available) |
 | `confidence` | `float` | Yes | `0.9` for ok, `0.5` otherwise |
 | `extraction_method` | `str` | Yes | Always `"text"` in v1.0 |
-| `usage` | `dict[str, int]` | Yes | Token counts (`prompt_token_count`, `candidates_token_count`, `total_token_count`) |
+| `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`) |
 | `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` |
 
 Example of a complete envelope:
@@ -160,7 +160,7 @@ Example of a complete envelope:
     "answers": ["The paper concludes that..."],
     "confidence": 0.9,
     "extraction_method": "text",
-    "usage": {"prompt_token_count": 1250, "candidates_token_count": 89, "total_token_count": 1339},
+    "usage": {"input_tokens": 1250, "output_tokens": 89, "total_tokens": 1339},
     "metrics": {"duration_s": 1.42, "n_calls": 1, "cache_used": False},
 }
 ```

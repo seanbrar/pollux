@@ -72,9 +72,9 @@ def print_usage(envelope: ResultEnvelope) -> None:
     usage = envelope.get("usage")
     if not isinstance(usage, dict):
         return
-    total = usage.get("total_token_count")
-    prompt = usage.get("prompt_token_count")
-    completion = usage.get("completion_token_count")
+    total = usage.get("total_tokens")
+    prompt = usage.get("input_tokens")
+    completion = usage.get("output_tokens")
 
     rows: list[tuple[str, object]] = []
     if isinstance(total, int):
