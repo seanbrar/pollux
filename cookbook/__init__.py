@@ -1,4 +1,4 @@
-"""Gemini Batch Processing Cookbook
+"""Pollux Cookbook
 
-Collection of practical examples and recipes for using the gemini-batch library.
+Collection of practical examples and recipes for using the pollux library.
 """

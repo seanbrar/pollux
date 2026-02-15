@@ -1,12 +1,5 @@
 # Reusable workflow for code quality checks
-# Called by both CI and release workflows to ensure consistency
-# Accepts Python version as input to support version matrix testing
-#
-# Testing Strategy:
-# - Feature branch pushes: Fast tests only (~30s)
-# - Draft PRs: Fast tests with DEBUG logging
-# - Ready PRs: Progressive + integration + workflows (< 2 min)
-# - Main branch: Everything + coverage
+# Called by CI workflow to ensure consistency
 name: Reusable Python Checks
 
 "on":
@@ -18,6 +11,10 @@ name: Reusable Python Checks
       test-command:
         required: true
         type: string
+      enable-api-tests:
+        required: false
+        type: boolean
+        default: false
       upload-coverage:
         required: false
         type: boolean
@@ -26,32 +23,38 @@ name: Reusable Python Checks
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      # Checkout code and set up Python environment
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ inputs.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
         with:
+          fetch-depth: 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
           python-version: ${{ inputs.python-version }}
 
       - name: Install dependencies
-        run: make install-dev
+        run: uv sync --frozen
 
       - name: Lint code
         run: make lint
 
+      - name: Type check
+        run: make typecheck
+
       - name: Run Tests
+        # API tests are opt-in to avoid burning shared quota across matrix jobs.
         env:
-          # Set the Makefile variable based on the PR's draft status.
-          # The 'true' on the end is needed because github.event.pull_request.draft is a boolean.
-          TEST_LOG_LEVEL: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == true && 'DEBUG' || 'WARNING' }}
+          GEMINI_API_KEY: ${{ inputs.enable-api-tests && secrets.GEMINI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ inputs.enable-api-tests && secrets.OPENAI_API_KEY || '' }}
+          ENABLE_API_TESTS: ${{ inputs.enable-api-tests && '1' || '' }}
         run: ${{ inputs.test-command }}
 
       - name: Upload coverage to Codecov
-        # Explicitly controlled by caller. Use when coverage XML or HTML is produced.
         if: inputs.upload-coverage == true
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false  # Don't fail CI if codecov upload fails
-          verbose: true
+          fail_ci_if_error: false

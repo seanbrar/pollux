@@ -1,74 +1,76 @@
 # --- Build System ---
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 # --- Project Metadata ---
 [project]
-# Core Metadata
-name = "gemini-batch"
-version = "0.9.0"
-description = "A framework for batch processing with Google's Gemini API"
+name = "pollux-ai"
+version = "1.0.0-rc.2"
+description = "Multimodal orchestration for LLM analysis"
 readme = "README.md"
 authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
-license = "MIT"
-
-# Requirements
-requires-python = ">=3.13"
+license = { text = "MIT" }
+requires-python = ">=3.10, <3.15"
 dependencies = [
-    "Pillow~=11.2",
-    "PyPDF2~=3.0",
-    "google-genai~=1.20",
-    "httpx~=0.27",
-    "pydantic>=2.11.7",
-    "pydantic-settings>=2.8.0",
-    "python-dotenv~=1.1",
-    "python-magic~=0.4.27",
+    "google-genai>=1.61",
+    "httpx>=0.24",
+    "openai>=2.16.0",
+    "pydantic>=2.1",
+    "python-dotenv>=0.19",
 ]
 
 [project.urls]
-Homepage = "https://github.com/seanbrar/gemini-batch-prediction"
-Repository = "https://github.com/seanbrar/gemini-batch-prediction"
+Homepage = "https://github.com/seanbrar/pollux"
+Repository = "https://github.com/seanbrar/pollux"
+Changelog = "https://github.com/seanbrar/pollux/blob/main/CHANGELOG.md"
+Issues = "https://github.com/seanbrar/pollux/issues"
 
-[project.optional-dependencies]
-dev = [
-    "mypy>=1.17.0",
-    "pandas-stubs>=2.3.0",
-    "pip-tools>=7.4.1",
-    "pre-commit>=4.2.0",
-    "pydantic>=2.11.7",
+# Development-only tooling (PEP 735 - NOT published to PyPI)
+[dependency-groups]
+test = [
+    "hypothesis>=6.140.0",
+    "mutmut>=3.2.3",
     "pyfakefs>=5.9.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.2.1",
     "pytest-golden>=0.2.2",
     "pytest-mock>=3.14.1",
-    "python-semantic-release==10.2.0",
+]
+lint = [
+    "mypy>=1.17.0",
     "ruff>=0.12.2",
+    "rumdl>=0.1.20",
     "vulture>=2.14",
-    # Docs tooling
+]
+docs = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.6.0",
     "mkdocstrings[python]>=0.25.0",
     "mkdocs-htmlproofer-plugin",
-    "types-PyYAML>=6.0.12",
 ]
-viz = ["matplotlib~=3.10", "pandas~=2.3", "seaborn~=0.13"]
-all = ["gemini-batch[dev,viz]"]
-
-# --- Console Scripts ---
-[project.scripts]
-gb-config = "gemini_batch.config.core:main"
+release = [
+    "python-semantic-release==10.2.0",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+    { include-group = "release" },
+    "pre-commit>=4.2.0",
+]
 
 # --- Tool Configurations ---
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/pollux"]
+
 # --- Coverage ---
 [tool.coverage.run]
-source = ["src/gemini_batch"]
+source = ["src/pollux"]
 omit = [
-    "setup.py",
-    "src/gemini_batch/__init__.py",
-    "src/gemini_batch/extensions/visualization.py",
+    "src/pollux/__init__.py",
     "tests/*",
 ]
 
@@ -86,8 +88,16 @@ directory = "coverage_html_report"
 
 # --- MyPy ---
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.10"
 disallow_untyped_defs = true
+
+# Typecheck library + tests (recipes/docs are user-facing, but not part of the
+# strict library contract).
+#
+# Note: our Makefile calls `mypy .`, so we must explicitly exclude non-library
+# trees here rather than relying on `files = [...]`.
+exclude = "^(cookbook|docs|notebooks|scripts|site|outputs|mutants)/"
+
 namespace_packages = true
 show_error_codes = true
 strict = true
@@ -101,6 +111,7 @@ disallow_untyped_defs = false
 # --- Pytest ---
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = [
     # Basic options
     "-v",
@@ -113,27 +124,22 @@ log_cli_format = "%(name)-40s - %(levelname)-8s - %(message)s"
 log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 markers = [
-    "contract: Architectural contract tests (fast)",
-    "unit: Unit tests (fast)",
-    "integration: Cross-component integration tests (may be slow)",
-    "characterization: Golden file/snapshot tests (fast)",
-    "golden_test: Golden file tests (alias; legacy marker)",
-    "workflows: CI/CD workflow tests (fast)",
-    "cookbook: Cookbook recipe tests (fast, mocked)",
-    "slow: Tests that take > 1s (subset of integration)",
-    "api: Tests requiring external API (slow)",
-    "security: Security and secret handling tests",
+    # Primary test types (mutually exclusive)
+    "contract: Architectural invariant tests spanning modules",
+    "unit: Fast, isolated unit tests",
+    "integration: Cross-component integration tests with mocked APIs",
+    "api: External API tests (requires GEMINI_API_KEY, auto-skipped otherwise)",
+    # Secondary attributes (stackable with primary type)
+    "security: Security-sensitive tests",
+    "slow: Tests taking >1s (for CI optimization)",
+    # Fixture control (opt-out of default isolation)
     "allow_dotenv: Opt-in to load .env in a specific test",
-    "allow_real_home_config: Opt-in to use the real home config path",
     "allow_env_pollution: Opt-in to keep current env (no cleanup)",
-    "smoke: Very fast, critical path checks (<1m)",
-    "scenario: Curated advanced end-to-end scenarios",
-    "legacy: Legacy tests kept for reference/quarantine",
 ]
 
 # --- Ruff ---
 [tool.ruff]
-target-version = "py313"
+target-version = "py310"
 line-length = 88
 exclude = [
     ".git",
@@ -145,7 +151,8 @@ exclude = [
     "build",
     "dist",
     "venv",
-    "src/gemini_batch/_legacy",
+    "mutants",
+    "notebooks",
 ]
 
 [tool.ruff.format]
@@ -186,6 +193,7 @@ select = [
 ignore = [
     "COM812", # Trailing comma missing
     "COM819", # Trailing comma prohibited
+    "D107",   # Missing docstring in __init__ (class docstring suffices)
     "E501",   # Line too long (handled by formatter)
 ]
 fixable = ["ALL"]
@@ -193,15 +201,15 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
+
 "cookbook/*" = ["S105", "S106", "T20", "D103", "D", "S", "RUF001", "RUF002"]
 "scripts/*" = ["T201", "S310"]
-"notebooks/*" = ["T201", "RET504", "S110", "RUF001", "N814", "UP038", "E402"]
+"tests/helpers.py" = ["S603"]
 "tests/*" = ["D", "N806", "S101", "S105", "S106", "S108"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
-known-first-party = ["gemini_batch"]
+known-first-party = ["pollux"]
 section-order = [
     "future",
     "standard-library",
@@ -214,10 +222,59 @@ split-on-trailing-comma = true
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# --- rumdl (Markdown linting) ---
+# Bug-catching rules only; style/opinion rules disabled.
+[tool.rumdl]
+disable = [
+    "MD003",  # Heading style (atx vs setext)
+    "MD004",  # Unordered list style
+    "MD007",  # Unordered list indentation
+    "MD009",  # Trailing spaces
+    "MD010",  # Hard tabs
+    "MD013",  # Line length
+    "MD014",  # Dollar signs before commands
+    "MD024",  # Duplicate headings (intentional in docs/FAQs)
+    "MD025",  # Single H1 per file
+    "MD026",  # Trailing punctuation in heading
+    "MD029",  # Ordered list item prefix
+    "MD030",  # Spaces after list markers
+    "MD032",  # Blank line before lists
+    "MD033",  # Inline HTML (MkDocs uses this)
+    "MD034",  # Bare URLs
+    "MD035",  # Horizontal rule style
+    "MD036",  # Emphasis used instead of heading
+    "MD040",  # Code block language specifier
+    "MD041",  # First line should be H1
+    "MD046",  # Code block style
+    "MD047",  # File should end with newline
+    "MD048",  # Code fence style
+    "MD049",  # Emphasis style
+    "MD050",  # Strong emphasis style
+]
+exclude = [
+    "site",
+    ".worktrees",
+]
+
+[tool.rumdl.per-file-ignores]
+# CHANGELOG link references are managed by python-semantic-release;
+# forward-declared refs for unreleased versions are expected.
+"CHANGELOG.md" = ["MD053"]
+
+# --- Mutmut ---
+[tool.mutmut]
+paths_to_mutate = ["src/pollux"]
+tests_dir = ["tests"]
+pytest_add_cli_args = [
+    "-m", "not api",
+    "--ignore=tests/test_cookbook.py",
+    "--ignore=tests/test_cookbook_contract.py",
+]
+
 # --- Semantic Release ---
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-build_command = "python -m pip install --upgrade pip build && python -m build"
+build_command = "uv build"
 tag_format = "v{version}"
 allow_zero_version = true
 major_on_zero = false
@@ -225,6 +282,19 @@ major_on_zero = false
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
+
+[tool.semantic_release.branches.release]
+# Release branches publish RCs (e.g., 1.0.0-rc.1) before final main release.
+match = "^release\\/.*$"
+prerelease = true
+prerelease_token = "rc"
+
+[tool.semantic_release.branches.preview]
+# Allow dry-run previews on non-main/non-release branches without changing release rules.
+# This produces prerelease versions like `0.10.0-preview.1` on feature branches.
+match = "^(?!main$)(?!release\\/).+"
+prerelease = true
+prerelease_token = "preview"
 
 [tool.semantic_release.changelog]
 template_dir = "templates"
@@ -247,11 +317,3 @@ trim_blocks = true
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-
-# --- Setuptools ---
-[tool.setuptools.packages.find]
-where = ["src"]
-exclude = ["examples*", "notebooks*", "tests*"]
-
-[tool.setuptools.package-data]
-gemini_batch = ["py.typed"]

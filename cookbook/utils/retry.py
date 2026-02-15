@@ -6,10 +6,12 @@ Designed for use in cookbook recipes without touching core library code.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable
+
+T = TypeVar("T")
 
 DEFAULT_SUBSTRINGS: tuple[str, ...] = (
     "Connection reset",
@@ -24,7 +26,7 @@ DEFAULT_SUBSTRINGS: tuple[str, ...] = (
 )
 
 
-async def retry_async[T](
+async def retry_async(
     factory: Callable[[], Awaitable[T]],
     *,
     retries: int = 3,

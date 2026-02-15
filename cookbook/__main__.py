@@ -1,14 +1,14 @@
 """Cookbook runner module.
 
-Run cookbook recipes without setting PYTHONPATH, supporting either
-path-like specs (relative to the cookbook folder) or a dotted-like
-spec that maps underscores to hyphens.
+Run cookbook recipes from a dev install, supporting path-like specs
+relative to the cookbook folder.
+
+Requires ``uv sync --all-extras`` (or ``pip install -e .``) so that
+``import pollux`` resolves through the package manager.
 
 Examples:
-- python -m cookbook getting-started/analyze-single-paper.py -- --limit 1
-- python -m cookbook production.resume_on_failure -- --limit 2
-
-Use "--" to pass arguments through to the recipe script.
+- python -m cookbook getting-started/analyze-single-paper --input path/to/file.pdf
+- python -m cookbook getting-started/analyze-single-paper --help
 """
 
 from __future__ import annotations
@@ -27,6 +27,9 @@ if TYPE_CHECKING:
 
 COOKBOOK_DIRNAME = "cookbook"
 EXCLUDE_DIRS = {"utils", "templates", "data", "__pycache__"}
+
+# Determines the "start here" recipe for bare invocation / --list display.
+START_HERE_DISPLAY = "getting-started/analyze-single-paper.py"
 
 
 @dataclass(frozen=True)
@@ -162,45 +165,82 @@ def resolve_spec(spec: str) -> RecipeSpec:
     )
 
 
-def print_recipe_list(recipes: Iterable[RecipeSpec]) -> None:
-    """Print available recipes in a compact, user-friendly format."""
+def _extract_description(recipe: RecipeSpec) -> str:
+    """Extract a one-line description from a recipe's docstring.
 
-    print("Available recipes (relative to 'cookbook/'):")
-    for r in recipes:
-        dotted = r.display.replace("/", ".").replace("-", "_").removesuffix(".py")
-        print(f"  - {r.display}    (dotted: {dotted})")
-
-
-def parse_args(argv: Sequence[str]) -> tuple[argparse.Namespace, list[str]]:
-    """Parse runner arguments.
-
-    Returns (namespace, passthrough_args). Passthrough args are the
-    arguments intended for the recipe, captured after a "--".
+    Looks for the module docstring pattern ``Recipe: <description>.``
+    and returns the description portion. Falls back to empty string.
     """
+    try:
+        first_lines = recipe.path.read_text().split("\n", 10)
+    except OSError:
+        return ""
+    for line in first_lines:
+        stripped = line.strip().strip('"').strip("'")
+        if stripped.startswith("Recipe:"):
+            return stripped[len("Recipe:") :].strip().rstrip(".")
+    return ""
 
+
+def _category_heading(dirname: str) -> str:
+    """Convert a directory name like 'getting-started' to 'Getting Started'."""
+    return dirname.replace("-", " ").title()
+
+
+def print_recipe_list(recipes: Iterable[RecipeSpec]) -> None:
+    """Print available recipes grouped by category with descriptions."""
+
+    grouped: dict[str, list[RecipeSpec]] = {}
+    for r in recipes:
+        parts = r.display.split("/")
+        category = parts[0] if len(parts) > 1 else ""
+        grouped.setdefault(category, []).append(r)
+
+    for category, specs in grouped.items():
+        heading = _category_heading(category) if category else "Recipes"
+        print(f"\n  {heading}")
+        for spec in specs:
+            name = spec.display.removesuffix(".py")
+            desc = _extract_description(spec)
+            marker = "  ← start here" if spec.display == START_HERE_DISPLAY else ""
+            if desc:
+                print(f"    {name:<50s} {desc}{marker}")
+            else:
+                print(f"    {name}{marker}")
+
+    print(
+        "\n  Run:   python -m cookbook <recipe>"
+        "\n  Help:  python -m cookbook <recipe> --help\n"
+    )
+
+
+def _print_welcome() -> None:
+    """Print a concise welcome message for bare invocation."""
+    print(
+        "\nPollux Cookbook — practical recipes for multimodal analysis.\n"
+        "\n"
+        "  Start here:     python -m cookbook getting-started/analyze-single-paper\n"
+        "  List recipes:   python -m cookbook --list\n"
+        "  Recipe options:  python -m cookbook <recipe> --help\n"
+    )
+
+
+def _build_runner_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for the runner's own flags."""
     parser = argparse.ArgumentParser(
         prog="python -m cookbook",
-        description=(
-            "Run cookbook recipes without setting PYTHONPATH. "
-            "Pass recipe args after '--'."
-        ),
+        description="Pollux Cookbook — practical recipes for multimodal analysis.",
     )
     parser.add_argument(
         "spec",
         nargs="?",
-        help=(
-            "Recipe spec. Examples: "
-            "'getting-started/analyze-single-paper.py' or "
-            "'production.resume_on_failure'"
-        ),
+        help="Recipe to run (e.g. getting-started/analyze-single-paper)",
     )
     parser.add_argument(
         "--list",
         action="store_true",
         help="List available recipes and exit",
     )
-    # Default to running from the repo root for least astonishment.
-    # Users can opt out with --no-cwd-repo-root.
     parser.add_argument(
         "--cwd-repo-root",
         action=argparse.BooleanOptionalAction,
@@ -210,17 +250,53 @@ def parse_args(argv: Sequence[str]) -> tuple[argparse.Namespace, list[str]]:
             " (default: enabled)"
         ),
     )
+    return parser
 
+
+def parse_args(argv: Sequence[str]) -> tuple[argparse.Namespace, list[str]]:
+    """Parse runner arguments.
+
+    Returns (namespace, passthrough_args). Uses parse_known_args so that
+    recipe flags like --input pass through without a ``--`` separator.
+    Backward-compatible: if ``--`` is present, splits there first.
+    """
+
+    parser = _build_runner_parser()
+
+    # Backward compatibility: if -- is present, honour the explicit split.
     if "--" in argv:
         idx = argv.index("--")
         runner_args = list(argv[:idx])
         passthrough = list(argv[idx + 1 :])
-    else:
-        runner_args = list(argv)
-        passthrough = []
+        ns = parser.parse_args(runner_args)
+        return ns, passthrough
 
-    ns = parser.parse_args(runner_args)
+    # No -- present: use parse_known_args so recipe flags pass through.
+    ns, passthrough = parser.parse_known_args(argv)
     return ns, passthrough
+
+
+def _wants_recipe_help(argv: Sequence[str]) -> str | None:
+    """If argv contains a recipe spec followed by --help/-h, return the spec.
+
+    Returns None if the help request is for the runner itself (no spec before -h).
+    """
+    help_flags = {"--help", "-h"}
+    # Check if any help flag is present at all.
+    if not any(flag in argv for flag in help_flags):
+        return None
+
+    # Walk argv to find the first positional arg (recipe spec).
+    for arg in argv:
+        if arg in help_flags:
+            # Encountered help before any spec → runner help.
+            return None
+        if arg.startswith("-"):
+            continue
+        # First positional-looking token: treat as recipe spec.
+        return arg
+
+    return None
 
 
 def run_recipe(
@@ -231,6 +307,17 @@ def run_recipe(
     Sets sys.argv to mimic direct script execution.
     Returns exit status code (0 for success).
     """
+
+    # Verify that pollux is importable (requires a dev install).
+    try:
+        import pollux as _pollux  # noqa: F401
+    except ImportError:
+        print(
+            "Error: could not import pollux. "
+            "Run 'uv sync --all-extras' or 'pip install -e .' first.",
+            file=sys.stderr,
+        )
+        return 1
 
     # Prepare argv for the recipe
     prev_argv = list(sys.argv)
@@ -250,15 +337,26 @@ def run_recipe(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args, passthrough = parse_args(list(argv) if argv is not None else sys.argv[1:])
+    raw = list(argv) if argv is not None else sys.argv[1:]
+
+    # Intercept help: if a recipe spec precedes --help/-h, forward to recipe.
+    recipe_for_help = _wants_recipe_help(raw)
+    if recipe_for_help is not None:
+        try:
+            spec = resolve_spec(recipe_for_help)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        return run_recipe(spec, ["--help"], cwd_repo_root=False)
+
+    args, passthrough = parse_args(raw)
 
     if args.list:
         print_recipe_list(list_recipes())
         return 0
 
     if not args.spec:
-        # Show available recipes to reduce friction instead of erroring out
-        print_recipe_list(list_recipes())
+        _print_welcome()
         return 0
 
     try:

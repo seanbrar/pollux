@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""🎯 Recipe: Resume Long Batch Runs and Rerun Only Failures.
+"""Recipe: Resume long runs and retry only failed work.
 
-When you need to: Make long-running batches resilient by persisting per-item
-state and resuming only the failed work on the next run.
+Problem:
+    Long runs fail partway through (network blips, provider hiccups, bad inputs)
+    and you need to continue without reprocessing successful items.
 
-Ingredients:
-- A list of work items (files, or (source,prompt) pairs)
-- An `outputs/manifest.json` to track item status across runs
+Pattern:
+    - Persist per-item state in a manifest.
+    - Write per-item outputs to disk.
+    - On rerun, process only non-"ok" items.
 
-What you'll learn:
-- Durable manifest pattern with per-item status and metrics
-- Idempotency via `cache_override_name` to avoid duplicate work
-- Safe retry with backoff and partial reruns
+Run:
+    python -m cookbook production/resume-on-failure --input ./my_docs
+    python -m cookbook production/resume-on-failure --input ./my_docs --failed-only
 
-Difficulty: ⭐⭐⭐
-Time: ~10-15 minutes
+Success check:
+    - `outputs/manifest.json` is created and updated incrementally.
+    - Re-running with `--failed-only` skips completed items.
 """
 
 from __future__ import annotations
@@ -22,166 +24,249 @@ from __future__ import annotations
 import argparse
 import asyncio
 from dataclasses import asdict, dataclass
+import hashlib
 import json
-import mimetypes
 from pathlib import Path
 from typing import Any
 
-from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR
-from gemini_batch import types
-from gemini_batch.frontdoor import run_batch
-from gemini_batch.types import make_execution_options
+from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, pick_files_by_ext
+from cookbook.utils.presentation import (
+    print_header,
+    print_kv_rows,
+    print_learning_hints,
+    print_section,
+)
+from cookbook.utils.runtime import (
+    add_runtime_args,
+    build_config_or_exit,
+)
+from pollux import Config, Source, run
 
-MANIFEST_PATH = Path("outputs/manifest.json")
-OUTPUTS_DIR = Path("outputs/items")
+DEFAULT_MANIFEST = Path("outputs/manifest.json")
+DEFAULT_OUTPUT_DIR = Path("outputs/items")
 
 
 @dataclass
-class Item:
+class WorkItem:
+    """Persistent status for one source file in a resumable run."""
+
     id: str
     source_path: str
     prompt: str
-    status: str = "pending"  # pending | ok | error
+    status: str = "pending"  # pending | ok | partial | error
     retries: int = 0
-    result_path: str | None = None
+    output_path: str | None = None
     error: str | None = None
     metrics: dict[str, Any] | None = None
 
 
-def _load_manifest(path: Path) -> list[Item]:
+def make_item_id(path: Path) -> str:
+    """Generate stable id from file path while avoiding collisions."""
+    digest = hashlib.sha1(str(path).encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f"{path.stem}-{digest[:10]}"
+
+
+def load_manifest(path: Path) -> list[WorkItem]:
+    """Load manifest from disk if it exists."""
     if not path.exists():
         return []
-    data = json.loads(path.read_text())
-    items: list[Item] = []
-    for row in data:
-        items.append(Item(**row))
-    return items
+
+    raw = json.loads(path.read_text())
+    if not isinstance(raw, list):
+        raise SystemExit(f"Manifest must contain a list of items: {path}")
+    return [WorkItem(**row) for row in raw]
 
 
-def _save_manifest(path: Path, items: list[Item]) -> None:
+def save_manifest(path: Path, items: list[WorkItem]) -> None:
+    """Persist full manifest after each item for safe resumability."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps([asdict(i) for i in items], indent=2))
+    path.write_text(json.dumps([asdict(item) for item in items], indent=2))
 
 
-def _is_supported_file(path: Path) -> bool:
-    """Skip obvious unsupported media that require async activation (video/audio)."""
-    mime, _ = mimetypes.guess_type(str(path))
-    if not mime:
-        return True
-    return not mime.startswith(("video/", "audio/"))
+def build_items(directory: Path, prompt: str, limit: int) -> list[WorkItem]:
+    """Build deterministic work items from files in a directory."""
+    files = pick_files_by_ext(
+        directory,
+        [".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg"],
+        limit=max(1, limit),
+    )
+    if not files:
+        raise SystemExit(f"No supported files found under: {directory}")
+
+    return [
+        WorkItem(id=make_item_id(path), source_path=str(path), prompt=prompt)
+        for path in files
+    ]
 
 
-def _default_items_from_directory(dir_path: Path, prompt: str) -> list[Item]:
-    items: list[Item] = []
-    for p in sorted(dir_path.rglob("*")):
-        if not p.is_file():
-            continue
-        if not _is_supported_file(p):
-            continue
-        # Use filename (with extension) to avoid ID collisions like song.mp3 vs song.flac
-        items.append(
-            Item(
-                id=p.name,
-                source_path=str(p),
-                prompt=prompt,
-            )
-        )
-    return items
+async def process_item(item: WorkItem, *, config: Config, output_dir: Path) -> WorkItem:
+    """Execute one item and write a per-item result artifact."""
+    envelope = await run(
+        item.prompt, source=Source.from_file(item.source_path), config=config
+    )
 
-
-async def _process_item(item: Item) -> Item:
-    src = types.Source.from_file(item.source_path)
-    opts = make_execution_options(cache_override_name=f"resume-{item.id}")
-
-    env = await run_batch([item.prompt], [src], prefer_json=True, options=opts)
-
-    answers = env.get("answers", [])
-    out = {
-        "status": env.get("status", "ok"),
-        "answer": answers[0] if answers else "",
-        "metrics": env.get("metrics", {}),
-        "usage": env.get("usage", {}),
-        "extraction_method": env.get("extraction_method"),
+    output_dir.mkdir(parents=True, exist_ok=True)
+    result_file = output_dir / f"{item.id}.json"
+    result_payload = {
+        "source_path": item.source_path,
+        "status": envelope.get("status", "ok"),
+        "answers": envelope.get("answers", []),
+        "usage": envelope.get("usage", {}),
+        "metrics": envelope.get("metrics", {}),
     }
+    result_file.write_text(json.dumps(result_payload, indent=2))
 
-    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
-    result_path = OUTPUTS_DIR / f"{item.id}.json"
-    result_path.write_text(json.dumps(out, indent=2))
-
-    item.status = "ok" if env.get("status") == "ok" else "partial"
-    item.result_path = str(result_path)
-    item.metrics = env.get("metrics") or {}
+    item.status = str(envelope.get("status", "ok"))
+    item.output_path = str(result_file)
+    item.error = None
+    item.metrics = (
+        envelope.get("metrics") if isinstance(envelope.get("metrics"), dict) else {}
+    )
     return item
 
 
-async def run_resume(
+async def run_resumable(
     *,
-    items: list[Item],
-    failed_only: bool = False,
-    max_retries: int = 2,
-    backoff_s: float = 1.5,
-) -> list[Item]:
-    # Merge with existing manifest
-    existing = {i.id: i for i in _load_manifest(MANIFEST_PATH)}
-    merged: list[Item] = []
-    for i in items:
-        merged.append(existing.get(i.id, i))
+    items: list[WorkItem],
+    config: Config,
+    manifest_path: Path,
+    output_dir: Path,
+    failed_only: bool,
+    max_retries: int,
+    backoff_seconds: float,
+) -> list[WorkItem]:
+    """Run items with retries and durable manifest updates."""
+    existing_by_id = {item.id: item for item in load_manifest(manifest_path)}
+    merged: list[WorkItem] = [existing_by_id.get(item.id, item) for item in items]
 
-    # Filter
-    queue: list[Item] = (
-        [i for i in merged if i.status != "ok"] if failed_only else merged
-    )
+    queue = [item for item in merged if item.status != "ok"] if failed_only else merged
+    total = len(queue)
 
-    for item in queue:
+    for index, item in enumerate(queue, start=1):
+        print(
+            f"[{index}/{total}] Processing {Path(item.source_path).name} (status={item.status})"
+        )
         attempts = 0
         while attempts <= max_retries:
             try:
-                updated = await _process_item(item)
-                # Promote partial to ok if answer present
-                if updated.status in ("ok", "partial"):
-                    item.status = "ok" if updated.status == "ok" else updated.status
-                    item.result_path = updated.result_path
-                    item.metrics = updated.metrics
-                    item.error = None
-                    break
-            except Exception as e:
-                item.error = str(e)
-                item.status = "error"
-                item.retries += 1
+                await process_item(item, config=config, output_dir=output_dir)
+                break
+            except Exception as exc:
                 attempts += 1
+                item.retries += 1
+                item.status = "error"
+                item.error = str(exc)
                 if attempts > max_retries:
+                    print(f"  -> failed after {attempts} attempt(s): {exc}")
                     break
-                # Backoff without blocking the event loop
-                await asyncio.sleep(backoff_s * attempts)
-        _save_manifest(MANIFEST_PATH, merged)
+                print(f"  -> retrying in {backoff_seconds * attempts:.1f}s ({exc})")
+                await asyncio.sleep(backoff_seconds * attempts)
+        save_manifest(manifest_path, merged)
+
     return merged
 
 
+def summarize(items: list[WorkItem], manifest_path: Path) -> None:
+    """Print end-of-run manifest summary."""
+    counts = {"ok": 0, "partial": 0, "error": 0, "pending": 0}
+    for item in items:
+        counts[item.status] = counts.get(item.status, 0) + 1
+
+    print_section("Run summary")
+    print_kv_rows(
+        [
+            (
+                "Item status",
+                "ok={ok} partial={partial} error={error} pending={pending}".format(
+                    **counts
+                ),
+            ),
+            ("Manifest", manifest_path),
+        ]
+    )
+    print_learning_hints(
+        [
+            (
+                "Next: rerun with `--failed-only` to verify that completed work is skipped."
+                if counts.get("error", 0) == 0 and counts.get("pending", 0) == 0
+                else "Next: use `--failed-only` to retry unresolved work without reprocessing successes."
+            ),
+            "Next: treat the manifest as the source of truth for recovery and auditing.",
+        ]
+    )
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Resume and rerun only failures")
+    parser = argparse.ArgumentParser(
+        description="Run a resilient pipeline with persistent manifest-based resume.",
+    )
     parser.add_argument(
-        "directory", type=Path, nargs="?", help="Directory of files to process"
+        "--input",
+        type=Path,
+        default=DEFAULT_TEXT_DEMO_DIR,
+        help="Directory of files to process.",
     )
     parser.add_argument(
         "--prompt",
         default="Summarize the key contributions in 3 bullets.",
-        help="Prompt to apply",
+        help="Prompt to apply to each file.",
     )
     parser.add_argument(
-        "--failed-only", action="store_true", help="Only rerun failed items"
+        "--limit",
+        type=int,
+        default=8,
+        help="Maximum number of files to process.",
     )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST,
+        help="Path to manifest JSON file.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Directory for per-item result JSON files.",
+    )
+    parser.add_argument(
+        "--failed-only",
+        action="store_true",
+        help="Process only non-ok items from the existing manifest.",
+    )
+    parser.add_argument(
+        "--max-retries", type=int, default=2, help="Retry count per item."
+    )
+    parser.add_argument(
+        "--backoff-seconds",
+        type=float,
+        default=1.5,
+        help="Base backoff delay between retries.",
+    )
+    add_runtime_args(parser)
     args = parser.parse_args()
 
-    directory = args.directory or DEFAULT_TEXT_DEMO_DIR
-    if not directory.exists():
-        raise SystemExit("No input provided. Run `make demo-data` or pass a directory.")
+    if not args.input.exists():
+        raise SystemExit(
+            "Input directory not found. Run `make demo-data` or pass --input /path/to/dir."
+        )
 
-    items = _default_items_from_directory(directory, args.prompt)
-    merged = asyncio.run(run_resume(items=items, failed_only=args.failed_only))
+    config = build_config_or_exit(args)
+    items = build_items(args.input, args.prompt, args.limit)
 
-    ok = sum(1 for i in merged if i.status == "ok")
-    err = sum(1 for i in merged if i.status == "error")
-    print(f"✅ Completed: {ok} | ❌ Errors: {err} | Manifest: {MANIFEST_PATH}")
+    print_header("Resumable production run", config=config)
+    merged = asyncio.run(
+        run_resumable(
+            items=items,
+            config=config,
+            manifest_path=args.manifest,
+            output_dir=args.output_dir,
+            failed_only=args.failed_only,
+            max_retries=max(0, int(args.max_retries)),
+            backoff_seconds=max(0.0, float(args.backoff_seconds)),
+        )
+    )
+    summarize(merged, args.manifest)
 
 
 if __name__ == "__main__":

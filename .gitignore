@@ -42,12 +42,17 @@ site/
 .pytest_cache/
 .ruff_cache/
 .benchmarks/
+.hypothesis/
+.mutmut-cache/
+.mutmut-results/
+mutants/
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Editors/IDEs
 .idea/
+.claude/
 
 # OS files (cross-platform)
 Thumbs.db
@@ -55,6 +60,8 @@ Thumbs.db
 # Project root scratch files
 /*.txt
 /*.log
+/test.py
+/.worktrees/
 
 # Root-level media
 /*.mp4
@@ -77,3 +84,4 @@ cookbook/data/demo/*
 cookbook/data/demo/text-medium/*
 cookbook/data/demo/text-full/*
 cookbook/data/demo/multimodal-basic/*
+outputs/

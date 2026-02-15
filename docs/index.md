@@ -1,55 +1,63 @@
-# Gemini Batch
+# Pollux
 
-Ship multimodal analysis fast. Spend less on tokens.
+**Multimodal orchestration for LLM APIs.** You describe what to analyze.
+Pollux handles source patterns, context caching, and multimodal
+complexity — so you don't.
 
-- Get Started → [Quickstart](tutorials/quickstart.md)
-- Explore → [Cookbook (recipes)](cookbook.md)
+## Why Pollux?
 
-## 30‑second quickstart
+- **Multimodal-first** — PDFs, images, videos, YouTube URLs. Same API.
+- **Source patterns** — Fan-out, fan-in, and broadcast execution over your content.
+- **Context caching** — Upload once, reuse across prompts. Save tokens and money.
+- **Production-ready core** — Async pipeline, explicit capability checks, clear errors.
+
+## Install
+
+```bash
+pip install pollux-ai
+```
 
 ```python
 import asyncio
-from gemini_batch import run_simple, types
+from pollux import Config, Source, run
 
-async def main():
-    envelope = await run_simple(
-        "Summarize key insights",
-        source=types.Source.from_text("Hello world"),
+result = asyncio.run(
+    run(
+        "What are the key findings?",
+        source=Source.from_text(
+            "Pollux supports fan-out, fan-in, and broadcast source patterns. "
+            "It also supports context caching for repeated prompts."
+        ),
+        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
     )
-    print(envelope["answers"][0])
-
-asyncio.run(main())
+)
+print(result["answers"][0])
 ```
 
-Note: Works without an API key (deterministic mock mode). To use the real API, set `GEMINI_API_KEY` and `GEMINI_BATCH_USE_REAL_API=1` — see [Verify Real API](how-to/verify-real-api.md).
+## Where to Go Next
 
-## Highlights
+- **[Quickstart](quickstart.md)** — First result in 2 minutes
+- **[Concepts](concepts.md)** — Mental model for the pipeline and source patterns
+- **[Sources and Patterns](sources-and-patterns.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
+- **[Configuration](configuration.md)** — Config fields, API key resolution, retry, and mock mode
+- **[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
+- **[Troubleshooting](troubleshooting.md)** — Fast fixes for common setup and runtime issues
+- **[API Reference](reference/api.md)** — Entry points and types
 
-- Command pipeline: async handler chain for prep → plan → extract → build
-- Intelligent batching: group related calls; cut redundant work
-- Context caching: up to 75% cost reduction with safe fallbacks
-- Multimodal: text, PDFs, images, videos, and YouTube
-- Conversation memory: multi‑turn sessions with overflow handling
-- Production‑grade: tests, CI, telemetry, and semantic releases
+---
 
-## Choose your path
+## About Pollux {: #about }
 
-- New to Gemini Batch: [Quickstart](tutorials/quickstart.md) → [First Batch](tutorials/first-batch.md) → [Cookbook](cookbook.md)
-- Going to production: [Installation](how-to/installation.md) → [Configuration](how-to/configuration.md) → [Caching](how-to/caching.md) → [CLI doctor](reference/cli.md) → [Logging](how-to/logging.md)
-- Research workflows: [Research](domains/research.md) → [Efficiency workflows](how-to/research/efficiency-workflows.md) → [Extensions catalog](reference/extensions/catalog.md)
+Pollux began as a Google Summer of Code 2025 project with Google DeepMind.
+The goal: make multimodal analysis on Gemini efficient, reliable, and
+accessible.
 
-## Health check
+The project has since evolved into a production-ready library, but the
+research-minded approach remains. Every design decision is deliberate; every
+abstraction was earned, not assumed.
 
-```bash
-gb-config doctor
-```
+**The name:** Pollux is the brightest star in the Gemini constellation. The
+library clears away infrastructure complexity so Gemini's capabilities reach
+your code cleanly.
 
-See: [CLI Reference](reference/cli.md)
-
-## Deep links
-
-- Tutorials: [Quickstart](tutorials/quickstart.md), [First Batch](tutorials/first-batch.md)
-- How‑to: [Installation](how-to/installation.md), [Configuration](how-to/configuration.md), [Troubleshooting](how-to/troubleshooting.md)
-- Reference: [API overview](reference/api-reference.md), [CLI](reference/cli.md)
-- Explanation: [Architecture at a Glance](explanation/architecture.md)
-- Project: [Roadmap](roadmap.md), [Project History & GSoC](explanation/history.md)
+**Acknowledgments:** Google Summer of Code 2025, Google DeepMind mentorship.

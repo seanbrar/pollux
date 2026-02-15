@@ -7,7 +7,12 @@ _This release is published under the MIT License._
 {%- set release_body = macros.render_changelog_entry(release.elements, compact=True) %}
 
 {#- Print the captured output, trimming extra whitespace from the whole block -#}
-{{ release_body | trim }}
+{%- set release_body_trimmed = release_body | trim -%}
+{% if release_body_trimmed %}
+{{ release_body_trimmed }}
+{% else %}
+_No user-facing changes._
+{% endif %}
 
 {# Get the list of all releases, sorted from newest to oldest #}
 {%- set all_releases = context.history.released.values() | list | sort(attribute='version', reverse=true) -%}

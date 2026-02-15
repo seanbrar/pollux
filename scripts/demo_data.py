@@ -63,7 +63,7 @@ MEDIA_BASIC: tuple[MediaResource, ...] = (
         name="sample_image.jpg",
         urls=(
             "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/500px-The_Earth_seen_from_Apollo_17.jpg",
-            "https://picsum.photos/seed/gemini-batch/320/240.jpg",
+            "https://picsum.photos/seed/pollux/320/240.jpg",
         ),
     ),
     MediaResource(
@@ -131,7 +131,7 @@ def download_with_retries(
     temp_path = dest.with_suffix(dest.suffix + ".part")
 
     ua = (
-        "gemini-batch-cookbook/1.0 (+https://github.com/) "
+        "pollux-cookbook/1.0 (+https://github.com/) "
         f"python-urllib/{sys.version_info.major}.{sys.version_info.minor}"
     )
     opener = open_url or _default_open_url

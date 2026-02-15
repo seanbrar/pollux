@@ -3,6 +3,6 @@
         "charliermarsh.ruff",
         "ms-python.python",
         "ms-python.mypy-type-checker",
-        "DavidAnson.vscode-markdownlint"
+        "rvben.rumdl"
     ]
 }

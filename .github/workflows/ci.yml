@@ -1,36 +1,52 @@
-# Runs quality checks on branches and PRs to main
+# Runs quality checks on branches and PRs
 # Uses reusable workflow to avoid duplication with release pipeline
 name: Continuous Integration
 
 "on":
   push:
-    branches: ["**"]
+    # Avoid duplicate CI runs on feature branches that already have a PR.
+    # (Push to a PR branch triggers both `push` and `pull_request`.)
+    branches: [main, "release/**"]
   # Run on pull requests that target the main branch
   pull_request:
-    branches: [main]
+    branches: [main, "release/**"]
+  # Run API tests nightly to detect provider-side drift during quiet periods
+  schedule:
+    - cron: "0 8 * * *" # 8am UTC daily
 
 jobs:
   lint-workflows:
     name: Lint Workflow Files
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Lint workflows with actionlint
-        uses: devops-actions/actionlint@v0.1.9
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: devops-actions/actionlint@v0.1.10
 
   quality-checks:
-    # Ensures workflow linting passes before running application checks
-    needs: lint-workflows
+    # Runs in parallel with lint-workflows (no dependency)
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     uses: ./.github/workflows/reusable-checks.yml
     secrets: inherit
     with:
-      python-version: "3.13"  # Explicit version passed to reusable workflow
-      # Optimized testing cadence based on event type and PR status:
-      # - Feature branch pushes: Fast tests only (~30s)
-      # - Draft PRs: Fast tests with DEBUG logging
-      # - Ready PRs: Progressive + integration + workflows (< 2 min)
-      # - Main branch: Everything + coverage
-      test-command: ${{ github.ref_name == 'main' && 'make test-main' || github.event_name == 'pull_request' && github.event.pull_request.draft == false && 'make test-coverage' || github.event_name == 'pull_request' && github.event.pull_request.draft == true && 'make test-fast' || 'make test-fast' }}
-      upload-coverage: ${{ github.ref_name == 'main' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false) }}
+      python-version: ${{ matrix.python-version }}
+      test-command: make test
+      enable-api-tests: false
+      upload-coverage: false
+
+  api-tests:
+    # Run API tests exactly once to avoid exhausting shared free-tier quota.
+    # Run on PRs and nightly schedule to detect provider-side drift.
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    uses: ./.github/workflows/reusable-checks.yml
+    secrets: inherit
+    with:
+      python-version: "3.10"
+      test-command: make test-api
+      enable-api-tests: true
+      upload-coverage: false

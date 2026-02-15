@@ -1,0 +1,11 @@
+case:
+  mime_type: application/pdf
+  file_name: doc.pdf
+  file_bytes: "%PDF-1.4 fake pdf content"
+expected:
+  uri: openai://file/file_abc123
+  files_create:
+    purpose: user_data
+    expires_after:
+      anchor: created_at
+      seconds: 86400
