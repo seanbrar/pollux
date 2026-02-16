@@ -127,23 +127,11 @@ a complete structured output example.
 ## Safety Notes
 
 - `Config` is immutable (`frozen=True`). Create a new instance to change values.
+- `Config` validates the provider name on init — unknown providers raise
+  `ConfigurationError` immediately rather than failing at call time.
 - String representation redacts API keys.
 - Missing keys in real mode raise `ConfigurationError` with actionable hints.
 
 ## Dev Install (Contributors)
 
-```bash
-git clone https://github.com/seanbrar/pollux.git
-cd pollux
-pip install -e ".[dev]"
-make test
-```
-
-Or with `uv`:
-
-```bash
-uv sync --all-extras
-make check
-```
-
-Requires Python `>=3.10,<3.15` (3.13 recommended for local development).
+See [Contributing](contributing.md) for full development setup instructions.

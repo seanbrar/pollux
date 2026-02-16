@@ -13,15 +13,24 @@ if TYPE_CHECKING:
 
 
 class ResultEnvelope(TypedDict, total=False):
-    """Standard result envelope returned by Pollux."""
+    """Standard result envelope returned by Pollux.
+
+    ``status`` is ``"ok"`` when all answers are non-empty, ``"partial"`` when
+    some are empty, or ``"error"`` when all are empty.
+    """
 
     status: Literal["ok", "partial", "error"]
     answers: list[str]  # Stable core contract.
+    #: Present only when ``response_schema`` was set in Options.
     structured: list[Any]
     reasoning: list[str | None]
+    #: Heuristic: ``0.9`` for ``"ok"`` status, ``0.5`` otherwise.
     confidence: float
+    #: Always ``"text"`` in v1.0.
     extraction_method: str
+    #: Keys: ``input_tokens``, ``output_tokens``, ``total_tokens``.
     usage: dict[str, int]
+    #: Keys: ``duration_s``, ``n_calls``, ``cache_used``.
     metrics: dict[str, Any]
     diagnostics: dict[str, Any]
     _conversation_state: dict[str, Any]

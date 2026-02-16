@@ -74,7 +74,7 @@ def usage_tokens(envelope: ResultEnvelope) -> int | None:
     """Return total token count when available in envelope usage."""
     usage = envelope.get("usage")
     if isinstance(usage, dict):
-        raw = usage.get("total_token_count")
+        raw = usage.get("total_tokens")
         if isinstance(raw, int):
             return raw
     return None

@@ -20,7 +20,7 @@ from pollux.providers.base import ProviderCapabilities
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
-from tests.conftest import FakeProvider
+from tests.conftest import CACHE_MODEL, GEMINI_MODEL, OPENAI_MODEL, FakeProvider
 from tests.helpers import CaptureProvider as KwargsCaptureProvider
 from tests.helpers import GateProvider, ScriptedProvider
 
@@ -33,7 +33,7 @@ pytestmark = pytest.mark.integration
 @pytest.mark.asyncio
 async def test_run_and_run_many_smoke() -> None:
     """Smoke: public API returns stable envelope shapes."""
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with_source = await pollux.run(
         "Summarize this text",
@@ -72,7 +72,7 @@ async def test_run_and_run_many_smoke() -> None:
 
 def test_request_rejects_non_source_objects() -> None:
     """Source inputs must be explicit Source objects."""
-    config = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    config = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
     with pytest.raises(SourceError) as exc:
         normalize_request("hello", sources=["not-a-source"], config=config)  # type: ignore[list-item]
 
@@ -99,7 +99,7 @@ async def test_api_error_metadata(
                     provider="gemini",
                     phase="generate",
                 )
-            return {"text": "ok", "usage": {"total_token_count": 1}}
+            return {"text": "ok", "usage": {"total_tokens": 1}}
 
     generate_provider = FailingSecondCallProvider()
     monkeypatch.setattr(
@@ -108,7 +108,7 @@ async def test_api_error_metadata(
 
     cfg = Config(
         provider="gemini",
-        model="gemini-2.0-flash",
+        model=GEMINI_MODEL,
         use_mock=True,
         retry=RetryPolicy(max_attempts=1),
     )
@@ -140,7 +140,7 @@ async def test_api_error_metadata(
 
     cfg = Config(
         provider="openai",
-        model="gpt-5-nano",
+        model=OPENAI_MODEL,
         use_mock=True,
         retry=RetryPolicy(max_attempts=1),
     )
@@ -173,7 +173,7 @@ async def test_api_error_metadata(
 
     cfg = Config(
         provider="gemini",
-        model="cache-model",
+        model=CACHE_MODEL,
         use_mock=True,
         enable_caching=True,
         retry=RetryPolicy(max_attempts=1),
@@ -223,7 +223,7 @@ async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) ->
         ("generate fails + close fails", True, True),
     ]
 
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
     for name, fail_generate, fail_close in scenarios:
         fake = _Provider(fail_generate=fail_generate, fail_close=fail_close)
         monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
@@ -274,7 +274,7 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
                     isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
                     for p in parts
                 )
-            return {"text": "ok", "usage": {"total_token_count": 1}}
+            return {"text": "ok", "usage": {"total_tokens": 1}}
 
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
@@ -305,7 +305,7 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
         monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
         cfg = Config(
             provider="gemini",
-            model="gemini-2.0-flash",
+            model=GEMINI_MODEL,
             use_mock=True,
             retry=retry,
         )
@@ -368,7 +368,7 @@ async def test_cache_single_flight_propagates_failure_and_clears_inflight(
 
     cfg = Config(
         provider="gemini",
-        model="cache-model",
+        model=CACHE_MODEL,
         use_mock=True,
         enable_caching=True,
         retry=RetryPolicy(max_attempts=1),
@@ -411,7 +411,7 @@ async def test_file_placeholders_are_uploaded_before_generate(
     file_path = tmp_path / "doc.txt"
     file_path.write_text("hello")
 
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
     await pollux.run_many(
         ("Read this",), sources=(Source.from_file(file_path),), config=cfg
     )
@@ -437,7 +437,7 @@ async def test_upload_single_flight_propagates_failure_and_can_recover(
 
     cfg = Config(
         provider="gemini",
-        model="gemini-2.0-flash",
+        model=GEMINI_MODEL,
         use_mock=True,
         retry=RetryPolicy(max_attempts=1),
     )
@@ -507,7 +507,7 @@ async def test_cached_context_is_not_resent_on_each_call(
             self.received_parts.append(parts)
             self.cache_names.append(cache_name)
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-            return {"text": f"ok:{prompt}", "usage": {"total_token_count": 1}}
+            return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
 
     fake = PartsCaptureProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -516,7 +516,7 @@ async def test_cached_context_is_not_resent_on_each_call(
 
     cfg = Config(
         provider="gemini",
-        model="cache-model",
+        model=CACHE_MODEL,
         use_mock=True,
         enable_caching=True,
     )
@@ -533,7 +533,7 @@ async def test_cached_context_is_not_resent_on_each_call(
 
 def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
     """Regression: cache identity keys must not collide across distinct sources."""
-    model = "gemini-2.0-flash"
+    model = GEMINI_MODEL
 
     # Same identifier, different content should not collide.
     same_id_a = Source.from_text("AAAA", identifier="same")
@@ -591,7 +591,7 @@ def test_source_from_arxiv_rejects_non_arxiv_urls() -> None:
 @pytest.mark.asyncio
 async def test_options_response_schema_requires_provider_capability() -> None:
     """Strict capability checks reject unsupported structured outputs."""
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
     with pytest.raises(ConfigurationError, match="structured outputs"):
         await pollux.run(
             "Extract fields",
@@ -620,7 +620,7 @@ async def test_options_are_forwarded_when_provider_supports_features(
         )
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     await pollux.run_many(
         ("Q1?",),
@@ -658,7 +658,7 @@ async def test_delivery_mode_deferred_is_explicitly_not_implemented(
         )
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with pytest.raises(ConfigurationError, match="not implemented yet"):
         await pollux.run_many(
@@ -718,12 +718,12 @@ async def test_structured_output_returns_pydantic_instances(
             return {
                 "text": '{"title":"A","findings":["x","y"]}',
                 "structured": {"title": "A", "findings": ["x", "y"]},
-                "usage": {"total_token_count": 1},
+                "usage": {"total_tokens": 1},
             }
 
     fake = _StructuredProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     result = await pollux.run(
         "Extract",
@@ -756,7 +756,7 @@ async def test_conversation_options_are_lifecycle_gated_by_default(
         )
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with pytest.raises(ConfigurationError, match="reserved for a future release"):
         await pollux.run_many(
@@ -794,7 +794,7 @@ async def test_continue_from_requires_conversation_state(
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with pytest.raises(ConfigurationError, match="missing _conversation_state"):
         await pollux.run_many(
@@ -837,7 +837,7 @@ async def test_planning_error_wraps_source_loader_failure() -> None:
         content_loader=_boom,
     )
 
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
     with pytest.raises(PlanningError, match="Failed to load content"):
         await pollux.run_many(
             ("Q",),
@@ -852,16 +852,16 @@ async def test_planning_error_wraps_source_loader_failure() -> None:
     [
         (
             [
-                {"text": "ok", "usage": {"total_token_count": 1}},
-                {"text": "", "usage": {"total_token_count": 1}},
+                {"text": "ok", "usage": {"total_tokens": 1}},
+                {"text": "", "usage": {"total_tokens": 1}},
             ],
             "partial",
             ["ok", ""],
         ),
         (
             [
-                {"text": "", "usage": {"total_token_count": 1}},
-                {"text": "", "usage": {"total_token_count": 1}},
+                {"text": "", "usage": {"total_tokens": 1}},
+                {"text": "", "usage": {"total_tokens": 1}},
             ],
             "error",
             ["", ""],
@@ -877,7 +877,7 @@ async def test_result_status_classification(
     """Status classification should be stable across refactors."""
     fake = ScriptedProvider(script=list(script))
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     result = await pollux.run_many(("A", "B"), config=cfg)
 
@@ -908,12 +908,12 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
             {
                 "text": '{"title":"A"}',
                 "structured": {"title": "A"},
-                "usage": {"total_token_count": 1},
+                "usage": {"total_tokens": 1},
             }
         ],
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model="gemini-2.0-flash", use_mock=True)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     result = await pollux.run(
         "Extract",

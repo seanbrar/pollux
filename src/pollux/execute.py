@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import logging
 import os
 from pathlib import Path
 import time
@@ -22,6 +23,8 @@ from pollux.retry import (
 if TYPE_CHECKING:
     from pollux.plan import Plan
     from pollux.providers.base import Provider
+
+logger = logging.getLogger(__name__)
 
 
 def _with_call_idx(err: APIError, call_idx: int | None) -> APIError:
@@ -199,6 +202,12 @@ async def execute_plan(
     # Execute calls with concurrency control
     concurrency = config.request_concurrency
     sem = asyncio.Semaphore(concurrency)
+    logger.debug(
+        "Executing %d call(s) concurrency=%d cache=%s",
+        len(prompts),
+        concurrency,
+        cache_name or "disabled",
+    )
 
     async def _execute_call(call_idx: int) -> dict[str, Any]:
         async with sem:

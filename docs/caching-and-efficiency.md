@@ -87,6 +87,26 @@ asyncio.run(main())
 Pollux computes cache identity from model + source content hash. The second
 call reuses the cached context automatically.
 
+## Cache Identity
+
+Cache keys are deterministic: `hash(model + content hashes of sources)`.
+
+This means:
+
+- **Same content, different file paths** → same cache key. Renaming or moving
+  a file doesn't invalidate the cache.
+- **Different models** → different cache keys. A cache created for
+  `gemini-2.5-flash-lite` won't be reused for `gemini-2.5-pro`.
+- **Content changes** → new cache key. Editing a source file produces a fresh
+  cache entry.
+
+## Single-Flight Protection
+
+When multiple concurrent calls target the same cache key (common in fan-out
+workloads), Pollux deduplicates the creation call — only one coroutine performs
+the upload, and others await the same result. This eliminates duplicate uploads
+without requiring caller-side coordination.
+
 ## Verifying Cache Reuse
 
 Check `metrics.cache_used` on subsequent calls:

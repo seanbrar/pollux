@@ -96,6 +96,36 @@ development and production.
 See the full matrix at
 [Provider Capabilities](reference/provider-capabilities.md).
 
+## Error Model
+
+Pollux uses a single exception hierarchy rooted at `PolluxError`:
+
+```
+PolluxError
+├── ConfigurationError   # Bad config, missing key, unsupported feature
+├── SourceError          # File not found, invalid arXiv reference
+├── PlanningError        # Execution plan could not be built
+├── InternalError        # Bug or invariant violation inside Pollux
+└── APIError             # Provider call failed
+    ├── RateLimitError   # HTTP 429 (always retryable)
+    └── CacheError       # Cache operation failed
+```
+
+Every error carries a `.hint` attribute with actionable guidance:
+
+```python
+from pollux import Config, ConfigurationError
+
+try:
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+except ConfigurationError as e:
+    print(e)       # "API key required for gemini"
+    print(e.hint)  # "Set GEMINI_API_KEY environment variable or pass api_key=..."
+```
+
+This lets calling code display helpful messages without parsing exception
+strings. For symptom-based debugging, see [Troubleshooting](troubleshooting.md).
+
 ## What You Own vs What Pollux Owns
 
 **You own:** prompt intent, source selection, model/provider choice, and

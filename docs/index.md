@@ -12,15 +12,16 @@ hide:
 
 # Pollux — Multimodal orchestration for LLM APIs
 
-You describe what to analyze. Pollux handles source patterns, context caching,
-rate limits, and retries — so you don't.
+**Multimodal orchestration for LLM APIs.** You describe what to analyze.
+Pollux handles source patterns, context caching, and multimodal
+complexity — so you don't.
 
-## Features
+## Why Pollux?
 
-- **Multimodal-first** — PDFs, images, video, YouTube, arXiv. One interface.
-- **Source patterns** — Fan-out, fan-in, and broadcast execution.
-- **Context caching** — Upload once, reuse across prompts.
-- **Production-ready** — Async pipeline, retries, structured output, usage tracking.
+- **Multimodal-first** — PDFs, images, videos, YouTube URLs. Same API.
+- **Source patterns** — Fan-out, fan-in, and broadcast execution over your content.
+- **Context caching** — Upload once, reuse across prompts. Save tokens and money.
+- **Production-ready core** — Async pipeline, explicit capability checks, clear errors.
 
 ## Install
 
@@ -28,9 +29,30 @@ rate limits, and retries — so you don't.
 pip install pollux-ai
 ```
 
-## Links
+## Where to Go Next
 
-- [Quickstart](quickstart.md)
-- [Concepts](concepts.md)
-- [Cookbook](cookbook/index.md)
-- [API Reference](reference/api.md)
+- **[Quickstart](quickstart.md)** — First result in 2 minutes
+- **[Concepts](concepts.md)** — Mental model for the pipeline and source patterns
+- **[Sources and Patterns](sources-and-patterns.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
+- **[Configuration](configuration.md)** — Config fields, API key resolution, retry, and mock mode
+- **[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
+- **[Troubleshooting](troubleshooting.md)** — Fast fixes for common setup and runtime issues
+- **[API Reference](reference/api.md)** — Entry points and types
+
+---
+
+## About Pollux {: #about }
+
+Pollux began as a Google Summer of Code 2025 project with Google DeepMind.
+The goal: make multimodal analysis on Gemini efficient, reliable, and
+accessible.
+
+The project has since evolved into a production-ready library, but the
+research-minded approach remains. Every design decision is deliberate; every
+abstraction was earned, not assumed.
+
+**The name:** Pollux is the brightest star in the Gemini constellation. The
+library clears away infrastructure complexity so Gemini's capabilities reach
+your code cleanly.
+
+**Acknowledgments:** Google Summer of Code 2025, Google DeepMind mentorship.

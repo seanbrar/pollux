@@ -9,12 +9,20 @@ name: Release
         required: false
         type: boolean
         default: true
+      force:
+        description: 'Optional forced release bump'
+        required: false
+        type: string
+        default: ""
 
 jobs:
   release:
-    # Safety: allow running dry-runs from any branch, but only allow real publishing from `main`.
-    if: ${{ github.event.inputs.dry_run == 'true' || github.ref == 'refs/heads/main' }}
+    # Safety: allow dry-runs from any branch. Restrict real publishing to main/release branches.
+    if: ${{ inputs.dry_run || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') }}
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pollux-ai/
     timeout-minutes: 15
     # Prevent multiple releases from running simultaneously
     concurrency:
@@ -35,7 +43,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      # No uv sync needed: PSR action builds via `uv build` (see pyproject.toml)
+      # No uv sync needed; we build distributions later in this job.
 
       # Main release step using PSR action
       - name: Create and Publish Release
@@ -46,10 +54,21 @@ jobs:
           # Use PAT for authentication (more secure than SSH keys)
           github_token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
           # Enable dry-run mode based on workflow input
-          no_operation_mode: ${{ github.event.inputs.dry_run }}
+          no_operation_mode: ${{ inputs.dry_run }}
+          # Release branches always produce prereleases.
+          prerelease: ${{ startsWith(github.ref, 'refs/heads/release/') && 'true' || '' }}
+          prerelease_token: ${{ startsWith(github.ref, 'refs/heads/release/') && 'rc' || '' }}
+          # Optional manual override for first major/prerelease cutovers.
+          force: ${{ inputs.force }}
+          # Build distributions on the runner (with uv) after versioning/tagging.
+          build: false
+
+      - name: Build distributions
+        if: steps.release.outputs.released == 'true' && !inputs.dry_run
+        run: uv build
 
       - name: Publish to GitHub Release
-        if: steps.release.outputs.released == 'true' && github.event.inputs.dry_run != 'true'
+        if: steps.release.outputs.released == 'true' && !inputs.dry_run
         uses: python-semantic-release/publish-action@v10
         with:
           github_token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
@@ -57,14 +76,12 @@ jobs:
 
       # Publish to PyPI on real releases
       - name: Publish to PyPI
-        if: steps.release.outputs.released == 'true' && github.event.inputs.dry_run != 'true'
+        if: steps.release.outputs.released == 'true' && !inputs.dry_run
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
 
       # Provide feedback for dry-run mode
       - name: Dry Run Summary
-        if: github.event.inputs.dry_run == 'true' && steps.release.outputs.version != ''
+        if: inputs.dry_run && steps.release.outputs.version != ''
         run: |
           {
             echo "## 🛡️ Dry Run Completed"
@@ -75,7 +92,7 @@ jobs:
 
       # Provide feedback for successful releases
       - name: Release Summary
-        if: steps.release.outputs.released == 'true' && github.event.inputs.dry_run != 'true'
+        if: steps.release.outputs.released == 'true' && !inputs.dry_run
         run: |
           {
             echo "## ✅ Release Successful"

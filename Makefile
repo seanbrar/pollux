@@ -30,10 +30,12 @@ hooks: ## Install pre-commit hooks
 lint: ## Check formatting and lint code
 	uv run ruff format --check .
 	uv run ruff check .
+	uv run rumdl check .
 
 format: ## Format code and fix linting issues
 	uv run ruff format .
 	uv run ruff check --fix .
+	uv run rumdl fmt .
 
 typecheck: ## Static type checking with mypy
 	uv run mypy .

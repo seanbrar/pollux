@@ -5,8 +5,8 @@ build-backend = "hatchling.build"
 
 # --- Project Metadata ---
 [project]
-name = "pollux"
-version = "0.9.0"
+name = "pollux-ai"
+version = "1.0.0-rc.2"
 description = "Multimodal orchestration for LLM analysis"
 readme = "README.md"
 authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
@@ -41,6 +41,7 @@ test = [
 lint = [
     "mypy>=1.17.0",
     "ruff>=0.12.2",
+    "rumdl>=0.1.20",
     "vulture>=2.14",
 ]
 docs = [
@@ -192,6 +193,7 @@ select = [
 ignore = [
     "COM812", # Trailing comma missing
     "COM819", # Trailing comma prohibited
+    "D107",   # Missing docstring in __init__ (class docstring suffices)
     "E501",   # Line too long (handled by formatter)
 ]
 fixable = ["ALL"]
@@ -220,6 +222,45 @@ split-on-trailing-comma = true
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# --- rumdl (Markdown linting) ---
+# Bug-catching rules only; style/opinion rules disabled.
+[tool.rumdl]
+disable = [
+    "MD003",  # Heading style (atx vs setext)
+    "MD004",  # Unordered list style
+    "MD007",  # Unordered list indentation
+    "MD009",  # Trailing spaces
+    "MD010",  # Hard tabs
+    "MD013",  # Line length
+    "MD014",  # Dollar signs before commands
+    "MD024",  # Duplicate headings (intentional in docs/FAQs)
+    "MD025",  # Single H1 per file
+    "MD026",  # Trailing punctuation in heading
+    "MD029",  # Ordered list item prefix
+    "MD030",  # Spaces after list markers
+    "MD032",  # Blank line before lists
+    "MD033",  # Inline HTML (MkDocs uses this)
+    "MD034",  # Bare URLs
+    "MD035",  # Horizontal rule style
+    "MD036",  # Emphasis used instead of heading
+    "MD040",  # Code block language specifier
+    "MD041",  # First line should be H1
+    "MD046",  # Code block style
+    "MD047",  # File should end with newline
+    "MD048",  # Code fence style
+    "MD049",  # Emphasis style
+    "MD050",  # Strong emphasis style
+]
+exclude = [
+    "site",
+    ".worktrees",
+]
+
+[tool.rumdl.per-file-ignores]
+# CHANGELOG link references are managed by python-semantic-release;
+# forward-declared refs for unreleased versions are expected.
+"CHANGELOG.md" = ["MD053"]
+
 # --- Mutmut ---
 [tool.mutmut]
 paths_to_mutate = ["src/pollux"]
@@ -242,10 +283,16 @@ major_on_zero = false
 match = "main"
 prerelease = false
 
+[tool.semantic_release.branches.release]
+# Release branches publish RCs (e.g., 1.0.0-rc.1) before final main release.
+match = "^release\\/.*$"
+prerelease = true
+prerelease_token = "rc"
+
 [tool.semantic_release.branches.preview]
-# Allow dry-run previews on non-main branches without changing main release rules.
+# Allow dry-run previews on non-main/non-release branches without changing release rules.
 # This produces prerelease versions like `0.10.0-preview.1` on feature branches.
-match = "^(?!main$).+"
+match = "^(?!main$)(?!release\\/).+"
 prerelease = true
 prerelease_token = "preview"
 

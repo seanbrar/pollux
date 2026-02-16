@@ -84,17 +84,21 @@ nav:
   - Troubleshooting: troubleshooting.md
   - Cookbook:
       - Overview: cookbook/index.md
-      - Analyze Single Paper: cookbook/getting-started/analyze-single-paper.md
-      - Broadcast Process Files: cookbook/getting-started/broadcast-process-files.md
-      - Structured Output Extraction: cookbook/getting-started/structured-output-extraction.md
-      - Extract Media Insights: cookbook/getting-started/extract-media-insights.md
-      - Run vs RunMany: cookbook/optimization/run-vs-run-many.md
-      - Cache Warming and TTL: cookbook/optimization/cache-warming-and-ttl.md
-      - Large-Scale Fan-Out: cookbook/optimization/large-scale-fan-out.md
-      - Comparative Analysis: cookbook/research-workflows/comparative-analysis.md
-      - Multi-Video Synthesis: cookbook/research-workflows/multi-video-synthesis.md
-      - Rate Limits and Concurrency: cookbook/production/rate-limits-and-concurrency.md
-      - Resume on Failure: cookbook/production/resume-on-failure.md
+      - Getting Started:
+          - Analyze Single Paper: cookbook/getting-started/analyze-single-paper.md
+          - Broadcast Process Files: cookbook/getting-started/broadcast-process-files.md
+          - Structured Output Extraction: cookbook/getting-started/structured-output-extraction.md
+          - Extract Media Insights: cookbook/getting-started/extract-media-insights.md
+      - Optimization:
+          - Run vs RunMany: cookbook/optimization/run-vs-run-many.md
+          - Cache Warming and TTL: cookbook/optimization/cache-warming-and-ttl.md
+          - Large-Scale Fan-Out: cookbook/optimization/large-scale-fan-out.md
+      - Research Workflows:
+          - Comparative Analysis: cookbook/research-workflows/comparative-analysis.md
+          - Multi-Video Synthesis: cookbook/research-workflows/multi-video-synthesis.md
+      - Production:
+          - Rate Limits and Concurrency: cookbook/production/rate-limits-and-concurrency.md
+          - Resume on Failure: cookbook/production/resume-on-failure.md
   - Reference:
       - API: reference/api.md
       - Provider Capabilities: reference/provider-capabilities.md

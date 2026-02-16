@@ -36,8 +36,10 @@ class Config:
 
     provider: ProviderName
     model: str
+    #: Auto-resolved from ``GEMINI_API_KEY`` or ``OPENAI_API_KEY`` when *None*.
     api_key: str | None = None
     use_mock: bool = False
+    #: Gemini-only in v1.0; silently ignored for other providers.
     enable_caching: bool = False
     ttl_seconds: int = 3600
     request_concurrency: int = 6

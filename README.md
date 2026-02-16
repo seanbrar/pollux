@@ -50,7 +50,7 @@ analysis, swap to `Source.from_file("paper.pdf")`.
 ## Installation
 
 ```bash
-pip install pollux
+pip install pollux-ai
 ```
 
 Or download the latest wheel from [Releases](https://github.com/seanbrar/pollux/releases/latest).

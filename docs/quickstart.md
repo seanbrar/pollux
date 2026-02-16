@@ -57,6 +57,10 @@ asyncio.run(main())
 If you chose OpenAI, change config to
 `Config(provider="openai", model="gpt-5-nano")`.
 
+!!! tip "No API key yet?"
+    Use `Config(provider="gemini", model="gemini-2.5-flash-lite", use_mock=True)` to
+    run the pipeline locally without network calls. See [Mock Mode](configuration.md#mock-mode).
+
 ## 4. See the Output
 
 ```

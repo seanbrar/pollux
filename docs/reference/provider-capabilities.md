@@ -40,3 +40,20 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 When a requested feature is unsupported for the selected provider or release scope, Pollux raises `ConfigurationError` or `APIError` with a concrete hint, instead of degrading silently.
 
+For example, enabling caching with OpenAI:
+
+```python
+from pollux import Config
+
+config = Config(
+    provider="openai",
+    model="gpt-5-nano",
+    enable_caching=True,  # not supported for OpenAI in v1.0
+)
+# At execution time, Pollux raises:
+# ConfigurationError: Provider does not support caching
+# hint: "Disable caching or choose a provider with caching support."
+```
+
+The error is raised at execution time (not at `Config` creation) because
+caching support is a provider capability checked during plan execution.

@@ -27,7 +27,7 @@ class CaptureProvider(FakeProvider):
         self.generate_kwargs.append(dict(kwargs))
         parts = kwargs.get("parts", [])
         prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-        return {"text": f"ok:{prompt}", "usage": {"total_token_count": 1}}
+        return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
 
 
 @dataclass
@@ -44,7 +44,7 @@ class ScriptedProvider(FakeProvider):
         _ = kwargs
         self.generate_calls += 1
         if not self.script:
-            return {"text": "ok", "usage": {"total_token_count": 1}}
+            return {"text": "ok", "usage": {"total_tokens": 1}}
         item = self.script.pop(0)
         if isinstance(item, BaseException):
             raise item

@@ -20,6 +20,7 @@ from pollux.errors import APIError
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.openai import OpenAIProvider, _to_openai_strict_schema
+from tests.conftest import GEMINI_MODEL, OPENAI_MODEL
 
 pytestmark = pytest.mark.contract
 
@@ -187,7 +188,6 @@ def test_gemini_parse_response_extracts_text_and_usage() -> None:
     """Characterize extraction of text and usage from Gemini response."""
     provider = GeminiProvider("test-key")
 
-    # Simulate a typical Gemini SDK response object
     fake_usage = MagicMock()
     fake_usage.prompt_token_count = 10
     fake_usage.candidates_token_count = 25
@@ -202,9 +202,9 @@ def test_gemini_parse_response_extracts_text_and_usage() -> None:
 
     assert result["text"] == "The answer is 42."
     assert result["usage"] == {
-        "prompt_token_count": 10,
-        "candidates_token_count": 25,
-        "total_token_count": 35,
+        "input_tokens": 10,
+        "output_tokens": 25,
+        "total_tokens": 35,
     }
     assert "structured" not in result  # None parsed = no structured key
 
@@ -213,7 +213,6 @@ def test_gemini_parse_response_extracts_structured_from_parsed() -> None:
     """Characterize structured output extraction when .parsed exists."""
     provider = GeminiProvider("test-key")
 
-    # Use spec to control which attributes exist
     fake_response = MagicMock(spec=["text", "parsed"])
     fake_response.text = '{"title": "Test", "score": 95}'
     fake_response.parsed = {"title": "Test", "score": 95}
@@ -259,7 +258,6 @@ def test_gemini_parse_response_handles_missing_attributes() -> None:
     """Characterize graceful handling of responses missing expected attrs."""
     provider = GeminiProvider("test-key")
 
-    # Minimal response with no .text attribute
     fake_response = MagicMock(spec=[])  # spec=[] means no attributes
 
     result = provider._parse_response(fake_response)
@@ -284,10 +282,8 @@ async def test_gemini_generate_characterizes_config_shape(golden: Any) -> None:
         captured["model"] = model
         captured["contents"] = contents
         captured["config"] = config
-        # Return minimal response
         return MagicMock(text="ok", parsed=None, usage_metadata=None)
 
-    # Create provider and inject fake client
     provider = GeminiProvider("test-key")
     fake_models = MagicMock()
     fake_models.generate_content = fake_generate_content
@@ -297,7 +293,7 @@ async def test_gemini_generate_characterizes_config_shape(golden: Any) -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        model="gemini-2.0-flash",
+        model=GEMINI_MODEL,
         parts=["What is 2+2?"],
         system_instruction="Be concise.",
         cache_name="cachedContents/abc123",
@@ -307,7 +303,7 @@ async def test_gemini_generate_characterizes_config_shape(golden: Any) -> None:
         },
     )
 
-    assert captured["model"] == "gemini-2.0-flash"
+    assert captured["model"] == GEMINI_MODEL
     assert golden.out["config"] == captured["config"]
 
 
@@ -328,7 +324,7 @@ async def test_gemini_generate_omits_config_when_no_options() -> None:
     provider._client = MagicMock()
     provider._client.aio = fake_aio
 
-    await provider.generate(model="gemini-2.0-flash", parts=["Hello"])
+    await provider.generate(model=GEMINI_MODEL, parts=["Hello"])
 
     assert captured["config"] is None
 
@@ -525,7 +521,7 @@ async def test_openai_generate_characterizes_multimodal_request_shape(
     provider._client = fake_client
 
     await provider.generate(
-        model="gpt-5-nano",
+        model=OPENAI_MODEL,
         parts=[
             "Summarize these assets.",
             {"uri": "https://example.com/report.pdf", "mime_type": "application/pdf"},
@@ -551,7 +547,7 @@ async def test_openai_rejects_unsupported_remote_mime_type() -> None:
 
     with pytest.raises(APIError, match="Unsupported remote mime type"):
         await provider.generate(
-            model="gpt-5-nano",
+            model=OPENAI_MODEL,
             parts=[{"uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}],
         )
 
