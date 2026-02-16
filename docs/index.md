@@ -1,4 +1,16 @@
-# Pollux
+---
+title: Pollux
+template: home.html
+hide:
+  - navigation
+  - toc
+  - path
+---
+
+<!-- SEO fallback: this Markdown body is not rendered visually (the content
+     block is suppressed by home.html) but crawlers will index the text. -->
+
+# Pollux — Multimodal orchestration for LLM APIs
 
 **Multimodal orchestration for LLM APIs.** You describe what to analyze.
 Pollux handles source patterns, context caching, and multimodal
@@ -15,23 +27,6 @@ complexity — so you don't.
 
 ```bash
 pip install pollux-ai
-```
-
-```python
-import asyncio
-from pollux import Config, Source, run
-
-result = asyncio.run(
-    run(
-        "What are the key findings?",
-        source=Source.from_text(
-            "Pollux supports fan-out, fan-in, and broadcast source patterns. "
-            "It also supports context caching for repeated prompts."
-        ),
-        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
-    )
-)
-print(result["answers"][0])
 ```
 
 ## Where to Go Next
