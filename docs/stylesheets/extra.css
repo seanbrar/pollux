@@ -561,15 +561,25 @@ body {
     margin-inline: var(--pollux-content-gutter);
   }
 
-  /* ── c. Footer offset ─── */
+  /* ── c. Footer offset ───
+     The footer sits outside .md-grid, so it needs explicit constraints
+     to align with the content area. max-width caps it at the same width
+     as the content column; padding-inline aligns footer text with page
+     text (matching .md-content__inner margin-inline). */
 
   [dir="ltr"] .md-footer {
     margin-left: calc(
       var(--pollux-page-left) + var(--pollux-sidebar-width) +
         var(--pollux-content-offset)
     );
-    margin-right: var(--pollux-content-gutter);
+    margin-right: 0;
+    max-width: calc(
+      var(--pollux-layout-max) - var(--pollux-sidebar-width) -
+        var(--pollux-content-offset)
+    );
+    padding-inline: var(--pollux-content-gutter);
     width: auto;
+    box-sizing: border-box;
   }
 
   [dir="rtl"] .md-footer {
@@ -577,8 +587,14 @@ body {
       var(--pollux-page-left) + var(--pollux-sidebar-width) +
         var(--pollux-content-offset)
     );
-    margin-left: var(--pollux-content-gutter);
+    margin-left: 0;
+    max-width: calc(
+      var(--pollux-layout-max) - var(--pollux-sidebar-width) -
+        var(--pollux-content-offset)
+    );
+    padding-inline: var(--pollux-content-gutter);
     width: auto;
+    box-sizing: border-box;
   }
 }
 
