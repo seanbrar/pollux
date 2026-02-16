@@ -9,9 +9,11 @@ its media queries match, eliminating visual jumps in the tablet zone.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from mkdocs.config.defaults import MkDocsConfig
-from mkdocs.structure.files import Files
+if TYPE_CHECKING:
+    from mkdocs.config.defaults import MkDocsConfig
+    from mkdocs.structure.files import Files
 
 log = logging.getLogger("mkdocs.hooks.patch_material_css")
 
@@ -27,7 +29,8 @@ _REPLACEMENTS = {
 _CSS_PREFIXES = ("assets/stylesheets/main.", "assets/stylesheets/palette.")
 
 
-def on_files(files: Files, *, config: MkDocsConfig) -> Files:
+def on_files(files: Files, *, config: MkDocsConfig) -> Files:  # noqa: ARG001
+    """Rewrite Material CSS breakpoints to match the Pollux single-threshold layout."""
     for f in files:
         if not any(f.dest_uri.startswith(p) for p in _CSS_PREFIXES):
             continue
