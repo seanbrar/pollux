@@ -1,4 +1,4 @@
-site_name: Pollux Documentation
+site_name: Pollux
 repo_url: https://github.com/seanbrar/pollux
 repo_name: seanbrar/pollux
 site_url: https://seanbrar.github.io/pollux/
@@ -11,14 +11,14 @@ theme:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: indigo
-      accent: red
+      accent: indigo
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: black
-      accent: red
+      accent: indigo
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
@@ -60,7 +60,9 @@ hooks:
   - hooks/patch_material_css.py
 
 extra_css:
+  - https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap
   - stylesheets/extra.css
+  - stylesheets/home.css
 
 extra:
   generator: false

@@ -17,15 +17,42 @@
   --pollux-toc-link-padding-y: 0.18rem;
   --pollux-toc-active-bar-offset: -0.85rem;
   --pollux-content-gutter: 2rem;
+
+  /* Code font */
+  --md-code-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, monospace;
+
+  /* Brand palette */
+  --pollux-blue-900: hsl(220, 55%, 12%);
+  --pollux-blue-800: hsl(220, 50%, 18%);
+  --pollux-blue-700: hsl(222, 47%, 25%);
+  --pollux-blue-500: hsl(222, 50%, 42%);
+  --pollux-blue-400: hsl(222, 55%, 55%);
+  --pollux-blue-100: hsl(220, 40%, 92%);
+  --pollux-gold-600: hsl(36, 65%, 42%);
+  --pollux-gold-500: hsl(38, 60%, 52%);
+  --pollux-gold-400: hsl(38, 55%, 62%);
+  --pollux-gold-300: hsl(40, 45%, 75%);
+  --pollux-gold-100: hsl(40, 35%, 92%);
 }
 
 body[data-md-color-scheme="default"] {
+  /* Override Material's generated accent with brand blue.
+     --md-primary-fg-color = header bar background (Material's naming is
+     inverted); we override it to brand dark-blue so the header matches
+     the homepage hero. --md-primary-bg-color = header text color. */
+  --md-accent-fg-color: var(--pollux-blue-500);
+  --md-accent-fg-color--transparent: hsla(222, 50%, 42%, 0.1);
+  --md-primary-fg-color: var(--pollux-blue-700);
+  --md-primary-fg-color--light: var(--pollux-blue-500);
+  --md-primary-bg-color: hsl(220, 20%, 98%);
+  --md-primary-bg-color--light: hsla(220, 20%, 98%, 0.7);
   --pollux-nav-hover-bg: rgba(15, 23, 42, 0.04);
-  --pollux-nav-active-bg: rgba(220, 38, 38, 0.1);
-  --pollux-nav-active-color: rgb(127, 29, 29);
+  --pollux-nav-active-bg: hsla(222, 50%, 42%, 0.1);
+  --pollux-nav-active-color: hsl(222, 50%, 30%);
   --pollux-nav-border: rgba(15, 23, 42, 0.1);
   --pollux-toc-border: rgba(15, 23, 42, 0.16);
-  --pollux-accent: rgb(220, 38, 38);
+  --pollux-accent: var(--pollux-blue-500);
   --pollux-footer-border: rgba(15, 23, 42, 0.08);
   --pollux-pill-bg: rgba(15, 23, 42, 0.06);
   --pollux-pill-hover-bg: rgba(15, 23, 42, 0.1);
@@ -36,12 +63,20 @@ body[data-md-color-scheme="default"] {
 }
 
 body[data-md-color-scheme="slate"] {
+  /* Override Material's generated accent with brand blue.
+     In dark mode the header bar should also be dark. */
+  --md-accent-fg-color: var(--pollux-blue-400);
+  --md-accent-fg-color--transparent: hsla(222, 55%, 55%, 0.12);
+  --md-primary-fg-color: var(--pollux-blue-900);
+  --md-primary-fg-color--light: var(--pollux-blue-700);
+  --md-primary-bg-color: hsl(220, 15%, 90%);
+  --md-primary-bg-color--light: hsla(220, 15%, 90%, 0.7);
   --pollux-nav-hover-bg: rgba(255, 255, 255, 0.06);
-  --pollux-nav-active-bg: rgba(248, 113, 113, 0.18);
-  --pollux-nav-active-color: rgb(254, 202, 202);
+  --pollux-nav-active-bg: hsla(222, 55%, 55%, 0.18);
+  --pollux-nav-active-color: hsl(220, 40%, 82%);
   --pollux-nav-border: rgba(255, 255, 255, 0.12);
   --pollux-toc-border: rgba(255, 255, 255, 0.22);
-  --pollux-accent: rgb(248, 113, 113);
+  --pollux-accent: var(--pollux-blue-400);
   --pollux-footer-border: rgba(255, 255, 255, 0.1);
   --pollux-pill-bg: rgba(255, 255, 255, 0.08);
   --pollux-pill-hover-bg: rgba(255, 255, 255, 0.14);
@@ -60,6 +95,22 @@ body[data-md-color-scheme="slate"] {
 html,
 body {
   overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Code blocks & inline code ──────────────────────────────── */
+
+.md-typeset code {
+  border-radius: 4px;
+  font-size: 0.78em;
+  padding: 0.15em 0.35em;
+}
+
+.md-typeset pre > code {
+  border-radius: var(--pollux-radius);
+  font-size: 0.82em;
+  padding: 1em 1.2em;
 }
 
 /* ── Navigation links ────────────────────────────────────────── */
