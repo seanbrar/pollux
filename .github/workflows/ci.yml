@@ -50,3 +50,24 @@ jobs:
       test-command: make test-api
       enable-api-tests: true
       upload-coverage: false
+
+  # Gate job: use this name ("CI") as the required status check in branch protection.
+  # Aggregates all jobs so branch protection doesn't break when the matrix changes.
+  ci:
+    name: CI
+    if: always()
+    needs: [lint-workflows, quality-checks, api-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Check required jobs
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more required jobs failed"
+            exit 1
+          fi
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs were cancelled"
+            exit 1
+          fi
+          echo "All required jobs passed"
