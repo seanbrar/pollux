@@ -16,7 +16,13 @@
   --pollux-toc-link-line-height: 1.45;
   --pollux-toc-link-padding-y: 0.18rem;
   --pollux-toc-active-bar-offset: -0.85rem;
-  --pollux-content-gutter: 2rem;
+
+  /* Content text inset: the horizontal padding from the content container
+     edge to where text actually begins.  Used by BOTH .md-content__inner
+     (as margin-inline) and .md-footer (as padding-inline) so they align
+     mechanically.  Adjust this single value to change the breathing room
+     between sidebar and text on both content and footer simultaneously. */
+  --pollux-content-inset: 2.4rem;
 
   /* Code font */
   --md-code-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
@@ -556,43 +562,54 @@ body {
     scroll-padding-bottom: var(--pollux-sidebar-bottom-space);
   }
 
+  /* Material sets directional margins on .md-content__inner at high
+     specificity (e.g. [dir=ltr] .md-sidebar--primary:not([hidden]) ~
+     .md-content > .md-content__inner { margin-left: 1.2rem }).
+     We match that specificity so --pollux-content-inset actually wins. */
   .md-content > .md-content__inner {
     margin-top: 1.5rem;
-    margin-inline: var(--pollux-content-gutter);
+  }
+
+  [dir="ltr"] .md-sidebar--primary:not([hidden]) ~ .md-content > .md-content__inner {
+    margin-left: var(--pollux-content-inset);
+    margin-right: var(--pollux-content-inset);
+  }
+
+  [dir="rtl"] .md-sidebar--primary:not([hidden]) ~ .md-content > .md-content__inner {
+    margin-right: var(--pollux-content-inset);
+    margin-left: var(--pollux-content-inset);
   }
 
   /* ── c. Footer offset ───
      The footer sits outside .md-grid, so it needs explicit constraints
-     to align with the content area. max-width caps it at the same width
-     as the content column; padding-inline aligns footer text with page
-     text (matching .md-content__inner margin-inline). */
+     to align with the content area.  The footer's outer left edge is
+     placed at the content container's left edge (page-left + sidebar).
+     padding-inline: content-inset then matches .md-content__inner's
+     margin-inline, so footer text and page text share the same edges.
+     max-width prevents overshoot on wide viewports. */
 
   [dir="ltr"] .md-footer {
     margin-left: calc(
-      var(--pollux-page-left) + var(--pollux-sidebar-width) +
-        var(--pollux-content-offset)
+      var(--pollux-page-left) + var(--pollux-sidebar-width)
     );
     margin-right: 0;
     max-width: calc(
-      var(--pollux-layout-max) - var(--pollux-sidebar-width) -
-        var(--pollux-content-offset)
+      var(--pollux-layout-max) - var(--pollux-sidebar-width)
     );
-    padding-inline: var(--pollux-content-gutter);
+    padding-inline: var(--pollux-content-inset);
     width: auto;
     box-sizing: border-box;
   }
 
   [dir="rtl"] .md-footer {
     margin-right: calc(
-      var(--pollux-page-left) + var(--pollux-sidebar-width) +
-        var(--pollux-content-offset)
+      var(--pollux-page-left) + var(--pollux-sidebar-width)
     );
     margin-left: 0;
     max-width: calc(
-      var(--pollux-layout-max) - var(--pollux-sidebar-width) -
-        var(--pollux-content-offset)
+      var(--pollux-layout-max) - var(--pollux-sidebar-width)
     );
-    padding-inline: var(--pollux-content-gutter);
+    padding-inline: var(--pollux-content-inset);
     width: auto;
     box-sizing: border-box;
   }
