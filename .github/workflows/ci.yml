@@ -37,7 +37,8 @@ jobs:
       python-version: ${{ matrix.python-version }}
       test-command: make test
       enable-api-tests: false
-      upload-coverage: false
+      # Upload coverage from a single matrix entry to avoid duplicate Codecov reports.
+      upload-coverage: ${{ matrix.python-version == '3.13' }}
 
   api-tests:
     # Run API tests exactly once to avoid exhausting shared free-tier quota.

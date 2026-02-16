@@ -38,7 +38,7 @@
       </h1>
       <p class="pollux-hero__tagline">
         You describe what to analyze. Pollux handles source patterns,
-        context caching, rate limits, and retries&nbsp;&mdash;
+        context caching, and multimodal complexity&nbsp;&mdash;
         so you don&rsquo;t.
       </p>
       <div class="pollux-hero__actions">
@@ -66,7 +66,7 @@ result = await run(
     source=Source.from_file("paper.pdf"),
     config=Config(
         provider="gemini",
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-lite",
     ),
 )
 print(result["answers"][0])</code></pre>
@@ -99,7 +99,7 @@ print(result["answers"][0])</code></pre>
         </p>
       </div>
       <div class="pollux-features__card">
-        <h2 class="pollux-features__title">Production-ready</h2>
+        <h2 class="pollux-features__title">Built for reliability</h2>
         <p class="pollux-features__desc">
           Async pipeline, retries with backoff,
           structured output, usage tracking.

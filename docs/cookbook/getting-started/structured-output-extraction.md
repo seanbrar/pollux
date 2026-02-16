@@ -33,7 +33,7 @@ Real API (returns actual structured data):
 
 ```bash
 python -m cookbook getting-started/structured-output-extraction \
-  --input path/to/file.pdf --no-mock --provider openai --model gpt-4.1-mini
+  --input path/to/file.pdf --no-mock --provider openai --model gpt-5-nano
 ```
 
 ## What You'll See

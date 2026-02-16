@@ -50,7 +50,12 @@ jobs:
           GEMINI_API_KEY: ${{ inputs.enable-api-tests && secrets.GEMINI_API_KEY || '' }}
           OPENAI_API_KEY: ${{ inputs.enable-api-tests && secrets.OPENAI_API_KEY || '' }}
           ENABLE_API_TESTS: ${{ inputs.enable-api-tests && '1' || '' }}
-        run: ${{ inputs.test-command }}
+        run: |
+          if [ "${{ inputs.upload-coverage }}" = "true" ]; then
+            ${{ inputs.test-command }} --cov=src/pollux --cov-report=xml
+          else
+            ${{ inputs.test-command }}
+          fi
 
       - name: Upload coverage to Codecov
         if: inputs.upload-coverage == true
