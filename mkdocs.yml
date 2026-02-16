@@ -1,4 +1,4 @@
-site_name: Pollux Documentation
+site_name: Pollux
 repo_url: https://github.com/seanbrar/pollux
 repo_name: seanbrar/pollux
 site_url: https://seanbrar.github.io/pollux/
@@ -6,8 +6,25 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  custom_dir: docs/overrides
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
   features:
     - navigation.sections
+    - navigation.expand
     - navigation.footer
     - content.code.copy
     - toc.integrate
@@ -39,6 +56,23 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
+
+hooks:
+  - hooks/patch_material_css.py
+
+extra_css:
+  - https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap
+  - stylesheets/extra.css
+  - stylesheets/home.css
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/seanbrar/pollux
+      name: Pollux on GitHub
+
+copyright: Copyright &copy; 2026 Sean Brar
 
 nav:
   - Home: index.md
