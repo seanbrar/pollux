@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 # --- Project Metadata ---
 [project]
 name = "pollux-ai"
-version = "1.0.0-rc.2"
+version = "1.0.0"
 description = "Multimodal orchestration for LLM analysis"
 readme = "README.md"
 authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
@@ -281,7 +281,7 @@ version_toml = ["pyproject.toml:project.version"]
 build_command = "uv build"
 tag_format = "v{version}"
 allow_zero_version = true
-major_on_zero = false
+major_on_zero = true
 
 [tool.semantic_release.branches.main]
 match = "main"
