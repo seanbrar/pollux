@@ -52,7 +52,7 @@ jobs:
           ENABLE_API_TESTS: ${{ inputs.enable-api-tests && '1' || '' }}
         run: |
           if [ "${{ inputs.upload-coverage }}" = "true" ]; then
-            ${{ inputs.test-command }} --cov=src/pollux --cov-report=xml
+            make test-cov
           else
             ${{ inputs.test-command }}
           fi
@@ -62,4 +62,5 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
           fail_ci_if_error: false

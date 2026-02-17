@@ -87,6 +87,9 @@ exclude_lines = [
 [tool.coverage.html]
 directory = "coverage_html_report"
 
+[tool.coverage.xml]
+output = "coverage.xml"
+
 # --- MyPy ---
 [tool.mypy]
 python_version = "3.10"
