@@ -6,17 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
-## [1.0.0-rc.2] - 2026-02-15
-
-### Fixed
-
-- Normalize usage keys to provider-agnostic names ([`3f14517`](https://github.com/seanbrar/pollux/commit/3f1451731ea835d98439f25bddf270290b94ed95))
-- Refresh uv lock after package rename ([`b3a1533`](https://github.com/seanbrar/pollux/commit/b3a1533dc335b28a22b2e61c80f18c1998b42fc0))
-
-## [1.0.0-rc.1] - 2026-02-14
+## [1.0.0] - 2026-02-17
 
 ### Added
 
+- First stable release ([`5af975e`](https://github.com/seanbrar/pollux/commit/5af975e232c53ce3b10989e49a869fc0fc7d49ed))
 - Accept Windows path prefixes in runner ([`c54dec5`](https://github.com/seanbrar/pollux/commit/c54dec5ae9b91d33a223eb220bd09721df53d97b))
 - Add demo-data seeding + module runner; migrate recipes to --input; add provider uploads ([`eb6ed22`](https://github.com/seanbrar/pollux/commit/eb6ed2224a4a2aa6559d039a90e5062697067276))
 - Add stdlib logging for pipeline observability ([`d231d16`](https://github.com/seanbrar/pollux/commit/d231d16ecd797558738c274dc2ece0f2b9617150))
@@ -25,9 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support Python 3.10+ ([`acbe7e7`](https://github.com/seanbrar/pollux/commit/acbe7e7b1d9aec988edcef9fd22a7b5222816199))
 - Introduce v1 execution architecture and retire legacy runtime ([`95c22d1`](https://github.com/seanbrar/pollux/commit/95c22d1dd2707d6f55584d0e50333d54ce6e1567))
 - Actionable error hints and PolluxError rebranding ([`fba14a5`](https://github.com/seanbrar/pollux/commit/fba14a5e934e887aa155b52c7b2be4a0f5e55711))
+- Branded homepage, unified palette, and layout refinements ([`02602e8`](https://github.com/seanbrar/pollux/commit/02602e87cff69adafb0006a96c86a7bf04489784))
 
 ### Fixed
 
+- Normalize usage keys to provider-agnostic names ([`3f14517`](https://github.com/seanbrar/pollux/commit/3f1451731ea835d98439f25bddf270290b94ed95))
+- Add gate job for branch protection required check ([`d089236`](https://github.com/seanbrar/pollux/commit/d089236b392e96e7d3687ecd32eb02f5b393f87e))
+- Restrict docs deploy to main branch only ([`a57d0ff`](https://github.com/seanbrar/pollux/commit/a57d0ff947486ec92ba2b039fd24a82743a48e8a))
+- Refresh uv lock after package rename ([`b3a1533`](https://github.com/seanbrar/pollux/commit/b3a1533dc335b28a22b2e61c80f18c1998b42fc0))
 - Rename PyPI distribution to pollux-ai ([`1fb860c`](https://github.com/seanbrar/pollux/commit/1fb860c9eb526576d7073f73faf13b6fb2f598a6))
 - Remove redundant config replacement in cache-warming recipe ([`da5068d`](https://github.com/seanbrar/pollux/commit/da5068dd4976450ec30f8b76280a80b96b050402))
 - Harden execution concurrency and tighten boundary tests ([`8903a33`](https://github.com/seanbrar/pollux/commit/8903a33502cc4b37a405269c732784dab7ddedbf))
@@ -91,8 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
-[1.0.0-rc.2]: https://github.com/seanbrar/pollux/compare/v1.0.0-rc.1...v1.0.0-rc.2
-[1.0.0-rc.1]: https://github.com/seanbrar/pollux/compare/v0.9.0...v1.0.0-rc.1
+[1.0.0]: https://github.com/seanbrar/pollux/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/seanbrar/pollux/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/seanbrar/pollux/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/seanbrar/pollux/releases/tag/v0.7.0
