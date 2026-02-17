@@ -1,7 +1,7 @@
 site_name: Pollux
 repo_url: https://github.com/seanbrar/pollux
 repo_name: seanbrar/pollux
-site_url: https://seanbrar.github.io/pollux/
+site_url: https://polluxlib.dev/
 edit_uri: edit/main/docs/
 
 theme:

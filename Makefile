@@ -9,7 +9,7 @@ PYTEST_ARGS = -v
 # ------------------------------------------------------------------------------
 # Main Commands
 # ------------------------------------------------------------------------------
-.PHONY: help install-dev lint format typecheck check test test-api docs-serve docs-build demo-data clean-demo-data clean hooks
+.PHONY: help install-dev lint format typecheck check test test-cov test-api docs-serve docs-build demo-data clean-demo-data clean hooks
 .PHONY: mutmut
 
 help: ## Show this help message
@@ -48,6 +48,9 @@ check: lint typecheck test ## Run all checks (lint + typecheck + tests)
 
 test: ## Run all tests
 	$(PYTEST) $(PYTEST_ARGS) -m "not api"
+
+test-cov: ## Run tests with coverage (CI only)
+	$(PYTEST) $(PYTEST_ARGS) -m "not api" --cov=src/pollux --cov-report=xml
 
 test-api: .check-api-keys ## Run API tests (requires ENABLE_API_TESTS=1 + provider API key)
 	ENABLE_API_TESTS=1 $(PYTEST) $(PYTEST_ARGS) -m "api"

@@ -21,7 +21,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/seanbrar/pollux"
+Homepage = "https://polluxlib.dev"
+Documentation = "https://polluxlib.dev"
 Repository = "https://github.com/seanbrar/pollux"
 Changelog = "https://github.com/seanbrar/pollux/blob/main/CHANGELOG.md"
 Issues = "https://github.com/seanbrar/pollux/issues"
@@ -85,6 +86,9 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "coverage_html_report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 # --- MyPy ---
 [tool.mypy]

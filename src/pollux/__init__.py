@@ -36,7 +36,12 @@ from pollux.source import Source
 if TYPE_CHECKING:
     from pollux.providers.base import Provider
 
-__version__ = "0.9.0"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("pollux-ai")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"
 
 # Library-level NullHandler: stay silent unless the consumer configures logging.
 logging.getLogger("pollux").addHandler(logging.NullHandler())

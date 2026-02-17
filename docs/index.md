@@ -18,10 +18,11 @@ complexity — so you don't.
 
 ## Why Pollux?
 
-- **Multimodal-first** — PDFs, images, videos, YouTube URLs. Same API.
+- **Multimodal-first** — PDFs, images, video, YouTube URLs, and arXiv papers. Same API.
 - **Source patterns** — Fan-out, fan-in, and broadcast execution over your content.
 - **Context caching** — Upload once, reuse across prompts. Save tokens and money.
-- **Production-ready core** — Async pipeline, explicit capability checks, clear errors.
+- **Structured output** — Get typed responses via Pydantic schemas.
+- **Built for reliability** — Async execution, retries, concurrency control, and clear errors.
 
 ## Install
 

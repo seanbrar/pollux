@@ -16,7 +16,7 @@
 
 ---
 
-- [ ] PR title follows [conventional commits](https://seanbrar.github.io/pollux/contributing/)
+- [ ] PR title follows [conventional commits](https://polluxlib.dev/contributing/)
 - [ ] `make check` passes
 - [ ] Tests cover the meaningful cases, not just the happy path
 - [ ] Docs updated (if this changes public API or user-facing behavior)
