@@ -21,6 +21,8 @@ ResponseSchemaInput = type[BaseModel] | dict[str, Any]
 class Options:
     """Optional execution features for `run()` and `run_many()`."""
 
+    #: Optional system-level instruction for model behavior.
+    system_instruction: str | None = None
     #: Pydantic ``BaseModel`` subclass or JSON Schema dict for structured output.
     response_schema: ResponseSchemaInput | None = None
     #: Reserved — not yet wired in v1.0.
@@ -34,6 +36,14 @@ class Options:
 
     def __post_init__(self) -> None:
         """Validate option shapes early for clear errors."""
+        if self.system_instruction is not None and not isinstance(
+            self.system_instruction, str
+        ):
+            raise ConfigurationError(
+                "system_instruction must be a string",
+                hint="Pass system_instruction='You are a concise assistant.'",
+            )
+
         if self.response_schema is not None and not (
             isinstance(self.response_schema, dict)
             or (

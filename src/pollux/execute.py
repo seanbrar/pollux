@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 import logging
-import os
 from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any
@@ -59,6 +58,7 @@ class ExecutionTrace:
     cache_name: str | None = None
     duration_s: float = 0.0
     usage: dict[str, int] = field(default_factory=dict)
+    conversation_state: dict[str, Any] | None = None
 
 
 async def execute_plan(
@@ -81,24 +81,12 @@ async def execute_plan(
     wants_conversation = (
         options.history is not None or options.continue_from is not None
     )
-    if wants_conversation:
-        enabled = os.environ.get(
-            "POLLUX_EXPERIMENTAL_CONVERSATION", ""
-        ).strip().lower() in {"1", "true", "yes", "on"}
-        if not enabled:
-            raise ConfigurationError(
-                "Conversation options are reserved for a future release",
-                hint=(
-                    "Remove history/continue_from for now, or set "
-                    "POLLUX_EXPERIMENTAL_CONVERSATION=1 to opt in during development."
-                ),
-            )
 
     if options.delivery_mode == "deferred":
         provider_name = type(provider).__name__
         raise ConfigurationError(
             f"delivery_mode='deferred' is not implemented yet for provider {provider_name}",
-            hint="Use delivery_mode='realtime' for v1.0.",
+            hint="Use delivery_mode='realtime' for now.",
         )
     if options.response_schema is not None and not caps.structured_outputs:
         raise ConfigurationError(
@@ -115,6 +103,11 @@ async def execute_plan(
             "Provider does not support conversation continuity",
             hint="Remove history/continue_from or choose a provider with conversation support.",
         )
+    if wants_conversation and len(prompts) != 1:
+        raise ConfigurationError(
+            "Conversation continuity currently supports exactly one prompt per call",
+            hint="Use run() or run_many() with a single prompt when passing history/continue_from.",
+        )
 
     if (not provider.supports_uploads) and any(
         isinstance(p, dict)
@@ -130,6 +123,10 @@ async def execute_plan(
     schema = options.response_schema_json()
 
     history = options.history
+    conversation_history: list[dict[str, str]] = []
+    if history is not None:
+        conversation_history = [dict(item) for item in history]
+
     previous_response_id: str | None = None
     if options.continue_from is not None:
         state = options.continue_from.get("_conversation_state")
@@ -142,16 +139,18 @@ async def execute_plan(
                 ),
             )
 
+        state_history = state.get("history")
+        if history is None and isinstance(state_history, list):
+            conversation_history = [
+                item
+                for item in state_history
+                if isinstance(item, dict)
+                and isinstance(item.get("role"), str)
+                and isinstance(item.get("content"), str)
+            ]
+
         if history is None:
-            state_history = state.get("history")
-            if isinstance(state_history, list):
-                history = [
-                    item
-                    for item in state_history
-                    if isinstance(item, dict)
-                    and isinstance(item.get("role"), str)
-                    and isinstance(item.get("content"), str)
-                ]
+            history = conversation_history
 
         prev = state.get("response_id")
         previous_response_id = prev if isinstance(prev, str) else None
@@ -185,7 +184,7 @@ async def execute_plan(
                     key=plan.cache_key,
                     model=config.model,
                     parts=shared_parts,  # Use resolved parts with URIs
-                    system_instruction=None,
+                    system_instruction=options.system_instruction,
                     ttl_seconds=config.ttl_seconds,
                     retry_policy=retry_policy,
                 )
@@ -229,7 +228,7 @@ async def execute_plan(
                     return await provider.generate(
                         model=model,
                         parts=parts,
-                        system_instruction=None,
+                        system_instruction=options.system_instruction,
                         cache_name=cache_name,
                         response_schema=schema,
                         reasoning_effort=options.reasoning_effort,
@@ -242,7 +241,7 @@ async def execute_plan(
                     lambda: provider.generate(
                         model=model,
                         parts=parts,
-                        system_instruction=None,
+                        system_instruction=options.system_instruction,
                         cache_name=cache_name,
                         response_schema=schema,
                         reasoning_effort=options.reasoning_effort,
@@ -298,11 +297,29 @@ async def execute_plan(
 
     duration_s = time.perf_counter() - start_time
 
+    conversation_state: dict[str, Any] | None = None
+    if wants_conversation and responses:
+        prompt = prompts[0] if isinstance(prompts[0], str) else str(prompts[0])
+        answer = responses[0].get("text")
+        reply = answer if isinstance(answer, str) else ""
+        updated_history = [
+            *conversation_history,
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": reply},
+        ]
+        conversation_state = {"history": updated_history}
+        response_id = responses[0].get("response_id")
+        if isinstance(response_id, str):
+            conversation_state["response_id"] = response_id
+        elif previous_response_id is not None:
+            conversation_state["response_id"] = previous_response_id
+
     return ExecutionTrace(
         responses=responses,
         cache_name=cache_name,
         duration_s=duration_s,
         usage=total_usage,
+        conversation_state=conversation_state,
     )
 
 
