@@ -115,14 +115,18 @@ is longer: the computed backoff or the server hint).
 from pollux import Options
 
 options = Options(
+    system_instruction="You are a concise analyst.",  # Optional global behavior guide
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Reserved for future provider support
-    delivery_mode="realtime",         # "deferred" reserved for v1.1+
+    delivery_mode="realtime",         # "deferred" reserved for future provider batch APIs
 )
 ```
 
 See [Sources and Patterns](sources-and-patterns.md#structured-output) for
 a complete structured output example.
+
+Conversation options are provider-dependent in v1.1: OpenAI supports
+`history`/`continue_from`; Gemini remains unsupported.
 
 ## Safety Notes
 
