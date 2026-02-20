@@ -63,9 +63,10 @@ class FakeProvider:
         delivery_mode: str = "realtime",
         previous_response_id: str | None = None,
     ) -> dict[str, Any]:
-        del model, system_instruction, cache_name
+        del model, cache_name
         self.last_parts = parts
         self.last_generate_kwargs = {
+            "system_instruction": system_instruction,
             "response_schema": response_schema,
             "reasoning_effort": reasoning_effort,
             "history": history,

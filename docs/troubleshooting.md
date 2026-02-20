@@ -34,8 +34,9 @@ Use this order — most failures resolve by step 2.
    provider. Re-run a minimal prompt after fixing any mismatch.
 
 3. **Unsupported feature** — Compare your options against
-   [Provider Capabilities](reference/provider-capabilities.md). In v1.0,
-   `delivery_mode="deferred"`, `history`, and `continue_from` are reserved.
+   [Provider Capabilities](reference/provider-capabilities.md).
+   `delivery_mode="deferred"` is reserved; conversation continuity is
+   provider-dependent (OpenAI-only in v1.1).
 
 4. **Source and payload** — Reduce to one source + one prompt and retry.
    For OpenAI remote URLs in v1.0, only PDF and image URLs are supported.
@@ -61,12 +62,13 @@ Or pass `api_key` directly in `Config(...)`.
 
 **Fix:** verify the model belongs to the selected provider.
 
-## Option Not Implemented in v1.0
+## Option Not Implemented Yet
 
 **Symptom:** `ConfigurationError` mentioning `delivery_mode="deferred"`,
 `history`, or `continue_from`.
 
-These are intentionally reserved and disabled in v1.0.
+`delivery_mode="deferred"` is intentionally reserved.
+`history`/`continue_from` require a provider with conversation support.
 
 ## `status == "partial"`
 

@@ -11,7 +11,7 @@
   --pollux-sidebar-bottom-space: 1.25rem;
   --pollux-nav-gutter: 0.25rem;
   --pollux-nav-indent: 0.45rem;
-  --pollux-nav-link-margin-top: 0.5em;
+  --pollux-nav-link-margin-top: 0.35em;
   --pollux-toc-link-size: 0.72rem;
   --pollux-toc-link-line-height: 1.45;
   --pollux-toc-link-padding-y: 0.18rem;
@@ -122,6 +122,7 @@ body {
 /* ── Navigation links ────────────────────────────────────────── */
 
 .md-nav__item--section > .md-nav__link {
+  font-size: 0.7rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -288,6 +289,17 @@ body {
   .md-nav--primary .md-nav__link {
     margin-top: var(--pollux-nav-link-margin-top);
     padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .md-nav__item--section {
+    margin-top: 0.75em;
+  }
+
+  .md-nav__item--section:first-child {
+    margin-top: 0;
   }
 
   /* Boosted-specificity active link: .md-nav--primary prefix matches
@@ -341,8 +353,11 @@ body {
     font-size: var(--pollux-toc-link-size);
     line-height: var(--pollux-toc-link-line-height);
     margin-top: 0;
+    overflow: hidden;
     padding-block: var(--pollux-toc-link-padding-y);
     position: relative;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .md-nav--secondary .md-nav__link--active::before {

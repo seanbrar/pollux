@@ -87,6 +87,8 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
     )
     if wants_structured:
         envelope["structured"] = structured_values
+    if trace.conversation_state is not None:
+        envelope["_conversation_state"] = trace.conversation_state
     return envelope
 
 

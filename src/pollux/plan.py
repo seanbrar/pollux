@@ -43,7 +43,11 @@ def build_plan(request: Request) -> Plan:
     if use_cache:
         from pollux.cache import compute_cache_key
 
-        cache_key = compute_cache_key(config.model, sources)
+        cache_key = compute_cache_key(
+            config.model,
+            sources,
+            system_instruction=request.options.system_instruction,
+        )
 
     return Plan(
         request=request,

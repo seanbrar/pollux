@@ -165,10 +165,10 @@ Example of a complete envelope:
 }
 ```
 
-## v1.0 Notes
+## v1.1 Notes
 
-- Conversation continuity (`history`, `continue_from`) is reserved and
-  disabled in v1.0.
-- `delivery_mode="deferred"` is reserved and disabled in v1.0.
+- Conversation continuity (`history`, `continue_from`) is currently
+  OpenAI-only and supports one prompt per call.
+- `delivery_mode="deferred"` remains reserved and disabled.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).

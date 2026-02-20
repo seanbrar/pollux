@@ -1,16 +1,16 @@
 # Provider Capabilities
 
-This page defines the v1.0 capability contract by provider.
+This page defines the v1.1 capability contract by provider.
 
 Pollux is **capability-transparent**, not capability-equalizing: providers are allowed to differ, and those differences are surfaced clearly.
 
-## v1.0 Policy
+## v1.1 Policy
 
 - Provider feature parity is **not** required for release.
 - Unsupported features must fail fast with clear errors.
 - New provider features do not require immediate cross-provider implementation.
 
-## Capability Matrix (v1.0)
+## Capability Matrix (v1.1)
 
 | Capability | Gemini | OpenAI | Notes |
 |---|---|---|---|
@@ -19,20 +19,20 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Local file inputs | ✅ | ✅ | OpenAI uses Files API upload |
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | |
-| YouTube URL inputs | ✅ | ⚠️ limited | OpenAI parity layer (download/re-upload) is out of scope for v1.0 |
+| YouTube URL inputs | ✅ | ⚠️ limited | OpenAI parity layer (download/re-upload) is out of scope for v1.1 |
 | Provider-side context caching | ✅ | ❌ | OpenAI provider returns unsupported for caching |
 | Structured outputs (`response_schema`) | ✅ | ✅ | JSON-schema path in both providers |
 | Reasoning controls (`reasoning_effort`) | ❌ | ❌ | Reserved for future provider enablement |
-| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | Explicitly disabled in v1.0 |
-| Conversation continuity (`history`, `continue_from`) | ❌ | ❌ | Reserved/disabled in v1.0 |
+| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | Explicitly disabled in v1.1 |
+| Conversation continuity (`history`, `continue_from`) | ❌ | ✅ | OpenAI-native continuation; single prompt per call |
 
 ## Important OpenAI Notes
 
 - Pollux uploads local files with:
   - `purpose="user_data"`
   - finite `expires_after` metadata
-- Automatic file deletion is not part of v1.0 yet.
-- Remote URL support in v1.0 is intentionally narrow and explicit:
+- Automatic file deletion is not part of v1.1 yet.
+- Remote URL support in v1.1 is intentionally narrow and explicit:
   - PDFs
   - images
 
@@ -48,7 +48,7 @@ from pollux import Config
 config = Config(
     provider="openai",
     model="gpt-5-nano",
-    enable_caching=True,  # not supported for OpenAI in v1.0
+    enable_caching=True,  # not supported for OpenAI in v1.1
 )
 # At execution time, Pollux raises:
 # ConfigurationError: Provider does not support caching

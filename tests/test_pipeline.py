@@ -556,6 +556,25 @@ def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
     assert len(set(keys)) == len(keys)
 
 
+def test_cache_identity_includes_system_instruction() -> None:
+    """Distinct system instructions should produce distinct cache identities."""
+    model = GEMINI_MODEL
+    source = Source.from_text("shared context")
+
+    concise = compute_cache_key(
+        model,
+        (source,),
+        system_instruction="Be concise.",
+    )
+    verbose = compute_cache_key(
+        model,
+        (source,),
+        system_instruction="Be verbose.",
+    )
+
+    assert concise != verbose
+
+
 @given(
     arxiv_id=st.one_of(
         st.from_regex(r"\d{4}\.\d{4,5}(?:v\d+)?", fullmatch=True),
@@ -600,6 +619,12 @@ async def test_options_response_schema_requires_provider_capability() -> None:
         )
 
 
+def test_options_system_instruction_requires_string() -> None:
+    """Invalid system_instruction types should fail fast at option construction."""
+    with pytest.raises(ConfigurationError, match="system_instruction must be a string"):
+        Options(system_instruction=123)  # type: ignore[arg-type]
+
+
 @pytest.mark.asyncio
 async def test_options_are_forwarded_when_provider_supports_features(
     monkeypatch: pytest.MonkeyPatch,
@@ -627,6 +652,7 @@ async def test_options_are_forwarded_when_provider_supports_features(
         sources=(Source.from_text("context"),),
         config=cfg,
         options=Options(
+            system_instruction="Reply in one sentence.",
             response_schema=ExampleSchema,
             reasoning_effort="high",
             delivery_mode="realtime",
@@ -637,6 +663,7 @@ async def test_options_are_forwarded_when_provider_supports_features(
     assert fake.last_generate_kwargs["reasoning_effort"] == "high"
     assert fake.last_generate_kwargs["delivery_mode"] == "realtime"
     assert fake.last_generate_kwargs["history"] is None
+    assert fake.last_generate_kwargs["system_instruction"] == "Reply in one sentence."
     response_schema = fake.last_generate_kwargs["response_schema"]
     assert isinstance(response_schema, dict)
     assert response_schema["type"] == "object"
@@ -741,10 +768,10 @@ async def test_structured_output_returns_pydantic_instances(
 
 
 @pytest.mark.asyncio
-async def test_conversation_options_are_lifecycle_gated_by_default(
+async def test_conversation_options_are_forwarded_when_provider_supports_them(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lifecycle gate should reject by default, and allow when explicitly enabled."""
+    """Conversation options should pass through when provider supports the feature."""
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
             caching=True,
@@ -758,14 +785,6 @@ async def test_conversation_options_are_lifecycle_gated_by_default(
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
-    with pytest.raises(ConfigurationError, match="reserved for a future release"):
-        await pollux.run_many(
-            ("Q1?",),
-            config=cfg,
-            options=Options(history=[{"role": "user", "content": "hello"}]),
-        )
-
-    monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
     await pollux.run_many(
         ("Q1?",),
         config=cfg,
@@ -775,6 +794,32 @@ async def test_conversation_options_are_lifecycle_gated_by_default(
     assert fake.last_generate_kwargs["history"] == [
         {"role": "user", "content": "hello"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_conversation_requires_single_prompt_per_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Conversation continuity is single-turn per API call in v1.1."""
+    fake = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=True,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    with pytest.raises(ConfigurationError, match="exactly one prompt"):
+        await pollux.run_many(
+            ("Q1?", "Q2?"),
+            config=cfg,
+            options=Options(history=[{"role": "user", "content": "hello"}]),
+        )
 
 
 @pytest.mark.asyncio
@@ -793,7 +838,6 @@ async def test_continue_from_requires_conversation_state(
         )
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    monkeypatch.setenv("POLLUX_EXPERIMENTAL_CONVERSATION", "1")
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with pytest.raises(ConfigurationError, match="missing _conversation_state"):
@@ -820,6 +864,53 @@ async def test_continue_from_requires_conversation_state(
     assert len(fake.generate_kwargs) == 1
     assert fake.generate_kwargs[0]["history"] == [{"role": "user", "content": "hello"}]
     assert fake.generate_kwargs[0]["previous_response_id"] == "resp_123"
+
+
+@pytest.mark.asyncio
+async def test_conversation_result_includes_conversation_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Conversation runs should emit continuation state in the result envelope."""
+
+    @dataclass
+    class _ConversationProvider(FakeProvider):
+        _capabilities: ProviderCapabilities = field(
+            default_factory=lambda: ProviderCapabilities(
+                caching=True,
+                uploads=True,
+                structured_outputs=False,
+                reasoning=False,
+                deferred_delivery=False,
+                conversation=True,
+            )
+        )
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            _ = kwargs
+            return {
+                "text": "Assistant reply.",
+                "usage": {"total_tokens": 1},
+                "response_id": "resp_next",
+            }
+
+    fake = _ConversationProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run(
+        "Next question?",
+        config=cfg,
+        options=Options(history=[{"role": "user", "content": "hello"}]),
+    )
+
+    state = result.get("_conversation_state")
+    assert isinstance(state, dict)
+    assert state["response_id"] == "resp_next"
+    assert state["history"] == [
+        {"role": "user", "content": "hello"},
+        {"role": "user", "content": "Next question?"},
+        {"role": "assistant", "content": "Assistant reply."},
+    ]
 
 
 @pytest.mark.asyncio

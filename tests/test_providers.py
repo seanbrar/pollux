@@ -536,6 +536,43 @@ async def test_openai_generate_characterizes_multimodal_request_shape(
 
 
 @pytest.mark.asyncio
+async def test_openai_generate_forwards_conversation_and_instructions() -> None:
+    """Conversation params should map to Responses API fields."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["What did I just ask?"],
+        system_instruction="Be concise.",
+        history=[{"role": "user", "content": "Say hello."}],
+    )
+
+    assert responses.last_kwargs is not None
+    assert responses.last_kwargs["instructions"] == "Be concise."
+    assert responses.last_kwargs["input"][0]["role"] == "user"
+    assert responses.last_kwargs["input"][0]["content"][0] == {
+        "type": "input_text",
+        "text": "Say hello.",
+    }
+    assert responses.last_kwargs["input"][1]["role"] == "user"
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["And now?"],
+        history=[{"role": "user", "content": "This should be skipped."}],
+        previous_response_id="resp_123",
+    )
+
+    assert responses.last_kwargs["previous_response_id"] == "resp_123"
+    assert len(responses.last_kwargs["input"]) == 1
+    assert responses.last_kwargs["input"][0]["role"] == "user"
+
+
+@pytest.mark.asyncio
 async def test_openai_rejects_unsupported_remote_mime_type() -> None:
     """Remote URIs with unsupported mime types should fail clearly."""
     provider = OpenAIProvider("test-key")

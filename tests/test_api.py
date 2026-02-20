@@ -15,6 +15,7 @@ import pytest
 
 import pollux
 from pollux.config import Config
+from pollux.options import Options
 from pollux.source import Source
 
 pytestmark = [pytest.mark.api, pytest.mark.slow]
@@ -88,6 +89,33 @@ async def test_gemini_run_many_returns_multiple_answers(
     assert result["metrics"]["n_calls"] == 2
 
 
+@pytest.mark.asyncio
+async def test_gemini_system_instruction_shapes_output(
+    gemini_api_key: str, gemini_test_model: str
+) -> None:
+    """E2E: system_instruction should steer output style on a real model."""
+    config = Config(
+        provider="gemini",
+        model=gemini_test_model,
+        api_key=gemini_api_key,
+    )
+
+    result = await pollux.run(
+        "Write about rain.",
+        config=config,
+        options=Options(
+            system_instruction=(
+                "Respond as a haiku with exactly three lines separated by newline."
+            )
+        ),
+    )
+
+    answer = result["answers"][0]
+    lines = [line for line in answer.splitlines() if line.strip()]
+    assert result["status"] == "ok"
+    assert len(lines) == 3
+
+
 # =============================================================================
 # OpenAI Provider
 # =============================================================================
@@ -154,3 +182,59 @@ async def test_openai_run_many_returns_multiple_answers(
     assert result["status"] == "ok"
     assert len(result["answers"]) == 2
     assert result["metrics"]["n_calls"] == 2
+
+
+@pytest.mark.asyncio
+async def test_openai_system_instruction_shapes_output(
+    openai_api_key: str, openai_test_model: str
+) -> None:
+    """E2E: system_instruction should steer output style on a real model."""
+    config = Config(
+        provider="openai",
+        model=openai_test_model,
+        api_key=openai_api_key,
+    )
+
+    result = await pollux.run(
+        "Write about rain.",
+        config=config,
+        options=Options(
+            system_instruction=(
+                "Respond as a haiku with exactly three lines separated by newline."
+            )
+        ),
+    )
+
+    answer = result["answers"][0]
+    lines = [line for line in answer.splitlines() if line.strip()]
+    assert result["status"] == "ok"
+    assert len(lines) == 3
+
+
+@pytest.mark.asyncio
+async def test_openai_continue_from_roundtrip(
+    openai_api_key: str, openai_test_model: str
+) -> None:
+    """E2E: OpenAI continuation should preserve state across calls."""
+    config = Config(
+        provider="openai",
+        model=openai_test_model,
+        api_key=openai_api_key,
+    )
+
+    first = await pollux.run(
+        "Remember this secret word: ORBIT. Reply only with 'stored'.",
+        config=config,
+        options=Options(history=[]),
+    )
+    assert first["status"] == "ok"
+    assert "_conversation_state" in first
+
+    second = await pollux.run(
+        "What secret word did I ask you to remember? Reply with only the word.",
+        config=config,
+        options=Options(continue_from=first),
+    )
+
+    assert second["status"] == "ok"
+    assert "orbit" in second["answers"][0].lower()
