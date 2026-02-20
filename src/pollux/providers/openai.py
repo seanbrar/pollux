@@ -57,7 +57,7 @@ class OpenAIProvider:
             structured_outputs=True,
             reasoning=False,
             deferred_delivery=False,
-            conversation=False,
+            conversation=True,
         )
 
     async def generate(
@@ -74,7 +74,7 @@ class OpenAIProvider:
         previous_response_id: str | None = None,
     ) -> dict[str, Any]:
         """Generate a response using OpenAI's responses endpoint."""
-        _ = cache_name, reasoning_effort, history, delivery_mode, previous_response_id
+        _ = cache_name, reasoning_effort, delivery_mode
         client = self._get_client()
 
         user_content: list[dict[str, str]] = []
@@ -86,25 +86,30 @@ class OpenAIProvider:
         if not user_content:
             user_content.append({"type": "input_text", "text": ""})
 
-        input_messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": user_content,
-            }
-        ]
-        if system_instruction:
-            input_messages.insert(
-                0,
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": system_instruction}],
-                },
-            )
+        input_messages: list[dict[str, Any]] = []
+        history_items = None if previous_response_id else history
+        if history_items is not None:
+            for item in history_items:
+                role = item.get("role")
+                content = item.get("content")
+                if not isinstance(role, str) or not isinstance(content, str):
+                    continue
+                input_messages.append(
+                    {
+                        "role": role,
+                        "content": [{"type": "input_text", "text": content}],
+                    }
+                )
+        input_messages.append({"role": "user", "content": user_content})
 
         create_kwargs: dict[str, Any] = {
             "model": model,
             "input": input_messages,
         }
+        if system_instruction:
+            create_kwargs["instructions"] = system_instruction
+        if previous_response_id:
+            create_kwargs["previous_response_id"] = previous_response_id
         if response_schema is not None:
             strict_schema = _to_openai_strict_schema(response_schema)
             create_kwargs["text"] = {
@@ -119,6 +124,7 @@ class OpenAIProvider:
         try:
             response = await client.responses.create(**create_kwargs)
             text = getattr(response, "output_text", "") or ""
+            response_id = getattr(response, "id", None)
             structured: Any = None
             if response_schema is not None and text:
                 try:
@@ -136,6 +142,8 @@ class OpenAIProvider:
             payload: dict[str, Any] = {"text": text, "usage": usage}
             if structured is not None:
                 payload["structured"] = structured
+            if isinstance(response_id, str):
+                payload["response_id"] = response_id
             return payload
         except asyncio.CancelledError:
             raise
