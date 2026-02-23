@@ -36,6 +36,7 @@ coverage_html_report/
 
 # Docs
 site/
+docs/sketches/
 
 # Tool caches
 .mypy_cache/
