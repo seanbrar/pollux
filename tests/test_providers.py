@@ -718,7 +718,9 @@ async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
             {
                 "role": "assistant",
                 "content": "Let me check that tool.",
-                "tool_calls": [{"id": "call_abc", "name": "get_weather", "arguments": "{}"}],
+                "tool_calls": [
+                    {"id": "call_abc", "name": "get_weather", "arguments": "{}"}
+                ],
             }
         ],
     )
