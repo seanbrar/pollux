@@ -1167,3 +1167,92 @@ async def test_continue_from_preserves_tool_history_items(
     assert received_history[2]["tool_call_id"] == "call_1"
     # Verify assistant tool_calls preserved
     assert received_history[1]["tool_calls"] is not None
+
+
+# =============================================================================
+# Reasoning / Thinking (v1.2)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_reasoning_surfaced_in_result_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider reasoning text should appear in ResultEnvelope.reasoning."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {
+                "text": "The answer is 42.",
+                "usage": {"total_tokens": 10},
+                "reasoning": "Let me think step by step...",
+            },
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run(
+        "What is the meaning of life?",
+        config=cfg,
+        options=Options(reasoning_effort="high"),
+    )
+
+    assert result["answers"] == ["The answer is 42."]
+    assert result["reasoning"] == ["Let me think step by step..."]
+
+
+@pytest.mark.asyncio
+async def test_reasoning_omitted_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ResultEnvelope should not include reasoning key when provider omits it."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {"text": "Hello.", "usage": {"total_tokens": 5}},
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run("Hi", config=cfg)
+
+    assert "reasoning" not in result
+
+
+@pytest.mark.asyncio
+async def test_reasoning_mixed_across_multi_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multi-prompt: reasoning=None for calls without thinking content."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {
+                "text": "Answer 1",
+                "usage": {"total_tokens": 5},
+                "reasoning": "Thought A",
+            },
+            {"text": "Answer 2", "usage": {"total_tokens": 5}},
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run_many(("Q1?", "Q2?"), config=cfg)
+
+    assert result["answers"] == ["Answer 1", "Answer 2"]
+    assert result["reasoning"] == ["Thought A", None]

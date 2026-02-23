@@ -192,6 +192,7 @@ def test_gemini_parse_response_extracts_text_and_usage() -> None:
     fake_usage.prompt_token_count = 10
     fake_usage.candidates_token_count = 25
     fake_usage.total_token_count = 35
+    fake_usage.thoughts_token_count = None
 
     fake_response = MagicMock()
     fake_response.text = "The answer is 42."
@@ -267,6 +268,114 @@ def test_gemini_parse_response_handles_missing_attributes() -> None:
     assert "structured" not in result
 
 
+def test_gemini_parse_response_extracts_reasoning_from_thought_parts() -> None:
+    """Characterize extraction of thinking content from thought-flagged parts."""
+    provider = GeminiProvider("test-key")
+
+    thought_part = MagicMock()
+    thought_part.thought = True
+    thought_part.text = "Let me reason about this..."
+
+    answer_part = MagicMock()
+    answer_part.thought = False
+    answer_part.text = "The answer is 42."
+
+    fake_content = MagicMock()
+    fake_content.parts = [thought_part, answer_part]
+
+    fake_candidate = MagicMock()
+    fake_candidate.content = fake_content
+
+    fake_response = MagicMock()
+    fake_response.text = "The answer is 42."
+    fake_response.parsed = None
+    fake_response.usage_metadata = None
+    fake_response.candidates = [fake_candidate]
+
+    result = provider._parse_response(fake_response)
+
+    assert result["reasoning"] == "Let me reason about this..."
+    assert result["text"] == "The answer is 42."
+
+
+def test_gemini_parse_response_joins_multiple_thought_parts() -> None:
+    """Multiple thought parts should be joined with double newlines."""
+    provider = GeminiProvider("test-key")
+
+    thought_1 = MagicMock()
+    thought_1.thought = True
+    thought_1.text = "First, consider X."
+
+    thought_2 = MagicMock()
+    thought_2.thought = True
+    thought_2.text = "Then, consider Y."
+
+    answer = MagicMock()
+    answer.thought = False
+    answer.text = "Result."
+
+    fake_content = MagicMock()
+    fake_content.parts = [thought_1, thought_2, answer]
+
+    fake_candidate = MagicMock()
+    fake_candidate.content = fake_content
+
+    fake_response = MagicMock()
+    fake_response.text = "Result."
+    fake_response.parsed = None
+    fake_response.usage_metadata = None
+    fake_response.candidates = [fake_candidate]
+
+    result = provider._parse_response(fake_response)
+
+    assert result["reasoning"] == "First, consider X.\n\nThen, consider Y."
+
+
+def test_gemini_parse_response_extracts_reasoning_tokens() -> None:
+    """Characterize reasoning token count extraction from usage metadata."""
+    provider = GeminiProvider("test-key")
+
+    fake_usage = MagicMock()
+    fake_usage.prompt_token_count = 10
+    fake_usage.candidates_token_count = 25
+    fake_usage.total_token_count = 35
+    fake_usage.thoughts_token_count = 512
+
+    fake_response = MagicMock()
+    fake_response.text = "ok"
+    fake_response.parsed = None
+    fake_response.usage_metadata = fake_usage
+
+    result = provider._parse_response(fake_response)
+
+    assert result["usage"]["reasoning_tokens"] == 512
+
+
+def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
+    """No thought-flagged parts should produce no reasoning key."""
+    provider = GeminiProvider("test-key")
+
+    answer_part = MagicMock()
+    answer_part.thought = False
+    answer_part.text = "Just an answer."
+
+    fake_content = MagicMock()
+    fake_content.parts = [answer_part]
+
+    fake_candidate = MagicMock()
+    fake_candidate.content = fake_content
+
+    fake_response = MagicMock()
+    fake_response.text = "Just an answer."
+    fake_response.parsed = None
+    fake_response.usage_metadata = None
+    fake_response.candidates = [fake_candidate]
+
+    result = provider._parse_response(fake_response)
+
+    assert "reasoning" not in result
+
+
 # =============================================================================
 # Gemini Generate Config (Characterization)
 # =============================================================================
@@ -327,6 +436,35 @@ async def test_gemini_generate_omits_config_when_no_options() -> None:
     await provider.generate(model=GEMINI_MODEL, parts=["Hello"])
 
     assert captured["config"] is None
+
+
+@pytest.mark.asyncio
+async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> None:
+    """reasoning_effort should map to ThinkingConfig with thinking_level."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(**kwargs: Any) -> Any:
+        captured["config"] = kwargs.get("config")
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        model=GEMINI_MODEL, parts=["Think hard."], reasoning_effort="low"
+    )
+
+    config = captured["config"]
+    assert config is not None
+    tc = config["thinking_config"]
+    assert tc.include_thoughts is True
+    # SDK converts string to ThinkingLevel enum; verify via .value
+    assert tc.thinking_level.value == "LOW"
 
 
 # =============================================================================
@@ -497,6 +635,11 @@ def test_openai_strict_schema_preserves_explicit_required_fields() -> None:
 # =============================================================================
 
 
+async def _async_return(value: Any) -> Any:
+    """Wrap a value in a coroutine for use as an async fake."""
+    return value
+
+
 class _FakeResponses:
     """Captures kwargs passed to responses.create()."""
 
@@ -587,6 +730,111 @@ async def test_openai_rejects_unsupported_remote_mime_type() -> None:
             model=OPENAI_MODEL,
             parts=[{"uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}],
         )
+
+
+@pytest.mark.asyncio
+async def test_openai_generate_forwards_reasoning_effort_and_summary() -> None:
+    """reasoning_effort should map to reasoning dict with effort and summary."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["Think about this."],
+        reasoning_effort="high",
+    )
+
+    assert responses.last_kwargs is not None
+    assert responses.last_kwargs["reasoning"] == {
+        "effort": "high",
+        "summary": "auto",
+    }
+
+
+@pytest.mark.asyncio
+async def test_openai_generate_omits_reasoning_when_not_set() -> None:
+    """No reasoning_effort should produce no reasoning key in kwargs."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(model=OPENAI_MODEL, parts=["Hello"])
+
+    assert responses.last_kwargs is not None
+    assert "reasoning" not in responses.last_kwargs
+
+
+@pytest.mark.asyncio
+async def test_openai_extracts_reasoning_summary_from_response() -> None:
+    """Reasoning summary items should be extracted into payload['reasoning']."""
+    summary_item = type(
+        "SummaryText", (), {"type": "summary_text", "text": "The model considered..."}
+    )()
+    reasoning_item = type(
+        "ReasoningItem", (), {"type": "reasoning", "summary": [summary_item]}
+    )()
+    message_item = type("MessageItem", (), {"type": "message"})()
+
+    fake_response = type(
+        "Response",
+        (),
+        {
+            "output_text": "The answer.",
+            "id": "resp_123",
+            "usage": None,
+            "output": [reasoning_item, message_item],
+        },
+    )()
+
+    responses = _FakeResponses()
+    responses.create = lambda **_kw: _async_return(fake_response)  # type: ignore[method-assign]
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"responses": responses})()
+
+    result = await provider.generate(
+        model=OPENAI_MODEL, parts=["Think."], reasoning_effort="medium"
+    )
+
+    assert result["reasoning"] == "The model considered..."
+    assert result["text"] == "The answer."
+
+
+@pytest.mark.asyncio
+async def test_openai_extracts_reasoning_tokens_from_usage() -> None:
+    """Reasoning token count should appear in usage when present."""
+    out_details = type("Details", (), {"reasoning_tokens": 1024})()
+    usage_obj = type(
+        "Usage",
+        (),
+        {
+            "input_tokens": 50,
+            "output_tokens": 200,
+            "total_tokens": 250,
+            "output_tokens_details": out_details,
+        },
+    )()
+
+    fake_response = type(
+        "Response",
+        (),
+        {"output_text": "ok", "id": "resp_456", "usage": usage_obj, "output": []},
+    )()
+
+    responses = _FakeResponses()
+    responses.create = lambda **_kw: _async_return(fake_response)  # type: ignore[method-assign]
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"responses": responses})()
+
+    result = await provider.generate(model=OPENAI_MODEL, parts=["Test"])
+
+    assert result["usage"]["reasoning_tokens"] == 1024
+    assert result["usage"]["input_tokens"] == 50
+    assert result["usage"]["output_tokens"] == 200
 
 
 # =============================================================================
