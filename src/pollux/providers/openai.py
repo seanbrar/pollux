@@ -6,7 +6,7 @@ import asyncio
 import base64
 from copy import deepcopy
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
 from pollux.errors import APIError
@@ -68,6 +68,10 @@ class OpenAIProvider:
         system_instruction: str | None = None,
         cache_name: str | None = None,
         response_schema: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
         reasoning_effort: str | None = None,
         history: list[dict[str, str]] | None = None,
         delivery_mode: str = "realtime",
@@ -106,6 +110,38 @@ class OpenAIProvider:
             "model": model,
             "input": input_messages,
         }
+        if temperature is not None:
+            create_kwargs["temperature"] = temperature
+        if top_p is not None:
+            create_kwargs["top_p"] = top_p
+
+        if tools is not None:
+            create_kwargs["tools"] = []
+            for t in tools:
+                if t.get("type") == "custom":
+                    create_kwargs["tools"].append(t)
+                elif "name" in t:
+                    tool_def: dict[str, Any] = {
+                        "type": "function",
+                        "name": t["name"],
+                    }
+                    if "description" in t:
+                        tool_def["description"] = t["description"]
+                    if "parameters" in t:
+                        tool_def["parameters"] = t["parameters"]
+                    if "strict" in t:
+                        tool_def["strict"] = t["strict"]
+                    else:
+                        tool_def["strict"] = True
+                    create_kwargs["tools"].append(tool_def)
+            if tool_choice is not None:
+                if isinstance(tool_choice, str):
+                    create_kwargs["tool_choice"] = tool_choice
+                elif isinstance(tool_choice, dict) and "name" in tool_choice:
+                    create_kwargs["tool_choice"] = {
+                        "type": "function",
+                        "name": tool_choice["name"],
+                    }
         if system_instruction:
             create_kwargs["instructions"] = system_instruction
         if previous_response_id:
@@ -139,11 +175,34 @@ class OpenAIProvider:
                     "output_tokens": int(getattr(usage_raw, "output_tokens", 0)),
                     "total_tokens": int(getattr(usage_raw, "total_tokens", 0)),
                 }
+
+            tool_calls = []
+            for item in getattr(response, "output", []):
+                item_type = getattr(item, "type", None)
+                if item_type == "function_call":
+                    tool_calls.append(
+                        {
+                            "id": getattr(item, "call_id", None),
+                            "name": getattr(item, "name", None),
+                            "arguments": getattr(item, "arguments", None),
+                        }
+                    )
+                elif item_type == "custom_tool_call":
+                    tool_calls.append(
+                        {
+                            "id": getattr(item, "call_id", None),
+                            "name": getattr(item, "name", None),
+                            "arguments": getattr(item, "input", None),
+                        }
+                    )
+
             payload: dict[str, Any] = {"text": text, "usage": usage}
             if structured is not None:
                 payload["structured"] = structured
             if isinstance(response_id, str):
                 payload["response_id"] = response_id
+            if tool_calls:
+                payload["tool_calls"] = tool_calls
             return payload
         except asyncio.CancelledError:
             raise

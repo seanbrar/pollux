@@ -109,24 +109,39 @@ is longer: the computed backoff or the server hint).
 
 ## Options
 
-`Options` controls per-call execution features:
+While `Config` establishes the infrastructure requirements for a provider connection, `Options` controls per-prompt inference overrides. This design allows you to dynamically tune how text is generated on a call-by-call basis without needing to tear down or recreate the underlying client connection.
 
 ```python
 from pollux import Options
 
 options = Options(
     system_instruction="You are a concise analyst.",  # Optional global behavior guide
+    temperature=0.7,                  # Generation tuning
+    top_p=0.9,                        # Generation tuning
+    tools=[{"name": "get_weather"}],  # Native tool calling
+    tool_choice="auto",               # Tool calling mode ('auto', 'any', 'none', or dict)
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Reserved for future provider support
     delivery_mode="realtime",         # "deferred" reserved for future provider batch APIs
 )
 ```
 
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `system_instruction` | `str \| None` | `None` | Global system prompt |
+| `temperature` | `float \| None` | `None` | Sampling temperature |
+| `top_p` | `float \| None` | `None` | Nucleus sampling probability |
+| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools |
+| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy |
+| `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format |
+| `reasoning_effort` | `str \| None` | `None` | Reserved for future o1/o3 support |
+| `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
+
 See [Sources and Patterns](sources-and-patterns.md#structured-output) for
 a complete structured output example.
 
-Conversation options are provider-dependent in v1.1: OpenAI supports
-`history`/`continue_from`; Gemini remains unsupported.
+Conversation options are provider-dependent: OpenAI supports
+`history`/`continue_from`; Gemini conversation support is not yet available.
 
 ## Safety Notes
 

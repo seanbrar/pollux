@@ -5,15 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable  # noqa: TC003 - used at runtime in dataclass
 from dataclasses import dataclass
 import hashlib
+import json
 import mimetypes
 from pathlib import Path
 import re
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from pollux.errors import SourceError
 
-SourceType = Literal["text", "file", "youtube", "arxiv", "uri"]
+SourceType = Literal["text", "file", "youtube", "arxiv", "uri", "json"]
 _ARXIV_HOSTS = {"arxiv.org", "www.arxiv.org"}
 _ARXIV_ID_RE = re.compile(
     r"^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z\-]+(?:\.[a-z\-]+)?/\d{7}(?:v\d+)?)$",
@@ -45,6 +46,34 @@ class Source:
             source_type="text",
             identifier=ident,
             mime_type="text/plain",
+            size_bytes=len(content),
+            content_loader=lambda: content,
+        )
+
+    @classmethod
+    def from_json(
+        cls, data: dict[str, Any] | Any, *, identifier: str | None = None
+    ) -> Source:
+        """Create a Source from a JSON-serializable object.
+
+        Args:
+            data: A dictionary or object to serialize into a JSON string. If the object
+                has a `model_dump()` method (like Pydantic models), it will be used.
+            identifier: Display label. Defaults to "json-data".
+        """
+        if hasattr(data, "model_dump") and callable(data.model_dump):
+            data = data.model_dump()
+
+        try:
+            content = json.dumps(data).encode("utf-8")
+        except TypeError as exc:
+            raise SourceError(f"Data is not JSON serializable: {exc}") from exc
+
+        ident = identifier or "json-data"
+        return cls(
+            source_type="json",
+            identifier=ident,
+            mime_type="application/json",
             size_bytes=len(content),
             content_loader=lambda: content,
         )

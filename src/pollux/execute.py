@@ -231,6 +231,10 @@ async def execute_plan(
                         system_instruction=options.system_instruction,
                         cache_name=cache_name,
                         response_schema=schema,
+                        temperature=options.temperature,
+                        top_p=options.top_p,
+                        tools=options.tools,
+                        tool_choice=options.tool_choice,
                         reasoning_effort=options.reasoning_effort,
                         history=history,
                         delivery_mode=options.delivery_mode,
@@ -244,6 +248,10 @@ async def execute_plan(
                         system_instruction=options.system_instruction,
                         cache_name=cache_name,
                         response_schema=schema,
+                        temperature=options.temperature,
+                        top_p=options.top_p,
+                        tools=options.tools,
+                        tool_choice=options.tool_choice,
                         reasoning_effort=options.reasoning_effort,
                         history=history,
                         delivery_mode=options.delivery_mode,
@@ -302,7 +310,7 @@ async def execute_plan(
         prompt = prompts[0] if isinstance(prompts[0], str) else str(prompts[0])
         answer = responses[0].get("text")
         reply = answer if isinstance(answer, str) else ""
-        updated_history = [
+        updated_history: list[dict[str, str]] = [
             *conversation_history,
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": reply},

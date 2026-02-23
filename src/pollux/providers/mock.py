@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from pollux.providers.base import ProviderCapabilities
 
@@ -46,10 +46,14 @@ class MockProvider:
         system_instruction: str | None = None,  # noqa: ARG002
         cache_name: str | None = None,  # noqa: ARG002
         response_schema: dict[str, Any] | None = None,
-        reasoning_effort: str | None = None,  # noqa: ARG002
-        history: list[dict[str, str]] | None = None,  # noqa: ARG002
-        delivery_mode: str = "realtime",  # noqa: ARG002
-        previous_response_id: str | None = None,  # noqa: ARG002
+        temperature: float | None = None,
+        top_p: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
+        reasoning_effort: str | None = None,
+        history: list[dict[str, str]] | None = None,
+        delivery_mode: str = "realtime",
+        previous_response_id: str | None = None,
     ) -> dict[str, Any]:
         """Return a deterministic mock response.
 
@@ -58,7 +62,17 @@ class MockProvider:
         in mock mode.
         """
         # Explicitly discard so ruff doesn't depend on per-version unused-arg rules.
-        del response_schema
+        del (
+            response_schema,
+            temperature,
+            top_p,
+            tools,
+            tool_choice,
+            reasoning_effort,
+            history,
+            delivery_mode,
+            previous_response_id,
+        )
 
         string_parts = [p for p in parts if isinstance(p, str) and p.strip()]
         if string_parts:
