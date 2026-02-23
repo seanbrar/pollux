@@ -165,10 +165,10 @@ Example of a complete envelope:
 }
 ```
 
-## v1.1 Notes
+## Notes
 
-- Conversation continuity (`history`, `continue_from`) is currently
-  OpenAI-only and supports one prompt per call.
+- Conversation continuity (`history`, `continue_from`) supports one
+  prompt per call. Both Gemini and OpenAI support tool messages in history.
 - `delivery_mode="deferred"` remains reserved and disabled.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).

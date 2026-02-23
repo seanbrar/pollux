@@ -767,3 +767,67 @@ async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> N
     assert input_msgs[0]["call_id"] == "call_abc"
     assert input_msgs[0]["output"] == '{"temp": 72}'
     assert input_msgs[1]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_gemini_maps_tool_history_to_content_format() -> None:
+    """Tool messages in history should map to function call / response types."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(
+        *,
+        model: str,  # noqa: ARG001
+        contents: Any,
+        config: Any,  # noqa: ARG001
+    ) -> Any:
+        captured["contents"] = contents
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        model=GEMINI_MODEL,
+        parts=["Continue the conversation"],
+        history=[
+            {"role": "user", "content": "What's the weather?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "arguments": '{"location": "NYC"}',
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_abc",
+                "content": '{"temp": 72}',
+            },
+        ],
+    )
+
+    contents = captured["contents"]
+    assert len(contents) == 4
+
+    assert contents[0].role == "user"
+    assert contents[0].parts[0].text == "What's the weather?"
+
+    assert contents[1].role == "model"
+    assert contents[1].parts[0].function_call.name == "get_weather"
+    assert contents[1].parts[0].function_call.args == {"location": "NYC"}
+
+    assert contents[2].role == "user"
+    assert contents[2].parts[0].function_response.name == "get_weather"
+    assert contents[2].parts[0].function_response.response == {"temp": 72}
+
+    assert contents[3].role == "user"
+    assert contents[3].parts[0].text == "Continue the conversation"

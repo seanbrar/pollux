@@ -59,7 +59,7 @@ class GeminiProvider:
             structured_outputs=True,
             reasoning=False,
             deferred_delivery=False,
-            conversation=False,
+            conversation=True,
         )
 
     def _convert_parts(self, parts: list[Any]) -> list[Any]:
@@ -110,11 +110,12 @@ class GeminiProvider:
         """Generate content using Gemini API."""
         _ = (
             reasoning_effort,
-            history,
             delivery_mode,
             previous_response_id,
         )
         client = self._get_client()
+        from google.genai import types
+
         config: dict[str, Any] = {}
         if system_instruction is not None:
             config["system_instruction"] = system_instruction
@@ -129,8 +130,6 @@ class GeminiProvider:
             config["top_p"] = top_p
 
         if tools is not None:
-            from google.genai import types
-
             tool_objs = []
             for t in tools:
                 if "name" in t:
@@ -163,10 +162,102 @@ class GeminiProvider:
                     }
                 }
 
+        input_contents = []
+        call_id_to_name: dict[str, str] = {}
+
+        if history:
+            for item in history:
+                role = item.get("role")
+                if not isinstance(role, str):
+                    continue
+
+                if role == "tool":
+                    call_id = item.get("tool_call_id")
+                    name = call_id_to_name.get(call_id) if call_id else None
+                    if not name:
+                        name = call_id or "unknown_tool"
+
+                    content = item.get("content", "")
+                    if isinstance(content, str):
+                        try:
+                            parsed_content = json.loads(content)
+                        except Exception:
+                            parsed_content = {"result": content}
+                    else:
+                        parsed_content = content or {}
+
+                    input_contents.append(
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_function_response(
+                                    name=name,
+                                    response=parsed_content,
+                                )
+                            ],
+                        )
+                    )
+                elif role == "assistant":
+                    content_parts = []
+                    content = item.get("content")
+                    if isinstance(content, str) and content:
+                        content_parts.append(types.Part.from_text(text=content))
+
+                    tool_calls = item.get("tool_calls")
+                    if isinstance(tool_calls, list):
+                        for tc in tool_calls:
+                            if not isinstance(tc, dict):
+                                continue
+                            call_id = tc.get("id")
+                            name = tc.get("name")
+                            if isinstance(call_id, str) and isinstance(name, str):
+                                call_id_to_name[call_id] = name
+                                args = tc.get("arguments", "")
+                                if isinstance(args, str):
+                                    try:
+                                        args = json.loads(args) if args else {}
+                                    except Exception:
+                                        args = {}
+                                elif not isinstance(args, dict):
+                                    args = {}
+                                content_parts.append(
+                                    types.Part.from_function_call(
+                                        name=name,
+                                        args=args,
+                                    )
+                                )
+                    if content_parts:
+                        input_contents.append(
+                            types.Content(role="model", parts=content_parts)
+                        )
+                elif role == "user":
+                    content = item.get("content")
+                    if isinstance(content, str) and content:
+                        input_contents.append(
+                            types.Content(
+                                role="user", parts=[types.Part.from_text(text=content)]
+                            )
+                        )
+
+        if not input_contents:
+            # No history — use the original flat-parts path unchanged.
+            contents: Any = self._convert_parts(parts)
+        else:
+            # History present — append current prompt as a Content object.
+            user_parts: list[Any] = []
+            for cp in self._convert_parts(parts):
+                if isinstance(cp, str):
+                    user_parts.append(types.Part.from_text(text=cp))
+                else:
+                    user_parts.append(cp)
+            if user_parts:
+                input_contents.append(types.Content(role="user", parts=user_parts))
+            contents = input_contents
+
         try:
             response = await client.aio.models.generate_content(
                 model=model,
-                contents=self._convert_parts(parts),
+                contents=contents,
                 config=config or None,
             )
             return self._parse_response(response)
