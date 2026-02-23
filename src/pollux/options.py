@@ -39,7 +39,7 @@ class Options:
     #: ``"deferred"`` is reserved for future provider batch APIs.
     delivery_mode: DeliveryMode = "realtime"
     #: Mutually exclusive with *continue_from*.
-    history: list[dict[str, str]] | None = None
+    history: list[dict[str, Any]] | None = None
     #: Mutually exclusive with *history*.
     continue_from: ResultEnvelope | None = None
 
@@ -77,14 +77,14 @@ class Options:
                     hint="Pass history=[{'role': 'user', 'content': '...'}].",
                 )
             for item in self.history:
-                if (
-                    not isinstance(item, dict)
-                    or not isinstance(item.get("role"), str)
-                    or not isinstance(item.get("content"), str)
-                ):
+                if not isinstance(item, dict) or not isinstance(item.get("role"), str):
                     raise ConfigurationError(
-                        "history items must be dicts with string 'role' and 'content'",
-                        hint="Pass history=[{'role': 'user', 'content': '...'}].",
+                        "history items must be dicts with a string 'role' field",
+                        hint=(
+                            "Each item needs at least {'role': 'user', ...}. "
+                            "Tool messages may omit 'content' or include extra "
+                            "keys like 'tool_call_id'."
+                        ),
                     )
         if self.continue_from is not None and not isinstance(self.continue_from, dict):
             raise ConfigurationError(

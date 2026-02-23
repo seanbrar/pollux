@@ -123,7 +123,7 @@ async def execute_plan(
     schema = options.response_schema_json()
 
     history = options.history
-    conversation_history: list[dict[str, str]] = []
+    conversation_history: list[dict[str, Any]] = []
     if history is not None:
         conversation_history = [dict(item) for item in history]
 
@@ -144,9 +144,7 @@ async def execute_plan(
             conversation_history = [
                 item
                 for item in state_history
-                if isinstance(item, dict)
-                and isinstance(item.get("role"), str)
-                and isinstance(item.get("content"), str)
+                if isinstance(item, dict) and isinstance(item.get("role"), str)
             ]
 
         if history is None:
@@ -310,10 +308,14 @@ async def execute_plan(
         prompt = prompts[0] if isinstance(prompts[0], str) else str(prompts[0])
         answer = responses[0].get("text")
         reply = answer if isinstance(answer, str) else ""
-        updated_history: list[dict[str, str]] = [
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
+        tool_calls = responses[0].get("tool_calls")
+        if tool_calls:
+            assistant_msg["tool_calls"] = tool_calls
+        updated_history: list[dict[str, Any]] = [
             *conversation_history,
             {"role": "user", "content": prompt},
-            {"role": "assistant", "content": reply},
+            assistant_msg,
         ]
         conversation_state = {"history": updated_history}
         response_id = responses[0].get("response_id")

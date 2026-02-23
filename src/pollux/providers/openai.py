@@ -73,7 +73,7 @@ class OpenAIProvider:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
         reasoning_effort: str | None = None,
-        history: list[dict[str, str]] | None = None,
+        history: list[dict[str, Any]] | None = None,
         delivery_mode: str = "realtime",
         previous_response_id: str | None = None,
     ) -> dict[str, Any]:
@@ -95,8 +95,41 @@ class OpenAIProvider:
         if history_items is not None:
             for item in history_items:
                 role = item.get("role")
+                if not isinstance(role, str):
+                    continue
+
+                # Tool result message → function_call_output
+                if role == "tool":
+                    call_id = item.get("tool_call_id")
+                    content = item.get("content", "")
+                    input_messages.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": content
+                            if isinstance(content, str)
+                            else str(content or ""),
+                        }
+                    )
+                    continue
+
+                # Assistant message with tool_calls → function_call items
+                item_tool_calls = item.get("tool_calls")
+                if role == "assistant" and item_tool_calls:
+                    for tc in item_tool_calls:
+                        input_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": tc.get("id"),
+                                "name": tc.get("name"),
+                                "arguments": tc.get("arguments", ""),
+                            }
+                        )
+                    continue
+
+                # Regular user/assistant text message
                 content = item.get("content")
-                if not isinstance(role, str) or not isinstance(content, str):
+                if not isinstance(content, str):
                     continue
                 input_messages.append(
                     {

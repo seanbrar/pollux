@@ -24,7 +24,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Structured outputs (`response_schema`) | ✅ | ✅ | JSON-schema path in both providers |
 | Reasoning controls (`reasoning_effort`) | ❌ | ❌ | Reserved for future provider enablement |
 | Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | Explicitly disabled in v1.1 |
-| Conversation continuity (`history`, `continue_from`) | ❌ | ✅ | OpenAI-native continuation; single prompt per call |
+| Tool calling | ✅ | ✅ | Tool definitions via `Options.tools`; results in `ResultEnvelope.tool_calls` |
+| Tool message pass-through in history | ❌ | ✅ | OpenAI maps tool messages to `function_call`/`function_call_output` items |
+| Conversation continuity (`history`, `continue_from`) | ❌ | ✅ | OpenAI-native continuation; single prompt per call; supports tool messages |
 
 ## Important OpenAI Notes
 
