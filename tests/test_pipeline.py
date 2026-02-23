@@ -352,6 +352,18 @@ def test_source_from_arxiv_rejects_invalid_refs(invalid_ref: str) -> None:
         Source.from_arxiv(invalid_ref)
 
 
+@pytest.mark.asyncio
+async def test_source_from_json_is_sent_as_inline_content() -> None:
+    """JSON sources should be passed as content, not URI placeholders."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    source = Source.from_json({"topic": "science"})
+    expected = source.content_loader().decode("utf-8")
+
+    result = await pollux.run("Summarize this.", source=source, config=cfg)
+
+    assert result["answers"] == [f"echo: {expected}"]
+
+
 # =============================================================================
 # Pipeline Internals
 # =============================================================================
