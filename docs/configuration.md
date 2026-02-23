@@ -154,7 +154,7 @@ Both are mutually exclusive — use one per call.
   `run_many()`. Pollux extracts the conversation state automatically.
 
 Conversation continuity requires a provider with conversation support
-(currently OpenAI only) and exactly one prompt per call.
+(Gemini and OpenAI) and exactly one prompt per call.
 
 ### Tool Calling
 
@@ -249,9 +249,10 @@ async def main():
 asyncio.run(main())
 ```
 
-Conversation options are provider-dependent: OpenAI supports
-`history`/`continue_from` with tool messages; Gemini conversation
-support is not yet available.
+Conversation options are supported by both Gemini and OpenAI. Both
+providers support tool messages in history. See
+[Provider Capabilities](reference/provider-capabilities.md) for
+provider-specific details.
 
 ## Safety Notes
 

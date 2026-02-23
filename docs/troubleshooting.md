@@ -35,8 +35,8 @@ Use this order — most failures resolve by step 2.
 
 3. **Unsupported feature** — Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
-   `delivery_mode="deferred"` is reserved; conversation continuity is
-   provider-dependent (OpenAI-only in v1.1).
+   `delivery_mode="deferred"` is reserved. Conversation continuity
+   and tool calling are supported by both Gemini and OpenAI.
 
 4. **Source and payload** — Reduce to one source + one prompt and retry.
    For OpenAI remote URLs in v1.0, only PDF and image URLs are supported.
