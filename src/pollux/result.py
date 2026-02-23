@@ -34,6 +34,7 @@ class ResultEnvelope(TypedDict, total=False):
     metrics: dict[str, Any]
     diagnostics: dict[str, Any]
     _conversation_state: dict[str, Any]
+    tool_calls: list[list[dict[str, Any]]]
 
 
 def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
@@ -73,6 +74,26 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
     elif empty_count > 0:
         status = "partial"
 
+    # Extract finish reasons
+    finish_reasons: list[str | None] = []
+    for response in trace.responses:
+        reason = None
+        # OpenAI style
+        if (
+            "choices" in response
+            and isinstance(response["choices"], list)
+            and response["choices"]
+        ):
+            reason = response["choices"][0].get("finish_reason")
+        # Gemini style
+        elif (
+            "candidates" in response
+            and isinstance(response["candidates"], list)
+            and response["candidates"]
+        ):
+            reason = response["candidates"][0].get("finishReason")
+        finish_reasons.append(reason)
+
     envelope = ResultEnvelope(
         status=status,
         answers=answers,
@@ -83,12 +104,27 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
             "duration_s": trace.duration_s,
             "n_calls": plan.n_calls,
             "cache_used": trace.cache_name is not None,
+            "finish_reasons": finish_reasons,
+        },
+        diagnostics={
+            "raw_responses": trace.responses,
         },
     )
     if wants_structured:
         envelope["structured"] = structured_values
     if trace.conversation_state is not None:
         envelope["_conversation_state"] = trace.conversation_state
+
+    all_tool_calls: list[list[dict[str, Any]]] = []
+    has_tools = False
+    for response in trace.responses:
+        tcs = response.get("tool_calls", [])
+        all_tool_calls.append(tcs)
+        if tcs:
+            has_tools = True
+    if has_tools:
+        envelope["tool_calls"] = all_tool_calls
+
     return envelope
 
 

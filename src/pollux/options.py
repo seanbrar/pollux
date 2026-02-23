@@ -25,6 +25,15 @@ class Options:
     system_instruction: str | None = None
     #: Pydantic ``BaseModel`` subclass or JSON Schema dict for structured output.
     response_schema: ResponseSchemaInput | None = None
+
+    #: Core tool calling parameters
+    tools: list[dict[str, Any]] | None = None
+    tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None
+
+    #: Generation tuning parameters
+    temperature: float | None = None
+    top_p: float | None = None
+
     #: Reserved — not yet wired in v1.0.
     reasoning_effort: ReasoningEffort | None = None
     #: ``"deferred"`` is reserved for future provider batch APIs.
@@ -74,11 +83,8 @@ class Options:
                     or not isinstance(item.get("content"), str)
                 ):
                     raise ConfigurationError(
-                        "history items must include string role and content fields",
-                        hint=(
-                            "Each item should look like "
-                            "{'role': 'user', 'content': '...'}"
-                        ),
+                        "history items must be dicts with string 'role' and 'content'",
+                        hint="Pass history=[{'role': 'user', 'content': '...'}].",
                     )
         if self.continue_from is not None and not isinstance(self.continue_from, dict):
             raise ConfigurationError(

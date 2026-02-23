@@ -62,7 +62,7 @@ def _build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
     parts: list[Any] = []
 
     for source in sources:
-        if source.source_type == "text":
+        if source.source_type in {"text", "json"}:
             # Load text content
             try:
                 content = source.content_loader()

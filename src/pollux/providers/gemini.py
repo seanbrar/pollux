@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
@@ -98,6 +98,10 @@ class GeminiProvider:
         system_instruction: str | None = None,
         cache_name: str | None = None,
         response_schema: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
         reasoning_effort: str | None = None,
         history: list[dict[str, str]] | None = None,
         delivery_mode: str = "realtime",
@@ -105,7 +109,6 @@ class GeminiProvider:
     ) -> dict[str, Any]:
         """Generate content using Gemini API."""
         _ = (
-            response_schema,
             reasoning_effort,
             history,
             delivery_mode,
@@ -120,6 +123,45 @@ class GeminiProvider:
         if response_schema is not None:
             config["response_mime_type"] = "application/json"
             config["response_json_schema"] = response_schema
+        if temperature is not None:
+            config["temperature"] = temperature
+        if top_p is not None:
+            config["top_p"] = top_p
+
+        if tools is not None:
+            from google.genai import types
+
+            tool_objs = []
+            for t in tools:
+                if "name" in t:
+                    tool_objs.append(
+                        types.Tool(
+                            function_declarations=[
+                                types.FunctionDeclaration(
+                                    name=t["name"],
+                                    description=t.get("description", ""),
+                                    parameters=t.get("parameters"),
+                                )
+                            ]
+                        )
+                    )
+            if tool_objs:
+                config["tools"] = tool_objs
+
+            if isinstance(tool_choice, str):
+                mode = tool_choice.upper()
+                if mode in ("AUTO", "ANY", "NONE"):
+                    config["tool_config"] = {"function_calling_config": {"mode": mode}}
+                elif mode == "REQUIRED":
+                    config["tool_config"] = {"function_calling_config": {"mode": "ANY"}}
+            elif isinstance(tool_choice, dict) and "name" in tool_choice:
+                # Force specific function
+                config["tool_config"] = {
+                    "function_calling_config": {
+                        "mode": "ANY",
+                        "allowed_function_names": [tool_choice["name"]],
+                    }
+                }
 
         try:
             response = await client.aio.models.generate_content(
@@ -307,7 +349,20 @@ class GeminiProvider:
         except Exception:
             usage = {}
 
+        tool_calls = []
+        if hasattr(response, "function_calls") and response.function_calls:
+            for fc in response.function_calls:
+                tool_calls.append(
+                    {
+                        "id": getattr(fc, "id", None),
+                        "name": getattr(fc, "name", None),
+                        "arguments": getattr(fc, "args", {}),
+                    }
+                )
+
         payload: dict[str, Any] = {"text": text, "usage": usage}
         if structured is not None:
             payload["structured"] = structured
+        if tool_calls:
+            payload["tool_calls"] = tool_calls
         return payload

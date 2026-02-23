@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -33,6 +33,10 @@ class Provider(Protocol):
         system_instruction: str | None = None,
         cache_name: str | None = None,
         response_schema: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
         reasoning_effort: str | None = None,
         history: list[dict[str, str]] | None = None,
         delivery_mode: str = "realtime",

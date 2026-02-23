@@ -352,6 +352,18 @@ def test_source_from_arxiv_rejects_invalid_refs(invalid_ref: str) -> None:
         Source.from_arxiv(invalid_ref)
 
 
+@pytest.mark.asyncio
+async def test_source_from_json_is_sent_as_inline_content() -> None:
+    """JSON sources should be passed as content, not URI placeholders."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    source = Source.from_json({"topic": "science"})
+    expected = source.content_loader().decode("utf-8")
+
+    result = await pollux.run("Summarize this.", source=source, config=cfg)
+
+    assert result["answers"] == [f"echo: {expected}"]
+
+
 # =============================================================================
 # Pipeline Internals
 # =============================================================================
@@ -490,6 +502,10 @@ async def test_cached_context_is_not_resent_on_each_call(
             system_instruction: str | None = None,
             cache_name: str | None = None,
             response_schema: dict[str, Any] | None = None,
+            temperature: float | None = None,
+            top_p: float | None = None,
+            tools: list[dict[str, Any]] | None = None,
+            tool_choice: Any | None = None,
             reasoning_effort: str | None = None,
             history: list[dict[str, str]] | None = None,
             delivery_mode: str = "realtime",
@@ -499,6 +515,10 @@ async def test_cached_context_is_not_resent_on_each_call(
                 model,
                 system_instruction,
                 response_schema,
+                temperature,
+                top_p,
+                tools,
+                tool_choice,
                 reasoning_effort,
                 history,
                 delivery_mode,
@@ -726,6 +746,10 @@ async def test_structured_output_returns_pydantic_instances(
             system_instruction: str | None = None,
             cache_name: str | None = None,
             response_schema: dict[str, Any] | None = None,
+            temperature: float | None = None,
+            top_p: float | None = None,
+            tools: list[dict[str, Any]] | None = None,
+            tool_choice: Any | None = None,
             reasoning_effort: str | None = None,
             history: list[dict[str, str]] | None = None,
             delivery_mode: str = "realtime",
@@ -736,6 +760,10 @@ async def test_structured_output_returns_pydantic_instances(
                 parts,
                 system_instruction,
                 cache_name,
+                temperature,
+                top_p,
+                tools,
+                tool_choice,
                 reasoning_effort,
                 history,
                 delivery_mode,
