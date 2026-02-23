@@ -638,3 +638,132 @@ async def test_openai_upload_characterization(golden: Any, tmp_path: Any) -> Non
     # Don't characterize the local file object itself; only stable kwargs.
     normalized = {k: v for k, v in files.last_kwargs.items() if k != "file"}
     assert expected_files_create == normalized
+
+
+# =============================================================================
+# OpenAI Tool History Mapping (Characterization)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_openai_maps_tool_history_to_responses_api_format() -> None:
+    """Tool messages in history should map to function_call/function_call_output."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["Continue the conversation"],
+        history=[
+            {"role": "user", "content": "What's the weather?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "arguments": '{"location": "NYC"}',
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_abc",
+                "content": '{"temp": 72}',
+            },
+        ],
+    )
+
+    assert responses.last_kwargs is not None
+    input_msgs = responses.last_kwargs["input"]
+
+    # First: regular user message
+    assert input_msgs[0]["role"] == "user"
+    assert input_msgs[0]["content"] == [
+        {"type": "input_text", "text": "What's the weather?"}
+    ]
+
+    # Second: function_call from assistant tool_calls
+    assert input_msgs[1]["type"] == "function_call"
+    assert input_msgs[1]["call_id"] == "call_abc"
+    assert input_msgs[1]["name"] == "get_weather"
+    assert input_msgs[1]["arguments"] == '{"location": "NYC"}'
+
+    # Third: function_call_output from tool message
+    assert input_msgs[2]["type"] == "function_call_output"
+    assert input_msgs[2]["call_id"] == "call_abc"
+    assert input_msgs[2]["output"] == '{"temp": 72}'
+
+    # Fourth: the current user message
+    assert input_msgs[3]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
+    """Assistant text should not be dropped when tool_calls are present."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["Continue"],
+        history=[
+            {
+                "role": "assistant",
+                "content": "Let me check that tool.",
+                "tool_calls": [
+                    {"id": "call_abc", "name": "get_weather", "arguments": "{}"}
+                ],
+            }
+        ],
+    )
+
+    assert responses.last_kwargs is not None
+    input_msgs = responses.last_kwargs["input"]
+    assert input_msgs[0]["type"] == "function_call"
+    assert input_msgs[0]["call_id"] == "call_abc"
+    assert input_msgs[1]["role"] == "assistant"
+    assert input_msgs[1]["content"] == [
+        {"type": "input_text", "text": "Let me check that tool."}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> None:
+    """Tool outputs should still be sent when continuing via previous_response_id."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["Continue"],
+        previous_response_id="resp_prev",
+        history=[
+            {"role": "user", "content": "What's the weather?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_abc", "name": "get_weather", "arguments": "{}"}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_abc", "content": '{"temp": 72}'},
+        ],
+    )
+
+    assert responses.last_kwargs is not None
+    input_msgs = responses.last_kwargs["input"]
+    assert input_msgs[0]["type"] == "function_call_output"
+    assert input_msgs[0]["call_id"] == "call_abc"
+    assert input_msgs[0]["output"] == '{"temp": 72}'
+    assert input_msgs[1]["role"] == "user"

@@ -39,3 +39,14 @@ async def test_mock_generate_with_options() -> None:
     result = await run("Hello world!", config=config, options=opts)
     # Mock just returns the prompt but shouldn't crash
     assert "echo: Hello world!" in result["answers"][0]
+
+
+def test_history_with_none_content_accepted() -> None:
+    """Assistant messages with content: None pass validation (tool-call pattern)."""
+    opts = Options(
+        history=[
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1"}]},
+        ]
+    )
+    assert opts.history is not None
+    assert opts.history[0]["content"] is None

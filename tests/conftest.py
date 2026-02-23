@@ -63,7 +63,7 @@ class FakeProvider:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: Any | None = None,
         reasoning_effort: str | None = None,
-        history: list[dict[str, str]] | None = None,
+        history: list[dict[str, Any]] | None = None,
         delivery_mode: str = "realtime",
         previous_response_id: str | None = None,
     ) -> dict[str, Any]:

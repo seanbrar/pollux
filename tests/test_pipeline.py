@@ -1042,3 +1042,128 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
 
     assert result["answers"] == ['{"title":"A"}']
     assert result["structured"] == [None]
+
+
+# =============================================================================
+# Tool-Call Transparency (v1.2)
+# =============================================================================
+
+
+def test_history_accepts_tool_messages() -> None:
+    """Options(history=...) with tool-shaped messages should not raise."""
+    history: list[dict[str, Any]] = [
+        {"role": "user", "content": "What's the weather?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {"id": "call_1", "name": "get_weather", "arguments": '{"loc": "NYC"}'}
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": '{"temp": 72}'},
+    ]
+    opts = Options(history=history)
+    assert opts.history == history
+
+
+def test_history_still_rejects_items_without_role() -> None:
+    """Items missing 'role' must still raise ConfigurationError."""
+    with pytest.raises(ConfigurationError, match="role"):
+        Options(history=[{"content": "no role here"}])
+
+
+@pytest.mark.asyncio
+async def test_tool_calls_preserved_in_conversation_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When provider returns tool_calls, conversation state preserves them."""
+
+    @dataclass
+    class _ToolCallProvider(FakeProvider):
+        _capabilities: ProviderCapabilities = field(
+            default_factory=lambda: ProviderCapabilities(
+                caching=True,
+                uploads=True,
+                structured_outputs=False,
+                reasoning=False,
+                deferred_delivery=False,
+                conversation=True,
+            )
+        )
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+            _ = kwargs
+            return {
+                "text": "",
+                "usage": {"total_tokens": 1},
+                "tool_calls": [
+                    {"id": "call_1", "name": "get_weather", "arguments": "{}"}
+                ],
+            }
+
+    fake = _ToolCallProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run(
+        "What's the weather?",
+        config=cfg,
+        options=Options(history=[{"role": "user", "content": "hello"}]),
+    )
+
+    state = result.get("_conversation_state")
+    assert isinstance(state, dict)
+    last_msg = state["history"][-1]
+    assert last_msg["role"] == "assistant"
+    assert last_msg["tool_calls"] == [
+        {"id": "call_1", "name": "get_weather", "arguments": "{}"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_continue_from_preserves_tool_history_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """continue_from with tool messages in history passes them to provider."""
+    fake = KwargsCaptureProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    tool_history: list[dict[str, Any]] = [
+        {"role": "user", "content": "What's the weather?"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call_1", "name": "get_weather", "arguments": "{}"}],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": '{"temp": 72}'},
+    ]
+    previous: ResultEnvelope = {
+        "status": "ok",
+        "answers": [""],
+        "_conversation_state": {"history": tool_history},
+    }
+
+    await pollux.run(
+        "Tell me more",
+        config=cfg,
+        options=Options(continue_from=previous),
+    )
+
+    assert len(fake.generate_kwargs) == 1
+    received_history = fake.generate_kwargs[0]["history"]
+    assert len(received_history) == 3
+    # Verify tool message was preserved (not filtered out)
+    assert received_history[2]["role"] == "tool"
+    assert received_history[2]["tool_call_id"] == "call_1"
+    # Verify assistant tool_calls preserved
+    assert received_history[1]["tool_calls"] is not None

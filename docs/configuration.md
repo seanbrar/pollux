@@ -136,12 +136,122 @@ options = Options(
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format |
 | `reasoning_effort` | `str \| None` | `None` | Reserved for future o1/o3 support |
 | `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
+| `history` | `list[dict] \| None` | `None` | Conversation history; mutually exclusive with `continue_from` |
+| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result; mutually exclusive with `history` |
 
 See [Sources and Patterns](sources-and-patterns.md#structured-output) for
 a complete structured output example.
 
+### Conversation Continuity
+
+Pollux supports multi-turn conversations via `history` and `continue_from`.
+Both are mutually exclusive — use one per call.
+
+- **`history`**: Pass an explicit list of message dicts. Each item must have
+  a string `role` field. Regular messages include `content`; tool messages
+  may include `tool_call_id`, `tool_calls`, and other keys.
+- **`continue_from`**: Pass a prior `ResultEnvelope` returned by `run()` or
+  `run_many()`. Pollux extracts the conversation state automatically.
+
+Conversation continuity requires a provider with conversation support
+(currently OpenAI only) and exactly one prompt per call.
+
+### Tool Calling
+
+Pollux passes tool definitions to providers and surfaces tool call responses
+in the result envelope.
+
+**Defining tools** — pass a list of tool schemas in `Options.tools`:
+
+```python
+options = Options(
+    tools=[
+        {
+            "name": "get_weather",
+            "description": "Get weather for a location",
+            "parameters": {
+                "type": "object",
+                "properties": {"location": {"type": "string"}},
+            },
+        }
+    ],
+    tool_choice="auto",  # "auto", "required", "none", or {"name": "..."}
+)
+```
+
+**Reading tool calls** — when the model invokes tools, the result envelope
+includes a `tool_calls` field:
+
+```python
+result = await pollux.run("What's the weather in NYC?", config=cfg, options=options)
+
+if "tool_calls" in result:
+    for call in result["tool_calls"][0]:  # per-prompt list
+        print(call["name"], call["arguments"])
+```
+
+### Tool-Call Loop Pattern
+
+Pollux is a single-turn orchestration layer — it does not execute tools or
+manage multi-turn loops. Your code owns the loop:
+
+```python
+import asyncio, json
+from pollux import Config, Options, run
+
+config = Config(provider="openai", model="gpt-5-nano")
+tools = [{"name": "get_weather", "parameters": {"type": "object", "properties": {"location": {"type": "string"}}}}]
+
+async def main():
+    # Turn 1: initial request with tools
+    result = await run(
+        "What's the weather in NYC?",
+        config=config,
+        options=Options(tools=tools, tool_choice="auto"),
+    )
+
+    if "tool_calls" not in result:
+        print(result["answers"][0])
+        return
+
+    # Extract tool calls from the result
+    tool_calls = result["tool_calls"][0]
+
+    # Execute tools (your code)
+    tool_results = []
+    for tc in tool_calls:
+        # ... call your actual tool implementation ...
+        output = json.dumps({"temp": 72, "unit": "F"})
+        tool_results.append({
+            "role": "tool",
+            "tool_call_id": tc["id"],
+            "content": output,
+        })
+
+    # Append tool outputs to the saved conversation state
+    continued = dict(result)
+    state = dict(continued.get("_conversation_state", {}))
+    state_history = list(state.get("history", []))
+    state["history"] = [*state_history, *tool_results]
+    continued["_conversation_state"] = state
+
+    # Turn 2: feed tool results back via continue_from
+    result2 = await run(
+        "Now summarize the weather.",
+        config=config,
+        options=Options(
+            tools=tools,
+            continue_from=continued,
+        ),
+    )
+    print(result2["answers"][0])
+
+asyncio.run(main())
+```
+
 Conversation options are provider-dependent: OpenAI supports
-`history`/`continue_from`; Gemini conversation support is not yet available.
+`history`/`continue_from` with tool messages; Gemini conversation
+support is not yet available.
 
 ## Safety Notes
 

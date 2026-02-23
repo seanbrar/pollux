@@ -73,7 +73,7 @@ class OpenAIProvider:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
         reasoning_effort: str | None = None,
-        history: list[dict[str, str]] | None = None,
+        history: list[dict[str, Any]] | None = None,
         delivery_mode: str = "realtime",
         previous_response_id: str | None = None,
     ) -> dict[str, Any]:
@@ -91,12 +91,63 @@ class OpenAIProvider:
             user_content.append({"type": "input_text", "text": ""})
 
         input_messages: list[dict[str, Any]] = []
-        history_items = None if previous_response_id else history
+        history_items = history
+        if previous_response_id and history_items is not None:
+            # With previous_response_id, avoid replaying full transcript. Only pass
+            # incremental tool outputs that must be provided explicitly.
+            history_items = [
+                item
+                for item in history_items
+                if isinstance(item, dict) and item.get("role") == "tool"
+            ]
         if history_items is not None:
             for item in history_items:
                 role = item.get("role")
+                if not isinstance(role, str):
+                    continue
+
+                # Tool result message → function_call_output
+                if role == "tool":
+                    call_id = item.get("tool_call_id")
+                    if not isinstance(call_id, str) or not call_id:
+                        continue
+                    content = item.get("content", "")
+                    input_messages.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": content
+                            if isinstance(content, str)
+                            else str(content or ""),
+                        }
+                    )
+                    continue
+
+                # Assistant message with tool_calls → function_call items
+                item_tool_calls = item.get("tool_calls")
+                if role == "assistant" and isinstance(item_tool_calls, list):
+                    for tc in item_tool_calls:
+                        if not isinstance(tc, dict):
+                            continue
+                        call_id = tc.get("id")
+                        name = tc.get("name")
+                        if not isinstance(call_id, str) or not isinstance(name, str):
+                            continue
+                        arguments = tc.get("arguments", "")
+                        if not isinstance(arguments, str):
+                            arguments = str(arguments or "")
+                        input_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": call_id,
+                                "name": name,
+                                "arguments": arguments,
+                            }
+                        )
+
+                # Regular user/assistant text message
                 content = item.get("content")
-                if not isinstance(role, str) or not isinstance(content, str):
+                if not isinstance(content, str):
                     continue
                 input_messages.append(
                     {
