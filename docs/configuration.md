@@ -228,13 +228,20 @@ async def main():
             "content": output,
         })
 
+    # Append tool outputs to the saved conversation state
+    continued = dict(result)
+    state = dict(continued.get("_conversation_state", {}))
+    state_history = list(state.get("history", []))
+    state["history"] = [*state_history, *tool_results]
+    continued["_conversation_state"] = state
+
     # Turn 2: feed tool results back via continue_from
     result2 = await run(
         "Now summarize the weather.",
         config=config,
         options=Options(
             tools=tools,
-            continue_from=result,
+            continue_from=continued,
         ),
     )
     print(result2["answers"][0])

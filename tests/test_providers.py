@@ -700,3 +700,68 @@ async def test_openai_maps_tool_history_to_responses_api_format() -> None:
 
     # Fourth: the current user message
     assert input_msgs[3]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
+    """Assistant text should not be dropped when tool_calls are present."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["Continue"],
+        history=[
+            {
+                "role": "assistant",
+                "content": "Let me check that tool.",
+                "tool_calls": [{"id": "call_abc", "name": "get_weather", "arguments": "{}"}],
+            }
+        ],
+    )
+
+    assert responses.last_kwargs is not None
+    input_msgs = responses.last_kwargs["input"]
+    assert input_msgs[0]["type"] == "function_call"
+    assert input_msgs[0]["call_id"] == "call_abc"
+    assert input_msgs[1]["role"] == "assistant"
+    assert input_msgs[1]["content"] == [
+        {"type": "input_text", "text": "Let me check that tool."}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> None:
+    """Tool outputs should still be sent when continuing via previous_response_id."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        model=OPENAI_MODEL,
+        parts=["Continue"],
+        previous_response_id="resp_prev",
+        history=[
+            {"role": "user", "content": "What's the weather?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_abc", "name": "get_weather", "arguments": "{}"}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_abc", "content": '{"temp": 72}'},
+        ],
+    )
+
+    assert responses.last_kwargs is not None
+    input_msgs = responses.last_kwargs["input"]
+    assert input_msgs[0]["type"] == "function_call_output"
+    assert input_msgs[0]["call_id"] == "call_abc"
+    assert input_msgs[0]["output"] == '{"temp": 72}'
+    assert input_msgs[1]["role"] == "user"
