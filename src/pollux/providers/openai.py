@@ -55,7 +55,7 @@ class OpenAIProvider:
             caching=False,
             uploads=True,
             structured_outputs=True,
-            reasoning=False,
+            reasoning=True,
             deferred_delivery=False,
             conversation=True,
         )
@@ -78,7 +78,7 @@ class OpenAIProvider:
         previous_response_id: str | None = None,
     ) -> dict[str, Any]:
         """Generate a response using OpenAI's responses endpoint."""
-        _ = cache_name, reasoning_effort, delivery_mode
+        _ = cache_name, delivery_mode
         client = self._get_client()
 
         user_content: list[dict[str, str]] = []
@@ -197,6 +197,11 @@ class OpenAIProvider:
             create_kwargs["instructions"] = system_instruction
         if previous_response_id:
             create_kwargs["previous_response_id"] = previous_response_id
+        if reasoning_effort is not None:
+            create_kwargs["reasoning"] = {
+                "effort": reasoning_effort,
+                "summary": "auto",
+            }
         if response_schema is not None:
             strict_schema = _to_openai_strict_schema(response_schema)
             create_kwargs["text"] = {
@@ -226,8 +231,14 @@ class OpenAIProvider:
                     "output_tokens": int(getattr(usage_raw, "output_tokens", 0)),
                     "total_tokens": int(getattr(usage_raw, "total_tokens", 0)),
                 }
+                out_details = getattr(usage_raw, "output_tokens_details", None)
+                if out_details:
+                    reasoning_toks = getattr(out_details, "reasoning_tokens", None)
+                    if reasoning_toks is not None:
+                        usage["reasoning_tokens"] = int(reasoning_toks)
 
             tool_calls = []
+            reasoning_parts: list[str] = []
             for item in getattr(response, "output", []):
                 item_type = getattr(item, "type", None)
                 if item_type == "function_call":
@@ -246,6 +257,11 @@ class OpenAIProvider:
                             "arguments": getattr(item, "input", None),
                         }
                     )
+                elif item_type == "reasoning":
+                    for summary_item in getattr(item, "summary", None) or []:
+                        summary_text = getattr(summary_item, "text", None)
+                        if summary_text:
+                            reasoning_parts.append(summary_text)
 
             payload: dict[str, Any] = {"text": text, "usage": usage}
             if structured is not None:
@@ -254,6 +270,8 @@ class OpenAIProvider:
                 payload["response_id"] = response_id
             if tool_calls:
                 payload["tool_calls"] = tool_calls
+            if reasoning_parts:
+                payload["reasoning"] = "\n\n".join(reasoning_parts).strip()
             return payload
         except asyncio.CancelledError:
             raise
