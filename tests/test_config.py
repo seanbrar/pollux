@@ -106,10 +106,34 @@ def test_negative_request_concurrency_raises_clear_error(gemini_model: str) -> N
     assert exc.value.hint is not None
 
 
+def test_non_integer_request_concurrency_raises_clear_error(gemini_model: str) -> None:
+    """Non-integer concurrency should raise ConfigurationError, not TypeError."""
+    with pytest.raises(ConfigurationError, match="must be an integer") as exc:
+        Config(
+            provider="gemini",
+            model=gemini_model,
+            use_mock=True,
+            request_concurrency="2",  # type: ignore[arg-type]
+        )
+    assert exc.value.hint is not None
+
+
 def test_negative_ttl_seconds_raises_clear_error(gemini_model: str) -> None:
     """Negative TTL is nonsensical; must fail at construction."""
     with pytest.raises(ConfigurationError, match="ttl_seconds must be") as exc:
         Config(provider="gemini", model=gemini_model, use_mock=True, ttl_seconds=-1)
+    assert exc.value.hint is not None
+
+
+def test_non_integer_ttl_seconds_raises_clear_error(gemini_model: str) -> None:
+    """Non-integer TTL should raise ConfigurationError, not TypeError."""
+    with pytest.raises(ConfigurationError, match="must be an integer") as exc:
+        Config(
+            provider="gemini",
+            model=gemini_model,
+            use_mock=True,
+            ttl_seconds="3600",  # type: ignore[arg-type]
+        )
     assert exc.value.hint is not None
 
 
