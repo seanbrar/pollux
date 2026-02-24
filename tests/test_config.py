@@ -87,6 +87,62 @@ def test_unknown_provider_raises_error() -> None:
         Config(provider="unknown", model="some-model", use_mock=True)  # type: ignore[arg-type]
 
 
+def test_zero_request_concurrency_raises_clear_error(gemini_model: str) -> None:
+    """request_concurrency=0 would hang the pipeline; must fail at construction."""
+    with pytest.raises(ConfigurationError, match="request_concurrency must be") as exc:
+        Config(
+            provider="gemini", model=gemini_model, use_mock=True, request_concurrency=0
+        )
+    assert exc.value.hint is not None
+    assert "parallel" in exc.value.hint
+
+
+def test_negative_request_concurrency_raises_clear_error(gemini_model: str) -> None:
+    """Negative concurrency is always a caller mistake."""
+    with pytest.raises(ConfigurationError, match="request_concurrency must be") as exc:
+        Config(
+            provider="gemini", model=gemini_model, use_mock=True, request_concurrency=-1
+        )
+    assert exc.value.hint is not None
+
+
+def test_non_integer_request_concurrency_raises_clear_error(gemini_model: str) -> None:
+    """Non-integer concurrency should raise ConfigurationError, not TypeError."""
+    with pytest.raises(ConfigurationError, match="must be an integer") as exc:
+        Config(
+            provider="gemini",
+            model=gemini_model,
+            use_mock=True,
+            request_concurrency="2",  # type: ignore[arg-type]
+        )
+    assert exc.value.hint is not None
+
+
+def test_negative_ttl_seconds_raises_clear_error(gemini_model: str) -> None:
+    """Negative TTL is nonsensical; must fail at construction."""
+    with pytest.raises(ConfigurationError, match="ttl_seconds must be") as exc:
+        Config(provider="gemini", model=gemini_model, use_mock=True, ttl_seconds=-1)
+    assert exc.value.hint is not None
+
+
+def test_non_integer_ttl_seconds_raises_clear_error(gemini_model: str) -> None:
+    """Non-integer TTL should raise ConfigurationError, not TypeError."""
+    with pytest.raises(ConfigurationError, match="must be an integer") as exc:
+        Config(
+            provider="gemini",
+            model=gemini_model,
+            use_mock=True,
+            ttl_seconds="3600",  # type: ignore[arg-type]
+        )
+    assert exc.value.hint is not None
+
+
+def test_zero_ttl_seconds_is_allowed(gemini_model: str) -> None:
+    """ttl_seconds=0 is valid (disables caching TTL)."""
+    cfg = Config(provider="gemini", model=gemini_model, use_mock=True, ttl_seconds=0)
+    assert cfg.ttl_seconds == 0
+
+
 def test_config_str_and_repr_redact_api_key(gemini_model: str) -> None:
     """String representations must not leak secrets."""
     secret = "top-secret-key"

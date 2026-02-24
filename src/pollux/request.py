@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from pollux.errors import SourceError
+from pollux.errors import ConfigurationError, SourceError
 from pollux.options import Options
 from pollux.source import Source
 
@@ -46,6 +46,15 @@ def normalize_request(
     """
     # Normalize prompts to tuple
     prompts = (prompts,) if isinstance(prompts, str) else tuple(prompts)
+
+    # Validate prompts (empty list is a valid no-op for run_many)
+    for i, p in enumerate(prompts):
+        if not isinstance(p, str) or not p.strip():
+            idx_label = f"prompts[{i}]" if len(prompts) > 1 else "prompt"
+            raise ConfigurationError(
+                f"{idx_label} is empty or whitespace-only",
+                hint="Each prompt must be a non-empty string.",
+            )
 
     # Validate sources
     source_tuple = tuple(sources)

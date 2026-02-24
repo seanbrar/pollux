@@ -54,6 +54,28 @@ class Config:
                 hint="Supported providers: 'gemini', 'openai'",
             )
 
+        # Validate numeric fields
+        if not isinstance(self.request_concurrency, int):
+            raise ConfigurationError(
+                f"request_concurrency must be an integer, got {type(self.request_concurrency).__name__}",
+                hint="Pass a whole number ≥ 1 for request_concurrency.",
+            )
+        if not isinstance(self.ttl_seconds, int):
+            raise ConfigurationError(
+                f"ttl_seconds must be an integer, got {type(self.ttl_seconds).__name__}",
+                hint="Pass a whole number ≥ 0 for ttl_seconds.",
+            )
+        if self.request_concurrency < 1:
+            raise ConfigurationError(
+                f"request_concurrency must be ≥ 1, got {self.request_concurrency}",
+                hint="This controls how many API calls run in parallel.",
+            )
+        if self.ttl_seconds < 0:
+            raise ConfigurationError(
+                f"ttl_seconds must be ≥ 0, got {self.ttl_seconds}",
+                hint="This controls the cache time-to-live in seconds (0 disables caching TTL).",
+            )
+
         # Auto-resolve API key from environment if not provided
         if self.api_key is None and not self.use_mock:
             env_var = _API_KEY_ENV_VARS[self.provider]

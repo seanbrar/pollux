@@ -157,172 +157,178 @@ async def execute_plan(
     upload_inflight: dict[tuple[str, str], asyncio.Future[str]] = {}
     upload_lock = asyncio.Lock()
     retry_policy = config.retry
+    cache_name: str | None = None
+    responses: list[dict[str, Any]] = []
+    total_usage: dict[str, int] = {}
+    conversation_state: dict[str, Any] | None = None
 
-    # Handle caching
-    cache_name = None
-    if plan.use_cache:
-        # Resolve uploads for shared parts first, as cache creation requires URIs
-        shared_parts = list(plan.shared_parts)
-        if shared_parts:
-            shared_parts = await _substitute_upload_parts(
-                shared_parts,
-                provider=provider,
-                call_idx=None,
-                upload_cache=upload_cache,
-                upload_inflight=upload_inflight,
-                upload_lock=upload_lock,
-                retry_policy=retry_policy,
-            )
-
-        if plan.cache_key:
-            try:
-                cache_name = await get_or_create_cache(
-                    provider,
-                    registry,
-                    key=plan.cache_key,
-                    model=config.model,
-                    parts=shared_parts,  # Use resolved parts with URIs
-                    system_instruction=options.system_instruction,
-                    ttl_seconds=config.ttl_seconds,
-                    retry_policy=retry_policy,
-                )
-            except asyncio.CancelledError:
-                raise
-            except PolluxError:
-                raise
-            except Exception as e:
-                raise InternalError(
-                    f"Cache creation failed: {type(e).__name__}: {e}",
-                    hint="This is a Pollux internal error. Please report it.",
-                ) from e
-
-    # Execute calls with concurrency control
-    concurrency = config.request_concurrency
-    sem = asyncio.Semaphore(concurrency)
-    logger.debug(
-        "Executing %d call(s) concurrency=%d cache=%s",
-        len(prompts),
-        concurrency,
-        cache_name or "disabled",
-    )
-
-    async def _execute_call(call_idx: int) -> dict[str, Any]:
-        async with sem:
-            try:
-                # Build parts: shared context + prompt
-                shared_parts = [] if cache_name is not None else list(plan.shared_parts)
-                raw_parts = [*shared_parts, prompts[call_idx]]
-                parts = await _substitute_upload_parts(
-                    raw_parts,
+    try:
+        # Handle caching
+        if plan.use_cache:
+            # Resolve uploads for shared parts first, as cache creation requires URIs
+            shared_parts = list(plan.shared_parts)
+            if shared_parts:
+                shared_parts = await _substitute_upload_parts(
+                    shared_parts,
                     provider=provider,
-                    call_idx=call_idx,
+                    call_idx=None,
                     upload_cache=upload_cache,
                     upload_inflight=upload_inflight,
                     upload_lock=upload_lock,
                     retry_policy=retry_policy,
                 )
 
-                if retry_policy.max_attempts <= 1:
-                    return await provider.generate(
-                        model=model,
-                        parts=parts,
+            if plan.cache_key:
+                try:
+                    cache_name = await get_or_create_cache(
+                        provider,
+                        registry,
+                        key=plan.cache_key,
+                        model=config.model,
+                        parts=shared_parts,  # Use resolved parts with URIs
                         system_instruction=options.system_instruction,
-                        cache_name=cache_name,
-                        response_schema=schema,
-                        temperature=options.temperature,
-                        top_p=options.top_p,
-                        tools=options.tools,
-                        tool_choice=options.tool_choice,
-                        reasoning_effort=options.reasoning_effort,
-                        history=history,
-                        delivery_mode=options.delivery_mode,
-                        previous_response_id=previous_response_id,
+                        ttl_seconds=config.ttl_seconds,
+                        retry_policy=retry_policy,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except PolluxError:
+                    raise
+                except Exception as e:
+                    raise InternalError(
+                        f"Cache creation failed: {type(e).__name__}: {e}",
+                        hint="This is a Pollux internal error. Please report it.",
+                    ) from e
+
+        # Execute calls with concurrency control
+        concurrency = config.request_concurrency
+        sem = asyncio.Semaphore(concurrency)
+        logger.debug(
+            "Executing %d call(s) concurrency=%d cache=%s",
+            len(prompts),
+            concurrency,
+            cache_name or "disabled",
+        )
+
+        async def _execute_call(call_idx: int) -> dict[str, Any]:
+            async with sem:
+                try:
+                    # Build parts: shared context + prompt
+                    shared_parts = (
+                        [] if cache_name is not None else list(plan.shared_parts)
+                    )
+                    raw_parts = [*shared_parts, prompts[call_idx]]
+                    parts = await _substitute_upload_parts(
+                        raw_parts,
+                        provider=provider,
+                        call_idx=call_idx,
+                        upload_cache=upload_cache,
+                        upload_inflight=upload_inflight,
+                        upload_lock=upload_lock,
+                        retry_policy=retry_policy,
                     )
 
-                return await retry_async(
-                    lambda: provider.generate(
-                        model=model,
-                        parts=parts,
-                        system_instruction=options.system_instruction,
-                        cache_name=cache_name,
-                        response_schema=schema,
-                        temperature=options.temperature,
-                        top_p=options.top_p,
-                        tools=options.tools,
-                        tool_choice=options.tool_choice,
-                        reasoning_effort=options.reasoning_effort,
-                        history=history,
-                        delivery_mode=options.delivery_mode,
-                        previous_response_id=previous_response_id,
-                    ),
-                    policy=retry_policy,
-                    should_retry=should_retry_generate,
-                )
-            except asyncio.CancelledError:
-                raise
-            except APIError as e:
-                if e.call_idx is None:
-                    e.call_idx = call_idx
-                raise
-            except PolluxError:
-                raise
-            except Exception as e:
+                    if retry_policy.max_attempts <= 1:
+                        return await provider.generate(
+                            model=model,
+                            parts=parts,
+                            system_instruction=options.system_instruction,
+                            cache_name=cache_name,
+                            response_schema=schema,
+                            temperature=options.temperature,
+                            top_p=options.top_p,
+                            tools=options.tools,
+                            tool_choice=options.tool_choice,
+                            reasoning_effort=options.reasoning_effort,
+                            history=history,
+                            delivery_mode=options.delivery_mode,
+                            previous_response_id=previous_response_id,
+                        )
+
+                    return await retry_async(
+                        lambda: provider.generate(
+                            model=model,
+                            parts=parts,
+                            system_instruction=options.system_instruction,
+                            cache_name=cache_name,
+                            response_schema=schema,
+                            temperature=options.temperature,
+                            top_p=options.top_p,
+                            tools=options.tools,
+                            tool_choice=options.tool_choice,
+                            reasoning_effort=options.reasoning_effort,
+                            history=history,
+                            delivery_mode=options.delivery_mode,
+                            previous_response_id=previous_response_id,
+                        ),
+                        policy=retry_policy,
+                        should_retry=should_retry_generate,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except APIError as e:
+                    if e.call_idx is None:
+                        e.call_idx = call_idx
+                    raise
+                except PolluxError:
+                    raise
+                except Exception as e:
+                    raise InternalError(
+                        f"Call {call_idx} failed: {type(e).__name__}: {e}",
+                        hint="This is a Pollux internal error. Please report it.",
+                    ) from e
+
+        # Execute all calls. We intentionally collect *all* task outcomes before
+        # raising so failures don't leave background tasks with unobserved
+        # exceptions.
+        tasks = [asyncio.create_task(_execute_call(i)) for i in range(len(prompts))]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for item in results:
+            if isinstance(item, asyncio.CancelledError):
+                raise item
+            if isinstance(item, BaseException):
+                # Deterministic: prefer lowest call index, not "first to fail".
+                raise item
+
+        for item in results:
+            if not isinstance(item, dict):
                 raise InternalError(
-                    f"Call {call_idx} failed: {type(e).__name__}: {e}",
-                    hint="This is a Pollux internal error. Please report it.",
-                ) from e
+                    f"Provider returned invalid response type: {type(item).__name__}",
+                    hint="Providers must return dict payloads with at least a 'text' field.",
+                )
+            responses.append(item)
 
-    # Execute all calls. We intentionally collect *all* task outcomes before
-    # raising so failures don't leave background tasks with unobserved
-    # exceptions.
-    tasks = [asyncio.create_task(_execute_call(i)) for i in range(len(prompts))]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for item in results:
-        if isinstance(item, asyncio.CancelledError):
-            raise item
-        if isinstance(item, BaseException):
-            # Deterministic: prefer lowest call index, not "first to fail".
-            raise item
+        # Aggregate usage
+        for resp in responses:
+            usage = resp.get("usage", {})
+            for k, v in usage.items():
+                if isinstance(v, int):
+                    total_usage[k] = total_usage.get(k, 0) + v
 
-    responses: list[dict[str, Any]] = []
-    for item in results:
-        if not isinstance(item, dict):
-            raise InternalError(
-                f"Provider returned invalid response type: {type(item).__name__}",
-                hint="Providers must return dict payloads with at least a 'text' field.",
-            )
-        responses.append(item)
-
-    # Aggregate usage
-    total_usage: dict[str, int] = {}
-    for resp in responses:
-        usage = resp.get("usage", {})
-        for k, v in usage.items():
-            if isinstance(v, int):
-                total_usage[k] = total_usage.get(k, 0) + v
+        if wants_conversation and responses:
+            prompt = prompts[0] if isinstance(prompts[0], str) else str(prompts[0])
+            answer = responses[0].get("text")
+            reply = answer if isinstance(answer, str) else ""
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
+            tool_calls = responses[0].get("tool_calls")
+            if tool_calls:
+                assistant_msg["tool_calls"] = tool_calls
+            updated_history: list[dict[str, Any]] = [
+                *conversation_history,
+                {"role": "user", "content": prompt},
+                assistant_msg,
+            ]
+            conversation_state = {"history": updated_history}
+            response_id = responses[0].get("response_id")
+            if isinstance(response_id, str):
+                conversation_state["response_id"] = response_id
+            elif previous_response_id is not None:
+                conversation_state["response_id"] = previous_response_id
+    finally:
+        # Clean up uploaded files (best-effort; server-side TTL is the backstop).
+        await _cleanup_uploads(upload_cache, provider)
 
     duration_s = time.perf_counter() - start_time
-
-    conversation_state: dict[str, Any] | None = None
-    if wants_conversation and responses:
-        prompt = prompts[0] if isinstance(prompts[0], str) else str(prompts[0])
-        answer = responses[0].get("text")
-        reply = answer if isinstance(answer, str) else ""
-        assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
-        tool_calls = responses[0].get("tool_calls")
-        if tool_calls:
-            assistant_msg["tool_calls"] = tool_calls
-        updated_history: list[dict[str, Any]] = [
-            *conversation_history,
-            {"role": "user", "content": prompt},
-            assistant_msg,
-        ]
-        conversation_state = {"history": updated_history}
-        response_id = responses[0].get("response_id")
-        if isinstance(response_id, str):
-            conversation_state["response_id"] = response_id
-        elif previous_response_id is not None:
-            conversation_state["response_id"] = previous_response_id
 
     return ExecutionTrace(
         responses=responses,
@@ -392,3 +398,33 @@ async def _substitute_upload_parts(
         resolved.append(part)
 
     return resolved
+
+
+_OPENAI_FILE_PREFIX = "openai://file/"
+
+
+async def _cleanup_uploads(
+    upload_cache: dict[tuple[str, str], str],
+    provider: Provider,
+) -> None:
+    """Delete provider-managed uploaded files (best-effort).
+
+    Only applies to providers that expose a ``delete_file`` method (currently
+    OpenAI). Failures are logged but never raised—the server-side TTL is the
+    backstop.
+    """
+    delete_fn = getattr(provider, "delete_file", None)
+    if delete_fn is None or not callable(delete_fn):
+        return
+
+    file_ids: list[str] = []
+    for uri in upload_cache.values():
+        if uri.startswith(_OPENAI_FILE_PREFIX):
+            file_ids.append(uri[len(_OPENAI_FILE_PREFIX) :])
+
+    for file_id in file_ids:
+        try:
+            await delete_fn(file_id)
+            logger.debug("Deleted uploaded file: %s", file_id)
+        except Exception as exc:
+            logger.debug("Failed to delete uploaded file %s: %s", file_id, exc)
