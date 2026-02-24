@@ -324,6 +324,9 @@ async def execute_plan(
         elif previous_response_id is not None:
             conversation_state["response_id"] = previous_response_id
 
+    # Clean up uploaded files (best-effort; server-side TTL is the backstop)
+    await _cleanup_uploads(upload_cache, provider)
+
     return ExecutionTrace(
         responses=responses,
         cache_name=cache_name,
@@ -392,3 +395,33 @@ async def _substitute_upload_parts(
         resolved.append(part)
 
     return resolved
+
+
+_OPENAI_FILE_PREFIX = "openai://file/"
+
+
+async def _cleanup_uploads(
+    upload_cache: dict[tuple[str, str], str],
+    provider: Provider,
+) -> None:
+    """Delete provider-managed uploaded files (best-effort).
+
+    Only applies to providers that expose a ``delete_file`` method (currently
+    OpenAI). Failures are logged but never raised—the server-side TTL is the
+    backstop.
+    """
+    delete_fn = getattr(provider, "delete_file", None)
+    if delete_fn is None or not callable(delete_fn):
+        return
+
+    file_ids: list[str] = []
+    for uri in upload_cache.values():
+        if uri.startswith(_OPENAI_FILE_PREFIX):
+            file_ids.append(uri[len(_OPENAI_FILE_PREFIX) :])
+
+    for file_id in file_ids:
+        try:
+            await delete_fn(file_id)
+            logger.debug("Deleted uploaded file: %s", file_id)
+        except Exception as exc:
+            logger.debug("Failed to delete uploaded file %s: %s", file_id, exc)

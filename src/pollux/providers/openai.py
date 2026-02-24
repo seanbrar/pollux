@@ -322,6 +322,11 @@ class OpenAIProvider:
         _ = model, parts, system_instruction, ttl_seconds
         raise APIError("OpenAI provider does not support context caching")
 
+    async def delete_file(self, file_id: str) -> None:
+        """Delete a previously uploaded file from OpenAI storage."""
+        client = self._get_client()
+        await client.files.delete(file_id)
+
     async def aclose(self) -> None:
         """Close underlying async client resources."""
         client = self._client

@@ -503,6 +503,129 @@ async def test_upload_single_flight_propagates_failure_and_can_recover(
 
 
 @pytest.mark.asyncio
+async def test_openai_uploads_are_cleaned_up_after_pipeline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """OpenAI file uploads should be deleted after the pipeline completes."""
+
+    @dataclass
+    class TrackingProvider(FakeProvider):
+        deleted_file_ids: list[str] = field(default_factory=list)
+
+        async def upload_file(self, path: Any, mime_type: str) -> str:
+            del mime_type
+            self.upload_calls += 1
+            return f"openai://file/file-{path.name}"
+
+        async def delete_file(self, file_id: str) -> None:
+            self.deleted_file_ids.append(file_id)
+
+    fake = TrackingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    result = await pollux.run(
+        "Read this",
+        source=Source.from_file(file_path, mime_type="application/pdf"),
+        config=cfg,
+    )
+
+    assert result["status"] == "ok"
+    assert fake.upload_calls == 1
+    assert fake.deleted_file_ids == ["file-doc.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_text_uploads_are_not_cleaned_up(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Text uploads (openai://text/...) are inline, not server-side files."""
+
+    @dataclass
+    class TrackingProvider(FakeProvider):
+        deleted_file_ids: list[str] = field(default_factory=list)
+
+        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+            self.upload_calls += 1
+            return "openai://text/aW5saW5lZA=="
+
+        async def delete_file(self, file_id: str) -> None:
+            self.deleted_file_ids.append(file_id)
+
+    fake = TrackingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.txt"
+    file_path.write_text("hello")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    await pollux.run(
+        "Read this",
+        source=Source.from_file(file_path),
+        config=cfg,
+    )
+
+    assert fake.upload_calls == 1
+    assert fake.deleted_file_ids == []
+
+
+@pytest.mark.asyncio
+async def test_upload_cleanup_failure_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Failed cleanup should be logged, not raised."""
+
+    @dataclass
+    class FailingCleanupProvider(FakeProvider):
+        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+            self.upload_calls += 1
+            return "openai://file/file-broken"
+
+        async def delete_file(self, file_id: str) -> None:
+            raise RuntimeError(f"delete failed for {file_id}")
+
+    fake = FailingCleanupProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    result = await pollux.run(
+        "Read this",
+        source=Source.from_file(file_path, mime_type="application/pdf"),
+        config=cfg,
+    )
+
+    assert result["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_skips_providers_without_delete_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Providers without delete_file (Gemini, Mock) should skip cleanup silently."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.txt"
+    file_path.write_text("hello")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    result = await pollux.run(
+        "Read this",
+        source=Source.from_file(file_path),
+        config=cfg,
+    )
+
+    assert result["status"] == "ok"
+    assert not hasattr(fake, "deleted_file_ids")
+
+
+@pytest.mark.asyncio
 async def test_cached_context_is_not_resent_on_each_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
