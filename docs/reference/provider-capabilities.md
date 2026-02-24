@@ -22,7 +22,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | YouTube URL inputs | ✅ | ⚠️ limited | OpenAI parity layer (download/re-upload) is out of scope |
 | Provider-side context caching | ✅ | ❌ | OpenAI provider returns unsupported for caching |
 | Structured outputs (`response_schema`) | ✅ | ✅ | JSON-schema path in both providers |
-| Reasoning controls (`reasoning_effort`) | ❌ | ❌ | Reserved for future provider enablement |
+| Reasoning controls (`reasoning_effort`) | ✅ | ✅ | Passed through to provider; see notes below |
 | Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | Explicitly disabled |
 | Tool calling | ✅ | ✅ | Tool definitions via `Options.tools`; results in `ResultEnvelope.tool_calls` |
 | Tool message pass-through in history | ✅ | ✅ | Gemini maps to `Content`/`Part` types; OpenAI maps to `function_call`/`function_call_output` |
@@ -37,6 +37,10 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   `Part.from_function_call` / `Part.from_function_response` for tool turns.
 - Gemini does not support `previous_response_id`; conversation state is
   carried entirely via `history`.
+- Reasoning: `reasoning_effort` maps to `ThinkingConfig(thinking_level=...)`.
+  Full thinking text is returned in `ResultEnvelope.reasoning`. Gemini 2.5
+  models use a different control (`thinking_budget`) and will return a
+  provider error if `reasoning_effort` is set.
 
 ### OpenAI
 
@@ -47,6 +51,11 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   (via `continue_from`). When `previous_response_id` is set, only tool
   result messages are forwarded from history; the rest is handled
   server-side by OpenAI.
+- Reasoning: `reasoning_effort` maps to `reasoning.effort` with automatic
+  `summary: "auto"` to request reasoning summaries. Summaries appear in
+  `ResultEnvelope.reasoning`; raw reasoning traces are not exposed by OpenAI.
+  Reasoning token counts may appear in `ResultEnvelope.usage["reasoning_tokens"]`
+  when OpenAI returns them.
 
 ## Error Semantics
 

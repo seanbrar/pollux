@@ -177,7 +177,8 @@ for the full testing philosophy.
 
 | File | Purpose |
 |------|---------|
-| `test_pipeline.py` | Pipeline boundary: public API, request normalization, Source factories |
+| `test_source.py` | Source boundary: factory methods, validation, normalization |
+| `test_pipeline.py` | Pipeline boundary: public API, request normalization, caching, options forwarding |
 | `test_config.py` | Config boundary: resolution, validation, redaction |
 | `test_providers.py` | Provider characterization: request/response shapes |
 | `test_api.py` | Real API integration (Gemini + OpenAI, requires `ENABLE_API_TESTS=1`) |

@@ -12,7 +12,7 @@ from pollux.errors import ConfigurationError
 if TYPE_CHECKING:
     from pollux.result import ResultEnvelope
 
-ReasoningEffort = Literal["low", "medium", "high"]
+ReasoningEffort = str
 DeliveryMode = Literal["realtime", "deferred"]
 ResponseSchemaInput = type[BaseModel] | dict[str, Any]
 
@@ -34,7 +34,7 @@ class Options:
     temperature: float | None = None
     top_p: float | None = None
 
-    #: Reserved — not yet wired in v1.0.
+    #: Controls model thinking depth; passed through to the provider.
     reasoning_effort: ReasoningEffort | None = None
     #: ``"deferred"`` is reserved for future provider batch APIs.
     delivery_mode: DeliveryMode = "realtime"

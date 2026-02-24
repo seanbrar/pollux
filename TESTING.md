@@ -220,7 +220,8 @@ Boundaries are specific to each project. Pollux adopts the following boundaries.
 | Boundary | Test File | Responsibility |
 |----------|-----------|----------------|
 | Configuration | `test_config.py` | Config resolution, validation, API key handling, redaction |
-| Pipeline + Public API | `test_pipeline.py` | `run()`, `run_many()`, request normalization, Source factories, caching, uploads |
+| Source construction | `test_source.py` | Source factory methods, input validation, normalization |
+| Pipeline + Public API | `test_pipeline.py` | `run()`, `run_many()`, request normalization, caching, uploads, options forwarding |
 | Provider internals | `test_providers.py` | Request/response shape characterization for each provider |
 | External APIs | `test_api.py` | Real API integration (Gemini, OpenAI) with live credentials |
 | Cookbook CLI | `test_cookbook.py`, `test_cookbook_contract.py` | Recipe resolution and execution, docs/recipe contracts |
@@ -241,11 +242,11 @@ For any new test, determine placement by boundary responsibility.
 Does this test Config creation, API key resolution, or redaction?
   → tests/test_config.py
 
+Does this test Source factory methods, validation, or normalization?
+  → tests/test_source.py
+
 Does this test public API entry points (run, run_many) or request handling?
   → tests/test_pipeline.py
-
-Does this test Source factory methods or Source validation?
-  → tests/test_pipeline.py (Source factories section)
 
 Does this test provider-specific request/response shaping?
   → tests/test_providers.py (characterization tests)

@@ -121,7 +121,7 @@ options = Options(
     tools=[{"name": "get_weather"}],  # Native tool calling
     tool_choice="auto",               # Tool calling mode ('auto', 'any', 'none', or dict)
     response_schema=MyPydanticModel,  # Structured output extraction
-    reasoning_effort="medium",        # Reserved for future provider support
+    reasoning_effort="medium",        # Controls model thinking depth
     delivery_mode="realtime",         # "deferred" reserved for future provider batch APIs
 )
 ```
@@ -134,7 +134,7 @@ options = Options(
 | `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools |
 | `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format |
-| `reasoning_effort` | `str \| None` | `None` | Reserved for future o1/o3 support |
+| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth (see [Reasoning](#reasoning)) |
 | `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
 | `history` | `list[dict] \| None` | `None` | Conversation history; mutually exclusive with `continue_from` |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result; mutually exclusive with `history` |
@@ -155,6 +155,48 @@ Both are mutually exclusive — use one per call.
 
 Conversation continuity requires a provider with conversation support
 (Gemini and OpenAI) and exactly one prompt per call.
+
+### Reasoning
+
+Set `reasoning_effort` to control how deeply the model reasons before
+responding. The value is passed through to the provider — valid values depend
+on the model:
+
+- **OpenAI**: `"low"`, `"medium"`, `"high"`
+- **Gemini**: `"low"`, `"medium"`, `"high"`, `"minimal"` (Gemini 3 series)
+
+```python
+result = await pollux.run(
+    "Solve this step by step...",
+    config=cfg,
+    options=Options(reasoning_effort="high"),
+)
+
+# Thinking content (when available) is in result["reasoning"]
+if "reasoning" in result:
+    for text in result["reasoning"]:
+        if text:
+            print("Thinking:", text[:200])
+```
+
+The `reasoning` field in `ResultEnvelope` is a `list[str | None]` (one entry
+per prompt, `None` when the provider did not return thinking content for that
+call). It is only present when at least one response includes reasoning.
+
+**What each provider exposes:**
+
+| | Effort control | Thinking content |
+|--|:-:|:-:|
+| **Gemini** | `thinking_level` | Full thinking text |
+| **OpenAI** | `reasoning.effort` | Reasoning summary |
+
+Token usage includes `reasoning_tokens` when the provider reports them.
+
+!!! note
+    Pollux passes `reasoning_effort` through to the provider as-is.
+    Models that use a different thinking interface (e.g. Gemini 2.5's
+    `thinking_budget`) will return a provider error — see
+    [Provider Capabilities](reference/provider-capabilities.md) for details.
 
 ### Tool Calling
 

@@ -6,8 +6,6 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
 from pydantic import BaseModel
 import pytest
 
@@ -81,13 +79,13 @@ def test_request_rejects_non_source_objects() -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_error_metadata(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+async def test_generate_error_attributes_provider_and_call_index(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Errors should surface stable provider/phase/call attribution."""
+    """Generate failures should carry provider, phase, and call index."""
 
     @dataclass
-    class FailingSecondCallProvider(FakeProvider):
+    class _Provider(FakeProvider):
         async def generate(self, **kwargs: Any) -> dict[str, Any]:
             parts = kwargs.get("parts", [])
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
@@ -101,10 +99,8 @@ async def test_api_error_metadata(
                 )
             return {"text": "ok", "usage": {"total_tokens": 1}}
 
-    generate_provider = FailingSecondCallProvider()
-    monkeypatch.setattr(
-        pollux, "_get_provider", lambda _config, _p=generate_provider: _p
-    )
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
 
     cfg = Config(
         provider="gemini",
@@ -121,8 +117,15 @@ async def test_api_error_metadata(
     assert err.phase == "generate"
     assert err.call_idx == 1
 
+
+@pytest.mark.asyncio
+async def test_upload_error_attributes_provider_and_call_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Upload failures should carry provider, phase, and call index."""
+
     @dataclass
-    class FailingUploadProvider(FakeProvider):
+    class _Provider(FakeProvider):
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
             raise APIError(
@@ -132,8 +135,8 @@ async def test_api_error_metadata(
                 phase="upload",
             )
 
-    upload_provider = FailingUploadProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=upload_provider: _p)
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
 
     file_path = tmp_path / "doc.txt"
     file_path.write_text("hello")
@@ -157,8 +160,15 @@ async def test_api_error_metadata(
     assert err.phase == "upload"
     assert err.call_idx == 0
 
+
+@pytest.mark.asyncio
+async def test_cache_error_attributes_provider_without_call_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cache failures should carry provider and phase but no call index."""
+
     @dataclass
-    class FailingCacheProvider(FakeProvider):
+    class _Provider(FakeProvider):
         async def create_cache(self, **kwargs: Any) -> str:
             _ = kwargs
             raise APIError(
@@ -168,8 +178,8 @@ async def test_api_error_metadata(
                 phase="cache",
             )
 
-    cache_provider = FailingCacheProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=cache_provider: _p)
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
 
     cfg = Config(
         provider="gemini",
@@ -328,28 +338,6 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
 
         assert fake.generate_calls == expect_generate_calls
         assert fake.upload_attempts == expect_upload_attempts
-
-
-# =============================================================================
-# Source Factory: Error Paths
-# =============================================================================
-
-
-def test_source_from_file_rejects_missing_file(tmp_path: Any) -> None:
-    """from_file() should fail clearly for non-existent paths."""
-    missing = tmp_path / "does_not_exist.txt"
-
-    with pytest.raises(SourceError) as exc:
-        Source.from_file(missing)
-
-    assert "not found" in str(exc.value).lower()
-
-
-@pytest.mark.parametrize("invalid_ref", ["", "   "])
-def test_source_from_arxiv_rejects_invalid_refs(invalid_ref: str) -> None:
-    """from_arxiv() should fail for empty/whitespace strings."""
-    with pytest.raises(SourceError):
-        Source.from_arxiv(invalid_ref)
 
 
 @pytest.mark.asyncio
@@ -595,38 +583,6 @@ def test_cache_identity_includes_system_instruction() -> None:
     assert concise != verbose
 
 
-@given(
-    arxiv_id=st.one_of(
-        st.from_regex(r"\d{4}\.\d{4,5}(?:v\d+)?", fullmatch=True),
-        st.from_regex(
-            r"[a-z\-]+(?:\.[a-z\-]+)?/\d{7}(?:v\d+)?",
-            fullmatch=True,
-        ),
-    )
-)
-@settings(max_examples=10, deadline=None, derandomize=True)
-def test_source_from_arxiv_normalizes_to_canonical_pdf_url(arxiv_id: str) -> None:
-    """Property: arXiv refs normalize to canonical PDF URLs and stable loaders."""
-    expected = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-    refs = [
-        arxiv_id,
-        f"https://arxiv.org/abs/{arxiv_id}",
-        f"https://arxiv.org/pdf/{arxiv_id}.pdf",
-    ]
-    for ref in refs:
-        source = Source.from_arxiv(ref)
-        assert source.source_type == "arxiv"
-        assert source.identifier == expected
-        assert source.mime_type == "application/pdf"
-        assert source.content_loader() == expected.encode("utf-8")
-
-
-def test_source_from_arxiv_rejects_non_arxiv_urls() -> None:
-    """Only arxiv.org URLs should be accepted."""
-    with pytest.raises(SourceError):
-        Source.from_arxiv("https://example.com/abs/1706.03762")
-
-
 @pytest.mark.asyncio
 async def test_options_response_schema_requires_provider_capability() -> None:
     """Strict capability checks reject unsupported structured outputs."""
@@ -636,6 +592,18 @@ async def test_options_response_schema_requires_provider_capability() -> None:
             "Extract fields",
             config=cfg,
             options=Options(response_schema={"type": "object"}),
+        )
+
+
+@pytest.mark.asyncio
+async def test_reasoning_effort_requires_provider_capability() -> None:
+    """Strict capability checks reject unsupported reasoning controls."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="reasoning"):
+        await pollux.run(
+            "Think about this",
+            config=cfg,
+            options=Options(reasoning_effort="high"),
         )
 
 
@@ -793,6 +761,18 @@ async def test_structured_output_returns_pydantic_instances(
     assert len(structured) == 1
     assert isinstance(structured[0], Paper)
     assert structured[0].title == "A"
+
+
+# =============================================================================
+# Conversation & Tool-Call Transparency (v1.1-v1.2)
+#
+# MTMT complexity marker: this cluster is dense (~12 tests) because
+# conversation has multiple interacting facets — history forwarding,
+# continue_from, tool-call preservation, and state emission.  Each test
+# covers a distinct boundary, but if this section keeps growing it may
+# signal that the conversation surface should be split out into its own
+# boundary file or simplified at the design level.
+# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -1044,11 +1024,6 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
     assert result["structured"] == [None]
 
 
-# =============================================================================
-# Tool-Call Transparency (v1.2)
-# =============================================================================
-
-
 def test_history_accepts_tool_messages() -> None:
     """Options(history=...) with tool-shaped messages should not raise."""
     history: list[dict[str, Any]] = [
@@ -1167,3 +1142,127 @@ async def test_continue_from_preserves_tool_history_items(
     assert received_history[2]["tool_call_id"] == "call_1"
     # Verify assistant tool_calls preserved
     assert received_history[1]["tool_calls"] is not None
+
+
+# =============================================================================
+# Reasoning / Thinking (v1.2)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_reasoning_surfaced_in_result_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider reasoning text should appear in ResultEnvelope.reasoning."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {
+                "text": "The answer is 42.",
+                "usage": {"total_tokens": 10},
+                "reasoning": "Let me think step by step...",
+            },
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run(
+        "What is the meaning of life?",
+        config=cfg,
+        options=Options(reasoning_effort="high"),
+    )
+
+    assert result["answers"] == ["The answer is 42."]
+    assert result["reasoning"] == ["Let me think step by step..."]
+
+
+@pytest.mark.asyncio
+async def test_reasoning_omitted_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ResultEnvelope should not include reasoning key when provider omits it."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {"text": "Hello.", "usage": {"total_tokens": 5}},
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run("Hi", config=cfg)
+
+    assert "reasoning" not in result
+
+
+@pytest.mark.asyncio
+async def test_reasoning_mixed_across_multi_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multi-prompt: reasoning=None for calls without thinking content."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {
+                "text": "Answer 1",
+                "usage": {"total_tokens": 5},
+                "reasoning": "Thought A",
+            },
+            {"text": "Answer 2", "usage": {"total_tokens": 5}},
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run_many(("Q1?", "Q2?"), config=cfg)
+
+    assert result["answers"] == ["Answer 1", "Answer 2"]
+    assert result["reasoning"] == ["Thought A", None]
+
+
+@pytest.mark.asyncio
+async def test_reasoning_tokens_aggregate_in_result_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline should preserve and sum reasoning_tokens across calls."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {
+                "text": "Answer 1",
+                "usage": {"total_tokens": 8, "reasoning_tokens": 3},
+            },
+            {
+                "text": "Answer 2",
+                "usage": {"total_tokens": 9, "reasoning_tokens": 5},
+            },
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run_many(
+        ("Q1?", "Q2?"),
+        config=cfg,
+        options=Options(reasoning_effort="high"),
+    )
+
+    assert result["usage"]["reasoning_tokens"] == 8
+    assert result["usage"]["total_tokens"] == 17

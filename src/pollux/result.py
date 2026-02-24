@@ -28,7 +28,8 @@ class ResultEnvelope(TypedDict, total=False):
     confidence: float
     #: Always ``"text"`` in v1.0.
     extraction_method: str
-    #: Keys: ``input_tokens``, ``output_tokens``, ``total_tokens``.
+    #: Keys: ``input_tokens``, ``output_tokens``, ``total_tokens``,
+    #: and optionally ``reasoning_tokens``.
     usage: dict[str, int]
     #: Keys: ``duration_s``, ``n_calls``, ``cache_used``.
     metrics: dict[str, Any]
@@ -65,6 +66,15 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
                     structured_values.append(None)
             else:
                 structured_values.append(raw_structured)
+
+    reasoning_texts: list[str | None] = []
+    has_reasoning = False
+    for response in trace.responses:
+        if "reasoning" in response:
+            reasoning_texts.append(response["reasoning"])
+            has_reasoning = True
+        else:
+            reasoning_texts.append(None)
 
     # Determine status based on answer quality
     status: Literal["ok", "partial", "error"] = "ok"
@@ -112,6 +122,8 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
     )
     if wants_structured:
         envelope["structured"] = structured_values
+    if has_reasoning:
+        envelope["reasoning"] = reasoning_texts
     if trace.conversation_state is not None:
         envelope["_conversation_state"] = trace.conversation_state
 

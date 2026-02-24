@@ -57,7 +57,7 @@ class GeminiProvider:
             caching=True,
             uploads=True,
             structured_outputs=True,
-            reasoning=False,
+            reasoning=True,
             deferred_delivery=False,
             conversation=True,
         )
@@ -109,7 +109,6 @@ class GeminiProvider:
     ) -> dict[str, Any]:
         """Generate content using Gemini API."""
         _ = (
-            reasoning_effort,
             delivery_mode,
             previous_response_id,
         )
@@ -117,6 +116,12 @@ class GeminiProvider:
         from google.genai import types
 
         config: dict[str, Any] = {}
+        if reasoning_effort is not None:
+            config["thinking_config"] = types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_level=reasoning_effort,  # type: ignore[arg-type]
+            )
+
         if system_instruction is not None:
             config["system_instruction"] = system_instruction
         if cache_name is not None:
@@ -437,6 +442,9 @@ class GeminiProvider:
                     "output_tokens": getattr(um, "candidates_token_count", 0),
                     "total_tokens": getattr(um, "total_token_count", 0),
                 }
+                thoughts_toks = getattr(um, "thoughts_token_count", None)
+                if thoughts_toks is not None:
+                    usage["reasoning_tokens"] = thoughts_toks
         except Exception:
             usage = {}
 
@@ -451,7 +459,22 @@ class GeminiProvider:
                     }
                 )
 
+        reasoning_parts = []
+        try:
+            if hasattr(response, "candidates") and response.candidates:
+                content = response.candidates[0].content
+                if hasattr(content, "parts"):
+                    for part in content.parts:
+                        if getattr(part, "thought", False) and getattr(
+                            part, "text", None
+                        ):
+                            reasoning_parts.append(part.text)
+        except Exception:
+            reasoning_parts.clear()
+
         payload: dict[str, Any] = {"text": text, "usage": usage}
+        if reasoning_parts:
+            payload["reasoning"] = "\n\n".join(reasoning_parts).strip()
         if structured is not None:
             payload["structured"] = structured
         if tool_calls:
