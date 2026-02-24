@@ -169,9 +169,7 @@ class OpenAIProvider:
         if tools is not None:
             create_kwargs["tools"] = []
             for t in tools:
-                if t.get("type") == "custom":
-                    create_kwargs["tools"].append(t)
-                elif "name" in t:
+                if "name" in t:
                     tool_def: dict[str, Any] = {
                         "type": "function",
                         "name": t["name"],
@@ -247,14 +245,6 @@ class OpenAIProvider:
                             "id": getattr(item, "call_id", None),
                             "name": getattr(item, "name", None),
                             "arguments": getattr(item, "arguments", None),
-                        }
-                    )
-                elif item_type == "custom_tool_call":
-                    tool_calls.append(
-                        {
-                            "id": getattr(item, "call_id", None),
-                            "name": getattr(item, "name", None),
-                            "arguments": getattr(item, "input", None),
                         }
                     )
                 elif item_type == "reasoning":
