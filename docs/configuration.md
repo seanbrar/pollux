@@ -139,6 +139,11 @@ options = Options(
 | `history` | `list[dict] \| None` | `None` | Conversation history; mutually exclusive with `continue_from` |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result; mutually exclusive with `history` |
 
+!!! note
+    OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject
+    sampling controls like `temperature` and `top_p` with provider errors.
+    Older OpenAI models (for example `gpt-4.1-nano`) still accept them.
+
 See [Sources and Patterns](sources-and-patterns.md#structured-output) for
 a complete structured output example.
 
@@ -194,8 +199,10 @@ Token usage includes `reasoning_tokens` when the provider reports them.
 
 !!! note
     Pollux passes `reasoning_effort` through to the provider as-is.
-    Models that use a different thinking interface (e.g. Gemini 2.5's
-    `thinking_budget`) will return a provider error — see
+    Gemini support is currently practical on Gemini 3 models (for example
+    `gemini-3-flash-preview`) where `reasoning_effort` maps to
+    `thinking_level`. Gemini 2.x models use different controls (for example
+    `thinking_budget`) and will return a provider error — see
     [Provider Capabilities](reference/provider-capabilities.md) for details.
 
 ### Tool Calling

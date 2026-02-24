@@ -502,6 +502,11 @@ async def test_upload_single_flight_propagates_failure_and_can_recover(
     assert fake.generate_calls == 2
 
 
+# =============================================================================
+# Upload Cleanup (v1.2)
+# =============================================================================
+
+
 @pytest.mark.asyncio
 async def test_openai_uploads_are_cleaned_up_after_pipeline(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
@@ -623,6 +628,77 @@ async def test_cleanup_skips_providers_without_delete_file(
 
     assert result["status"] == "ok"
     assert not hasattr(fake, "deleted_file_ids")
+
+
+@pytest.mark.asyncio
+async def test_openai_upload_cleanup_runs_even_when_generate_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Uploads should still be cleaned up when generation fails."""
+
+    @dataclass
+    class FailingGenerateProvider(FakeProvider):
+        deleted_file_ids: list[str] = field(default_factory=list)
+
+        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+            self.upload_calls += 1
+            return "openai://file/file-failed-generate"
+
+        async def generate(self, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG002
+            raise APIError("boom", retryable=False)
+
+        async def delete_file(self, file_id: str) -> None:
+            self.deleted_file_ids.append(file_id)
+
+    fake = FailingGenerateProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(APIError, match="boom"):
+        await pollux.run(
+            "Read this",
+            source=Source.from_file(file_path, mime_type="application/pdf"),
+            config=cfg,
+        )
+
+    assert fake.upload_calls == 1
+    assert fake.deleted_file_ids == ["file-failed-generate"]
+
+
+@pytest.mark.asyncio
+async def test_duration_includes_upload_cleanup_latency(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """duration_s should reflect awaited upload cleanup work."""
+    cleanup_delay_s = 0.1
+
+    @dataclass
+    class SlowCleanupProvider(FakeProvider):
+        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+            self.upload_calls += 1
+            return "openai://file/file-slow-cleanup"
+
+        async def delete_file(self, file_id: str) -> None:  # noqa: ARG002
+            await asyncio.sleep(cleanup_delay_s)
+
+    fake = SlowCleanupProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    result = await pollux.run(
+        "Read this",
+        source=Source.from_file(file_path, mime_type="application/pdf"),
+        config=cfg,
+    )
+
+    assert result["status"] == "ok"
+    assert result["metrics"]["duration_s"] >= 0.09
 
 
 @pytest.mark.asyncio

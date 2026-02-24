@@ -38,24 +38,28 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Gemini does not support `previous_response_id`; conversation state is
   carried entirely via `history`.
 - Reasoning: `reasoning_effort` maps to `ThinkingConfig(thinking_level=...)`.
-  Full thinking text is returned in `ResultEnvelope.reasoning`. Gemini 2.5
-  models use a different control (`thinking_budget`) and will return a
+  Full thinking text is returned in `ResultEnvelope.reasoning`. This maps
+  cleanly on Gemini 3 models (for example `gemini-3-flash-preview`). Gemini
+  2.x models use a different control (`thinking_budget`) and will return a
   provider error if `reasoning_effort` is set.
 
 ### OpenAI
 
 - File uploads use `purpose="user_data"` with finite `expires_after` metadata.
-  Automatic file deletion is not yet managed by Pollux.
+  Pollux performs best-effort cleanup of uploaded files after execution.
 - Remote URL support is intentionally narrow: PDFs and images only.
 - Conversation can use either explicit `history` or `previous_response_id`
   (via `continue_from`). When `previous_response_id` is set, only tool
   result messages are forwarded from history; the rest is handled
   server-side by OpenAI.
+- Sampling controls are model-specific: GPT-5 family models currently reject
+  `temperature` and `top_p`, while older models (for example `gpt-4.1-nano`)
+  accept them.
 - Reasoning: `reasoning_effort` maps to `reasoning.effort` with automatic
   `summary: "auto"` to request reasoning summaries. Summaries appear in
   `ResultEnvelope.reasoning`; raw reasoning traces are not exposed by OpenAI.
   Reasoning token counts may appear in `ResultEnvelope.usage["reasoning_tokens"]`
-  when OpenAI returns them.
+  when OpenAI returns them. Some older models reject `reasoning.effort`.
 
 ## Error Semantics
 

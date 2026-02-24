@@ -1,15 +1,17 @@
 """Real API integration tests.
 
-These tests make actual API calls to Gemini and OpenAI. They are gated by:
-- ENABLE_API_TESTS=1 (required to run any API tests)
-- GEMINI_API_KEY (required for Gemini tests, from env or .env)
-- OPENAI_API_KEY (required for OpenAI tests, from env or .env)
+These tests make real Gemini/OpenAI calls and are intentionally compact:
+- ENABLE_API_TESTS=1 is required to run any API tests
+- GEMINI_API_KEY / OPENAI_API_KEY are required per provider fixture
 
-Tests use the cheapest models and minimal tokens to keep costs negligible.
-Model selection is centralized in conftest.py for easy updates.
+The suite prioritizes high-signal end-to-end coverage with a small call budget.
 """
 
 from __future__ import annotations
+
+from copy import deepcopy
+import json
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
@@ -18,257 +20,275 @@ from pollux.config import Config
 from pollux.options import Options
 from pollux.source import Source
 
+if TYPE_CHECKING:
+    from pollux.config import ProviderName
+    from pollux.result import ResultEnvelope
+
 pytestmark = [pytest.mark.api, pytest.mark.slow]
 
+_PROVIDERS: list[tuple[str, str, str]] = [
+    ("gemini", "gemini_api_key", "gemini_test_model"),
+    ("openai", "openai_api_key", "openai_test_model"),
+]
+_GEMINI_REASONING_MODEL = "gemini-3-flash-preview"
 
-# =============================================================================
-# Gemini Provider
-# =============================================================================
+
+def _minimal_pdf_bytes() -> bytes:
+    """Return a minimal valid single-page PDF."""
+    header = b"%PDF-1.4\n"
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        (
+            b"3 0 obj\n"
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] "
+            b"/Contents 4 0 R >>\n"
+            b"endobj\n"
+        ),
+        b"4 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n",
+    ]
+
+    body = header
+    offsets: list[int] = []
+    for obj in objects:
+        offsets.append(len(body))
+        body += obj
+
+    xref_pos = len(body)
+    xref = b"xref\n0 5\n0000000000 65535 f \n" + b"".join(
+        f"{offset:010d} 00000 n \n".encode("ascii") for offset in offsets
+    )
+    trailer = (
+        b"trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n"
+        + str(xref_pos).encode("ascii")
+        + b"\n%%EOF\n"
+    )
+    return body + xref + trailer
+
+
+def _provider_config(
+    request: pytest.FixtureRequest,
+    *,
+    provider: str,
+    api_key_fixture: str,
+    model_fixture: str,
+) -> Config:
+    api_key = request.getfixturevalue(api_key_fixture)
+    model = request.getfixturevalue(model_fixture)
+    return Config(provider=cast("ProviderName", provider), model=model, api_key=api_key)
 
 
 @pytest.mark.asyncio
-async def test_gemini_simple_text_roundtrip(
-    gemini_api_key: str, gemini_test_model: str
+@pytest.mark.parametrize(
+    ("provider", "api_key_fixture", "model_fixture"),
+    _PROVIDERS,
+    ids=["gemini", "openai"],
+)
+async def test_live_source_patterns_and_generation_controls(
+    request: pytest.FixtureRequest,
+    provider: str,
+    api_key_fixture: str,
+    model_fixture: str,
 ) -> None:
-    """Smoke: Gemini returns a coherent response for simple text."""
-    config = Config(
-        provider="gemini",
-        model=gemini_test_model,
-        api_key=gemini_api_key,
+    """E2E: run_many + Source.from_json stay coherent and in-order."""
+    config = _provider_config(
+        request,
+        provider=provider,
+        api_key_fixture=api_key_fixture,
+        model_fixture=model_fixture,
+    )
+    source = Source.from_json(
+        {"planet": "Neptune", "code": "ZX-41"},
+        identifier="api-json-source",
     )
 
-    result = await pollux.run(
-        "What is 2 + 2? Reply with just the number.",
-        config=config,
-    )
-
-    assert result["status"] == "ok"
-    assert len(result["answers"]) == 1
-    assert "4" in result["answers"][0]
-
-
-@pytest.mark.asyncio
-async def test_gemini_with_text_source(
-    gemini_api_key: str, gemini_test_model: str
-) -> None:
-    """Smoke: Gemini processes text source context correctly."""
-    config = Config(
-        provider="gemini",
-        model=gemini_test_model,
-        api_key=gemini_api_key,
-    )
-
-    result = await pollux.run(
-        "What color is mentioned in the text?",
-        source=Source.from_text("The sky is blue today."),
-        config=config,
-    )
-
-    assert result["status"] == "ok"
-    assert "blue" in result["answers"][0].lower()
-
-
-@pytest.mark.asyncio
-async def test_gemini_run_many_returns_multiple_answers(
-    gemini_api_key: str, gemini_test_model: str
-) -> None:
-    """Smoke: Gemini run_many produces one answer per prompt."""
-    config = Config(
-        provider="gemini",
-        model=gemini_test_model,
-        api_key=gemini_api_key,
+    # gpt-5-nano currently rejects temperature/top_p; keep controls provider-aware.
+    options = Options(
+        system_instruction="Return one line only. No extra words.",
+        temperature=0.2 if provider == "gemini" else None,
+        top_p=0.9 if provider == "gemini" else None,
     )
 
     result = await pollux.run_many(
-        prompts=["What is 1+1?", "What is 2+2?"],
+        prompts=(
+            "From the JSON source, reply with exactly: FIRST:<planet>",
+            "From the JSON source, reply with exactly: SECOND:<code>",
+        ),
+        sources=(source,),
         config=config,
+        options=options,
     )
 
-    assert result["status"] == "ok"
     assert len(result["answers"]) == 2
     assert result["metrics"]["n_calls"] == 2
+    assert "first" in result["answers"][0].lower()
+    assert "neptune" in result["answers"][0].lower()
+    assert "second" in result["answers"][1].lower()
+    assert "zx-41" in result["answers"][1].lower()
+    assert isinstance(result["usage"].get("total_tokens"), int)
+    assert result["usage"]["total_tokens"] > 0
+
+    # system_instruction="Return one line only." should constrain output shape.
+    for answer in result["answers"]:
+        assert len(answer.strip().splitlines()) == 1
 
 
 @pytest.mark.asyncio
-async def test_gemini_system_instruction_shapes_output(
-    gemini_api_key: str, gemini_test_model: str
+@pytest.mark.parametrize(
+    ("provider", "api_key_fixture", "model_fixture"),
+    _PROVIDERS,
+    ids=["gemini", "openai"],
+)
+async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
+    request: pytest.FixtureRequest,
+    provider: str,
+    api_key_fixture: str,
+    model_fixture: str,
 ) -> None:
-    """E2E: system_instruction should steer output style on a real model."""
+    """E2E: tool call + continuation preserves ordering and context."""
+    config = _provider_config(
+        request,
+        provider=provider,
+        api_key_fixture=api_key_fixture,
+        model_fixture=model_fixture,
+    )
+    parameters: dict[str, Any] = {
+        "type": "object",
+        "properties": {"topic": {"type": "string"}},
+        "required": ["topic"],
+    }
+    if provider == "openai":
+        parameters["additionalProperties"] = False
+    tools = [
+        {
+            "name": "get_secret",
+            "description": "Return a code for a given topic.",
+            "parameters": parameters,
+        },
+    ]
+
+    first = await pollux.run(
+        (
+            "Call get_secret exactly once with topic='orbit'. "
+            "Do not provide the final answer yet."
+        ),
+        config=config,
+        options=Options(tools=tools, tool_choice="required", history=[]),
+    )
+
+    tool_calls_raw = first.get("tool_calls")
+    calls = (
+        tool_calls_raw[0] if isinstance(tool_calls_raw, list) and tool_calls_raw else []
+    )
+    assert calls
+    call = calls[0]
+    assert isinstance(call, dict)
+    assert call.get("name") == "get_secret"
+
+    call_id_raw = call.get("id")
+    tool_ref = (
+        call_id_raw if isinstance(call_id_raw, str) and call_id_raw else "get_secret"
+    )
+
+    continued: ResultEnvelope = deepcopy(first)
+    state = continued.get("_conversation_state")
+    assert isinstance(state, dict)
+    history = state.get("history")
+    assert isinstance(history, list)
+    history.append(
+        {
+            "role": "tool",
+            "tool_call_id": tool_ref,
+            "content": json.dumps({"code": "K9-ORBIT"}),
+        }
+    )
+
+    second = await pollux.run(
+        "Using the tool output, reply with exactly CODE:K9-ORBIT.",
+        config=config,
+        options=Options(
+            continue_from=continued,
+            reasoning_effort="medium" if provider == "openai" else None,
+        ),
+    )
+
+    assert "k9-orbit" in second["answers"][0].lower()
+
+    second_state = second.get("_conversation_state")
+    assert isinstance(second_state, dict)
+    second_history = second_state.get("history")
+    assert isinstance(second_history, list)
+    tool_indexes = [
+        i
+        for i, item in enumerate(second_history)
+        if isinstance(item, dict)
+        and item.get("role") == "tool"
+        and item.get("tool_call_id") == tool_ref
+    ]
+    assert tool_indexes
+    assert tool_indexes[0] < len(second_history) - 2
+
+    if provider == "openai" and "reasoning" in second:
+        assert isinstance(second["reasoning"], list)
+        assert len(second["reasoning"]) == 1
+        assert isinstance(second["reasoning"][0], str)
+        assert second["reasoning"][0].strip()
+
+
+@pytest.mark.asyncio
+async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> None:
+    """E2E: Gemini reasoning_effort works on Gemini 3 model family."""
     config = Config(
         provider="gemini",
-        model=gemini_test_model,
+        model=_GEMINI_REASONING_MODEL,
         api_key=gemini_api_key,
     )
 
     result = await pollux.run(
-        "Write about rain.",
+        "Reply with exactly OK.",
         config=config,
-        options=Options(
-            system_instruction=(
-                "Respond as a haiku with exactly three lines separated by newline."
-            )
-        ),
+        options=Options(reasoning_effort="medium"),
     )
 
-    answer = result["answers"][0]
-    lines = [line for line in answer.splitlines() if line.strip()]
     assert result["status"] == "ok"
-    assert len(lines) == 3
+    assert "ok" in result["answers"][0].lower()
+    assert "reasoning" in result
+    assert isinstance(result["reasoning"], list)
+    assert len(result["reasoning"]) == 1
+    assert isinstance(result["reasoning"][0], str)
+    assert result["reasoning"][0].strip()
 
 
 @pytest.mark.asyncio
-async def test_gemini_conversation_roundtrip(
-    gemini_api_key: str, gemini_test_model: str
+async def test_openai_binary_upload_cleanup_roundtrip(
+    monkeypatch: pytest.MonkeyPatch,
+    openai_api_key: str,
+    openai_test_model: str,
+    tmp_path: Any,
 ) -> None:
-    """E2E: Gemini conversation via client-side history should preserve context.
+    """E2E: OpenAI binary upload call succeeds and cleanup hook is invoked."""
+    from pollux.providers.openai import OpenAIProvider
 
-    Gemini conversations are client-side (Content objects from history), not
-    provider-side like OpenAI's previous_response_id. This exercises the
-    history→Content mapping to catch SDK drift in types.Content/Part shapes.
-    """
-    config = Config(
-        provider="gemini",
-        model=gemini_test_model,
-        api_key=gemini_api_key,
-    )
+    deleted_file_ids: list[str] = []
+    original_delete_file = OpenAIProvider.delete_file
 
-    first = await pollux.run(
-        "Remember this secret word: ORBIT. Reply only with 'stored'.",
-        config=config,
-        options=Options(history=[]),
-    )
-    assert first["status"] == "ok"
-    assert "_conversation_state" in first
+    async def _delete_file_spy(self: OpenAIProvider, file_id: str) -> None:
+        deleted_file_ids.append(file_id)
+        await original_delete_file(self, file_id)
 
-    second = await pollux.run(
-        "What secret word did I ask you to remember? Reply with only the word.",
-        config=config,
-        options=Options(continue_from=first),
-    )
+    monkeypatch.setattr(OpenAIProvider, "delete_file", _delete_file_spy)
 
-    assert second["status"] == "ok"
-    assert "orbit" in second["answers"][0].lower()
+    pdf_path = tmp_path / "tiny.pdf"
+    pdf_path.write_bytes(_minimal_pdf_bytes())
 
-
-# =============================================================================
-# OpenAI Provider
-# =============================================================================
-
-
-@pytest.mark.asyncio
-async def test_openai_simple_text_roundtrip(
-    openai_api_key: str, openai_test_model: str
-) -> None:
-    """Smoke: OpenAI returns a coherent response for simple text."""
-    config = Config(
-        provider="openai",
-        model=openai_test_model,
-        api_key=openai_api_key,
-    )
-
+    config = Config(provider="openai", model=openai_test_model, api_key=openai_api_key)
     result = await pollux.run(
-        "What is 2 + 2? Reply with just the number.",
+        "Reply with exactly PDF_OK.",
+        source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
     )
 
     assert result["status"] == "ok"
-    assert len(result["answers"]) == 1
-    assert "4" in result["answers"][0]
-
-
-@pytest.mark.asyncio
-async def test_openai_with_text_source(
-    openai_api_key: str, openai_test_model: str
-) -> None:
-    """Smoke: OpenAI processes text source context correctly."""
-    config = Config(
-        provider="openai",
-        model=openai_test_model,
-        api_key=openai_api_key,
-    )
-
-    result = await pollux.run(
-        "What color is mentioned in the text?",
-        source=Source.from_text("The sky is blue today."),
-        config=config,
-    )
-
-    assert result["status"] == "ok"
-    assert "blue" in result["answers"][0].lower()
-
-
-@pytest.mark.asyncio
-async def test_openai_run_many_returns_multiple_answers(
-    openai_api_key: str, openai_test_model: str
-) -> None:
-    """Smoke: OpenAI run_many produces one answer per prompt."""
-    config = Config(
-        provider="openai",
-        model=openai_test_model,
-        api_key=openai_api_key,
-    )
-
-    result = await pollux.run_many(
-        prompts=["What is 1+1?", "What is 2+2?"],
-        config=config,
-    )
-
-    assert result["status"] == "ok"
-    assert len(result["answers"]) == 2
-    assert result["metrics"]["n_calls"] == 2
-
-
-@pytest.mark.asyncio
-async def test_openai_system_instruction_shapes_output(
-    openai_api_key: str, openai_test_model: str
-) -> None:
-    """E2E: system_instruction should steer output style on a real model."""
-    config = Config(
-        provider="openai",
-        model=openai_test_model,
-        api_key=openai_api_key,
-    )
-
-    result = await pollux.run(
-        "Write about rain.",
-        config=config,
-        options=Options(
-            system_instruction=(
-                "Respond as a haiku with exactly three lines separated by newline."
-            )
-        ),
-    )
-
-    answer = result["answers"][0]
-    lines = [line for line in answer.splitlines() if line.strip()]
-    assert result["status"] == "ok"
-    assert len(lines) == 3
-
-
-@pytest.mark.asyncio
-async def test_openai_continue_from_roundtrip(
-    openai_api_key: str, openai_test_model: str
-) -> None:
-    """E2E: OpenAI continuation should preserve state across calls."""
-    config = Config(
-        provider="openai",
-        model=openai_test_model,
-        api_key=openai_api_key,
-    )
-
-    first = await pollux.run(
-        "Remember this secret word: ORBIT. Reply only with 'stored'.",
-        config=config,
-        options=Options(history=[]),
-    )
-    assert first["status"] == "ok"
-    assert "_conversation_state" in first
-
-    second = await pollux.run(
-        "What secret word did I ask you to remember? Reply with only the word.",
-        config=config,
-        options=Options(continue_from=first),
-    )
-
-    assert second["status"] == "ok"
-    assert "orbit" in second["answers"][0].lower()
+    assert "pdf_ok" in result["answers"][0].lower()
+    assert deleted_file_ids
+    assert all(isinstance(file_id, str) and file_id for file_id in deleted_file_ids)
