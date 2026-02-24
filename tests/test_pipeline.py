@@ -81,13 +81,13 @@ def test_request_rejects_non_source_objects() -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_error_metadata(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+async def test_generate_error_attributes_provider_and_call_index(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Errors should surface stable provider/phase/call attribution."""
+    """Generate failures should carry provider, phase, and call index."""
 
     @dataclass
-    class FailingSecondCallProvider(FakeProvider):
+    class _Provider(FakeProvider):
         async def generate(self, **kwargs: Any) -> dict[str, Any]:
             parts = kwargs.get("parts", [])
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
@@ -101,10 +101,8 @@ async def test_api_error_metadata(
                 )
             return {"text": "ok", "usage": {"total_tokens": 1}}
 
-    generate_provider = FailingSecondCallProvider()
-    monkeypatch.setattr(
-        pollux, "_get_provider", lambda _config, _p=generate_provider: _p
-    )
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
 
     cfg = Config(
         provider="gemini",
@@ -121,8 +119,15 @@ async def test_api_error_metadata(
     assert err.phase == "generate"
     assert err.call_idx == 1
 
+
+@pytest.mark.asyncio
+async def test_upload_error_attributes_provider_and_call_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Upload failures should carry provider, phase, and call index."""
+
     @dataclass
-    class FailingUploadProvider(FakeProvider):
+    class _Provider(FakeProvider):
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
             raise APIError(
@@ -132,8 +137,8 @@ async def test_api_error_metadata(
                 phase="upload",
             )
 
-    upload_provider = FailingUploadProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=upload_provider: _p)
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
 
     file_path = tmp_path / "doc.txt"
     file_path.write_text("hello")
@@ -157,8 +162,15 @@ async def test_api_error_metadata(
     assert err.phase == "upload"
     assert err.call_idx == 0
 
+
+@pytest.mark.asyncio
+async def test_cache_error_attributes_provider_without_call_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cache failures should carry provider and phase but no call index."""
+
     @dataclass
-    class FailingCacheProvider(FakeProvider):
+    class _Provider(FakeProvider):
         async def create_cache(self, **kwargs: Any) -> str:
             _ = kwargs
             raise APIError(
@@ -168,8 +180,8 @@ async def test_api_error_metadata(
                 phase="cache",
             )
 
-    cache_provider = FailingCacheProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=cache_provider: _p)
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
 
     cfg = Config(
         provider="gemini",
@@ -639,6 +651,18 @@ async def test_options_response_schema_requires_provider_capability() -> None:
         )
 
 
+@pytest.mark.asyncio
+async def test_reasoning_effort_requires_provider_capability() -> None:
+    """Strict capability checks reject unsupported reasoning controls."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="reasoning"):
+        await pollux.run(
+            "Think about this",
+            config=cfg,
+            options=Options(reasoning_effort="high"),
+        )
+
+
 def test_options_system_instruction_requires_string() -> None:
     """Invalid system_instruction types should fail fast at option construction."""
     with pytest.raises(ConfigurationError, match="system_instruction must be a string"):
@@ -793,6 +817,18 @@ async def test_structured_output_returns_pydantic_instances(
     assert len(structured) == 1
     assert isinstance(structured[0], Paper)
     assert structured[0].title == "A"
+
+
+# =============================================================================
+# Conversation & Tool-Call Transparency (v1.1-v1.2)
+#
+# MTMT complexity marker: this cluster is dense (~12 tests) because
+# conversation has multiple interacting facets — history forwarding,
+# continue_from, tool-call preservation, and state emission.  Each test
+# covers a distinct boundary, but if this section keeps growing it may
+# signal that the conversation surface should be split out into its own
+# boundary file or simplified at the design level.
+# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -1042,11 +1078,6 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
 
     assert result["answers"] == ['{"title":"A"}']
     assert result["structured"] == [None]
-
-
-# =============================================================================
-# Tool-Call Transparency (v1.2)
-# =============================================================================
 
 
 def test_history_accepts_tool_messages() -> None:

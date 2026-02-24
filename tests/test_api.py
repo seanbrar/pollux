@@ -116,6 +116,40 @@ async def test_gemini_system_instruction_shapes_output(
     assert len(lines) == 3
 
 
+@pytest.mark.asyncio
+async def test_gemini_conversation_roundtrip(
+    gemini_api_key: str, gemini_test_model: str
+) -> None:
+    """E2E: Gemini conversation via client-side history should preserve context.
+
+    Gemini conversations are client-side (Content objects from history), not
+    provider-side like OpenAI's previous_response_id. This exercises the
+    history→Content mapping to catch SDK drift in types.Content/Part shapes.
+    """
+    config = Config(
+        provider="gemini",
+        model=gemini_test_model,
+        api_key=gemini_api_key,
+    )
+
+    first = await pollux.run(
+        "Remember this secret word: ORBIT. Reply only with 'stored'.",
+        config=config,
+        options=Options(history=[]),
+    )
+    assert first["status"] == "ok"
+    assert "_conversation_state" in first
+
+    second = await pollux.run(
+        "What secret word did I ask you to remember? Reply with only the word.",
+        config=config,
+        options=Options(continue_from=first),
+    )
+
+    assert second["status"] == "ok"
+    assert "orbit" in second["answers"][0].lower()
+
+
 # =============================================================================
 # OpenAI Provider
 # =============================================================================
