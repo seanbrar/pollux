@@ -68,6 +68,37 @@ async def test_run_and_run_many_smoke() -> None:
 # =============================================================================
 
 
+def test_empty_string_prompt_raises_clear_error() -> None:
+    """An empty string prompt is a caller mistake; must fail fast."""
+    config = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="empty or whitespace") as exc:
+        normalize_request("", sources=(), config=config)
+    assert exc.value.hint is not None
+
+
+def test_whitespace_only_prompt_raises_clear_error() -> None:
+    """A whitespace-only prompt is a caller mistake; must fail fast."""
+    config = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="empty or whitespace") as exc:
+        normalize_request("   \n\t  ", sources=(), config=config)
+    assert exc.value.hint is not None
+
+
+def test_batch_with_one_empty_prompt_identifies_index() -> None:
+    """In a multi-prompt batch, the error should identify which prompt is bad."""
+    config = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match=r"prompts\[1\]") as exc:
+        normalize_request(["good prompt", ""], sources=(), config=config)
+    assert exc.value.hint is not None
+
+
+def test_empty_prompt_list_is_valid_noop() -> None:
+    """run_many(prompts=[]) is a valid no-op; must not raise."""
+    config = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    req = normalize_request([], sources=(), config=config)
+    assert req.prompts == ()
+
+
 def test_request_rejects_non_source_objects() -> None:
     """Source inputs must be explicit Source objects."""
     config = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
