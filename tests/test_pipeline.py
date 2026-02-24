@@ -1256,3 +1256,38 @@ async def test_reasoning_mixed_across_multi_prompt(
 
     assert result["answers"] == ["Answer 1", "Answer 2"]
     assert result["reasoning"] == ["Thought A", None]
+
+
+@pytest.mark.asyncio
+async def test_reasoning_tokens_aggregate_in_result_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline should preserve and sum reasoning_tokens across calls."""
+    fake = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            reasoning=True,
+        ),
+        script=[
+            {
+                "text": "Answer 1",
+                "usage": {"total_tokens": 8, "reasoning_tokens": 3},
+            },
+            {
+                "text": "Answer 2",
+                "usage": {"total_tokens": 9, "reasoning_tokens": 5},
+            },
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run_many(
+        ("Q1?", "Q2?"),
+        config=cfg,
+        options=Options(reasoning_effort="high"),
+    )
+
+    assert result["usage"]["reasoning_tokens"] == 8
+    assert result["usage"]["total_tokens"] == 17

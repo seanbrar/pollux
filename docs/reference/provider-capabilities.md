@@ -53,7 +53,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   server-side by OpenAI.
 - Reasoning: `reasoning_effort` maps to `reasoning.effort` with automatic
   `summary: "auto"` to request reasoning summaries. Summaries appear in
-  `ResultEnvelope.reasoning`; raw reasoning tokens are not exposed by OpenAI.
+  `ResultEnvelope.reasoning`; raw reasoning traces are not exposed by OpenAI.
+  Reasoning token counts may appear in `ResultEnvelope.usage["reasoning_tokens"]`
+  when OpenAI returns them.
 
 ## Error Semantics
 
