@@ -87,18 +87,33 @@ class OpenAIProvider:
             if normalized is not None:
                 user_content.append(normalized)
 
+        has_real_content = False
+        for c in user_content:
+            if c.get("type") != "input_text" or c.get("text"):
+                has_real_content = True
+                break
+
         if not user_content:
             user_content.append({"type": "input_text", "text": ""})
 
         input_messages: list[dict[str, Any]] = []
         history_items = history
         if previous_response_id and history_items is not None:
-            # With previous_response_id, avoid replaying full transcript. Only pass
-            # incremental tool outputs that must be provided explicitly.
+            # With previous_response_id, avoid replaying full transcript. Keep
+            # tool outputs *and* the assistant function_call entries they
+            # reference — naked function_call_output items without a matching
+            # function_call cause a 400 from the Responses API.
             history_items = [
                 item
                 for item in history_items
-                if isinstance(item, dict) and item.get("role") == "tool"
+                if isinstance(item, dict)
+                and (
+                    item.get("role") == "tool"
+                    or (
+                        item.get("role") == "assistant"
+                        and isinstance(item.get("tool_calls"), list)
+                    )
+                )
             ]
         if history_items is not None:
             for item in history_items:
@@ -147,15 +162,18 @@ class OpenAIProvider:
 
                 # Regular user/assistant text message
                 content = item.get("content")
-                if not isinstance(content, str):
+                if not isinstance(content, str) or not content:
                     continue
+                text_type = "output_text" if role == "assistant" else "input_text"
                 input_messages.append(
                     {
                         "role": role,
-                        "content": [{"type": "input_text", "text": content}],
+                        "content": [{"type": text_type, "text": content}],
                     }
                 )
-        input_messages.append({"role": "user", "content": user_content})
+
+        if has_real_content or not input_messages:
+            input_messages.append({"role": "user", "content": user_content})
 
         create_kwargs: dict[str, Any] = {
             "model": model,

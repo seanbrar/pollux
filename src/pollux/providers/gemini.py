@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 from typing import TYPE_CHECKING, Any, Literal
+import uuid
 
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
@@ -215,8 +216,9 @@ class GeminiProvider:
                                 continue
                             call_id = tc.get("id")
                             name = tc.get("name")
-                            if isinstance(call_id, str) and isinstance(name, str):
-                                call_id_to_name[call_id] = name
+                            if isinstance(name, str):
+                                if isinstance(call_id, str):
+                                    call_id_to_name[call_id] = name
                                 args = tc.get("arguments", "")
                                 if isinstance(args, str):
                                     try:
@@ -248,7 +250,17 @@ class GeminiProvider:
             # No history — use the original flat-parts path unchanged.
             contents: Any = self._convert_parts(parts)
         else:
-            # History present — append current prompt as a Content object.
+            # Gemini enforces strict turn order: after a function response the
+            # model must speak next.  Appending a separate user Content would
+            # produce FunctionResponse → User → Model, which is rejected.
+            # Instead, merge the prompt parts into the existing function-
+            # response Content block (same "user" role) so the model still
+            # sees the instruction without a turn-order violation.
+            last_is_tool_response = bool(
+                history
+                and isinstance(history[-1], dict)
+                and history[-1].get("role") == "tool"
+            )
             user_parts: list[Any] = []
             for cp in self._convert_parts(parts):
                 if isinstance(cp, str):
@@ -256,7 +268,16 @@ class GeminiProvider:
                 else:
                     user_parts.append(cp)
             if user_parts:
-                input_contents.append(types.Content(role="user", parts=user_parts))
+                last_parts = (
+                    input_contents[-1].parts
+                    if last_is_tool_response and input_contents
+                    else None
+                )
+                if last_parts is not None:
+                    # Fold into the trailing function-response Content.
+                    last_parts.extend(user_parts)
+                else:
+                    input_contents.append(types.Content(role="user", parts=user_parts))
             contents = input_contents
 
         try:
@@ -451,9 +472,12 @@ class GeminiProvider:
         tool_calls = []
         if hasattr(response, "function_calls") and response.function_calls:
             for fc in response.function_calls:
+                call_id = getattr(fc, "id", None)
+                if not call_id:
+                    call_id = f"call_{uuid.uuid4().hex[:8]}"
                 tool_calls.append(
                     {
-                        "id": getattr(fc, "id", None),
+                        "id": call_id,
                         "name": getattr(fc, "name", None),
                         "arguments": getattr(fc, "args", {}),
                     }

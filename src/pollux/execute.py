@@ -217,7 +217,12 @@ async def execute_plan(
                     shared_parts = (
                         [] if cache_name is not None else list(plan.shared_parts)
                     )
-                    raw_parts = [*shared_parts, prompts[call_idx]]
+                    prompt_part = prompts[call_idx]
+                    raw_parts = (
+                        [*shared_parts, prompt_part]
+                        if prompt_part is not None
+                        else [*shared_parts]
+                    )
                     parts = await _substitute_upload_parts(
                         raw_parts,
                         provider=provider,
@@ -306,18 +311,24 @@ async def execute_plan(
                     total_usage[k] = total_usage.get(k, 0) + v
 
         if wants_conversation and responses:
-            prompt = prompts[0] if isinstance(prompts[0], str) else str(prompts[0])
+            prompt = (
+                prompts[0]
+                if isinstance(prompts[0], str)
+                else str(prompts[0])
+                if prompts[0] is not None
+                else None
+            )
             answer = responses[0].get("text")
             reply = answer if isinstance(answer, str) else ""
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
             tool_calls = responses[0].get("tool_calls")
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
-            updated_history: list[dict[str, Any]] = [
-                *conversation_history,
-                {"role": "user", "content": prompt},
-                assistant_msg,
-            ]
+
+            updated_history: list[dict[str, Any]] = [*conversation_history]
+            if prompt is not None:
+                updated_history.append({"role": "user", "content": prompt})
+            updated_history.append(assistant_msg)
             conversation_state = {"history": updated_history}
             response_id = responses[0].get("response_id")
             if isinstance(response_id, str):

@@ -979,13 +979,13 @@ async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
     assert input_msgs[0]["call_id"] == "call_abc"
     assert input_msgs[1]["role"] == "assistant"
     assert input_msgs[1]["content"] == [
-        {"type": "input_text", "text": "Let me check that tool."}
+        {"type": "output_text", "text": "Let me check that tool."}
     ]
 
 
 @pytest.mark.asyncio
 async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> None:
-    """Tool outputs should still be sent when continuing via previous_response_id."""
+    """Tool outputs and their originating function_call must both be sent."""
     responses = _FakeResponses()
     fake_client = type("Client", (), {"responses": responses})()
 
@@ -1011,10 +1011,18 @@ async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> N
 
     assert responses.last_kwargs is not None
     input_msgs = responses.last_kwargs["input"]
-    assert input_msgs[0]["type"] == "function_call_output"
+
+    # The assistant's function_call must precede its function_call_output so
+    # the Responses API can associate them (even with previous_response_id).
+    assert input_msgs[0]["type"] == "function_call"
     assert input_msgs[0]["call_id"] == "call_abc"
-    assert input_msgs[0]["output"] == '{"temp": 72}'
-    assert input_msgs[1]["role"] == "user"
+    assert input_msgs[0]["name"] == "get_weather"
+
+    assert input_msgs[1]["type"] == "function_call_output"
+    assert input_msgs[1]["call_id"] == "call_abc"
+    assert input_msgs[1]["output"] == '{"temp": 72}'
+
+    assert input_msgs[2]["role"] == "user"
 
 
 @pytest.mark.asyncio
@@ -1064,7 +1072,10 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     )
 
     contents = captured["contents"]
-    assert len(contents) == 4
+    # 3 Content items: user, model(function_call), user(function_response + prompt).
+    # The prompt is merged into the function-response Content to preserve
+    # Gemini's required turn order without losing the instruction.
+    assert len(contents) == 3
 
     assert contents[0].role == "user"
     assert contents[0].parts[0].text == "What's the weather?"
@@ -1076,6 +1087,70 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     assert contents[2].role == "user"
     assert contents[2].parts[0].function_response.name == "get_weather"
     assert contents[2].parts[0].function_response.response == {"temp": 72}
+    # Prompt merged as a second part in the same Content block.
+    assert contents[2].parts[1].text == "Continue the conversation"
 
-    assert contents[3].role == "user"
-    assert contents[3].parts[0].text == "Continue the conversation"
+
+@pytest.mark.asyncio
+async def test_gemini_merges_prompt_into_tool_response_content() -> None:
+    """When history ends with a tool response, the prompt is merged in.
+
+    Gemini requires Model immediately after FunctionResponse. Adding a
+    separate User Content would produce FunctionResponse → User → Model
+    (rejected with 400 INVALID_ARGUMENT). Instead, the prompt is folded
+    into the function-response Content block so the model still sees it.
+    """
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(
+        *,
+        model: str,  # noqa: ARG001
+        contents: Any,
+        config: Any,  # noqa: ARG001
+    ) -> Any:
+        captured["contents"] = contents
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        model=GEMINI_MODEL,
+        parts=["Proceed."],
+        history=[
+            {"role": "user", "content": "What's the weather?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "arguments": '{"location": "NYC"}',
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_abc",
+                "content": '{"temp": 72}',
+            },
+        ],
+    )
+
+    contents = captured["contents"]
+    # 3 Content items — prompt merged into function-response Content.
+    assert len(contents) == 3
+
+    assert contents[0].role == "user"
+    assert contents[1].role == "model"
+    assert contents[1].parts[0].function_call.name == "get_weather"
+    assert contents[2].role == "user"
+    assert contents[2].parts[0].function_response.name == "get_weather"
+    # Prompt folded in as a second part.
+    assert contents[2].parts[1].text == "Proceed."

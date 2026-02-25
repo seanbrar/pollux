@@ -9,7 +9,6 @@ The suite prioritizes high-signal end-to-end coverage with a small call budget.
 
 from __future__ import annotations
 
-from copy import deepcopy
 import json
 from typing import TYPE_CHECKING, Any, cast
 
@@ -22,7 +21,6 @@ from pollux.source import Source
 
 if TYPE_CHECKING:
     from pollux.config import ProviderName
-    from pollux.result import ResultEnvelope
 
 pytestmark = [pytest.mark.api, pytest.mark.slow]
 
@@ -170,7 +168,7 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
     first = await pollux.run(
         (
             "Call get_secret exactly once with topic='orbit'. "
-            "Do not provide the final answer yet."
+            "Once you receive the tool result, return it in the structured response."
         ),
         config=config,
         options=Options(tools=tools, tool_choice="required", history=[]),
@@ -190,29 +188,34 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         call_id_raw if isinstance(call_id_raw, str) and call_id_raw else "get_secret"
     )
 
-    continued: ResultEnvelope = deepcopy(first)
-    state = continued.get("_conversation_state")
-    assert isinstance(state, dict)
-    history = state.get("history")
-    assert isinstance(history, list)
-    history.append(
+    tool_results = [
         {
             "role": "tool",
             "tool_call_id": tool_ref,
             "content": json.dumps({"code": "K9-ORBIT"}),
         }
-    )
+    ]
 
-    second = await pollux.run(
-        "Using the tool output, reply with exactly CODE:K9-ORBIT.",
+    response_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {"secret_code": {"type": "string"}},
+        "required": ["secret_code"],
+    }
+    if provider == "openai":
+        response_schema["additionalProperties"] = False
+
+    second = await pollux.continue_tool(
+        continue_from=first,
+        tool_results=tool_results,
         config=config,
         options=Options(
-            continue_from=continued,
             reasoning_effort="medium" if provider == "openai" else None,
+            response_schema=response_schema,
         ),
     )
 
-    assert "k9-orbit" in second["answers"][0].lower()
+    assert "structured" in second
+    assert second["structured"][0].get("secret_code") == "K9-ORBIT"
 
     second_state = second.get("_conversation_state")
     assert isinstance(second_state, dict)
@@ -226,7 +229,7 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         and item.get("tool_call_id") == tool_ref
     ]
     assert tool_indexes
-    assert tool_indexes[0] < len(second_history) - 2
+    assert tool_indexes[0] < len(second_history) - 1
 
     if provider == "openai" and "reasoning" in second:
         assert isinstance(second["reasoning"], list)
