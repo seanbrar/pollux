@@ -1,6 +1,11 @@
+<!-- Intent: First contact with Pollux. Get the user to a working result as
+     fast as possible. Do NOT teach concepts, source patterns, or advanced
+     features — those are linked at the end. Assume the reader knows what an
+     LLM API is but has never seen Pollux. Register: warm tutorial. -->
+
 # Getting Started
 
-Get your first answer in under 2 minutes.
+Let's get Pollux running and see your first result.
 
 ## 1. Install
 
@@ -31,14 +36,6 @@ Or download the latest wheel from
 
 Not sure which provider? Start with Gemini — it's the original path and
 supports context caching out of the box.
-
-!!! info "Boundary"
-    **Pollux owns:** normalizing your prompt and source into a request,
-    planning the API call, executing it, and extracting the answer into a
-    standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
-
-    **You own:** writing prompts, choosing what to analyze, and deciding
-    what to do with the result.
 
 ## 3. Run
 
@@ -79,9 +76,20 @@ broadcast (many sources × many prompts); (2) it provides context caching to
 avoid re-uploading the same content for repeated prompts.
 ```
 
-The `status` is `ok` and the answer references details from the source text.
-When this works, swap to your real input: `Source.from_file("document.pdf")`.
+That's your first Pollux result. The `status` is `ok` and the answer
+references details from the source text. When this works, swap to your real
+input: `Source.from_file("document.pdf")`.
 
-**What happened?** Pollux normalized your prompt and source into a
-request, planned the API call, executed it, and extracted the answer.
-Read [Core Concepts](concepts.md) for the full mental model.
+!!! info "What just happened?"
+    **Pollux owned:** normalizing your prompt and source into a request,
+    planning the API call, executing it, and extracting the answer into a
+    standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
+
+    **You owned:** writing the prompt, choosing what to analyze, and deciding
+    what to do with the result.
+
+    This boundary runs through every part of Pollux. You'll see it called out
+    on each page of the docs.
+
+**What's next?** Read [Core Concepts](concepts.md) for the full mental model,
+then [Sending Content to Models](sending-content.md) to explore the API.

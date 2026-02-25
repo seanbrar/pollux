@@ -1,8 +1,15 @@
+<!-- Intent: Teach collection-level analysis workflows using source patterns
+     (fan-out, fan-in, broadcast). Show the two-level loop pattern (your outer
+     loop + Pollux's inner call). Do NOT cover structured output, tool calling,
+     or caching mechanics — link to those pages. Assumes the reader understands
+     run() and run_many() from Sending Content. Register: guided applied. -->
+
 # Analyzing Collections with Source Patterns
 
 You have a directory of files and want to run the same analysis across all of
-them, or synthesize across multiple sources, or both. Pollux handles each
-file's API calls; your code owns iteration, concurrency, and aggregation.
+them, or synthesize across multiple sources, or both. This page shows how to
+structure that work. Pollux handles each file's API calls; your code owns
+iteration, concurrency, and aggregation.
 
 Source patterns describe the relationship between sources and prompts:
 
@@ -127,10 +134,14 @@ asyncio.run(process_directory("./papers"))
    try/except. A bad PDF or a rate-limit exhaustion skips one file without
    aborting the entire run.
 
+That's the complete pattern. You wrote the outer loop, Pollux handled the API
+calls within each iteration, and the result is a structured summary per file.
+Every variation below builds on this same two-level structure.
+
 ## Fan-in: Synthesizing Across Sources
 
-When you need to synthesize across files rather than analyze each one
-independently, pass multiple sources to a single prompt:
+The examples above analyze each file independently. But what if your question
+is about the collection as a whole? Pass multiple sources to a single prompt:
 
 ```python
 async def synthesize_collection(directory: str, question: str) -> str:

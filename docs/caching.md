@@ -1,3 +1,9 @@
+<!-- Intent: Teach context caching mechanics: the redundant-context problem,
+     enabling caching, cache identity, TTL tuning, and when caching pays off.
+     Do NOT cover source patterns or structured output in depth — link to those
+     pages. Assumes the reader understands run_many() and fan-out workflows.
+     Register: conceptual opening → guided applied. -->
+
 # Reducing Costs with Context Caching
 
 Pollux's context caching uploads content once and reuses it across prompts,
@@ -68,6 +74,8 @@ compare_efficiency(946_800, 10)
 More questions on the same content = greater savings.
 
 ## Enabling Caching
+
+Let's see this in practice. Two flags in `Config` control caching:
 
 ```python
 import asyncio

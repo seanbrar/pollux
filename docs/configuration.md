@@ -1,3 +1,8 @@
+<!-- Intent: Reference page for Config and Options fields. Cover API key
+     resolution, mock mode, performance/cost controls, RetryPolicy, and Options
+     per-prompt overrides. Do NOT include tutorials or extended examples — link
+     to the relevant guide pages. Register: reference. -->
+
 # Configuring Pollux
 
 You need to tell Pollux which provider, model, and API key to use for each
@@ -139,13 +144,13 @@ options = Options(
 | `system_instruction` | `str \| None` | `None` | Global system prompt |
 | `temperature` | `float \| None` | `None` | Sampling temperature |
 | `top_p` | `float \| None` | `None` | Nucleus sampling probability |
-| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
-| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
+| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools — see [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy — see [Building an Agent Loop](agent-loop.md) |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format — see [Extracting Structured Data](structured-data.md) |
 | `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth — see [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
 | `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
-| `history` | `list[dict] \| None` | `None` | Conversation history — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
-| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
+| `history` | `list[dict] \| None` | `None` | Conversation history — see [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result — see [Continuing Conversations Across Turns](conversations-and-agents.md) |
 
 !!! note
     OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject

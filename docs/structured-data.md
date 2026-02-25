@@ -1,7 +1,14 @@
+<!-- Intent: Teach structured output extraction via response_schema. Cover
+     Pydantic models, JSON schema dicts, nested models, and combining with
+     reasoning. Do NOT cover tool calling, conversation history, or caching.
+     Assumes the reader understands run() and ResultEnvelope from Sending
+     Content. Register: guided applied. -->
+
 # Extracting Structured Data
 
 You want to extract typed data from documents — not free-form text, but
-validated objects you can store, compare, and process programmatically.
+validated objects you can store, compare, and process programmatically. This
+is where Pollux stops being a text generator and starts being a data pipeline.
 
 At the LLM API level, structured output works by constraining the model's
 token generation to conform to a JSON schema you provide. Instead of producing
@@ -53,8 +60,9 @@ object per prompt. The raw text is still available in `answers`.
 
 ## Complete Extraction Pipeline
 
-Extract metadata from research papers into a typed catalog and write to
-JSONL — a common pattern for building datasets from document collections.
+Let's build something real. This example extracts metadata from research
+papers into a typed catalog and writes to JSONL — a common pattern for
+building datasets from document collections.
 
 ```python
 import asyncio
@@ -227,6 +235,6 @@ downstream decisions.
 ---
 
 To add tool calling and multi-turn reasoning on top of structured extraction,
-see [Building Conversations and Agent Loops](conversations-and-agents.md). To
+see [Building an Agent Loop](agent-loop.md). To
 reduce token costs when running structured extraction across many prompts on
 the same sources, see [Reducing Costs with Context Caching](caching.md).

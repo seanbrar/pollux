@@ -1,8 +1,17 @@
-# Building Conversations and Agent Loops
+<!-- Intent: Teach conversation continuity mechanics: continue_from, manual
+     history, and tool messages in history. Also cover tool calling setup
+     (defining tools, reading tool_calls, continue_tool). Do NOT include the
+     complete agent loop — that's on its own page. Assumes the reader
+     understands run() and ResultEnvelope. Register: guided applied. -->
 
-You want a model that remembers prior exchanges, or one that calls tools, gets
-results, and reasons over them across multiple turns. This page covers both
-patterns: multi-turn conversations and tool-calling agent loops.
+# Continuing Conversations Across Turns
+
+You want a model that remembers prior exchanges, or one that calls tools and
+reasons over the results. This page covers the conversation mechanics —
+carrying context forward, injecting history, and setting up tool calling.
+
+The complete agent loop that brings these pieces together lives on the
+next page: [Building an Agent Loop](agent-loop.md).
 
 At the API level, LLMs are stateless — each call is independent. Multi-turn
 conversations work by passing the full conversation history (previous user
@@ -24,7 +33,7 @@ them and feed results back for the next turn.
 ## Continuing a Conversation with `continue_from`
 
 Every successful `run()` returns a `ResultEnvelope` containing internal
-conversation state. Passing this envelope back into `Options` will
+conversation state. Pass this envelope back into `Options` to
 automatically resume the conversation.
 
 ```python
@@ -177,161 +186,8 @@ previous envelope's state, appends your tool results, and calls `run()` to get
 the model's next response. The returned `ResultEnvelope` may contain another
 round of `tool_calls` (if the model needs more data) or a final text answer.
 
-The complete agent loop below shows `continue_tool()` in its natural context.
-
-## Complete Agent Loop
-
-A weather agent that answers questions by calling a `get_weather` tool,
-with a turn limit to prevent runaway loops.
-
-```python
-import asyncio
-import json
-
-from pollux import Config, Options, run, continue_tool
-
-MAX_TURNS = 5
-
-config = Config(provider="openai", model="gpt-5-nano")
-
-tools = [
-    {
-        "name": "get_weather",
-        "description": "Get current weather for a location",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "string", "description": "City name"},
-            },
-            "required": ["location"],
-        },
-    }
-]
-
-# --- Tool implementations (your code) ---
-
-def get_weather(location: str) -> dict:
-    """Stub — replace with a real weather API call."""
-    return {"location": location, "temp_f": 72, "condition": "sunny"}
-
-
-TOOL_DISPATCH = {
-    "get_weather": lambda args: get_weather(args["location"]),
-}
-
-
-def execute_tool_calls(tool_calls: list[dict]) -> list[dict]:
-    """Run each tool call and return tool-result messages."""
-    results = []
-    for tc in tool_calls:
-        try:
-            output = TOOL_DISPATCH[tc["name"]](tc["arguments"])
-            content = json.dumps(output)
-        except Exception as exc:
-            content = json.dumps({"error": str(exc)})
-        results.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": content,
-        })
-    return results
-
-
-async def agent(user_prompt: str) -> str:
-    """Run a tool-calling agent loop and return the final answer."""
-    options = Options(tools=tools, tool_choice="auto", history=[])
-    result = await run(user_prompt, config=config, options=options)
-
-    for turn in range(MAX_TURNS):
-        if "tool_calls" not in result:
-            return result["answers"][0]
-
-        # Execute every tool the model requested
-        tool_results = execute_tool_calls(result["tool_calls"][0])
-
-        # Next turn — model sees tool results and may call more tools
-        result = await continue_tool(
-            continue_from=result,
-            tool_results=tool_results,
-            config=config,
-            options=Options(tools=tools),
-        )
-
-    return result["answers"][0]  # Best-effort after MAX_TURNS
-
-
-print(asyncio.run(agent("What's the weather in NYC and London?")))
-```
-
-### Step-by-Step Walkthrough
-
-1. **Define tools and dispatch.** Tool schemas go to the provider via
-   `Options(tools=...)`. A dispatch map connects tool names to your
-   implementations — this is your code, not Pollux's.
-
-2. **First turn.** `run()` sends the prompt with tool definitions. The model
-   may return an answer directly, or request tool calls.
-
-3. **Check for tool calls.** If `"tool_calls"` is in the result, the model
-   wants your tools. If not, the answer is ready.
-
-4. **Execute and feed back.** Run each tool call through your dispatch map
-   and build tool-result messages. Pass the previous result and these messages
-   into `continue_tool()` to execute the next turn.
-
-5. **Loop with a guard.** `MAX_TURNS` prevents infinite loops. After the
-   limit, return whatever the model last produced.
-
-## Variations
-
-### Multiple tools in one turn
-
-The model can request multiple tool calls in a single response. The example
-above handles this naturally — `execute_tool_calls` iterates over all calls
-in `result["tool_calls"][0]` and returns a result message for each.
-
-### Using `history` instead of `continue_from`
-
-`continue_from` is convenient when you have the prior result object. If you
-need more control over the conversation — for example, injecting a system
-message mid-conversation or trimming old turns — build `history` manually:
-
-```python
-history = [
-    {"role": "user", "content": "What's the weather in NYC?"},
-    {"role": "assistant", "content": "", "tool_calls": tool_calls},
-    {"role": "tool", "tool_call_id": "call_1", "content": '{"temp_f": 72}'},
-]
-
-result = await run(
-    "Now summarize.",
-    config=config,
-    options=Options(tools=tools, history=history),
-)
-```
-
-### Constraining tool use with system instructions
-
-Use `system_instruction` to guide when and how the model calls tools:
-
-```python
-options = Options(
-    tools=tools,
-    tool_choice="auto",
-    system_instruction=(
-        "You are a weather assistant. Only call get_weather for cities "
-        "the user explicitly mentions. Do not guess locations."
-    ),
-)
-```
-
 ## What to Watch For
 
-- **Always set `MAX_TURNS`.** Without a turn limit, a model that repeatedly
-  requests tools can loop indefinitely. 5-10 turns covers most agent tasks.
-- **Return errors as tool results, don't raise.** If a tool fails, return a
-  JSON error message so the model can reason about the failure. Raising an
-  exception breaks the loop.
 - **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of lists —
   one list per prompt. For `run()` (single prompt), access `result["tool_calls"][0]`.
 - **Conversation continuity requires one prompt.** Both `history` and
@@ -342,7 +198,7 @@ options = Options(
 
 ---
 
-For production error handling in agent loops, see
-[Handling Errors and Recovery](error-handling.md). To reduce token costs when
-your agent loop reuses the same source content across turns, see
-[Reducing Costs with Context Caching](caching.md).
+Now that you understand the conversation mechanics, see
+[Building an Agent Loop](agent-loop.md) to put them together into a complete
+tool-calling agent. For production error handling in agent loops, see
+[Handling Errors and Recovery](error-handling.md).

@@ -81,7 +81,8 @@ nav:
   - Sending Content to Models: sending-content.md
   - Analyzing Collections with Source Patterns: source-patterns.md
   - Extracting Structured Data: structured-data.md
-  - Building Conversations and Agent Loops: conversations-and-agents.md
+  - Continuing Conversations Across Turns: conversations-and-agents.md
+  - Building an Agent Loop: agent-loop.md
   - Reducing Costs with Context Caching: caching.md
   - Writing Portable Code Across Providers: portable-code.md
   - Handling Errors and Recovery: error-handling.md

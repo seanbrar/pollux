@@ -1,8 +1,15 @@
+<!-- Intent: Teach portability patterns: separating provider-specific details
+     from pipeline logic, graceful degradation, model tier mapping, and testing
+     with mock mode. Cover model-specific constraints (GPT-5 sampling, Gemini
+     reasoning). Do NOT re-explain tool calling or conversation mechanics.
+     Assumes the reader has used run() and understands Config/Options.
+     Register: guided applied (architectural patterns). -->
+
 # Writing Portable Code Across Providers
 
 You want to write analysis code that works across providers — switch from
 Gemini to OpenAI (or back) by changing a config line, not rewriting your
-pipeline.
+pipeline. This page shows the patterns that make that possible.
 
 Pollux is capability-transparent, not capability-equalizing. Both providers
 support the core pipeline — text generation, structured output, tool calling,

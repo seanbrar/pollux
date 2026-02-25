@@ -1,3 +1,10 @@
+<!-- Intent: Teach error handling for Pollux pipelines: the exception
+     hierarchy, failure triage, production error patterns (category-specific
+     catching, circuit breakers, partial failures, resume-on-failure). Do NOT
+     re-explain tool calling or conversation mechanics. Assumes the reader has
+     used run() and understands Config/Options. Register: reference + guided
+     applied (patterns). -->
+
 # Handling Errors and Recovery
 
 You want your Pollux-based pipeline to handle failures gracefully — retrying

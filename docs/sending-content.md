@@ -1,8 +1,14 @@
+<!-- Intent: Teach the three core mechanics: creating Sources, calling run()
+     and run_many(), and reading ResultEnvelope. Do NOT cover source patterns
+     in depth (that's the next page), tool calling, or conversation history.
+     Assumes the reader has completed Getting Started. Register: guided applied. -->
+
 # Sending Content to Models
 
 You want to send content — text, files, videos, or structured data — to an
-LLM and get answers back. This page shows how to create sources, choose the
-right entry point, and read the result.
+LLM and get answers back. This page covers the three things you need to know:
+how to wrap your input as a `Source`, which entry point to call, and how to
+read the result.
 
 !!! info "Boundary"
     **Pollux owns:** uploading and caching source content, attaching it to
@@ -59,9 +65,9 @@ or quoted text rather than open-ended descriptions.
 
 ## Single Prompt: `run()`
 
-Use `run()` when you have one prompt and at most one source. This is the
-starting point for tuning prompt quality before scaling — get one answer right
-before multiplying.
+Let's start with the simplest case: one prompt, one source, one answer. Use
+`run()` when you have one prompt and at most one source — this is the place to
+tune prompt quality before scaling.
 
 ```python
 import asyncio
@@ -105,9 +111,10 @@ The paper concludes that context caching reduces repeated token cost by up to
 
 ## Multiple Prompts: `run_many()`
 
-Use `run_many()` when prompts or sources are plural. It handles upload reuse,
-concurrency, and cache identity automatically. This is where source patterns
-(fan-out, fan-in, broadcast) come into play — see
+Now that you can send a single prompt, let's scale up. `run_many()` handles
+multiple prompts and sources — with upload reuse, concurrency, and cache
+identity managed automatically. This is where source patterns (fan-out,
+fan-in, broadcast) come into play — see
 [Analyzing Collections with Source Patterns](source-patterns.md) for
 collection-level workflows.
 
@@ -166,7 +173,8 @@ workloads because it shares uploads and runs prompts concurrently.
 
 ## ResultEnvelope Reference
 
-Every call returns a `ResultEnvelope` dict. Here are all fields:
+Every `run()` and `run_many()` call returns a `ResultEnvelope` — a dict with a
+stable shape that works the same regardless of provider. Here are all fields:
 
 | Field | Type | Always present | Description |
 |---|---|---|---|
@@ -196,7 +204,7 @@ Example of a complete envelope:
 
 - Conversation continuity (`history`, `continue_from`) supports one
   prompt per call. See
-  [Building Conversations and Agent Loops](conversations-and-agents.md).
+  [Continuing Conversations Across Turns](conversations-and-agents.md).
 - `delivery_mode="deferred"` remains reserved and disabled.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).

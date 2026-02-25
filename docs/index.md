@@ -37,7 +37,8 @@ pip install pollux-ai
 - **[Sending Content to Models](sending-content.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
 - **[Analyzing Collections with Source Patterns](source-patterns.md)** — Fan-out, fan-in, and broadcast workflows
 - **[Extracting Structured Data](structured-data.md)** — Typed output via Pydantic schemas
-- **[Building Conversations and Agent Loops](conversations-and-agents.md)** — Multi-turn chat and tool calling
+- **[Continuing Conversations Across Turns](conversations-and-agents.md)** — Multi-turn chat and tool calling
+- **[Building an Agent Loop](agent-loop.md)** — Composing a tool-calling agent from primitives
 - **[Reducing Costs with Context Caching](caching.md)** — Upload once, reuse across prompts
 - **[Writing Portable Code Across Providers](portable-code.md)** — Switch providers by changing one config line
 - **[Configuring Pollux](configuration.md)** — Config fields, API key resolution, retry, and mock mode

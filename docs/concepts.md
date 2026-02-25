@@ -1,3 +1,11 @@
+<!-- Intent: Establish the mental model for LLM orchestration through
+     Pollux's lens. Teach domain concepts (multimodal inputs, structured output,
+     tool calling, multi-turn, caching, source patterns, reasoning) BEFORE
+     showing any Pollux API. Then introduce Pollux's four-phase pipeline and
+     the ownership boundary table. Do NOT include runnable code examples or
+     hands-on tutorials — those belong in subsequent pages. Assumes no prior
+     LLM API experience. Register: conceptual/declarative. -->
+
 # Core Concepts
 
 Before diving into Pollux's API, it helps to understand the LLM ecosystem
