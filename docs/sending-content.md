@@ -1,7 +1,15 @@
-# Sources and Patterns
+# Sending Content to Models
 
 This page covers how to create sources, choose between `run()` and
 `run_many()`, and interpret the result envelope.
+
+!!! info "Boundary"
+    **Pollux owns:** uploading and caching source content, attaching it to
+    provider API calls, running prompts concurrently, and normalizing
+    responses into a stable `ResultEnvelope`.
+
+    **You own:** choosing what to analyze, writing prompts, and processing
+    the returned answers.
 
 ## Source Constructors
 
@@ -25,9 +33,17 @@ arxiv   = Source.from_arxiv("2301.00001")
 remote  = Source.from_uri("https://example.com/data.csv", mime_type="text/csv")
 ```
 
+Pollux accepts PDFs, images, video, audio, and text files through the same
+interface. The source type is detected from the file extension or MIME type —
+you do not need to specify format-specific options. For media sources (images,
+video, audio), keep prompts concrete: ask for objects, attributes, timestamps,
+or quoted text rather than open-ended descriptions.
+
 ## Single Prompt: `run()`
 
-Use `run()` when you have one prompt and at most one source.
+Use `run()` when you have one prompt and at most one source. This is the
+starting point for tuning prompt quality before scaling — get one answer right
+before multiplying.
 
 ```python
 import asyncio
@@ -57,7 +73,10 @@ The paper concludes that context caching reduces repeated token cost by up to
 ## Multiple Prompts: `run_many()`
 
 Use `run_many()` when prompts or sources are plural. It handles upload reuse,
-concurrency, and cache identity automatically.
+concurrency, and cache identity automatically. This is where source patterns
+(fan-out, fan-in, broadcast) come into play — see
+[Analyzing Collections with Source Patterns](source-patterns.md) for
+collection-level workflows.
 
 ```python
 import asyncio
@@ -90,39 +109,6 @@ Q1: Paper 1 argues that multimodal orchestration layers reduce boilerplate by...
 Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 ```
 
-## Structured Output
-
-Pass a Pydantic model (or JSON schema dict) via `Options(response_schema=...)`
-to get typed, validated output in `envelope["structured"]`.
-
-```python
-import asyncio
-from pydantic import BaseModel
-from pollux import Config, Options, Source, run
-
-class PaperSummary(BaseModel):
-    title: str
-    findings: list[str]
-
-async def main() -> None:
-    config = Config(provider="openai", model="gpt-5-nano")
-    options = Options(response_schema=PaperSummary)
-    result = await run(
-        "Extract a structured summary.",
-        source=Source.from_text("Title: Caching Study. Findings: tokens saved, latency reduced."),
-        config=config,
-        options=options,
-    )
-    summary = result["structured"][0]
-    print(summary.title)       # "Caching Study"
-    print(summary.findings)    # ["tokens saved", "latency reduced"]
-
-asyncio.run(main())
-```
-
-When `response_schema` is set, the `structured` field contains one parsed
-object per prompt. The raw text is still available in `answers`.
-
 ## Choosing `run()` vs `run_many()`
 
 | Situation | Use | Why |
@@ -135,7 +121,8 @@ object per prompt. The raw text is still available in `answers`.
 Rule of thumb: if prompts or sources are plural, use `run_many()`.
 
 `run()` is a convenience wrapper that delegates to `run_many()` with a single
-prompt.
+prompt. In benchmarks, `run_many()` is typically faster for multi-prompt
+workloads because it shares uploads and runs prompts concurrently.
 
 ## ResultEnvelope Reference
 
@@ -168,7 +155,8 @@ Example of a complete envelope:
 ## Notes
 
 - Conversation continuity (`history`, `continue_from`) supports one
-  prompt per call. Both Gemini and OpenAI support tool messages in history.
+  prompt per call. See
+  [Building Conversations and Agent Loops](conversations-and-agents.md).
 - `delivery_mode="deferred"` remains reserved and disabled.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).

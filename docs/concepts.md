@@ -1,12 +1,85 @@
-# Concepts
+# Core Concepts
 
-Pollux is an orchestration layer for multimodal LLM analysis. You describe
-what to analyze; Pollux handles source patterns, context caching, concurrency,
-retries, and result normalization.
+Before diving into Pollux's API, it helps to understand the LLM ecosystem
+concepts that shape its design. This page explains those concepts first, then
+shows how Pollux implements them.
 
-## The Pipeline
+## What Is LLM Orchestration?
 
-Every call follows four phases:
+Large language models (LLMs) accept input and generate output. At the API
+level, every interaction follows the same fundamental cycle: you send a
+**prompt** (your question or instruction) along with optional **context**
+(documents, images, audio, video), and the model returns a **completion**
+(its response). This prompt-completion cycle is the building block of
+everything that follows.
+
+### Multimodal Inputs
+
+Modern LLMs are not text-only. A **multimodal** model can process PDFs,
+images, video frames, and audio alongside text. Sending multimodal content
+through an API requires uploading or referencing binary data, specifying
+MIME types, and handling provider-specific encoding — all of which adds
+complexity to what would otherwise be a prompt-completion call.
+
+### Structured Outputs
+
+By default, models return free-form text. **Structured output** constrains the
+model's response to match a JSON schema you provide, producing typed data
+instead of prose. This turns model output into something your code can parse,
+validate, and store without regex or string manipulation.
+
+### Tool Calling
+
+Models can request actions from your code mid-conversation. When **tool
+calling** is enabled, the model may respond not with text but with a request
+to invoke a named function (e.g., "call `get_weather` with `location=NYC`").
+Your code executes the function, returns the result, and the model incorporates
+it into its next response. This is the foundation of agent loops.
+
+### Multi-Turn Conversations
+
+A single prompt-completion exchange is stateless. **Multi-turn conversations**
+maintain context across exchanges by passing conversation history — previous
+user messages, assistant responses, and tool results — back to the model with
+each new prompt. The model itself stores nothing between calls; your code (or
+your orchestration layer) is responsible for carrying state forward.
+
+### Context Caching
+
+When you ask multiple questions about the same document, the naive approach
+re-uploads the entire document with each prompt. **Context caching** uploads
+content once and assigns it a reference that subsequent calls can reuse —
+avoiding redundant data transfer and reducing token costs proportionally.
+
+### Source Patterns
+
+When analysis scales beyond a single prompt and source, three structural
+patterns emerge:
+
+- **Fan-out** — one source, many prompts. Upload an artifact once, ask
+  multiple questions about it.
+- **Fan-in** — many sources, one prompt. Synthesize across multiple artifacts
+  with a single question.
+- **Broadcast** — many sources, many prompts. Apply the same analysis template
+  across multiple sources.
+
+These patterns describe the *shape* of work, not the implementation. An
+orchestration layer can optimize for each shape differently (reusing uploads
+in fan-out, parallelizing calls in broadcast).
+
+### Reasoning Modes
+
+Some models support explicit **reasoning** — an extended thinking phase before
+generating a response. When enabled via an effort control, the model's internal
+reasoning trace may be returned alongside the answer, allowing you to audit
+how it arrived at its conclusions. Support for reasoning varies by model
+family and provider.
+
+---
+
+## Pollux's Pipeline
+
+Pollux implements these concepts through a four-phase pipeline:
 
 ```mermaid
 graph LR
@@ -25,18 +98,18 @@ cache keys from content hashes.
 provider calls concurrently.
 
 **Extract** — Transforms API responses into a stable
-[`ResultEnvelope`](sources-and-patterns.md#resultenvelope-reference) with
+[`ResultEnvelope`](sending-content.md#resultenvelope-reference) with
 `answers`, optional `structured` data, and `usage` metadata.
 
 This separation lets Pollux support multimodal inputs and provider differences
 without forcing callers to reimplement orchestration logic.
 
-## Source Patterns
+### Source Patterns in Pollux
 
-Source patterns describe the relationship between sources and prompts. Pollux
-supports three:
+Pollux expresses source patterns through its two entry points, `run()` and
+`run_many()`:
 
-### Fan-out: one source, many prompts
+#### Fan-out: one source, many prompts
 
 ```mermaid
 graph LR
@@ -49,7 +122,7 @@ Upload one artifact and ask many questions about it. This is the strongest
 fit for context caching — the source is uploaded once and reused for every
 prompt.
 
-### Fan-in: many sources, one prompt
+#### Fan-in: many sources, one prompt
 
 ```mermaid
 graph LR
@@ -61,7 +134,7 @@ graph LR
 Synthesize across multiple artifacts with a single question. The prompt
 stays stable while sources vary, keeping comparisons objective.
 
-### Broadcast: many sources, many prompts
+#### Broadcast: many sources, many prompts
 
 ```mermaid
 graph LR
@@ -76,60 +149,24 @@ graph LR
 Apply the same analysis template across multiple sources. Consistent prompts
 make output comparison and post-processing straightforward.
 
-## Context Caching
+## Where Pollux Ends and You Begin
 
-Without caching, repeated prompts resend the same large context every time.
-With caching, Pollux uploads content once and reuses it — savings compound
-with each additional prompt.
+Pollux is an orchestration layer, not a framework. It handles the mechanics
+of getting content to a model and results back to you, but deliberately
+leaves domain-level decisions and workflow orchestration to your code.
 
-Caching is provider-dependent (Gemini-only in v1.0). For mechanics, TTL
-tuning, and token economics, see
-[Caching and Efficiency](caching-and-efficiency.md).
+| Responsibility | You Own | Pollux Owns |
+|---|---|---|
+| **Prompts** | Writing and iterating on prompt text | Delivering prompts to the provider |
+| **Sources** | Choosing what to analyze and when | Uploading, caching, and attaching sources to calls |
+| **Models** | Selecting the provider and model | Provider-specific API translation |
+| **Tool execution** | Implementing and calling tools | Surfacing tool-call requests and passing results back |
+| **Multi-turn loops** | Loop control, exit conditions, state | Single-turn request/response with conversation continuity |
+| **Result aggregation** | Collecting, comparing, and storing answers | Normalizing each response into `ResultEnvelope` |
+| **Error recovery** | Deciding what to retry or skip at the workflow level | Retrying transient API failures within a single call |
+| **Concurrency** | Parallelizing across files or workflows | Concurrent API calls within a single `run_many()` |
+| **Output validation** | Domain-specific checks on answers | Structured parsing via `response_schema` |
 
-## Capability Transparency
-
-Pollux does not hide provider differences behind silent fallbacks. Supported
-features run normally; unsupported combinations fail fast with a clear
-`ConfigurationError` or `APIError`. This keeps behavior legible in both
-development and production.
-
-See the full matrix at
-[Provider Capabilities](reference/provider-capabilities.md).
-
-## Error Model
-
-Pollux uses a single exception hierarchy rooted at `PolluxError`:
-
-```
-PolluxError
-├── ConfigurationError   # Bad config, missing key, unsupported feature
-├── SourceError          # File not found, invalid arXiv reference
-├── PlanningError        # Execution plan could not be built
-├── InternalError        # Bug or invariant violation inside Pollux
-└── APIError             # Provider call failed
-    ├── RateLimitError   # HTTP 429 (always retryable)
-    └── CacheError       # Cache operation failed
-```
-
-Every error carries a `.hint` attribute with actionable guidance:
-
-```python
-from pollux import Config, ConfigurationError
-
-try:
-    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
-except ConfigurationError as e:
-    print(e)       # "API key required for gemini"
-    print(e.hint)  # "Set GEMINI_API_KEY environment variable or pass api_key=..."
-```
-
-This lets calling code display helpful messages without parsing exception
-strings. For symptom-based debugging, see [Troubleshooting](troubleshooting.md).
-
-## What You Own vs What Pollux Owns
-
-**You own:** prompt intent, source selection, model/provider choice, and
-domain-specific output validation.
-
-**Pollux owns:** orchestration mechanics, cache identity and reuse, retry
-and concurrency control, and the normalized result envelope.
+This boundary is intentional. By keeping workflow orchestration in your code,
+Pollux avoids imposing opinions about loop structures, error policies, or
+aggregation formats that vary across use cases.

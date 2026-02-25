@@ -76,29 +76,16 @@ copyright: Copyright &copy; 2026 Sean Brar
 
 nav:
   - Home: index.md
-  - Quickstart: quickstart.md
-  - Concepts: concepts.md
-  - Sources and Patterns: sources-and-patterns.md
-  - Configuration: configuration.md
-  - Caching and Efficiency: caching-and-efficiency.md
-  - Troubleshooting: troubleshooting.md
-  - Cookbook:
-      - Overview: cookbook/index.md
-      - Getting Started:
-          - Analyze Single Paper: cookbook/getting-started/analyze-single-paper.md
-          - Broadcast Process Files: cookbook/getting-started/broadcast-process-files.md
-          - Structured Output Extraction: cookbook/getting-started/structured-output-extraction.md
-          - Extract Media Insights: cookbook/getting-started/extract-media-insights.md
-      - Optimization:
-          - Run vs RunMany: cookbook/optimization/run-vs-run-many.md
-          - Cache Warming and TTL: cookbook/optimization/cache-warming-and-ttl.md
-          - Large-Scale Fan-Out: cookbook/optimization/large-scale-fan-out.md
-      - Research Workflows:
-          - Comparative Analysis: cookbook/research-workflows/comparative-analysis.md
-          - Multi-Video Synthesis: cookbook/research-workflows/multi-video-synthesis.md
-      - Production:
-          - Rate Limits and Concurrency: cookbook/production/rate-limits-and-concurrency.md
-          - Resume on Failure: cookbook/production/resume-on-failure.md
+  - Getting Started: getting-started.md
+  - Core Concepts: concepts.md
+  - Sending Content to Models: sending-content.md
+  - Analyzing Collections with Source Patterns: source-patterns.md
+  - Extracting Structured Data: structured-data.md
+  - Building Conversations and Agent Loops: conversations-and-agents.md
+  - Reducing Costs with Context Caching: caching.md
+  - Writing Portable Code Across Providers: portable-code.md
+  - Handling Errors and Recovery: error-handling.md
+  - Configuring Pollux: configuration.md
   - Reference:
       - API: reference/api.md
       - Provider Capabilities: reference/provider-capabilities.md

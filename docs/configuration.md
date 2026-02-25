@@ -1,7 +1,14 @@
-# Configuration
+# Configuring Pollux
 
 Pollux uses an explicit `Config` object per call. No global state, no
 implicit defaults.
+
+!!! info "Boundary"
+    **Pollux owns:** validating config, resolving API keys from the
+    environment, managing retry logic, and enforcing provider constraints.
+
+    **You own:** selecting the right provider and model, managing API keys
+    securely, and tuning concurrency and retry settings for your workload.
 
 ## Config Fields
 
@@ -74,7 +81,7 @@ config = Config(
 | Need | Direction |
 |---|---|
 | Fast iteration without API calls | `use_mock=True` |
-| Reduce token spend on repeated context | `enable_caching=True` |
+| Reduce token spend on repeated context | `enable_caching=True` — see [Reducing Costs with Context Caching](caching.md) |
 | Higher throughput for many prompts/sources | Increase `request_concurrency` |
 | Better resilience to transient failures | Customize `retry=RetryPolicy(...)` |
 
@@ -131,177 +138,20 @@ options = Options(
 | `system_instruction` | `str \| None` | `None` | Global system prompt |
 | `temperature` | `float \| None` | `None` | Sampling temperature |
 | `top_p` | `float \| None` | `None` | Nucleus sampling probability |
-| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools |
-| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy |
-| `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format |
-| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth (see [Reasoning](#reasoning)) |
+| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
+| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
+| `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format — see [Extracting Structured Data](structured-data.md) |
+| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth — see [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
 | `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
-| `history` | `list[dict] \| None` | `None` | Conversation history; mutually exclusive with `continue_from` |
-| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result; mutually exclusive with `history` |
+| `history` | `list[dict] \| None` | `None` | Conversation history — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
+| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result — see [Building Conversations and Agent Loops](conversations-and-agents.md) |
 
 !!! note
     OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject
     sampling controls like `temperature` and `top_p` with provider errors.
     Older OpenAI models (for example `gpt-4.1-nano`) still accept them.
-
-See [Sources and Patterns](sources-and-patterns.md#structured-output) for
-a complete structured output example.
-
-### Conversation Continuity
-
-Pollux supports multi-turn conversations via `history` and `continue_from`.
-Both are mutually exclusive — use one per call.
-
-- **`history`**: Pass an explicit list of message dicts. Each item must have
-  a string `role` field. Regular messages include `content`; tool messages
-  may include `tool_call_id`, `tool_calls`, and other keys.
-- **`continue_from`**: Pass a prior `ResultEnvelope` returned by `run()` or
-  `run_many()`. Pollux extracts the conversation state automatically.
-
-Conversation continuity requires a provider with conversation support
-(Gemini and OpenAI) and exactly one prompt per call.
-
-### Reasoning
-
-Set `reasoning_effort` to control how deeply the model reasons before
-responding. The value is passed through to the provider — valid values depend
-on the model:
-
-- **OpenAI**: `"low"`, `"medium"`, `"high"`
-- **Gemini**: `"low"`, `"medium"`, `"high"`, `"minimal"` (Gemini 3 series)
-
-```python
-result = await pollux.run(
-    "Solve this step by step...",
-    config=cfg,
-    options=Options(reasoning_effort="high"),
-)
-
-# Thinking content (when available) is in result["reasoning"]
-if "reasoning" in result:
-    for text in result["reasoning"]:
-        if text:
-            print("Thinking:", text[:200])
-```
-
-The `reasoning` field in `ResultEnvelope` is a `list[str | None]` (one entry
-per prompt, `None` when the provider did not return thinking content for that
-call). It is only present when at least one response includes reasoning.
-
-**What each provider exposes:**
-
-| | Effort control | Thinking content |
-|--|:-:|:-:|
-| **Gemini** | `thinking_level` | Full thinking text |
-| **OpenAI** | `reasoning.effort` | Reasoning summary |
-
-Token usage includes `reasoning_tokens` when the provider reports them.
-
-!!! note
-    Pollux passes `reasoning_effort` through to the provider as-is.
-    Gemini support is currently practical on Gemini 3 models (for example
-    `gemini-3-flash-preview`) where `reasoning_effort` maps to
-    `thinking_level`. Gemini 2.x models use different controls (for example
-    `thinking_budget`) and will return a provider error — see
-    [Provider Capabilities](reference/provider-capabilities.md) for details.
-
-### Tool Calling
-
-Pollux passes tool definitions to providers and surfaces tool call responses
-in the result envelope.
-
-**Defining tools** — pass a list of tool schemas in `Options.tools`:
-
-```python
-options = Options(
-    tools=[
-        {
-            "name": "get_weather",
-            "description": "Get weather for a location",
-            "parameters": {
-                "type": "object",
-                "properties": {"location": {"type": "string"}},
-            },
-        }
-    ],
-    tool_choice="auto",  # "auto", "required", "none", or {"name": "..."}
-)
-```
-
-**Reading tool calls** — when the model invokes tools, the result envelope
-includes a `tool_calls` field:
-
-```python
-result = await pollux.run("What's the weather in NYC?", config=cfg, options=options)
-
-if "tool_calls" in result:
-    for call in result["tool_calls"][0]:  # per-prompt list
-        print(call["name"], call["arguments"])
-```
-
-### Tool-Call Loop Pattern
-
-Pollux is a single-turn orchestration layer — it does not execute tools or
-manage multi-turn loops. Your code owns the loop:
-
-```python
-import asyncio, json
-from pollux import Config, Options, run
-
-config = Config(provider="openai", model="gpt-5-nano")
-tools = [{"name": "get_weather", "parameters": {"type": "object", "properties": {"location": {"type": "string"}}}}]
-
-async def main():
-    # Turn 1: initial request with tools
-    result = await run(
-        "What's the weather in NYC?",
-        config=config,
-        options=Options(tools=tools, tool_choice="auto"),
-    )
-
-    if "tool_calls" not in result:
-        print(result["answers"][0])
-        return
-
-    # Extract tool calls from the result
-    tool_calls = result["tool_calls"][0]
-
-    # Execute tools (your code)
-    tool_results = []
-    for tc in tool_calls:
-        # ... call your actual tool implementation ...
-        output = json.dumps({"temp": 72, "unit": "F"})
-        tool_results.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": output,
-        })
-
-    # Append tool outputs to the saved conversation state
-    continued = dict(result)
-    state = dict(continued.get("_conversation_state", {}))
-    state_history = list(state.get("history", []))
-    state["history"] = [*state_history, *tool_results]
-    continued["_conversation_state"] = state
-
-    # Turn 2: feed tool results back via continue_from
-    result2 = await run(
-        "Now summarize the weather.",
-        config=config,
-        options=Options(
-            tools=tools,
-            continue_from=continued,
-        ),
-    )
-    print(result2["answers"][0])
-
-asyncio.run(main())
-```
-
-Conversation options are supported by both Gemini and OpenAI. Both
-providers support tool messages in history. See
-[Provider Capabilities](reference/provider-capabilities.md) for
-provider-specific details.
+    See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints)
+    for the full constraints mapping.
 
 ## Safety Notes
 

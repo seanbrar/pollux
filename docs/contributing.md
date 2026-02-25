@@ -90,6 +90,6 @@ python -m cookbook --list
 python -m cookbook getting-started/analyze-single-paper --mock
 ```
 
-**Adding a recipe:** create the Python script in `cookbook/<category>/`, add a
-corresponding docs page in `docs/cookbook/<category>/`, and update `mkdocs.yml`.
-Reuse shared runtime args from `cookbook.utils.runtime`.
+**Adding a recipe:** create the Python script in `cookbook/<category>/` and
+reuse shared runtime args from `cookbook.utils.runtime`. The recipe catalog
+in [CLI](reference/cli.md#recipe-catalog) lists all available recipes.

@@ -1,4 +1,4 @@
-# Quick Start
+# Getting Started
 
 Get your first answer in under 2 minutes.
 
@@ -74,7 +74,14 @@ avoid re-uploading the same content for repeated prompts.
 The `status` is `ok` and the answer references details from the source text.
 When this works, swap to your real input: `Source.from_file("document.pdf")`.
 
-**What just happened?** Pollux normalized your prompt and source into a
-request, planned the API call, executed it, and extracted the answer into a
-standard [ResultEnvelope](sources-and-patterns.md#resultenvelope-reference).
-Read [Concepts](concepts.md) for the full mental model.
+!!! info "Boundary"
+    **Pollux owns:** normalizing your prompt and source into a request,
+    planning the API call, executing it, and extracting the answer into a
+    standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
+
+    **You own:** writing prompts, choosing what to analyze, and deciding
+    what to do with the result.
+
+**What happened?** Pollux normalized your prompt and source into a
+request, planned the API call, executed it, and extracted the answer.
+Read [Core Concepts](concepts.md) for the full mental model.

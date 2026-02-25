@@ -87,8 +87,46 @@ py -m cookbook optimization\\cache-warming-and-ttl.py -- --limit 2 --ttl 3600
 py -m cookbook production.resume_on_failure --limit 1
 ```
 
+## Recipe Catalog
+
+All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-key` flags. Start in `--mock` to validate flow, switch to `--no-mock` when prompts are stable.
+
+| Recipe | Spec | Focus |
+|---|---|---|
+| Analyze Single Paper | `getting-started/analyze-single-paper` | Single-source baseline and output inspection |
+| Broadcast Process Files | `getting-started/broadcast-process-files` | Multi-file processing with shared prompts |
+| Structured Output Extraction | `getting-started/structured-output-extraction` | Schema-first typed extraction |
+| Extract Media Insights | `getting-started/extract-media-insights` | Image/audio/video analysis baseline |
+| Run vs RunMany | `optimization/run-vs-run-many` | Prompt batching and overhead comparison |
+| Cache Warming and TTL | `optimization/cache-warming-and-ttl` | Cache impact and TTL tuning |
+| Large-Scale Fan-Out | `optimization/large-scale-fan-out` | Bounded client-side concurrency |
+| Comparative Analysis | `research-workflows/comparative-analysis` | Structured source-to-source comparison |
+| Multi-Video Synthesis | `research-workflows/multi-video-synthesis` | Cross-video synthesis |
+| Rate Limits and Concurrency | `production/rate-limits-and-concurrency` | Throughput controls and concurrency tuning |
+| Resume on Failure | `production/resume-on-failure` | Durable manifest + retry/resume |
+
+### Learning Paths
+
+**First successful runs:** `analyze-single-paper` → `broadcast-process-files` →
+`structured-output-extraction` → `comparative-analysis`
+
+**Efficiency and scale:** `run-vs-run-many` → `cache-warming-and-ttl` → `large-scale-fan-out`
+
+**Production hardening:** `rate-limits-and-concurrency` → `resume-on-failure`
+
+### Setup
+
+```bash
+uv sync --all-extras          # installs all dev/test/docs/lint deps
+python -m cookbook --list      # verify install
+make demo-data                # seed demo inputs
+```
+
 ## Troubleshooting
 
 - `could not import pollux`: run `uv sync --all-extras`.
 - `Recipe not found`: verify the spec with `python -m cookbook --list`.
 - Unexpected relative-path behavior: use `--no-cwd-repo-root` only when you need CWD-local paths.
+- **No demo files:** run `make demo-data` or provide explicit `--input` paths.
+- **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
+- **Rate limits:** lower concurrency and stage workload size with `--limit`.

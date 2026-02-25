@@ -32,12 +32,15 @@ pip install pollux-ai
 
 ## Where to Go Next
 
-- **[Quickstart](quickstart.md)** — First result in 2 minutes
-- **[Concepts](concepts.md)** — Mental model for the pipeline and source patterns
-- **[Sources and Patterns](sources-and-patterns.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
-- **[Configuration](configuration.md)** — Config fields, API key resolution, retry, and mock mode
-- **[Cookbook](cookbook/index.md)** — Scenario-driven, ready-to-run recipes
-- **[Troubleshooting](troubleshooting.md)** — Fast fixes for common setup and runtime issues
+- **[Getting Started](getting-started.md)** — First result in 2 minutes
+- **[Core Concepts](concepts.md)** — LLM orchestration concepts and Pollux's pipeline
+- **[Sending Content to Models](sending-content.md)** — Source constructors, `run()` vs `run_many()`, and the result envelope
+- **[Analyzing Collections with Source Patterns](source-patterns.md)** — Fan-out, fan-in, and broadcast workflows
+- **[Extracting Structured Data](structured-data.md)** — Typed output via Pydantic schemas
+- **[Building Conversations and Agent Loops](conversations-and-agents.md)** — Multi-turn chat and tool calling
+- **[Reducing Costs with Context Caching](caching.md)** — Upload once, reuse across prompts
+- **[Configuring Pollux](configuration.md)** — Config fields, API key resolution, retry, and mock mode
+- **[Handling Errors and Recovery](error-handling.md)** — Exception hierarchy and production error patterns
 - **[API Reference](reference/api.md)** — Entry points and types
 
 ---

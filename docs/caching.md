@@ -1,7 +1,16 @@
-# Caching and Efficiency
+# Reducing Costs with Context Caching
 
 Pollux's context caching uploads content once and reuses it across prompts,
 turning redundant re-uploads into cheap cache references.
+
+!!! info "Boundary"
+    **Pollux owns:** computing cache identity from content hashes, creating
+    and reusing cached context on the provider, single-flight deduplication,
+    and TTL management.
+
+    **You own:** deciding when caching is worth the overhead, tuning TTL to
+    match your reuse window, and keeping prompts and sources stable between
+    runs when comparing warm vs reuse behavior.
 
 ## The Redundant-Context Problem
 
@@ -116,6 +125,20 @@ Check `metrics.cache_used` on subsequent calls:
 
 Keep prompts and sources stable between runs when comparing warm vs reuse
 behavior. Usage counters are provider-dependent.
+
+## Tuning TTL
+
+The default TTL is 3600 seconds (1 hour). Tune `ttl_seconds` to match your
+expected reuse window:
+
+- **Too short** — the cache expires before you reuse it, wasting the warm-up
+  cost.
+- **Too long** — cached content stays alive unnecessarily. This does not
+  cause correctness issues, but may consume provider-side resources.
+
+For interactive workloads where you run a batch and then refine prompts within
+the same session, 3600s is a reasonable starting point. For one-shot scripts,
+shorter TTLs (300-600s) avoid lingering cache entries.
 
 ## When Caching Pays Off
 
