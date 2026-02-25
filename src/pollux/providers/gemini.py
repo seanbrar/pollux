@@ -248,15 +248,25 @@ class GeminiProvider:
             # No history — use the original flat-parts path unchanged.
             contents: Any = self._convert_parts(parts)
         else:
-            # History present — append current prompt as a Content object.
-            user_parts: list[Any] = []
-            for cp in self._convert_parts(parts):
-                if isinstance(cp, str):
-                    user_parts.append(types.Part.from_text(text=cp))
-                else:
-                    user_parts.append(cp)
-            if user_parts:
-                input_contents.append(types.Content(role="user", parts=user_parts))
+            # Gemini enforces strict turn order: after a function response the
+            # model must speak next.  When the last history item is a tool
+            # result, appending a user prompt would violate
+            #   Model(FunctionCall) → User(FunctionResponse) → User(Prompt)
+            # so we skip the prompt in that case.
+            last_is_tool_response = bool(
+                history
+                and isinstance(history[-1], dict)
+                and history[-1].get("role") == "tool"
+            )
+            if not last_is_tool_response:
+                user_parts: list[Any] = []
+                for cp in self._convert_parts(parts):
+                    if isinstance(cp, str):
+                        user_parts.append(types.Part.from_text(text=cp))
+                    else:
+                        user_parts.append(cp)
+                if user_parts:
+                    input_contents.append(types.Content(role="user", parts=user_parts))
             contents = input_contents
 
         try:
