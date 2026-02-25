@@ -148,6 +148,37 @@ if "tool_calls" in result:
         print(call["name"], call["arguments"])
 ```
 
+## Feeding Tool Results Back with `continue_tool()`
+
+When the model requests tool calls, you execute them in your code and feed the
+results back for the next turn. `continue_tool()` handles this handoff: it
+takes the previous `ResultEnvelope` (which contains the model's tool-call
+requests and conversation state) along with your tool-result messages, and
+returns the model's next response.
+
+```python
+from pollux import continue_tool
+
+# After executing the tool calls from a previous result...
+tool_results = [
+    {"role": "tool", "tool_call_id": "call_1", "content": '{"temp_f": 72}'},
+]
+
+next_result = await continue_tool(
+    continue_from=result,       # The ResultEnvelope containing tool_calls
+    tool_results=tool_results,  # Your tool outputs
+    config=config,
+    options=Options(tools=tools),
+)
+```
+
+`continue_tool()` internally reconstructs the conversation history from the
+previous envelope's state, appends your tool results, and calls `run()` to get
+the model's next response. The returned `ResultEnvelope` may contain another
+round of `tool_calls` (if the model needs more data) or a final text answer.
+
+The complete agent loop below shows `continue_tool()` in its natural context.
+
 ## Complete Agent Loop
 
 A weather agent that answers questions by calling a `get_weather` tool,
@@ -308,3 +339,10 @@ options = Options(
 - **Provider differences exist.** Both Gemini and OpenAI support tool calling
   and tool messages in history. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.
+
+---
+
+For production error handling in agent loops, see
+[Handling Errors and Recovery](error-handling.md). To reduce token costs when
+your agent loop reuses the same source content across turns, see
+[Reducing Costs with Context Caching](caching.md).

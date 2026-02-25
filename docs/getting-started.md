@@ -32,6 +32,14 @@ Or download the latest wheel from
 Not sure which provider? Start with Gemini — it's the original path and
 supports context caching out of the box.
 
+!!! info "Boundary"
+    **Pollux owns:** normalizing your prompt and source into a request,
+    planning the API call, executing it, and extracting the answer into a
+    standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
+
+    **You own:** writing prompts, choosing what to analyze, and deciding
+    what to do with the result.
+
 ## 3. Run
 
 ```python
@@ -73,14 +81,6 @@ avoid re-uploading the same content for repeated prompts.
 
 The `status` is `ok` and the answer references details from the source text.
 When this works, swap to your real input: `Source.from_file("document.pdf")`.
-
-!!! info "Boundary"
-    **Pollux owns:** normalizing your prompt and source into a request,
-    planning the API call, executing it, and extracting the answer into a
-    standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
-
-    **You own:** writing prompts, choosing what to analyze, and deciding
-    what to do with the result.
 
 **What happened?** Pollux normalized your prompt and source into a
 request, planned the API call, executed it, and extracted the answer.

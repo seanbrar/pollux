@@ -223,3 +223,10 @@ downstream decisions.
   constraints (enums, length limits) as you learn edge cases from real output.
   Make the prompt demand specificity — "source-labeled bullets with concrete
   facts" works better than "summarize".
+
+---
+
+To add tool calling and multi-turn reasoning on top of structured extraction,
+see [Building Conversations and Agent Loops](conversations-and-agents.md). To
+reduce token costs when running structured extraction across many prompts on
+the same sources, see [Reducing Costs with Context Caching](caching.md).

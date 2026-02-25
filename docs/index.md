@@ -22,7 +22,7 @@ complexity — so you don't.
 - **Source patterns** — Fan-out, fan-in, and broadcast execution over your content.
 - **Context caching** — Upload once, reuse across prompts. Save tokens and money.
 - **Structured output** — Get typed responses via Pydantic schemas.
-- **Built for reliability** — Async execution, retries, concurrency control, and clear errors.
+- **Built for reliability** — Async execution, retries, concurrency control, and actionable errors.
 
 ## Install
 
@@ -39,6 +39,7 @@ pip install pollux-ai
 - **[Extracting Structured Data](structured-data.md)** — Typed output via Pydantic schemas
 - **[Building Conversations and Agent Loops](conversations-and-agents.md)** — Multi-turn chat and tool calling
 - **[Reducing Costs with Context Caching](caching.md)** — Upload once, reuse across prompts
+- **[Writing Portable Code Across Providers](portable-code.md)** — Switch providers by changing one config line
 - **[Configuring Pollux](configuration.md)** — Config fields, API key resolution, retry, and mock mode
 - **[Handling Errors and Recovery](error-handling.md)** — Exception hierarchy and production error patterns
 - **[API Reference](reference/api.md)** — Entry points and types

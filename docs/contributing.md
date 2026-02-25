@@ -1,8 +1,8 @@
 # Contributing
 
 Thanks for considering a contribution to Pollux. Whether it's a bug fix, a
-new cookbook recipe, or a docs improvement — small, focused changes with clear
-rationale are what move this project forward.
+new cookbook recipe, or a docs improvement — small, focused changes with
+focused rationale are what move this project forward.
 
 ## Development Setup
 
@@ -34,13 +34,13 @@ Examples: `feat(api): add playlist support`, `fix(cache): handle expired tokens`
 1. **Summary** — what and why, one or two sentences
 2. **Related issue** — `Closes #123`, or "None" for unprompted changes
 3. **Test plan** — describe verification with evidence
-4. **Notes** (optional) — context not obvious from the diff
+4. **Notes** (optional) — context not apparent from the diff
 
 **Checklist:**
 
 - [ ] PR title follows conventional commits
 - [ ] `make check` passes
-- [ ] Tests cover meaningful cases, not just the happy path
+- [ ] Tests cover meaningful cases, not only the happy path
 - [ ] Docs updated if public API or user-facing behavior changed
 
 ## Issues
@@ -63,7 +63,7 @@ vocabulary for explaining why tests were or weren't added.
 Docs are user-facing first. Prioritize clarity, speed to success, and accurate
 examples. When in doubt, cut.
 
-- Clear purpose per page; one mode per page
+- Defined purpose per page; one mode per page
 - Runnable steps (snippets include imports)
 - Accurate and single-sourced; cross-link where helpful
 - Concise, active voice; safe by default (no secrets)
@@ -75,7 +75,7 @@ If you add or move pages, update `mkdocs.yml`.
 Recipes live in `cookbook/`, organized by scenario. Each recipe should:
 
 - Start with a specific problem statement or scenario
-- Provide runnable code with clear inputs and expected output
+- Provide runnable code with explicit inputs and expected output
 - Be self-contained (no ambient CWD assumptions)
 - Support `--mock` and `--no-mock` modes
 

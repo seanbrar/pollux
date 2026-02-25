@@ -265,3 +265,8 @@ async def test_analyze_document_mock(provider: str) -> None:
   the error.
 - **Test with mock first.** `use_mock=True` validates your pipeline structure
   without API calls. Both providers return synthetic responses in mock mode.
+
+---
+
+For handling the errors that portability checks surface (`ConfigurationError`,
+`APIError`), see [Handling Errors and Recovery](error-handling.md).

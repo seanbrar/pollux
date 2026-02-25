@@ -1,7 +1,8 @@
 # Sending Content to Models
 
-This page covers how to create sources, choose between `run()` and
-`run_many()`, and interpret the result envelope.
+You want to send content — text, files, videos, or structured data — to an
+LLM and get answers back. This page shows how to create sources, choose the
+right entry point, and read the result.
 
 !!! info "Boundary"
     **Pollux owns:** uploading and caching source content, attaching it to
@@ -20,10 +21,12 @@ This page covers how to create sources, choose between `run()` and
 | `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI in v1.0 |
 | `Source.from_arxiv(ref)` | arXiv ID or URL | Normalizes to canonical PDF URL (no download at construction time) |
 | `Source.from_uri(uri, mime_type=...)` | Remote URI | Generic fallback for any hosted content |
+| `Source.from_json(data)` | Dict or Pydantic model instance | Serializes via `json.dumps()`; calls `model_dump()` on Pydantic objects |
 
 Examples:
 
 ```python
+from pydantic import BaseModel
 from pollux import Source
 
 text    = Source.from_text("Caching reduces repeated token cost.")
@@ -31,7 +34,22 @@ paper   = Source.from_file("paper.pdf")
 video   = Source.from_youtube("https://youtube.com/watch?v=dQw4w9WgXcQ")
 arxiv   = Source.from_arxiv("2301.00001")
 remote  = Source.from_uri("https://example.com/data.csv", mime_type="text/csv")
+
+# Pass application data as context
+metrics = {"revenue_q1": 4_200_000, "growth_pct": 12.5, "region": "EMEA"}
+context = Source.from_json(metrics)
+
+# Pydantic models work directly — model_dump() is called automatically
+class UserProfile(BaseModel):
+    name: str
+    preferences: list[str]
+
+profile = Source.from_json(UserProfile(name="Alice", preferences=["concise", "formal"]))
 ```
+
+`from_json` is useful when you want to pass structured application data — API
+responses, database records, or configuration objects — as context alongside
+a prompt, without manually serializing to a string.
 
 Pollux accepts PDFs, images, video, audio, and text files through the same
 interface. The source type is detected from the file extension or MIME type —
@@ -69,6 +87,21 @@ ok
 The paper concludes that context caching reduces repeated token cost by up to
 90% for fan-out workloads, with diminishing returns below 3 prompts per source.
 ```
+
+### Step-by-Step Walkthrough
+
+1. **Create a `Config`.** Specify the provider and model. Pollux resolves the
+   API key from the environment automatically.
+
+2. **Wrap your input as a `Source`.** `Source.from_file()` handles upload,
+   MIME detection, and content hashing. You do not need to read the file or
+   specify its type.
+
+3. **Call `run()`.** Pass the prompt, source, and config. Pollux normalizes the
+   request, plans the API call, executes it, and extracts the answer.
+
+4. **Read `result["answers"]`.** The first (and only) element contains the
+   model's response. Check `result["status"]` to confirm the call succeeded.
 
 ## Multiple Prompts: `run_many()`
 
@@ -117,8 +150,15 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 | Multiple questions on shared source(s) | `run_many()` | Fan-out efficiency |
 | Same question across many sources | `run_many()` | Fan-in analysis |
 | Many questions across many sources | `run_many()` | Broadcast pattern |
+| Returning tool results to the model | `continue_tool()` | Feeds tool outputs back into the conversation |
 
 Rule of thumb: if prompts or sources are plural, use `run_many()`.
+
+`continue_tool()` is a specialized entry point for agent loops — it takes a
+previous `ResultEnvelope` containing tool calls and your tool results, and
+returns the model's next response. See
+[Feeding Tool Results Back with `continue_tool()`](conversations-and-agents.md#feeding-tool-results-back-with-continue_tool)
+for details.
 
 `run()` is a convenience wrapper that delegates to `run_many()` with a single
 prompt. In benchmarks, `run_many()` is typically faster for multi-prompt
@@ -160,3 +200,11 @@ Example of a complete envelope:
 - `delivery_mode="deferred"` remains reserved and disabled.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).
+
+---
+
+Once you're comfortable with single calls, see
+[Analyzing Collections with Source Patterns](source-patterns.md) for fan-out,
+fan-in, and broadcast workflows, or
+[Extracting Structured Data](structured-data.md) to get typed objects instead
+of free-form text.

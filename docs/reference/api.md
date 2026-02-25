@@ -12,6 +12,8 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.run_many
 
+::: pollux.continue_tool
+
 ## Core Types
 
 ::: pollux.Source

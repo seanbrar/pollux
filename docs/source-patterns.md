@@ -109,6 +109,24 @@ async def process_directory(directory: str) -> list[dict]:
 asyncio.run(process_directory("./papers"))
 ```
 
+### Step-by-Step Walkthrough
+
+1. **Define stable prompts.** `PROMPTS` is a module-level list of questions
+   applied to every file. Keeping prompts constant across files makes output
+   comparison and post-processing straightforward.
+
+2. **Write `analyze_file`.** This function wraps a single file as a `Source`
+   and calls `run_many()` with the shared prompts. Pollux handles upload,
+   concurrent API calls, and result normalization within this call.
+
+3. **Iterate in the outer loop.** `process_directory` discovers files and calls
+   `analyze_file` for each one. The outer loop owns file discovery, ordering,
+   and result aggregation — concerns Pollux deliberately leaves to your code.
+
+4. **Handle failures per file.** Each `analyze_file` call is wrapped in a
+   try/except. A bad PDF or a rate-limit exhaustion skips one file without
+   aborting the entire run.
+
 ## Fan-in: Synthesizing Across Sources
 
 When you need to synthesize across files rather than analyze each one
@@ -207,3 +225,10 @@ async def process_to_jsonl(directory: str, output: str) -> None:
   tokens when the *same source* is reused across multiple prompts. It does
   not help when each file is different — see
   [Reducing Costs with Context Caching](caching.md).
+
+---
+
+To get typed objects from your collection analysis instead of free-form text,
+see [Extracting Structured Data](structured-data.md). To reduce token costs
+when reusing the same sources across prompts, see
+[Reducing Costs with Context Caching](caching.md).

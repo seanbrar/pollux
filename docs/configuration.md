@@ -1,7 +1,8 @@
 # Configuring Pollux
 
-Pollux uses an explicit `Config` object per call. No global state, no
-implicit defaults.
+You need to tell Pollux which provider, model, and API key to use for each
+call. The `Config` object captures these choices explicitly — no global state,
+no implicit defaults.
 
 !!! info "Boundary"
     **Pollux owns:** validating config, resolving API keys from the
@@ -164,3 +165,9 @@ options = Options(
 ## Dev Install (Contributors)
 
 See [Contributing](contributing.md) for full development setup instructions.
+
+---
+
+For the full provider feature matrix and model-specific constraints, see
+[Provider Capabilities](reference/provider-capabilities.md) and
+[Writing Portable Code Across Providers](portable-code.md).

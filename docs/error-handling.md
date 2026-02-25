@@ -336,6 +336,11 @@ python -m cookbook production/resume-on-failure \
   broadly hides bugs in your own code. Catch `PolluxError` for Pollux-specific
   failures and let other exceptions propagate.
 
+---
+
+For the full configuration reference — including `RetryPolicy` fields, mock
+mode, and API key resolution — see [Configuring Pollux](configuration.md).
+
 ## Still Stuck?
 
 Include the following in your bug report:

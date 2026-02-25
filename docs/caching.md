@@ -81,7 +81,10 @@ async def main() -> None:
         ttl_seconds=3600,
     )
     prompts = ["Summarize in one sentence.", "List 3 keywords."]
-    sources = [Source.from_text("Caching demo: shared context text.")]
+    sources = [Source.from_text(
+        "ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), "
+        "operating margin 18.5%, guidance raised for Q4."
+    )]
 
     first = await run_many(prompts=prompts, sources=sources, config=config)
     second = await run_many(prompts=prompts, sources=sources, config=config)
@@ -92,6 +95,23 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+### Step-by-Step Walkthrough
+
+1. **Set `enable_caching=True`.** This tells Pollux to upload content to the
+   provider's cache on the first call, rather than sending it inline.
+
+2. **Set `ttl_seconds`.** The TTL controls how long the cached content lives on
+   the provider. Match it to your reuse window — 3600s (1 hour) is a
+   reasonable default for interactive sessions.
+
+3. **Run the same sources with different prompts.** The first `run_many()` call
+   uploads the content and creates a cache entry. The second call detects the
+   same content hash and reuses the cached reference.
+
+4. **Verify with `metrics.cache_used`.** Check
+   `result["metrics"]["cache_used"]` on subsequent calls — `True` confirms
+   the provider served content from cache rather than re-uploading.
 
 Pollux computes cache identity from model + source content hash. The second
 call reuses the cached context automatically.
@@ -154,6 +174,12 @@ caching and enable it when you see repeated context in your workload.
 ## Provider Dependency
 
 Context caching is **Gemini-only** in v1.0. Enabling it with OpenAI raises
-a clear error. See
+an actionable error. See
 [Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.
+
+---
+
+For the full provider feature matrix and portability guidance, see
+[Provider Capabilities](reference/provider-capabilities.md) and
+[Writing Portable Code Across Providers](portable-code.md).

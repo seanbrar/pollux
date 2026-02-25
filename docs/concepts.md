@@ -36,6 +36,19 @@ to invoke a named function (e.g., "call `get_weather` with `location=NYC`").
 Your code executes the function, returns the result, and the model incorporates
 it into its next response. This is the foundation of agent loops.
 
+Tool calling follows a cooperative model: the model *proposes* actions, and
+your code *disposes* of them. The interaction has three stages:
+
+1. **Definition** — you declare tool schemas (name, description, parameters)
+   alongside the prompt.
+2. **Call request** — the model responds with a structured tool-call object
+   instead of (or alongside) text.
+3. **Result return** — your code executes the function and feeds the output
+   back as a tool-result message for the next turn.
+
+This boundary is what makes agent loops safe: the model never executes code
+directly. It can only ask, and your code decides whether and how to comply.
+
 ### Multi-Turn Conversations
 
 A single prompt-completion exchange is stateless. **Multi-turn conversations**
@@ -44,12 +57,30 @@ user messages, assistant responses, and tool results — back to the model with
 each new prompt. The model itself stores nothing between calls; your code (or
 your orchestration layer) is responsible for carrying state forward.
 
+Because the full history is sent with every turn, the token cost of a
+conversation grows with each exchange. A 20-turn conversation re-sends the
+first 19 turns every time. Managing this growth — through truncation,
+summarization, or selective inclusion — is an application-level concern, not
+something the model or the orchestration layer handles automatically.
+
 ### Context Caching
 
 When you ask multiple questions about the same document, the naive approach
 re-uploads the entire document with each prompt. **Context caching** uploads
 content once and assigns it a reference that subsequent calls can reuse —
 avoiding redundant data transfer and reducing token costs proportionally.
+
+The economics are straightforward: providers charge per input token, and
+multimodal content (video, long PDFs, image sets) can consume hundreds of
+thousands of tokens. Without caching, a fan-out workload with 10 prompts on a
+1-hour video pays for the video's tokens 10 times. With caching, it pays once
+for the upload and a smaller reference cost per subsequent call.
+
+At the API level, caching works by replacing raw content with a content
+reference — a provider-assigned identifier that points to previously uploaded
+data. Cache identity is typically keyed on the content hash, so renaming a
+file or changing the prompt does not invalidate the cache; only changing the
+content itself does.
 
 ### Source Patterns
 
@@ -170,3 +201,9 @@ leaves domain-level decisions and workflow orchestration to your code.
 This boundary is intentional. By keeping workflow orchestration in your code,
 Pollux avoids imposing opinions about loop structures, error policies, or
 aggregation formats that vary across use cases.
+
+---
+
+Now that you have the mental model, see
+[Sending Content to Models](sending-content.md) to start using the API — create
+sources, call `run()`, and read results.
