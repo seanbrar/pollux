@@ -12,6 +12,7 @@ from typing import Any
 
 from pollux.errors import APIError
 from pollux.providers.base import ProviderCapabilities
+from pollux.providers.models import ProviderRequest, ProviderResponse
 from tests.conftest import FakeProvider
 
 
@@ -22,12 +23,12 @@ class CaptureProvider(FakeProvider):
     generate_calls: int = 0
     generate_kwargs: list[dict[str, Any]] = field(default_factory=list)
 
-    async def generate(self, **kwargs: Any) -> dict[str, Any]:
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
         self.generate_calls += 1
-        self.generate_kwargs.append(dict(kwargs))
-        parts = kwargs.get("parts", [])
+        self.generate_kwargs.append({"request": request})
+        parts = request.parts
         prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-        return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
+        return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
 
 
 @dataclass
@@ -37,18 +38,22 @@ class ScriptedProvider(FakeProvider):
     Useful for result/status tests without defining bespoke providers.
     """
 
-    script: list[dict[str, Any] | BaseException] = field(default_factory=list)
+    script: list[dict[str, Any] | ProviderResponse | BaseException] = field(
+        default_factory=list
+    )
     generate_calls: int = 0
 
-    async def generate(self, **kwargs: Any) -> dict[str, Any]:
-        _ = kwargs
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        _ = request
         self.generate_calls += 1
         if not self.script:
-            return {"text": "ok", "usage": {"total_tokens": 1}}
+            return ProviderResponse(text="ok", usage={"total_tokens": 1})
         item = self.script.pop(0)
         if isinstance(item, BaseException):
             raise item
-        return item
+        if isinstance(item, ProviderResponse):
+            return item
+        return ProviderResponse(**item)
 
 
 @dataclass
@@ -76,9 +81,9 @@ class GateProvider(FakeProvider):
             ),
         )
 
-    async def generate(self, **kwargs: Any) -> dict[str, Any]:
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
         self.generate_calls += 1
-        return await super().generate(**kwargs)
+        return await super().generate(request)
 
     async def upload_file(self, path: Any, mime_type: str) -> str:
         _ = path, mime_type

@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from pollux.providers.base import ProviderCapabilities
+from pollux.providers.models import ProviderRequest, ProviderResponse
 
 GEMINI_MODEL = "gemini-2.0-flash"
 OPENAI_MODEL = "gpt-5-nano"
@@ -50,39 +51,25 @@ class FakeProvider:
     def capabilities(self) -> ProviderCapabilities:
         return self._capabilities
 
-    async def generate(
-        self,
-        *,
-        model: str,
-        parts: list[Any],
-        system_instruction: str | None = None,
-        cache_name: str | None = None,
-        response_schema: dict[str, Any] | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        tools: list[dict[str, Any]] | None = None,
-        tool_choice: Any | None = None,
-        reasoning_effort: str | None = None,
-        history: list[dict[str, Any]] | None = None,
-        delivery_mode: str = "realtime",
-        previous_response_id: str | None = None,
-    ) -> dict[str, Any]:
-        del model, cache_name
-        self.last_parts = parts
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        self.last_parts = request.parts
         self.last_generate_kwargs = {
-            "system_instruction": system_instruction,
-            "response_schema": response_schema,
-            "temperature": temperature,
-            "top_p": top_p,
-            "tools": tools,
-            "tool_choice": tool_choice,
-            "reasoning_effort": reasoning_effort,
-            "history": history,
-            "delivery_mode": delivery_mode,
-            "previous_response_id": previous_response_id,
+            "system_instruction": request.system_instruction,
+            "response_schema": request.response_schema,
+            "temperature": request.temperature,
+            "top_p": request.top_p,
+            "tools": request.tools,
+            "tool_choice": request.tool_choice,
+            "reasoning_effort": request.reasoning_effort,
+            "history": request.history,
+            "previous_response_id": request.previous_response_id,
         }
-        prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-        return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
+        prompt = (
+            request.parts[-1]
+            if request.parts and isinstance(request.parts[-1], str)
+            else ""
+        )
+        return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
 
     async def upload_file(self, path: Any, mime_type: str) -> str:
         del mime_type

@@ -15,6 +15,7 @@ from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError, PlanningError, SourceError
 from pollux.options import Options
 from pollux.providers.base import ProviderCapabilities
+from pollux.providers.models import Message, ProviderRequest, ProviderResponse
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
@@ -117,8 +118,8 @@ async def test_generate_error_attributes_provider_and_call_index(
 
     @dataclass
     class _Provider(FakeProvider):
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
-            parts = kwargs.get("parts", [])
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            parts = request.parts
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
             if prompt == "Q2":
                 raise APIError(
@@ -128,7 +129,7 @@ async def test_generate_error_attributes_provider_and_call_index(
                     provider="gemini",
                     phase="generate",
                 )
-            return {"text": "ok", "usage": {"total_tokens": 1}}
+            return ProviderResponse(text="ok", usage={"total_tokens": 1})
 
     fake = _Provider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
@@ -248,10 +249,10 @@ async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) ->
         fail_generate: bool = False
         fail_close: bool = False
 
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
             if self.fail_generate:
                 raise APIError("bad request", retryable=False, status_code=400)
-            return await super().generate(**kwargs)
+            return await super().generate(request)
 
         async def aclose(self) -> None:
             self.closed += 1
@@ -301,7 +302,7 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
         generate_calls: int = 0
         upload_attempts: int = 0
 
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
             self.generate_calls += 1
             if self.mode == "generate_retry" and self.generate_calls == 1:
                 raise APIError("rate limited", retryable=True, status_code=429)
@@ -310,12 +311,12 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
 
             # Upload scenarios: verify substitution happened before generate().
             if self.mode.startswith("upload_"):
-                parts = kwargs.get("parts", [])
+                parts = request.parts
                 assert any(
                     isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
                     for p in parts
                 )
-            return {"text": "ok", "usage": {"total_tokens": 1}}
+            return ProviderResponse(text="ok", usage={"total_tokens": 1})
 
         async def upload_file(self, path: Any, mime_type: str) -> str:
             _ = path, mime_type
@@ -644,7 +645,7 @@ async def test_openai_upload_cleanup_runs_even_when_generate_fails(
             self.upload_calls += 1
             return "openai://file/file-failed-generate"
 
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG002
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:  # noqa: ARG002
             raise APIError("boom", retryable=False)
 
         async def delete_file(self, file_id: str) -> None:
@@ -712,40 +713,15 @@ async def test_cached_context_is_not_resent_on_each_call(
         received_parts: list[list[Any]] = field(default_factory=list)
         cache_names: list[str | None] = field(default_factory=list)
 
-        async def generate(
-            self,
-            *,
-            model: str,
-            parts: list[Any],
-            system_instruction: str | None = None,
-            cache_name: str | None = None,
-            response_schema: dict[str, Any] | None = None,
-            temperature: float | None = None,
-            top_p: float | None = None,
-            tools: list[dict[str, Any]] | None = None,
-            tool_choice: Any | None = None,
-            reasoning_effort: str | None = None,
-            history: list[dict[str, str]] | None = None,
-            delivery_mode: str = "realtime",
-            previous_response_id: str | None = None,
-        ) -> dict[str, Any]:
-            del (
-                model,
-                system_instruction,
-                response_schema,
-                temperature,
-                top_p,
-                tools,
-                tool_choice,
-                reasoning_effort,
-                history,
-                delivery_mode,
-                previous_response_id,
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            self.received_parts.append(request.parts)
+            self.cache_names.append(request.cache_name)
+            prompt = (
+                request.parts[-1]
+                if request.parts and isinstance(request.parts[-1], str)
+                else ""
             )
-            self.received_parts.append(parts)
-            self.cache_names.append(cache_name)
-            prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-            return {"text": f"ok:{prompt}", "usage": {"total_tokens": 1}}
+            return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
 
     fake = PartsCaptureProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -879,7 +855,6 @@ async def test_options_are_forwarded_when_provider_supports_features(
 
     assert fake.last_generate_kwargs is not None
     assert fake.last_generate_kwargs["reasoning_effort"] == "high"
-    assert fake.last_generate_kwargs["delivery_mode"] == "realtime"
     assert fake.last_generate_kwargs["history"] is None
     assert fake.last_generate_kwargs["system_instruction"] == "Reply in one sentence."
     response_schema = fake.last_generate_kwargs["response_schema"]
@@ -936,43 +911,13 @@ async def test_structured_output_returns_pydantic_instances(
             )
         )
 
-        async def generate(
-            self,
-            *,
-            model: str,
-            parts: list[Any],
-            system_instruction: str | None = None,
-            cache_name: str | None = None,
-            response_schema: dict[str, Any] | None = None,
-            temperature: float | None = None,
-            top_p: float | None = None,
-            tools: list[dict[str, Any]] | None = None,
-            tool_choice: Any | None = None,
-            reasoning_effort: str | None = None,
-            history: list[dict[str, str]] | None = None,
-            delivery_mode: str = "realtime",
-            previous_response_id: str | None = None,
-        ) -> dict[str, Any]:
-            _ = (
-                model,
-                parts,
-                system_instruction,
-                cache_name,
-                temperature,
-                top_p,
-                tools,
-                tool_choice,
-                reasoning_effort,
-                history,
-                delivery_mode,
-                previous_response_id,
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            assert isinstance(request.response_schema, dict)
+            return ProviderResponse(
+                text='{"title":"A","findings":["x","y"]}',
+                structured={"title": "A", "findings": ["x", "y"]},
+                usage={"total_tokens": 1},
             )
-            assert isinstance(response_schema, dict)
-            return {
-                "text": '{"title":"A","findings":["x","y"]}',
-                "structured": {"title": "A", "findings": ["x", "y"]},
-                "usage": {"total_tokens": 1},
-            }
 
     fake = _StructuredProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -1030,7 +975,7 @@ async def test_conversation_options_are_forwarded_when_provider_supports_them(
     )
     assert fake.last_generate_kwargs is not None
     assert fake.last_generate_kwargs["history"] == [
-        {"role": "user", "content": "hello"}
+        Message(role="user", content="hello")
     ]
 
 
@@ -1100,8 +1045,10 @@ async def test_continue_from_requires_conversation_state(
     )
 
     assert len(fake.generate_kwargs) == 1
-    assert fake.generate_kwargs[0]["history"] == [{"role": "user", "content": "hello"}]
-    assert fake.generate_kwargs[0]["previous_response_id"] == "resp_123"
+    assert fake.generate_kwargs[0]["request"].history == [
+        Message(role="user", content="hello")
+    ]
+    assert fake.generate_kwargs[0]["request"].previous_response_id == "resp_123"
 
 
 @pytest.mark.asyncio
@@ -1123,13 +1070,13 @@ async def test_conversation_result_includes_conversation_state(
             )
         )
 
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
-            _ = kwargs
-            return {
-                "text": "Assistant reply.",
-                "usage": {"total_tokens": 1},
-                "response_id": "resp_next",
-            }
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            _ = request
+            return ProviderResponse(
+                text="Assistant reply.",
+                usage={"total_tokens": 1},
+                response_id="resp_next",
+            )
 
     fake = _ConversationProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -1234,11 +1181,11 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
             conversation=False,
         ),
         script=[
-            {
-                "text": '{"title":"A"}',
-                "structured": {"title": "A"},
-                "usage": {"total_tokens": 1},
-            }
+            ProviderResponse(
+                text='{"title":"A"}',
+                structured={"title": "A"},
+                usage={"total_tokens": 1},
+            )
         ],
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -1296,15 +1243,13 @@ async def test_tool_calls_preserved_in_conversation_state(
             )
         )
 
-        async def generate(self, **kwargs: Any) -> dict[str, Any]:
-            _ = kwargs
-            return {
-                "text": "",
-                "usage": {"total_tokens": 1},
-                "tool_calls": [
-                    {"id": "call_1", "name": "get_weather", "arguments": "{}"}
-                ],
-            }
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            _ = request
+            return ProviderResponse(
+                text="",
+                usage={"total_tokens": 1},
+                tool_calls=[{"id": "call_1", "name": "get_weather", "arguments": "{}"}],
+            )
 
     fake = _ToolCallProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
@@ -1365,13 +1310,13 @@ async def test_continue_from_preserves_tool_history_items(
     )
 
     assert len(fake.generate_kwargs) == 1
-    received_history = fake.generate_kwargs[0]["history"]
+    received_history = fake.generate_kwargs[0]["request"].history
     assert len(received_history) == 3
     # Verify tool message was preserved (not filtered out)
-    assert received_history[2]["role"] == "tool"
-    assert received_history[2]["tool_call_id"] == "call_1"
+    assert received_history[2].role == "tool"
+    assert received_history[2].tool_call_id == "call_1"
     # Verify assistant tool_calls preserved
-    assert received_history[1]["tool_calls"] is not None
+    assert received_history[1].tool_calls is not None
 
 
 @pytest.mark.asyncio
@@ -1418,13 +1363,13 @@ async def test_continue_tool_mechanics(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     assert len(fake.generate_kwargs) == 1
-    received_history = fake.generate_kwargs[0]["history"]
+    received_history = fake.generate_kwargs[0]["request"].history
     assert len(received_history) == 3
-    assert received_history[2]["role"] == "tool"
-    assert received_history[2]["content"] == '{"temp": 72}'
+    assert received_history[2].role == "tool"
+    assert received_history[2].content == '{"temp": 72}'
 
     # The prompt part of the internal run() call should be empty since prompt is None
-    assert fake.generate_kwargs[0]["parts"] == []
+    assert fake.generate_kwargs[0]["request"].parts == []
 
 
 # =============================================================================

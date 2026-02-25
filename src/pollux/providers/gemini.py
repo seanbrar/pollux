@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 import uuid
 
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
+from pollux.providers.models import Message, ProviderRequest, ProviderResponse
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -93,47 +94,42 @@ class GeminiProvider:
 
     async def generate(
         self,
-        *,
-        model: str,
-        parts: list[Any],
-        system_instruction: str | None = None,
-        cache_name: str | None = None,
-        response_schema: dict[str, Any] | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        tools: list[dict[str, Any]] | None = None,
-        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
-        reasoning_effort: str | None = None,
-        history: list[dict[str, Any]] | None = None,
-        delivery_mode: str = "realtime",
-        previous_response_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Generate content using Gemini API."""
-        _ = (
-            delivery_mode,
-            previous_response_id,
-        )
+        request: ProviderRequest,
+    ) -> ProviderResponse:
+        """Generate content from the Gemini model."""
         client = self._get_client()
         from google.genai import types
 
-        config: dict[str, Any] = {}
+        model = request.model
+        parts = request.parts
+        system_instruction = request.system_instruction
+        cache_name = request.cache_name
+        response_schema = request.response_schema
+        temperature = request.temperature
+        top_p = request.top_p
+        tools = request.tools
+        tool_choice = request.tool_choice
+        reasoning_effort = request.reasoning_effort
+        history = request.history
+
+        config_kwargs: dict[str, Any] = {}
         if reasoning_effort is not None:
-            config["thinking_config"] = types.ThinkingConfig(
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
                 include_thoughts=True,
                 thinking_level=reasoning_effort,  # type: ignore[arg-type]
             )
 
         if system_instruction is not None:
-            config["system_instruction"] = system_instruction
+            config_kwargs["system_instruction"] = system_instruction
         if cache_name is not None:
-            config["cached_content"] = cache_name
+            config_kwargs["cached_content"] = cache_name
         if response_schema is not None:
-            config["response_mime_type"] = "application/json"
-            config["response_json_schema"] = response_schema
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_json_schema"] = response_schema
         if temperature is not None:
-            config["temperature"] = temperature
+            config_kwargs["temperature"] = temperature
         if top_p is not None:
-            config["top_p"] = top_p
+            config_kwargs["top_p"] = top_p
 
         if tools is not None:
             tool_objs = []
@@ -151,17 +147,21 @@ class GeminiProvider:
                         )
                     )
             if tool_objs:
-                config["tools"] = tool_objs
+                config_kwargs["tools"] = tool_objs
 
             if isinstance(tool_choice, str):
                 mode = tool_choice.upper()
                 if mode in ("AUTO", "ANY", "NONE"):
-                    config["tool_config"] = {"function_calling_config": {"mode": mode}}
+                    config_kwargs["tool_config"] = {
+                        "function_calling_config": {"mode": mode}
+                    }
                 elif mode == "REQUIRED":
-                    config["tool_config"] = {"function_calling_config": {"mode": "ANY"}}
+                    config_kwargs["tool_config"] = {
+                        "function_calling_config": {"mode": "ANY"}
+                    }
             elif isinstance(tool_choice, dict) and "name" in tool_choice:
                 # Force specific function
-                config["tool_config"] = {
+                config_kwargs["tool_config"] = {
                     "function_calling_config": {
                         "mode": "ANY",
                         "allowed_function_names": [tool_choice["name"]],
@@ -172,79 +172,65 @@ class GeminiProvider:
         call_id_to_name: dict[str, str] = {}
 
         if history:
-            for item in history:
-                role = item.get("role")
-                if not isinstance(role, str):
-                    continue
 
-                if role == "tool":
-                    call_id = item.get("tool_call_id")
-                    name = call_id_to_name.get(call_id) if call_id else None
-                    if not name:
-                        name = call_id or "unknown_tool"
+            def append_history(items: list[Message]) -> None:
+                for item in items:
+                    if item.role == "tool":
+                        call_id = item.tool_call_id
+                        name = "unknown_tool"
+                        if isinstance(call_id, str) and call_id in call_id_to_name:
+                            name = call_id_to_name[call_id]
 
-                    content = item.get("content", "")
-                    if isinstance(content, str):
-                        try:
-                            parsed_content = json.loads(content)
-                        except Exception:
-                            parsed_content = {"result": content}
-                    else:
-                        parsed_content = content or {}
+                        parsed_content: dict[str, Any] = {}
+                        if item.content:
+                            try:
+                                parsed_content = json.loads(item.content)
+                                if not isinstance(parsed_content, dict):
+                                    parsed_content = {"result": item.content}
+                            except Exception:
+                                parsed_content = {"result": item.content}
 
-                    input_contents.append(
-                        types.Content(
-                            role="user",
-                            parts=[
-                                types.Part.from_function_response(
-                                    name=name,
-                                    response=parsed_content,
-                                )
-                            ],
-                        )
-                    )
-                elif role == "assistant":
-                    content_parts = []
-                    content = item.get("content")
-                    if isinstance(content, str) and content:
-                        content_parts.append(types.Part.from_text(text=content))
-
-                    tool_calls = item.get("tool_calls")
-                    if isinstance(tool_calls, list):
-                        for tc in tool_calls:
-                            if not isinstance(tc, dict):
-                                continue
-                            call_id = tc.get("id")
-                            name = tc.get("name")
-                            if isinstance(name, str):
-                                if isinstance(call_id, str):
-                                    call_id_to_name[call_id] = name
-                                args = tc.get("arguments", "")
-                                if isinstance(args, str):
-                                    try:
-                                        args = json.loads(args) if args else {}
-                                    except Exception:
-                                        args = {}
-                                elif not isinstance(args, dict):
-                                    args = {}
-                                content_parts.append(
-                                    types.Part.from_function_call(
-                                        name=name,
-                                        args=args,
-                                    )
-                                )
-                    if content_parts:
-                        input_contents.append(
-                            types.Content(role="model", parts=content_parts)
-                        )
-                elif role == "user":
-                    content = item.get("content")
-                    if isinstance(content, str) and content:
                         input_contents.append(
                             types.Content(
-                                role="user", parts=[types.Part.from_text(text=content)]
+                                role="user",
+                                parts=[
+                                    types.Part.from_function_response(
+                                        name=name,
+                                        response=parsed_content,
+                                    )
+                                ],
                             )
                         )
+                    elif item.role == "assistant":
+                        ast_parts: list[Any] = []
+                        if item.content:
+                            ast_parts.append(types.Part.from_text(text=item.content))
+                        if item.tool_calls:
+                            for tc in item.tool_calls:
+                                call_id_to_name[tc.id] = tc.name
+                                try:
+                                    args_dict = json.loads(tc.arguments)
+                                except Exception:
+                                    args_dict = {}
+                                ast_parts.append(
+                                    types.Part.from_function_call(
+                                        name=tc.name, args=args_dict
+                                    )
+                                )
+                        if ast_parts:
+                            input_contents.append(
+                                types.Content(role="model", parts=ast_parts)
+                            )
+                    elif item.role == "user":
+                        user_parts: list[Any] = []
+                        if item.content:
+                            user_parts.append(types.Part.from_text(text=item.content))
+                        if user_parts:
+                            input_contents.append(
+                                types.Content(role="user", parts=user_parts)
+                            )
+
+            append_history(history)
 
         if not input_contents:
             # No history — use the original flat-parts path unchanged.
@@ -256,11 +242,7 @@ class GeminiProvider:
             # Instead, merge the prompt parts into the existing function-
             # response Content block (same "user" role) so the model still
             # sees the instruction without a turn-order violation.
-            last_is_tool_response = bool(
-                history
-                and isinstance(history[-1], dict)
-                and history[-1].get("role") == "tool"
-            )
+            last_is_tool_response = bool(history and history[-1].role == "tool")
             user_parts: list[Any] = []
             for cp in self._convert_parts(parts):
                 if isinstance(cp, str):
@@ -284,12 +266,14 @@ class GeminiProvider:
             response = await client.aio.models.generate_content(
                 model=model,
                 contents=contents,
-                config=config or None,
+                config=types.GenerateContentConfig(**config_kwargs),
             )
+
+            if not response:
+                raise APIError("Gemini returned an empty response.")
+
             return self._parse_response(response)
         except asyncio.CancelledError:
-            raise
-        except APIError:
             raise
         except Exception as e:
             raise wrap_provider_error(
@@ -435,7 +419,7 @@ class GeminiProvider:
                 message="Gemini cache creation failed",
             ) from e
 
-    def _parse_response(self, response: Any) -> dict[str, Any]:
+    def _parse_response(self, response: Any) -> ProviderResponse:
         """Parse Gemini response into a standard dict."""
         text = ""
         structured: Any = None
@@ -496,11 +480,11 @@ class GeminiProvider:
         except Exception:
             reasoning_parts.clear()
 
-        payload: dict[str, Any] = {"text": text, "usage": usage}
-        if reasoning_parts:
-            payload["reasoning"] = "\n\n".join(reasoning_parts).strip()
-        if structured is not None:
-            payload["structured"] = structured
-        if tool_calls:
-            payload["tool_calls"] = tool_calls
-        return payload
+        return ProviderResponse(
+            text=text,
+            usage=usage,
+            reasoning="\n\n".join(reasoning_parts).strip() if reasoning_parts else None,
+            structured=structured,
+            tool_calls=tool_calls if tool_calls else None,
+            response_id=None,
+        )

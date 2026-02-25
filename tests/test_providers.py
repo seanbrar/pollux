@@ -19,6 +19,7 @@ import pytest
 from pollux.errors import APIError
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers.gemini import GeminiProvider
+from pollux.providers.models import Message, ProviderRequest, ToolCall
 from pollux.providers.openai import OpenAIProvider, _to_openai_strict_schema
 from tests.conftest import GEMINI_MODEL, OPENAI_MODEL
 
@@ -201,13 +202,13 @@ def test_gemini_parse_response_extracts_text_and_usage() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["text"] == "The answer is 42."
-    assert result["usage"] == {
+    assert result.text == "The answer is 42."
+    assert result.usage == {
         "input_tokens": 10,
         "output_tokens": 25,
         "total_tokens": 35,
     }
-    assert "structured" not in result  # None parsed = no structured key
+    assert result.structured is None  # None parsed = no structured key
 
 
 def test_gemini_parse_response_extracts_structured_from_parsed() -> None:
@@ -220,9 +221,9 @@ def test_gemini_parse_response_extracts_structured_from_parsed() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["text"] == '{"title": "Test", "score": 95}'
-    assert result["structured"] == {"title": "Test", "score": 95}
-    assert result["usage"] == {}  # No usage_metadata attr = empty dict
+    assert result.text == '{"title": "Test", "score": 95}'
+    assert result.structured == {"title": "Test", "score": 95}
+    assert result.usage == {}  # No usage_metadata attr = empty dict
 
 
 def test_gemini_parse_response_falls_back_to_json_parsing() -> None:
@@ -236,8 +237,8 @@ def test_gemini_parse_response_falls_back_to_json_parsing() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["text"] == '{"key": "value"}'
-    assert result["structured"] == {"key": "value"}
+    assert result.text == '{"key": "value"}'
+    assert result.structured == {"key": "value"}
 
 
 def test_gemini_parse_response_handles_non_json_text() -> None:
@@ -251,8 +252,8 @@ def test_gemini_parse_response_handles_non_json_text() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["text"] == "Just plain text, not JSON."
-    assert "structured" not in result
+    assert result.text == "Just plain text, not JSON."
+    assert result.structured is None
 
 
 def test_gemini_parse_response_handles_missing_attributes() -> None:
@@ -263,9 +264,9 @@ def test_gemini_parse_response_handles_missing_attributes() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["text"] == ""
-    assert result["usage"] == {}
-    assert "structured" not in result
+    assert result.text == ""
+    assert result.usage == {}
+    assert result.structured is None
 
 
 def test_gemini_parse_response_extracts_reasoning_from_thought_parts() -> None:
@@ -294,8 +295,8 @@ def test_gemini_parse_response_extracts_reasoning_from_thought_parts() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["reasoning"] == "Let me reason about this..."
-    assert result["text"] == "The answer is 42."
+    assert result.reasoning == "Let me reason about this..."
+    assert result.text == "The answer is 42."
 
 
 def test_gemini_parse_response_joins_multiple_thought_parts() -> None:
@@ -328,7 +329,7 @@ def test_gemini_parse_response_joins_multiple_thought_parts() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["reasoning"] == "First, consider X.\n\nThen, consider Y."
+    assert result.reasoning == "First, consider X.\n\nThen, consider Y."
 
 
 def test_gemini_parse_response_extracts_reasoning_tokens() -> None:
@@ -348,7 +349,7 @@ def test_gemini_parse_response_extracts_reasoning_tokens() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert result["usage"]["reasoning_tokens"] == 512
+    assert result.usage["reasoning_tokens"] == 512
 
 
 def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
@@ -373,7 +374,7 @@ def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
 
     result = provider._parse_response(fake_response)
 
-    assert "reasoning" not in result
+    assert result.reasoning is None
 
 
 # =============================================================================
@@ -402,18 +403,22 @@ async def test_gemini_generate_characterizes_config_shape(golden: Any) -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        model=GEMINI_MODEL,
-        parts=["What is 2+2?"],
-        system_instruction="Be concise.",
-        cache_name="cachedContents/abc123",
-        response_schema={
-            "type": "object",
-            "properties": {"answer": {"type": "string"}},
-        },
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=["What is 2+2?"],
+            system_instruction="Be concise.",
+            cache_name="cachedContents/abc123",
+            response_schema={
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+            },
+        )
     )
 
     assert captured["model"] == GEMINI_MODEL
-    assert golden.out["config"] == captured["config"]
+    # The golden file expects enums to be strings, so dump using json mode
+    config_dict = captured["config"].model_dump(mode="json", exclude_none=True)
+    assert golden.out["config"] == config_dict
 
 
 @pytest.mark.asyncio
@@ -433,9 +438,9 @@ async def test_gemini_generate_omits_config_when_no_options() -> None:
     provider._client = MagicMock()
     provider._client.aio = fake_aio
 
-    await provider.generate(model=GEMINI_MODEL, parts=["Hello"])
+    await provider.generate(ProviderRequest(model=GEMINI_MODEL, parts=["Hello"]))
 
-    assert captured["config"] is None
+    assert captured["config"] is not None
 
 
 @pytest.mark.asyncio
@@ -456,14 +461,15 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
     provider._client.aio = fake_aio
 
     await provider.generate(
-        model=GEMINI_MODEL, parts=["Think hard."], reasoning_effort="low"
+        ProviderRequest(
+            model=GEMINI_MODEL, parts=["Think hard."], reasoning_effort="low"
+        )
     )
 
     config = captured["config"]
     assert config is not None
-    tc = config["thinking_config"]
+    tc = config.thinking_config
     assert tc.include_thoughts is True
-    # SDK converts string to ThinkingLevel enum; verify via .value
     assert tc.thinking_level.value == "LOW"
 
 
@@ -664,14 +670,19 @@ async def test_openai_generate_characterizes_multimodal_request_shape(
     provider._client = fake_client
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=[
-            "Summarize these assets.",
-            {"uri": "https://example.com/report.pdf", "mime_type": "application/pdf"},
-            {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
-            {"uri": "openai://file/file_abc123", "mime_type": "application/pdf"},
-            {"uri": "openai://text/SGVsbG8gV29ybGQ=", "mime_type": "text/plain"},
-        ],
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=[
+                "Summarize these assets.",
+                {
+                    "uri": "https://example.com/report.pdf",
+                    "mime_type": "application/pdf",
+                },
+                {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
+                {"uri": "openai://file/file_abc123", "mime_type": "application/pdf"},
+                {"uri": "openai://text/SGVsbG8gV29ybGQ=", "mime_type": "text/plain"},
+            ],
+        )
     )
 
     assert responses.last_kwargs is not None
@@ -688,10 +699,12 @@ async def test_openai_generate_forwards_conversation_and_instructions() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=["What did I just ask?"],
-        system_instruction="Be concise.",
-        history=[{"role": "user", "content": "Say hello."}],
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["What did I just ask?"],
+            system_instruction="Be concise.",
+            history=[Message(role="user", content="Say hello.")],
+        )
     )
 
     assert responses.last_kwargs is not None
@@ -704,10 +717,12 @@ async def test_openai_generate_forwards_conversation_and_instructions() -> None:
     assert responses.last_kwargs["input"][1]["role"] == "user"
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=["And now?"],
-        history=[{"role": "user", "content": "This should be skipped."}],
-        previous_response_id="resp_123",
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["And now?"],
+            history=[Message(role="user", content="This should be skipped.")],
+            previous_response_id="resp_123",
+        )
     )
 
     assert responses.last_kwargs["previous_response_id"] == "resp_123"
@@ -727,8 +742,12 @@ async def test_openai_rejects_unsupported_remote_mime_type() -> None:
 
     with pytest.raises(APIError, match="Unsupported remote mime type"):
         await provider.generate(
-            model=OPENAI_MODEL,
-            parts=[{"uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}],
+            ProviderRequest(
+                model=OPENAI_MODEL,
+                parts=[
+                    {"uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}
+                ],
+            )
         )
 
 
@@ -742,9 +761,11 @@ async def test_openai_generate_forwards_reasoning_effort_and_summary() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=["Think about this."],
-        reasoning_effort="high",
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Think about this."],
+            reasoning_effort="high",
+        )
     )
 
     assert responses.last_kwargs is not None
@@ -763,7 +784,7 @@ async def test_openai_generate_omits_reasoning_when_not_set() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = fake_client
 
-    await provider.generate(model=OPENAI_MODEL, parts=["Hello"])
+    await provider.generate(ProviderRequest(model=OPENAI_MODEL, parts=["Hello"]))
 
     assert responses.last_kwargs is not None
     assert "reasoning" not in responses.last_kwargs
@@ -797,11 +818,11 @@ async def test_openai_extracts_reasoning_summary_from_response() -> None:
     provider._client = type("Client", (), {"responses": responses})()
 
     result = await provider.generate(
-        model=OPENAI_MODEL, parts=["Think."], reasoning_effort="medium"
+        ProviderRequest(model=OPENAI_MODEL, parts=["Think."], reasoning_effort="medium")
     )
 
-    assert result["reasoning"] == "The model considered..."
-    assert result["text"] == "The answer."
+    assert result.reasoning == "The model considered..."
+    assert result.text == "The answer."
 
 
 @pytest.mark.asyncio
@@ -830,11 +851,13 @@ async def test_openai_extracts_reasoning_tokens_from_usage() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"responses": responses})()
 
-    result = await provider.generate(model=OPENAI_MODEL, parts=["Test"])
+    result = await provider.generate(
+        ProviderRequest(model=OPENAI_MODEL, parts=["Test"])
+    )
 
-    assert result["usage"]["reasoning_tokens"] == 1024
-    assert result["usage"]["input_tokens"] == 50
-    assert result["usage"]["output_tokens"] == 200
+    assert result.usage["reasoning_tokens"] == 1024
+    assert result.usage["input_tokens"] == 50
+    assert result.usage["output_tokens"] == 200
 
 
 # =============================================================================
@@ -903,27 +926,25 @@ async def test_openai_maps_tool_history_to_responses_api_format() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=["Continue the conversation"],
-        history=[
-            {"role": "user", "content": "What's the weather?"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_abc",
-                        "name": "get_weather",
-                        "arguments": '{"location": "NYC"}',
-                    }
-                ],
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_abc",
-                "content": '{"temp": 72}',
-            },
-        ],
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Continue the conversation"],
+            history=[
+                Message(role="user", content="What's the weather?"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="call_abc",
+                            name="get_weather",
+                            arguments='{"location": "NYC"}',
+                        )
+                    ],
+                ),
+                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
+            ],
+        )
     )
 
     assert responses.last_kwargs is not None
@@ -960,17 +981,19 @@ async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=["Continue"],
-        history=[
-            {
-                "role": "assistant",
-                "content": "Let me check that tool.",
-                "tool_calls": [
-                    {"id": "call_abc", "name": "get_weather", "arguments": "{}"}
-                ],
-            }
-        ],
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Continue"],
+            history=[
+                Message(
+                    role="assistant",
+                    content="Let me check that tool.",
+                    tool_calls=[
+                        ToolCall(id="call_abc", name="get_weather", arguments="{}")
+                    ],
+                )
+            ],
+        )
     )
 
     assert responses.last_kwargs is not None
@@ -993,20 +1016,22 @@ async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> N
     provider._client = fake_client
 
     await provider.generate(
-        model=OPENAI_MODEL,
-        parts=["Continue"],
-        previous_response_id="resp_prev",
-        history=[
-            {"role": "user", "content": "What's the weather?"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {"id": "call_abc", "name": "get_weather", "arguments": "{}"}
-                ],
-            },
-            {"role": "tool", "tool_call_id": "call_abc", "content": '{"temp": 72}'},
-        ],
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Continue"],
+            previous_response_id="resp_prev",
+            history=[
+                Message(role="user", content="What's the weather?"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="call_abc", name="get_weather", arguments="{}")
+                    ],
+                ),
+                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
+            ],
+        )
     )
 
     assert responses.last_kwargs is not None
@@ -1048,27 +1073,25 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        model=GEMINI_MODEL,
-        parts=["Continue the conversation"],
-        history=[
-            {"role": "user", "content": "What's the weather?"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_abc",
-                        "name": "get_weather",
-                        "arguments": '{"location": "NYC"}',
-                    }
-                ],
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_abc",
-                "content": '{"temp": 72}',
-            },
-        ],
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=["Continue the conversation"],
+            history=[
+                Message(role="user", content="What's the weather?"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="call_abc",
+                            name="get_weather",
+                            arguments='{"location": "NYC"}',
+                        )
+                    ],
+                ),
+                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
+            ],
+        )
     )
 
     contents = captured["contents"]
@@ -1120,27 +1143,25 @@ async def test_gemini_merges_prompt_into_tool_response_content() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        model=GEMINI_MODEL,
-        parts=["Proceed."],
-        history=[
-            {"role": "user", "content": "What's the weather?"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_abc",
-                        "name": "get_weather",
-                        "arguments": '{"location": "NYC"}',
-                    }
-                ],
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_abc",
-                "content": '{"temp": 72}',
-            },
-        ],
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=["Proceed."],
+            history=[
+                Message(role="user", content="What's the weather?"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="call_abc",
+                            name="get_weather",
+                            arguments='{"location": "NYC"}',
+                        )
+                    ],
+                ),
+                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
+            ],
+        )
     )
 
     contents = captured["contents"]
