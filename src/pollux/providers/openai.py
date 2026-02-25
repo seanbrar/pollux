@@ -6,12 +6,13 @@ import asyncio
 import base64
 from copy import deepcopy
 import json
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
+from pollux.providers.models import ProviderRequest, ProviderResponse, ToolCall
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -62,23 +63,23 @@ class OpenAIProvider:
 
     async def generate(
         self,
-        *,
-        model: str,
-        parts: list[Any],
-        system_instruction: str | None = None,
-        cache_name: str | None = None,
-        response_schema: dict[str, Any] | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        tools: list[dict[str, Any]] | None = None,
-        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
-        reasoning_effort: str | None = None,
-        history: list[dict[str, Any]] | None = None,
-        delivery_mode: str = "realtime",
-        previous_response_id: str | None = None,
-    ) -> dict[str, Any]:
+        request: ProviderRequest,
+    ) -> ProviderResponse:
         """Generate a response using OpenAI's responses endpoint."""
-        _ = cache_name, delivery_mode
+        model = request.model
+        parts = request.parts
+        system_instruction = request.system_instruction
+        cache_name = request.cache_name
+        response_schema = request.response_schema
+        temperature = request.temperature
+        top_p = request.top_p
+        tools = request.tools
+        tool_choice = request.tool_choice
+        reasoning_effort = request.reasoning_effort
+        history = request.history
+        previous_response_id = request.previous_response_id
+
+        _ = cache_name
         client = self._get_client()
 
         user_content: list[dict[str, str]] = []
@@ -106,69 +107,46 @@ class OpenAIProvider:
             history_items = [
                 item
                 for item in history_items
-                if isinstance(item, dict)
-                and (
-                    item.get("role") == "tool"
-                    or (
-                        item.get("role") == "assistant"
-                        and isinstance(item.get("tool_calls"), list)
-                    )
-                )
+                if item.role == "tool" or (item.role == "assistant" and item.tool_calls)
             ]
         if history_items is not None:
             for item in history_items:
-                role = item.get("role")
-                if not isinstance(role, str):
-                    continue
+                role = item.role
 
                 # Tool result message → function_call_output
                 if role == "tool":
-                    call_id = item.get("tool_call_id")
-                    if not isinstance(call_id, str) or not call_id:
+                    call_id = item.tool_call_id
+                    if not call_id:
                         continue
-                    content = item.get("content", "")
                     input_messages.append(
                         {
                             "type": "function_call_output",
                             "call_id": call_id,
-                            "output": content
-                            if isinstance(content, str)
-                            else str(content or ""),
+                            "output": item.content,
                         }
                     )
                     continue
 
                 # Assistant message with tool_calls → function_call items
-                item_tool_calls = item.get("tool_calls")
-                if role == "assistant" and isinstance(item_tool_calls, list):
-                    for tc in item_tool_calls:
-                        if not isinstance(tc, dict):
-                            continue
-                        call_id = tc.get("id")
-                        name = tc.get("name")
-                        if not isinstance(call_id, str) or not isinstance(name, str):
-                            continue
-                        arguments = tc.get("arguments", "")
-                        if not isinstance(arguments, str):
-                            arguments = str(arguments or "")
+                if role == "assistant" and item.tool_calls:
+                    for tc in item.tool_calls:
                         input_messages.append(
                             {
                                 "type": "function_call",
-                                "call_id": call_id,
-                                "name": name,
-                                "arguments": arguments,
+                                "call_id": tc.id,
+                                "name": tc.name,
+                                "arguments": tc.arguments,
                             }
                         )
 
                 # Regular user/assistant text message
-                content = item.get("content")
-                if not isinstance(content, str) or not content:
+                if not item.content:
                     continue
                 text_type = "output_text" if role == "assistant" else "input_text"
                 input_messages.append(
                     {
                         "role": role,
-                        "content": [{"type": text_type, "text": content}],
+                        "content": [{"type": text_type, "text": item.content}],
                     }
                 )
 
@@ -229,70 +207,53 @@ class OpenAIProvider:
                 }
             }
 
-        try:
-            response = await client.responses.create(**create_kwargs)
-            text = getattr(response, "output_text", "") or ""
-            response_id = getattr(response, "id", None)
-            structured: Any = None
-            if response_schema is not None and text:
-                try:
-                    structured = json.loads(text)
-                except Exception:
-                    structured = None
-            usage_raw = getattr(response, "usage", None)
-            usage: dict[str, int] = {}
-            if usage_raw is not None:
-                usage = {
-                    "input_tokens": int(getattr(usage_raw, "input_tokens", 0)),
-                    "output_tokens": int(getattr(usage_raw, "output_tokens", 0)),
-                    "total_tokens": int(getattr(usage_raw, "total_tokens", 0)),
-                }
-                out_details = getattr(usage_raw, "output_tokens_details", None)
-                if out_details:
-                    reasoning_toks = getattr(out_details, "reasoning_tokens", None)
-                    if reasoning_toks is not None:
-                        usage["reasoning_tokens"] = int(reasoning_toks)
+        response = await client.responses.create(**create_kwargs)
+        text = getattr(response, "output_text", "") or ""
+        response_id = getattr(response, "id", None)
+        structured: Any = None
+        if response_schema is not None and text:
+            try:
+                structured = json.loads(text)
+            except Exception:
+                structured = None
+        usage_raw = getattr(response, "usage", None)
+        usage: dict[str, int] = {}
+        if usage_raw is not None:
+            usage = {
+                "input_tokens": int(getattr(usage_raw, "input_tokens", 0)),
+                "output_tokens": int(getattr(usage_raw, "output_tokens", 0)),
+                "total_tokens": int(getattr(usage_raw, "total_tokens", 0)),
+            }
+            out_details = getattr(usage_raw, "output_tokens_details", None)
+            if out_details:
+                reasoning_toks = getattr(out_details, "reasoning_tokens", None)
+                if reasoning_toks is not None:
+                    usage["reasoning_tokens"] = int(reasoning_toks)
 
-            tool_calls = []
-            reasoning_parts: list[str] = []
-            for item in getattr(response, "output", []):
-                item_type = getattr(item, "type", None)
-                if item_type == "function_call":
-                    tool_calls.append(
-                        {
-                            "id": getattr(item, "call_id", None),
-                            "name": getattr(item, "name", None),
-                            "arguments": getattr(item, "arguments", None),
-                        }
+        tool_calls = []
+        reasoning_parts: list[str] = []
+        for item in getattr(response, "output", []):
+            if item.type == "function_call":
+                tool_calls.append(
+                    ToolCall(
+                        id=item.call_id,
+                        name=item.name,
+                        arguments=item.arguments or "{}",
                     )
-                elif item_type == "reasoning":
-                    for summary_item in getattr(item, "summary", None) or []:
-                        summary_text = getattr(summary_item, "text", None)
-                        if summary_text:
-                            reasoning_parts.append(summary_text)
+                )
+            elif item.type == "reasoning":
+                for summary_item in item.summary or []:
+                    if summary_item.text:
+                        reasoning_parts.append(summary_item.text)
 
-            payload: dict[str, Any] = {"text": text, "usage": usage}
-            if structured is not None:
-                payload["structured"] = structured
-            if isinstance(response_id, str):
-                payload["response_id"] = response_id
-            if tool_calls:
-                payload["tool_calls"] = tool_calls
-            if reasoning_parts:
-                payload["reasoning"] = "\n\n".join(reasoning_parts).strip()
-            return payload
-        except asyncio.CancelledError:
-            raise
-        except APIError:
-            raise
-        except Exception as e:
-            raise wrap_provider_error(
-                e,
-                provider="openai",
-                phase="generate",
-                allow_network_errors=True,
-                message="OpenAI generate failed",
-            ) from e
+        return ProviderResponse(
+            text=text,
+            usage=usage,
+            reasoning="\n\n".join(reasoning_parts).strip() if reasoning_parts else None,
+            structured=structured,
+            tool_calls=tool_calls if tool_calls else None,
+            response_id=response_id if isinstance(response_id, str) else None,
+        )
 
     async def upload_file(self, path: Path, mime_type: str) -> str:
         """Upload a local file and return a URI-like identifier."""

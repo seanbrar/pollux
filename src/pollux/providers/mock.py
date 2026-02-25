@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from pollux.providers.base import ProviderCapabilities
+from pollux.providers.models import ProviderRequest, ProviderResponse
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,52 +39,22 @@ class MockProvider:
             conversation=False,
         )
 
-    async def generate(
-        self,
-        *,
-        model: str,  # noqa: ARG002
-        parts: list[Any],
-        system_instruction: str | None = None,  # noqa: ARG002
-        cache_name: str | None = None,  # noqa: ARG002
-        response_schema: dict[str, Any] | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        tools: list[dict[str, Any]] | None = None,
-        tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None,
-        reasoning_effort: str | None = None,
-        history: list[dict[str, Any]] | None = None,
-        delivery_mode: str = "realtime",
-        previous_response_id: str | None = None,
-    ) -> dict[str, Any]:
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
         """Return a deterministic mock response.
 
         Echo the first non-empty string part, falling back to the last string
         part (typically the prompt). This keeps file-based recipes informative
         in mock mode.
         """
-        # Explicitly discard so ruff doesn't depend on per-version unused-arg rules.
-        del (
-            response_schema,
-            temperature,
-            top_p,
-            tools,
-            tool_choice,
-            reasoning_effort,
-            history,
-            delivery_mode,
-            previous_response_id,
-        )
-
-        string_parts = [p for p in parts if isinstance(p, str) and p.strip()]
+        string_parts = [p for p in request.parts if isinstance(p, str) and p.strip()]
         if string_parts:
             text = string_parts[0]
         else:
-            text = next((p for p in reversed(parts) if isinstance(p, str)), "")
-        return {
-            "text": f"echo: {text[:100]}",
-            "usage": {"input_tokens": 10, "total_tokens": 20},
-            "mock": True,
-        }
+            text = next((p for p in reversed(request.parts) if isinstance(p, str)), "")
+        return ProviderResponse(
+            text=f"echo: {text[:100]}",
+            usage={"input_tokens": 10, "total_tokens": 20},
+        )
 
     async def upload_file(self, path: Path, mime_type: str) -> str:  # noqa: ARG002
         """Return a mock upload URI."""

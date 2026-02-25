@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import json
 import logging
 from pathlib import Path
 import time
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from pollux._singleflight import singleflight_cached
 from pollux.cache import CacheRegistry, get_or_create_cache
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
+from pollux.providers.models import Message, ProviderRequest, ToolCall
 from pollux.retry import (
     RetryPolicy,
     retry_async,
@@ -233,42 +235,83 @@ async def execute_plan(
                         retry_policy=retry_policy,
                     )
 
+                    history_msgs: list[Message] | None = None
+                    if history is not None:
+                        history_msgs = []
+                        for h in history:
+                            role = h.get("role", "user")
+                            content = h.get("content", "")
+                            tc_id = h.get("tool_call_id")
+                            tcs = None
+                            raw_tcs = h.get("tool_calls")
+                            if isinstance(raw_tcs, list):
+                                tcs = []
+                                for tc in raw_tcs:
+                                    if isinstance(tc, dict):
+                                        raw_args = tc.get("arguments", "")
+                                        args_str = (
+                                            json.dumps(raw_args)
+                                            if isinstance(raw_args, dict)
+                                            else str(raw_args)
+                                        )
+                                        tcs.append(
+                                            ToolCall(
+                                                id=str(tc.get("id", "")),
+                                                name=str(tc.get("name", "")),
+                                                arguments=args_str,
+                                            )
+                                        )
+                            history_msgs.append(
+                                Message(
+                                    role=str(role),
+                                    content=content
+                                    if isinstance(content, str)
+                                    else str(content),
+                                    tool_call_id=tc_id
+                                    if isinstance(tc_id, str)
+                                    else None,
+                                    tool_calls=tcs,
+                                )
+                            )
+
+                    req = ProviderRequest(
+                        model=model,
+                        parts=parts,
+                        system_instruction=options.system_instruction,
+                        cache_name=cache_name,
+                        response_schema=schema,
+                        temperature=options.temperature,
+                        top_p=options.top_p,
+                        tools=options.tools,
+                        tool_choice=options.tool_choice,
+                        reasoning_effort=options.reasoning_effort,
+                        history=history_msgs,
+                        previous_response_id=previous_response_id,
+                    )
+
                     if retry_policy.max_attempts <= 1:
-                        return await provider.generate(
-                            model=model,
-                            parts=parts,
-                            system_instruction=options.system_instruction,
-                            cache_name=cache_name,
-                            response_schema=schema,
-                            temperature=options.temperature,
-                            top_p=options.top_p,
-                            tools=options.tools,
-                            tool_choice=options.tool_choice,
-                            reasoning_effort=options.reasoning_effort,
-                            history=history,
-                            delivery_mode=options.delivery_mode,
-                            previous_response_id=previous_response_id,
+                        resp = await provider.generate(req)
+                    else:
+                        resp = await retry_async(
+                            lambda: provider.generate(req),
+                            policy=retry_policy,
+                            should_retry=should_retry_generate,
                         )
 
-                    return await retry_async(
-                        lambda: provider.generate(
-                            model=model,
-                            parts=parts,
-                            system_instruction=options.system_instruction,
-                            cache_name=cache_name,
-                            response_schema=schema,
-                            temperature=options.temperature,
-                            top_p=options.top_p,
-                            tools=options.tools,
-                            tool_choice=options.tool_choice,
-                            reasoning_effort=options.reasoning_effort,
-                            history=history,
-                            delivery_mode=options.delivery_mode,
-                            previous_response_id=previous_response_id,
-                        ),
-                        policy=retry_policy,
-                        should_retry=should_retry_generate,
-                    )
+                    out: dict[str, Any] = {"text": resp.text, "usage": resp.usage}
+                    if resp.reasoning is not None:
+                        out["reasoning"] = resp.reasoning
+                    if resp.structured is not None:
+                        out["structured"] = resp.structured
+                    if resp.tool_calls is not None:
+                        out["tool_calls"] = [
+                            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                            for tc in resp.tool_calls
+                        ]
+                    if resp.response_id is not None:
+                        out["response_id"] = resp.response_id
+                    return out
+
                 except asyncio.CancelledError:
                     raise
                 except APIError as e:
@@ -278,10 +321,21 @@ async def execute_plan(
                 except PolluxError:
                     raise
                 except Exception as e:
-                    raise InternalError(
-                        f"Call {call_idx} failed: {type(e).__name__}: {e}",
-                        hint="This is a Pollux internal error. Please report it.",
-                    ) from e
+                    from pollux.providers._errors import wrap_provider_error
+
+                    provider_name = (
+                        type(provider).__name__.lower().replace("provider", "")
+                    )
+                    wrapped_err = wrap_provider_error(
+                        e,
+                        provider=provider_name,
+                        phase="generate",
+                        allow_network_errors=True,
+                        message=f"{provider_name.capitalize()} generate failed",
+                    )
+                    if getattr(wrapped_err, "call_idx", None) is None:
+                        wrapped_err.call_idx = call_idx
+                    raise wrapped_err from e
 
         # Execute all calls. We intentionally collect *all* task outcomes before
         # raising so failures don't leave background tasks with unobserved
