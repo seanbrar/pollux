@@ -979,7 +979,7 @@ async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
     assert input_msgs[0]["call_id"] == "call_abc"
     assert input_msgs[1]["role"] == "assistant"
     assert input_msgs[1]["content"] == [
-        {"type": "input_text", "text": "Let me check that tool."}
+        {"type": "output_text", "text": "Let me check that tool."}
     ]
 
 
@@ -1072,9 +1072,9 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     )
 
     contents = captured["contents"]
-    # 3 items: user, model(function_call), user(function_response).
-    # The trailing prompt is omitted because the last history item is a tool
-    # response — Gemini requires Model immediately after FunctionResponse.
+    # 3 Content items: user, model(function_call), user(function_response + prompt).
+    # The prompt is merged into the function-response Content to preserve
+    # Gemini's required turn order without losing the instruction.
     assert len(contents) == 3
 
     assert contents[0].role == "user"
@@ -1087,15 +1087,18 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     assert contents[2].role == "user"
     assert contents[2].parts[0].function_response.name == "get_weather"
     assert contents[2].parts[0].function_response.response == {"temp": 72}
+    # Prompt merged as a second part in the same Content block.
+    assert contents[2].parts[1].text == "Continue the conversation"
 
 
 @pytest.mark.asyncio
-async def test_gemini_omits_trailing_prompt_after_tool_response() -> None:
-    """When history ends with a tool response, skip the user prompt.
+async def test_gemini_merges_prompt_into_tool_response_content() -> None:
+    """When history ends with a tool response, the prompt is merged in.
 
-    Gemini requires Model immediately after FunctionResponse. Appending a
-    trailing User prompt would produce FunctionResponse → User → Model which
-    the API rejects with 400 INVALID_ARGUMENT.
+    Gemini requires Model immediately after FunctionResponse. Adding a
+    separate User Content would produce FunctionResponse → User → Model
+    (rejected with 400 INVALID_ARGUMENT). Instead, the prompt is folded
+    into the function-response Content block so the model still sees it.
     """
     captured: dict[str, Any] = {}
 
@@ -1141,8 +1144,7 @@ async def test_gemini_omits_trailing_prompt_after_tool_response() -> None:
     )
 
     contents = captured["contents"]
-    # 3 items: user, model(function_call), user(function_response)
-    # No trailing user prompt — model should follow the function response.
+    # 3 Content items — prompt merged into function-response Content.
     assert len(contents) == 3
 
     assert contents[0].role == "user"
@@ -1150,3 +1152,5 @@ async def test_gemini_omits_trailing_prompt_after_tool_response() -> None:
     assert contents[1].parts[0].function_call.name == "get_weather"
     assert contents[2].role == "user"
     assert contents[2].parts[0].function_response.name == "get_weather"
+    # Prompt folded in as a second part.
+    assert contents[2].parts[1].text == "Proceed."

@@ -249,23 +249,32 @@ class GeminiProvider:
             contents: Any = self._convert_parts(parts)
         else:
             # Gemini enforces strict turn order: after a function response the
-            # model must speak next.  When the last history item is a tool
-            # result, appending a user prompt would violate
-            #   Model(FunctionCall) → User(FunctionResponse) → User(Prompt)
-            # so we skip the prompt in that case.
+            # model must speak next.  Appending a separate user Content would
+            # produce FunctionResponse → User → Model, which is rejected.
+            # Instead, merge the prompt parts into the existing function-
+            # response Content block (same "user" role) so the model still
+            # sees the instruction without a turn-order violation.
             last_is_tool_response = bool(
                 history
                 and isinstance(history[-1], dict)
                 and history[-1].get("role") == "tool"
             )
-            if not last_is_tool_response:
-                user_parts: list[Any] = []
-                for cp in self._convert_parts(parts):
-                    if isinstance(cp, str):
-                        user_parts.append(types.Part.from_text(text=cp))
-                    else:
-                        user_parts.append(cp)
-                if user_parts:
+            user_parts: list[Any] = []
+            for cp in self._convert_parts(parts):
+                if isinstance(cp, str):
+                    user_parts.append(types.Part.from_text(text=cp))
+                else:
+                    user_parts.append(cp)
+            if user_parts:
+                last_parts = (
+                    input_contents[-1].parts
+                    if last_is_tool_response and input_contents
+                    else None
+                )
+                if last_parts is not None:
+                    # Fold into the trailing function-response Content.
+                    last_parts.extend(user_parts)
+                else:
                     input_contents.append(types.Content(role="user", parts=user_parts))
             contents = input_contents
 

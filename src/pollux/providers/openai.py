@@ -156,12 +156,13 @@ class OpenAIProvider:
 
                 # Regular user/assistant text message
                 content = item.get("content")
-                if not isinstance(content, str):
+                if not isinstance(content, str) or not content:
                     continue
+                text_type = "output_text" if role == "assistant" else "input_text"
                 input_messages.append(
                     {
                         "role": role,
-                        "content": [{"type": "input_text", "text": content}],
+                        "content": [{"type": text_type, "text": content}],
                     }
                 )
         input_messages.append({"role": "user", "content": user_content})
