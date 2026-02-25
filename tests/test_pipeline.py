@@ -15,7 +15,7 @@ from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError, PlanningError, SourceError
 from pollux.options import Options
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import Message, ProviderRequest, ProviderResponse
+from pollux.providers.models import Message, ProviderRequest, ProviderResponse, ToolCall
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
@@ -1247,8 +1247,7 @@ async def test_tool_calls_preserved_in_conversation_state(
             _ = request
             return ProviderResponse(
                 text="",
-                usage={"total_tokens": 1},
-                tool_calls=[{"id": "call_1", "name": "get_weather", "arguments": "{}"}],
+                tool_calls=[ToolCall(id="call_1", name="get_weather", arguments="{}")],
             )
 
     fake = _ToolCallProvider()

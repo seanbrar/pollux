@@ -51,5 +51,5 @@ class ProviderResponse:
     usage: dict[str, int] = field(default_factory=dict)
     reasoning: str | None = None
     structured: dict[str, Any] | None = None
-    tool_calls: list[dict[str, Any]] | None = None
+    tool_calls: list[ToolCall] | None = None
     response_id: str | None = None

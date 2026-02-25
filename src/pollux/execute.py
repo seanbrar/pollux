@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import json
 import logging
 from pathlib import Path
 import time
@@ -247,11 +248,17 @@ async def execute_plan(
                                 tcs = []
                                 for tc in raw_tcs:
                                     if isinstance(tc, dict):
+                                        raw_args = tc.get("arguments", "")
+                                        args_str = (
+                                            json.dumps(raw_args)
+                                            if isinstance(raw_args, dict)
+                                            else str(raw_args)
+                                        )
                                         tcs.append(
                                             ToolCall(
-                                                id=tc.get("id", ""),
-                                                name=tc.get("name", ""),
-                                                arguments=tc.get("arguments", ""),
+                                                id=str(tc.get("id", "")),
+                                                name=str(tc.get("name", "")),
+                                                arguments=args_str,
                                             )
                                         )
                             history_msgs.append(
@@ -297,7 +304,10 @@ async def execute_plan(
                     if resp.structured is not None:
                         out["structured"] = resp.structured
                     if resp.tool_calls is not None:
-                        out["tool_calls"] = resp.tool_calls
+                        out["tool_calls"] = [
+                            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                            for tc in resp.tool_calls
+                        ]
                     if resp.response_id is not None:
                         out["response_id"] = resp.response_id
                     return out

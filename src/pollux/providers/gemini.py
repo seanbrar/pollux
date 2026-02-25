@@ -11,7 +11,7 @@ import uuid
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import Message, ProviderRequest, ProviderResponse
+from pollux.providers.models import Message, ProviderRequest, ProviderResponse, ToolCall
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -453,18 +453,21 @@ class GeminiProvider:
         except Exception:
             usage = {}
 
-        tool_calls = []
+        tool_calls: list[ToolCall] = []
         if hasattr(response, "function_calls") and response.function_calls:
             for fc in response.function_calls:
-                call_id = getattr(fc, "id", None)
-                if not call_id:
-                    call_id = f"call_{uuid.uuid4().hex[:8]}"
+                call_id = fc.id or f"call_{uuid.uuid4().hex[:8]}"
+
+                # Gemini args are typed as Optional[dict[str, Any]].
+                # We default to an empty dictionary to ensure valid JSON output.
+                args_str = json.dumps(fc.args or {})
+
                 tool_calls.append(
-                    {
-                        "id": call_id,
-                        "name": getattr(fc, "name", None),
-                        "arguments": getattr(fc, "args", {}),
-                    }
+                    ToolCall(
+                        id=str(call_id),
+                        name=str(fc.name),
+                        arguments=args_str,
+                    )
                 )
 
         reasoning_parts = []

@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderRequest, ProviderResponse, ToolCall
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -233,20 +233,18 @@ class OpenAIProvider:
         tool_calls = []
         reasoning_parts: list[str] = []
         for item in getattr(response, "output", []):
-            item_type = getattr(item, "type", None)
-            if item_type == "function_call":
+            if item.type == "function_call":
                 tool_calls.append(
-                    {
-                        "id": getattr(item, "call_id", None),
-                        "name": getattr(item, "name", None),
-                        "arguments": getattr(item, "arguments", None),
-                    }
+                    ToolCall(
+                        id=item.call_id,
+                        name=item.name,
+                        arguments=item.arguments or "{}",
+                    )
                 )
-            elif item_type == "reasoning":
-                for summary_item in getattr(item, "summary", None) or []:
-                    summary_text = getattr(summary_item, "text", None)
-                    if summary_text:
-                        reasoning_parts.append(summary_text)
+            elif item.type == "reasoning":
+                for summary_item in item.summary or []:
+                    if summary_item.text:
+                        reasoning_parts.append(summary_item.text)
 
         return ProviderResponse(
             text=text,
