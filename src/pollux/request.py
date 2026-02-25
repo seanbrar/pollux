@@ -18,13 +18,13 @@ class Request:
     """Normalized request ready for planning."""
 
     sources: tuple[Source, ...]
-    prompts: tuple[str, ...]
+    prompts: tuple[str | None, ...]
     config: Config
     options: Options
 
 
 def normalize_request(
-    prompts: tuple[str, ...] | list[str] | str,
+    prompts: tuple[str | None, ...] | list[str | None] | str | None,
     sources: tuple[Source, ...] | list[Source],
     config: Config,
     *,
@@ -45,15 +45,15 @@ def normalize_request(
         SourceError: If sources are invalid.
     """
     # Normalize prompts to tuple
-    prompts = (prompts,) if isinstance(prompts, str) else tuple(prompts)
+    prompts = (prompts,) if isinstance(prompts, (str, type(None))) else tuple(prompts)
 
     # Validate prompts (empty list is a valid no-op for run_many)
     for i, p in enumerate(prompts):
-        if not isinstance(p, str) or not p.strip():
+        if p is not None and (not isinstance(p, str) or not p.strip()):
             idx_label = f"prompts[{i}]" if len(prompts) > 1 else "prompt"
             raise ConfigurationError(
                 f"{idx_label} is empty or whitespace-only",
-                hint="Each prompt must be a non-empty string.",
+                hint="Each prompt must be a non-empty string or None.",
             )
 
     # Validate sources

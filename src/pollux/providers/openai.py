@@ -87,6 +87,12 @@ class OpenAIProvider:
             if normalized is not None:
                 user_content.append(normalized)
 
+        has_real_content = False
+        for c in user_content:
+            if c.get("type") != "input_text" or c.get("text"):
+                has_real_content = True
+                break
+
         if not user_content:
             user_content.append({"type": "input_text", "text": ""})
 
@@ -165,7 +171,9 @@ class OpenAIProvider:
                         "content": [{"type": text_type, "text": content}],
                     }
                 )
-        input_messages.append({"role": "user", "content": user_content})
+
+        if has_real_content or not input_messages:
+            input_messages.append({"role": "user", "content": user_content})
 
         create_kwargs: dict[str, Any] = {
             "model": model,

@@ -1374,6 +1374,59 @@ async def test_continue_from_preserves_tool_history_items(
     assert received_history[1]["tool_calls"] is not None
 
 
+@pytest.mark.asyncio
+async def test_continue_tool_mechanics(monkeypatch: pytest.MonkeyPatch) -> None:
+    """continue_tool should neatly append tool results and allow None prompt."""
+    fake = KwargsCaptureProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    previous: ResultEnvelope = {
+        "status": "ok",
+        "answers": [""],
+        "_conversation_state": {
+            "history": [
+                {"role": "user", "content": "What is the weather?"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"id": "call_1", "name": "get_weather", "arguments": "{}"}
+                    ],
+                },
+            ]
+        },
+    }
+
+    tool_results = [
+        {"role": "tool", "tool_call_id": "call_1", "content": '{"temp": 72}'}
+    ]
+
+    await pollux.continue_tool(
+        continue_from=previous,
+        tool_results=tool_results,
+        config=cfg,
+    )
+
+    assert len(fake.generate_kwargs) == 1
+    received_history = fake.generate_kwargs[0]["history"]
+    assert len(received_history) == 3
+    assert received_history[2]["role"] == "tool"
+    assert received_history[2]["content"] == '{"temp": 72}'
+
+    # The prompt part of the internal run() call should be empty since prompt is None
+    assert fake.generate_kwargs[0]["parts"] == []
+
+
 # =============================================================================
 # Reasoning / Thinking (v1.2)
 # =============================================================================

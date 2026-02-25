@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pollux.cache import CacheRegistry
 from pollux.config import Config
@@ -53,7 +53,7 @@ _registry = CacheRegistry()
 
 
 async def run(
-    prompt: str,
+    prompt: str | None = None,
     *,
     source: Source | None = None,
     config: Config,
@@ -81,7 +81,7 @@ async def run(
 
 
 async def run_many(
-    prompts: str | list[str] | tuple[str, ...],
+    prompts: str | list[str | None] | tuple[str | None, ...] | None = None,
     *,
     sources: tuple[Source, ...] | list[Source] = (),
     config: Config,
@@ -128,6 +128,47 @@ async def run_many(
     return build_result(plan, trace)
 
 
+async def continue_tool(
+    continue_from: ResultEnvelope,
+    tool_results: list[dict[str, Any]],
+    *,
+    config: Config,
+    options: Options | None = None,
+) -> ResultEnvelope:
+    """Continue a conversation with the results of tool calls.
+
+    Args:
+        continue_from: The previous ResultEnvelope containing tool calls.
+        tool_results: List of tool results as dicts (must provide 'role': 'tool',
+            'tool_call_id', and 'content').
+        config: Configuration specifying provider and model.
+        options: Optional additive features.
+
+    Returns:
+        ResultEnvelope with the model's next response.
+    """
+    import copy
+
+    new_state = copy.deepcopy(continue_from.get("_conversation_state", {}))
+    new_state["history"] = new_state.get("history", []) + tool_results
+
+    # Build a synthetic envelope to carry the updated state and response_id
+    synthetic_envelope: ResultEnvelope = {"_conversation_state": new_state}
+
+    # Merge options, favoring the synthetic continue_from
+    # Do not mutate the caller's options object
+    if options is None:
+        merged_options = Options(continue_from=synthetic_envelope)
+    else:
+        # copy dict and strip conflicting fields
+        kwargs = dict(options.__dict__)
+        kwargs.pop("history", None)
+        kwargs.pop("continue_from", None)
+        merged_options = Options(continue_from=synthetic_envelope, **kwargs)
+
+    return await run(prompt=None, config=config, options=merged_options)
+
+
 def _get_provider(config: Config) -> Provider:
     """Get the appropriate provider based on configuration."""
     if config.use_mock:
@@ -170,6 +211,7 @@ __all__ = [
     "RetryPolicy",
     "Source",
     "SourceError",
+    "continue_tool",
     "run",
     "run_many",
 ]
