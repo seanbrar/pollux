@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 from typing import TYPE_CHECKING, Any, Literal
+import uuid
 
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
@@ -215,8 +216,9 @@ class GeminiProvider:
                                 continue
                             call_id = tc.get("id")
                             name = tc.get("name")
-                            if isinstance(call_id, str) and isinstance(name, str):
-                                call_id_to_name[call_id] = name
+                            if isinstance(name, str):
+                                if isinstance(call_id, str):
+                                    call_id_to_name[call_id] = name
                                 args = tc.get("arguments", "")
                                 if isinstance(args, str):
                                     try:
@@ -470,9 +472,12 @@ class GeminiProvider:
         tool_calls = []
         if hasattr(response, "function_calls") and response.function_calls:
             for fc in response.function_calls:
+                call_id = getattr(fc, "id", None)
+                if not call_id:
+                    call_id = f"call_{uuid.uuid4().hex[:8]}"
                 tool_calls.append(
                     {
-                        "id": getattr(fc, "id", None),
+                        "id": call_id,
                         "name": getattr(fc, "name", None),
                         "arguments": getattr(fc, "args", {}),
                     }
