@@ -9,8 +9,8 @@
 # Building an Agent Loop
 
 This is where everything comes together. We're going to build a complete
-agent — a program that reasons, calls tools, reads results, and decides what
-to do next — using the primitives you've already learned.
+agent, a program that reasons, calls tools, reads results, and decides what
+to do next, using the primitives you've already learned.
 
 By the end of this page, you'll have a working agent loop and a clear
 understanding of *why* it's built this way.
@@ -19,13 +19,13 @@ understanding of *why* it's built this way.
     **Pollux owns:** executing each turn (sending the prompt, surfacing tool
     calls, carrying conversation state forward via `continue_tool()`).
 
-    **You own:** the loop itself — how many turns to allow, which tools to
+    **You own:** the loop itself: how many turns to allow, which tools to
     implement, what to do between turns, and when to stop.
 
 ## The Complete Agent
 
 Here's a weather agent that answers questions by calling a `get_weather` tool.
-Type it out (or paste it) and run it — we'll break it down afterward.
+Type it out (or paste it) and run it. We'll break it down afterward.
 
 ```python
 import asyncio
@@ -122,7 +122,7 @@ Let's take this apart, because the structure matters as much as the code.
 ### You wrote the loop
 
 Look at the `agent()` function. The `for turn in range(MAX_TURNS)` loop is
-**your code**. Pollux doesn't provide this loop — and that's deliberate.
+**your code**. Pollux doesn't provide this loop, and that's deliberate.
 Because you wrote it, you can:
 
 - Change `MAX_TURNS` to 1 for a single-shot tool call, or to 20 for a
@@ -133,9 +133,9 @@ Because you wrote it, you can:
 - Log every tool call to a database for audit trails.
 - Break out of the loop early based on domain-specific conditions.
 
-None of these would be possible if the loop were hidden behind a
-`sequential_tool_loop=True` flag. By keeping the loop in your code, every
-variation is a small edit rather than a feature request.
+None of these would work if the loop were hidden behind a
+`sequential_tool_loop=True` flag. Keeping the loop in your code means every
+variation is a small edit, not a feature request.
 
 ### You wrote the dispatch
 
@@ -143,9 +143,9 @@ The `TOOL_DISPATCH` dict and `execute_tool_calls` function are also your code.
 This means you control:
 
 - **What tools exist.** Add or remove entries in the dispatch map.
-- **How tools execute.** Call a database, hit an API, read a file — anything.
-- **How errors are handled.** The example returns errors as JSON so the model
-  can reason about failures. You could also retry, log, or abort.
+- **How tools execute.** Call a database, hit an API, read a file. Anything.
+- **How errors are handled.** The example returns errors as JSON so the
+  model can reason about failures. You could also retry, log, or abort.
 
 ### Pollux owned each turn
 
@@ -185,13 +185,13 @@ tools.append({
 })
 ```
 
-The loop itself doesn't change — it already handles any number of tools.
+The loop itself doesn't change. It already handles any number of tools.
 
 ### Using `history` instead of `continue_from`
 
-`continue_from` is convenient when you have the prior result object. If you
-need more control — for example, injecting a system message mid-conversation
-or trimming old turns — build `history` manually:
+`continue_from` is convenient when you have the prior result object.
+If you need more control (injecting a system message mid-conversation,
+trimming old turns), build `history` manually:
 
 ```python
 history = [
@@ -264,10 +264,11 @@ the control flow.
 - **Return errors as tool results, don't raise.** If a tool fails, return a
   JSON error message so the model can reason about the failure. Raising an
   exception breaks the loop.
-- **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of lists —
-  one list per prompt. For `run()` (single prompt), access `result["tool_calls"][0]`.
+- **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of
+  lists, one per prompt. For `run()` (single prompt), access
+  `result["tool_calls"][0]`.
 - **The model can request multiple tools in one turn.** The example handles
-  this naturally — `execute_tool_calls` iterates over all calls and returns
+  this naturally: `execute_tool_calls` iterates over all calls and returns
   a result for each.
 
 ---

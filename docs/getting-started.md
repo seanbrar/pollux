@@ -34,7 +34,7 @@ Or download the latest wheel from
     export OPENAI_API_KEY="your-key-here"
     ```
 
-Not sure which provider? Start with Gemini — it's the original path and
+Not sure which provider? Start with Gemini: it's the original path and
 supports context caching out of the box.
 
 ## 3. Run
@@ -70,10 +70,9 @@ If you chose OpenAI, change config to
 
 ```
 ok
-The key points are: (1) Pollux supports three execution patterns — fan-out
-(one source to many prompts), fan-in (many sources to one prompt), and
-broadcast (many sources × many prompts); (2) it provides context caching to
-avoid re-uploading the same content for repeated prompts.
+The key points are: (1) Pollux supports three execution patterns (fan-out,
+fan-in, and broadcast); (2) it provides context caching to avoid
+re-uploading the same content for repeated prompts.
 ```
 
 That's your first Pollux result. The `status` is `ok` and the answer

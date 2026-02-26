@@ -29,8 +29,8 @@ Question 2: [video tokens] + [question 2] → [answer 2]
 Question 3: [video tokens] + [question 3] → [answer 3]
 ```
 
-For a 1-hour video (~946,800 tokens), asking 5 questions means transmitting
-~4.7M input tokens — even though the video content is identical each time.
+For a 1-hour video (~946,800 tokens), five questions means transmitting
+~4.7M input tokens. The video content is identical each time.
 
 With caching:
 
@@ -159,10 +159,10 @@ behavior. Usage counters are provider-dependent.
 The default TTL is 3600 seconds (1 hour). Tune `ttl_seconds` to match your
 expected reuse window:
 
-- **Too short** — the cache expires before you reuse it, wasting the warm-up
-  cost.
-- **Too long** — cached content stays alive unnecessarily. This does not
-  cause correctness issues, but may consume provider-side resources.
+- **Too short:** the cache expires before you reuse it, wasting the
+  warm-up cost.
+- **Too long:** cached content lingers unnecessarily. No correctness
+  issues, but it consumes provider-side resources.
 
 For interactive workloads where you run a batch and then refine prompts within
 the same session, 3600s is a reasonable starting point. For one-shot scripts,
@@ -172,9 +172,9 @@ shorter TTLs (300-600s) avoid lingering cache entries.
 
 Caching is most effective when:
 
-- **Sources are large** — video, long PDFs, multi-image sets
-- **Prompt sets are repeated** — fan-out workflows with 3+ prompts per source
-- **Reuse happens within TTL** — default 3600s; tune via `ttl_seconds`
+- **Sources are large:** video, long PDFs, multi-image sets
+- **Prompt sets are repeated:** fan-out workflows with 3+ prompts per source
+- **Reuse happens within TTL:** default 3600s; tune via `ttl_seconds`
 
 Caching adds overhead for single-prompt, small-source calls. Start without
 caching and enable it when you see repeated context in your workload.

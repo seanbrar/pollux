@@ -5,9 +5,9 @@
 
 # Configuring Pollux
 
-You need to tell Pollux which provider, model, and API key to use for each
-call. The `Config` object captures these choices explicitly — no global state,
-no implicit defaults.
+You need to tell Pollux which provider, model, and API key to use. The
+`Config` object captures these choices explicitly. No global state, no
+implicit defaults.
 
 !!! info "Boundary"
     **Pollux owns:** validating config, resolving API keys from the
@@ -59,7 +59,7 @@ config = Config(provider="openai", model="gpt-5-nano", api_key="sk-...")
 ```
 
 Pollux auto-loads `.env` files via `python-dotenv`. Create a `.env` in your
-project root for local development — but never commit it.
+project root for local development, but never commit it.
 
 ## Mock Mode
 
@@ -87,7 +87,7 @@ config = Config(
 | Need | Direction |
 |---|---|
 | Fast iteration without API calls | `use_mock=True` |
-| Reduce token spend on repeated context | `enable_caching=True` — see [Reducing Costs with Context Caching](caching.md) |
+| Reduce token spend on repeated context | `enable_caching=True`. See [Reducing Costs with Context Caching](caching.md) |
 | Higher throughput for many prompts/sources | Increase `request_concurrency` |
 | Better resilience to transient failures | Customize `retry=RetryPolicy(...)` |
 
@@ -122,7 +122,7 @@ is longer: the computed backoff or the server hint).
 
 ## Options
 
-While `Config` establishes the infrastructure requirements for a provider connection, `Options` controls per-prompt inference overrides. This design allows you to dynamically tune how text is generated on a call-by-call basis without needing to tear down or recreate the underlying client connection.
+`Config` establishes the infrastructure requirements for a provider connection. `Options` is different: it controls per-prompt inference overrides. This split lets you tune how text is generated on a call-by-call basis without tearing down or recreating the underlying client.
 
 ```python
 from pollux import Options
@@ -144,13 +144,13 @@ options = Options(
 | `system_instruction` | `str \| None` | `None` | Global system prompt |
 | `temperature` | `float \| None` | `None` | Sampling temperature |
 | `top_p` | `float \| None` | `None` | Nucleus sampling probability |
-| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools — see [Continuing Conversations Across Turns](conversations-and-agents.md) |
-| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy — see [Building an Agent Loop](agent-loop.md) |
-| `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format — see [Extracting Structured Data](structured-data.md) |
-| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth — see [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
+| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
+| `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
+| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
 | `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
-| `history` | `list[dict] \| None` | `None` | Conversation history — see [Continuing Conversations Across Turns](conversations-and-agents.md) |
-| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result — see [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 
 !!! note
     OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject
@@ -162,10 +162,11 @@ options = Options(
 ## Safety Notes
 
 - `Config` is immutable (`frozen=True`). Create a new instance to change values.
-- `Config` validates the provider name on init — unknown providers raise
+- `Config` validates the provider name on init. Unknown providers raise
   `ConfigurationError` immediately rather than failing at call time.
 - String representation redacts API keys.
-- Missing keys in real mode raise `ConfigurationError` with actionable hints.
+- Missing keys in real mode raise `ConfigurationError` with actionable
+  hints.
 
 ## Dev Install (Contributors)
 

@@ -7,16 +7,16 @@
 
 # Writing Portable Code Across Providers
 
-You want to write analysis code that works across providers — switch from
-Gemini to OpenAI (or back) by changing a config line, not rewriting your
-pipeline. This page shows the patterns that make that possible.
+You want analysis code that works across providers. Switch from Gemini to
+OpenAI (or back) by changing a config line, not rewriting your pipeline.
+This page shows the patterns that make that work.
 
 Pollux is capability-transparent, not capability-equalizing. Both providers
-support the core pipeline — text generation, structured output, tool calling,
-conversation continuity — but some features are provider-specific (context
-caching is Gemini-only, for example). When you use an unsupported feature,
-Pollux raises a `ConfigurationError` or `APIError` rather than silently
-degrading. This keeps behavior legible in both development and production.
+support the core pipeline (text generation, structured output, tool calling,
+conversation continuity), but some features are provider-specific. Context
+caching is Gemini-only, for example. When you use an unsupported feature,
+Pollux raises a `ConfigurationError` or `APIError`. No silent degradation.
+This keeps behavior legible in both development and production.
 
 !!! info "Boundary"
     **Pollux owns:** translating your `Config`, `Options`, `Source`, and
@@ -135,9 +135,9 @@ asyncio.run(main())
 
 ## Model-Specific Constraints
 
-Pollux provides a unified interface, but the models underneath it have unique
-constraints. Certain models reject tuning parameters, while others introduce
-features that don't map neatly to traditional controls.
+Pollux provides a unified interface, but the models underneath have their
+own constraints. Some reject tuning parameters. Others introduce features
+that don't map to traditional controls.
 
 ### GPT-5 Family Rejects Sampling Controls
 
@@ -260,11 +260,11 @@ async def test_analyze_document_mock(provider: str) -> None:
 
 - **Keep the portable subset in mind.** Text generation, structured output,
   tool calling, and conversation continuity work on both providers. Context
-  caching is Gemini-only. YouTube URLs have limited OpenAI support. Check
-  [Provider Capabilities](reference/provider-capabilities.md).
-- **Config errors are your portability signal.** When Pollux raises
-  `ConfigurationError` for an unsupported feature, that's the boundary of
-  portability. Handle it at the call site.
+  caching is Gemini-only. YouTube URLs have limited OpenAI support.
+  Check [Provider Capabilities](reference/provider-capabilities.md).
+- **Config errors are your portability signal.** A `ConfigurationError` for
+  an unsupported feature marks the boundary of portability. Handle it at
+  the call site.
 - **Model names are provider-specific.** Never hardcode model names in your
   pipeline logic. Keep them in config or a lookup table.
 - **Sampling controls vary.** OpenAI GPT-5 family models reject `temperature`

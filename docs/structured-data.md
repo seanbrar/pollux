@@ -6,14 +6,14 @@
 
 # Extracting Structured Data
 
-You want to extract typed data from documents — not free-form text, but
-validated objects you can store, compare, and process programmatically. This
-is where Pollux stops being a text generator and starts being a data pipeline.
+You want typed data from documents. Not free-form text, but validated objects
+you can store, compare, and process programmatically. Pollux becomes a data
+pipeline here.
 
-At the LLM API level, structured output works by constraining the model's
-token generation to conform to a JSON schema you provide. Instead of producing
+At the LLM API level, structured output constrains the model's token
+generation to conform to a JSON schema you provide. Instead of producing
 arbitrary prose, the model fills in fields that match your schema's types and
-required properties. The result is parseable data rather than text that needs
+required properties. The result is parseable data, not text that needs
 regex extraction.
 
 !!! info "Boundary"
@@ -60,9 +60,9 @@ object per prompt. The raw text is still available in `answers`.
 
 ## Complete Extraction Pipeline
 
-Let's build something real. This example extracts metadata from research
-papers into a typed catalog and writes to JSONL — a common pattern for
-building datasets from document collections.
+Let's build something real: extract metadata from research papers into a
+typed catalog and write to JSONL. This is a common pattern for building
+datasets from document collections.
 
 ```python
 import asyncio
@@ -137,15 +137,14 @@ asyncio.run(build_catalog("./papers", "catalog.jsonl"))
    `model_dump_json()`. Write one object per line for JSONL, or use
    `model_dump()` for dicts.
 
-5. **Handle failures per file.** Schema enforcement increases the chance of
-   a usable response, but the model can still produce incomplete data or
-   the API call can fail. Catch exceptions at the file level.
+5. **Handle failures per file.** Schema enforcement helps, but the model
+   can still produce incomplete data or the API call can fail. Catch
+   exceptions at the file level.
 
 ## JSON Schema Dicts for Dynamic Schemas
 
-When your schema isn't known at import time — for example, it's loaded from
-a config file or built per-user — pass a JSON schema dict instead of a
-Pydantic model:
+When your schema isn't known at import time (loaded from a config file,
+built per-user), pass a JSON schema dict instead of a Pydantic model:
 
 ```python
 schema = {
@@ -208,14 +207,14 @@ if "reasoning" in result and result["reasoning"][0]:
 ```
 
 This is useful when you need to audit *why* the model extracted specific
-values — for example, when the methodology classification matters for
-downstream decisions.
+values, for example when the methodology classification drives downstream
+decisions.
 
 ## What to Watch For
 
 - **Schema complexity affects reliability.** Flat schemas with descriptive
-  field names work best. Deeply nested schemas with many optional fields may
-  produce inconsistent results — simplify where possible.
+  field names work best. Deeply nested schemas with many optional fields
+  produce inconsistent results. Simplify where you can.
 - **Raw text is always available.** Even with `response_schema`, the raw
   model response is in `result["answers"]`. Useful for debugging when the
   structured output doesn't match expectations.
@@ -228,9 +227,9 @@ downstream decisions.
   fields). Domain rules like "year must be between 1900 and 2026" belong in
   your code after extraction.
 - **Tighten schemas iteratively.** Start with required fields and add
-  constraints (enums, length limits) as you learn edge cases from real output.
-  Make the prompt demand specificity — "source-labeled bullets with concrete
-  facts" works better than "summarize".
+  constraints (enums, length limits) as you learn edge cases from real
+  output. Make the prompt demand specificity: "source-labeled bullets with
+  concrete facts" beats "summarize".
 
 ---
 

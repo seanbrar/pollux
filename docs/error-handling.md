@@ -7,12 +7,12 @@
 
 # Handling Errors and Recovery
 
-You want your Pollux-based pipeline to handle failures gracefully — retrying
-what's transient, skipping what's broken, and logging enough to diagnose
-issues later.
+You want your Pollux-based pipeline to handle failures gracefully. Retry
+what's transient, skip what's broken, and log enough to diagnose issues
+later.
 
 At the API level, LLM provider calls can fail for many reasons: invalid
-credentials, rate limits, malformed input, server errors, or unsupported
+credentials, rate limits, malformed input, server errors, unsupported
 feature combinations. An orchestration layer needs a structured way to
 surface these failures so your code can make informed recovery decisions
 without parsing error strings.
@@ -58,26 +58,26 @@ strings.
 
 ## Failure Triage
 
-Use this order when debugging — most failures resolve by step 2.
+Use this order when debugging. Most failures resolve by step 2.
 
-1. **Auth and mode check** — Is `use_mock` what you expect? For real mode,
+1. **Auth and mode check.** Is `use_mock` what you expect? For real mode,
    ensure the matching key exists (`GEMINI_API_KEY` or `OPENAI_API_KEY`).
 
-2. **Provider/model pairing** — Verify the model belongs to the selected
+2. **Provider/model pairing.** Verify the model belongs to the selected
    provider. Re-run a minimal prompt after fixing any mismatch.
 
-3. **Unsupported feature** — Compare your options against
+3. **Unsupported feature.** Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
    `delivery_mode="deferred"` is reserved. Conversation continuity
    and tool calling are supported by both Gemini and OpenAI.
 
-4. **Source and payload** — Reduce to one source + one prompt and retry.
+4. **Source and payload.** Reduce to one source + one prompt and retry.
    For OpenAI remote URLs in v1.0, only PDF and image URLs are supported.
 
 ## Complete Production Example
 
 A production wrapper that processes files with category-specific error
-handling, structured logging, and a summary report.
+handling, structured logging, and a summary report:
 
 ```python
 import asyncio
@@ -188,11 +188,11 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
    diagnosis.
 
 3. **Abort on configuration errors.** `ConfigurationError` means the setup
-   is wrong (missing API key, unsupported feature). Retrying won't help —
-   re-raise to abort the pipeline.
+   is wrong (missing API key, unsupported feature). Retrying won't help.
+   Re-raise to abort the pipeline.
 
-4. **Skip on source errors.** `SourceError` means a specific input is
-   invalid (file not found, bad format). Skip the file and continue.
+4. **Skip on source errors.** `SourceError` means a specific input is bad
+   (file not found, unreadable format). Skip the file and continue.
 
 5. **Log and continue on API errors.** `APIError` and `RateLimitError` mean
    Pollux already retried internally. At the workflow level, log the failure
@@ -208,7 +208,7 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 | `ConfigurationError` mentioning `delivery_mode` | `"deferred"` is reserved | Use `delivery_mode="realtime"` (default) |
 | `status: "partial"` | Some prompts returned empty answers | Check individual entries in `answers` to identify which prompts failed |
 | Remote source rejected | Unsupported MIME type on OpenAI | In v1.0, OpenAI remote URL support is limited to PDFs and images |
-| Keys show as `***redacted***` | Intentional redaction | Your key is still being used — `Config` hides it from string representations |
+| Keys show as `***redacted***` | Intentional redaction | Your key is still being used. `Config` hides it from string representations |
 | Import errors | Missing dependencies | Use Python `>=3.10,<3.15` with `uv sync --all-extras` |
 
 ## Variations
@@ -248,8 +248,8 @@ except APIError as exc:
 
 ### Circuit breaker
 
-Stop processing when errors accumulate — a sign of a systemic issue rather
-than isolated bad files:
+Stop processing when errors pile up. Consecutive failures usually mean
+a systemic issue, not isolated bad files:
 
 ```python
 MAX_CONSECUTIVE_FAILURES = 3
@@ -280,7 +280,7 @@ async def process_with_circuit_breaker(
 ### Distinguishing `status: "partial"` from exceptions
 
 Not all problems are exceptions. A `status: "partial"` result means some
-prompts in a `run_many()` call returned empty answers — the call succeeded
+prompts in a `run_many()` call returned empty answers. The call succeeded
 but the output is incomplete:
 
 ```python
@@ -303,8 +303,9 @@ elif result["status"] == "error":
 
 ### Durable Pipelines with Resume-on-Failure
 
-For long-running jobs where partial failures are expected, persist a manifest
-that tracks per-item status so retries process only unfinished or failed items:
+For long-running jobs where partial failures are expected, persist a
+manifest that tracks per-item status. Retries then process only unfinished
+or failed items:
 
 ```json
 {
@@ -329,24 +330,25 @@ python -m cookbook production/resume-on-failure \
 ## What to Watch For
 
 - **Pollux retries internally; you retry at the workflow level.** Don't
-  wrap `run()` in a retry loop for transient errors — `RetryPolicy` already
+  wrap `run()` in a retry loop for transient errors. `RetryPolicy` already
   handles that. Your retries are for workflow-level decisions.
 - **`ConfigurationError` is never transient.** Missing API keys, unsupported
-  features, and invalid config won't fix themselves. Abort and fix the config.
+  features, invalid config. These won't fix themselves. Abort and fix the
+  config.
 - **`RateLimitError` means retries were exhausted.** Pollux already waited
   and retried. If you still get `RateLimitError`, reduce concurrency or add
   a longer backoff at the workflow level.
 - **Check `result["status"]` even on success.** A successful call can return
   `"partial"` status with some empty answers. Don't assume all answers are
-  populated because no exception was raised.
+  populated just because no exception was raised.
 - **Don't catch `Exception` when you mean `PolluxError`.** Catching too
-  broadly hides bugs in your own code. Catch `PolluxError` for Pollux-specific
-  failures and let other exceptions propagate.
+  broadly hides bugs in your own code. Catch `PolluxError` for
+  Pollux-specific failures; let everything else propagate.
 
 ---
 
-For the full configuration reference — including `RetryPolicy` fields, mock
-mode, and API key resolution — see [Configuring Pollux](configuration.md).
+For the full configuration reference (including `RetryPolicy` fields, mock
+mode, and API key resolution), see [Configuring Pollux](configuration.md).
 
 ## Still Stuck?
 

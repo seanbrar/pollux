@@ -8,8 +8,8 @@
 
 # Core Concepts
 
-Before diving into Pollux's API, it helps to understand the LLM ecosystem
-concepts that shape its design. This page explains those concepts first, then
+Before touching the API, it helps to understand the LLM ecosystem concepts
+that shaped Pollux's design. This page covers those concepts first, then
 shows how Pollux implements them.
 
 ## What Is LLM Orchestration?
@@ -25,8 +25,8 @@ everything that follows.
 
 Modern LLMs are not text-only. A **multimodal** model can process PDFs,
 images, video frames, and audio alongside text. Sending multimodal content
-through an API requires uploading or referencing binary data, specifying
-MIME types, and handling provider-specific encoding — all of which adds
+through an API means uploading or referencing binary data, specifying MIME
+types, and handling provider-specific encoding. All of that adds
 complexity to what would otherwise be a prompt-completion call.
 
 ### Structured Outputs
@@ -47,11 +47,11 @@ it into its next response. This is the foundation of agent loops.
 Tool calling follows a cooperative model: the model *proposes* actions, and
 your code *disposes* of them. The interaction has three stages:
 
-1. **Definition** — you declare tool schemas (name, description, parameters)
+1. **Definition:** you declare tool schemas (name, description, parameters)
    alongside the prompt.
-2. **Call request** — the model responds with a structured tool-call object
+2. **Call request:** the model responds with a structured tool-call object
    instead of (or alongside) text.
-3. **Result return** — your code executes the function and feeds the output
+3. **Result return:** your code executes the function and feeds the output
    back as a tool-result message for the next turn.
 
 This boundary is what makes agent loops safe: the model never executes code
@@ -60,51 +60,50 @@ directly. It can only ask, and your code decides whether and how to comply.
 ### Multi-Turn Conversations
 
 A single prompt-completion exchange is stateless. **Multi-turn conversations**
-maintain context across exchanges by passing conversation history — previous
-user messages, assistant responses, and tool results — back to the model with
+maintain context across exchanges by passing conversation history (previous
+user messages, assistant responses, and tool results) back to the model with
 each new prompt. The model itself stores nothing between calls; your code (or
 your orchestration layer) is responsible for carrying state forward.
 
 Because the full history is sent with every turn, the token cost of a
 conversation grows with each exchange. A 20-turn conversation re-sends the
-first 19 turns every time. Managing this growth — through truncation,
-summarization, or selective inclusion — is an application-level concern, not
+first 19 turns every time. Managing this growth (through truncation,
+summarization, or selective inclusion) is an application-level concern, not
 something the model or the orchestration layer handles automatically.
 
 ### Context Caching
 
 When you ask multiple questions about the same document, the naive approach
 re-uploads the entire document with each prompt. **Context caching** uploads
-content once and assigns it a reference that subsequent calls can reuse —
+content once and assigns it a reference that subsequent calls can reuse,
 avoiding redundant data transfer and reducing token costs proportionally.
 
-The economics are straightforward: providers charge per input token, and
-multimodal content (video, long PDFs, image sets) can consume hundreds of
+The economics are simple. Providers charge per input token, and multimodal
+content (video, long PDFs, image sets) can consume hundreds of
 thousands of tokens. Without caching, a fan-out workload with 10 prompts on a
 1-hour video pays for the video's tokens 10 times. With caching, it pays once
 for the upload and a smaller reference cost per subsequent call.
 
-At the API level, caching works by replacing raw content with a content
-reference — a provider-assigned identifier that points to previously uploaded
-data. Cache identity is typically keyed on the content hash, so renaming a
-file or changing the prompt does not invalidate the cache; only changing the
-content itself does.
+At the API level, caching replaces raw content with a provider-assigned
+identifier that points to previously uploaded data. Cache identity is keyed
+on the content hash. Rename the file, change the prompt: the cache survives.
+Only changing the content itself invalidates it.
 
 ### Source Patterns
 
 When analysis scales beyond a single prompt and source, three structural
 patterns emerge:
 
-- **Fan-out** — one source, many prompts. Upload an artifact once, ask
+- **Fan-out:** one source, many prompts. Upload an artifact once, ask
   multiple questions about it.
-- **Fan-in** — many sources, one prompt. Synthesize across multiple artifacts
+- **Fan-in:** many sources, one prompt. Synthesize across multiple artifacts
   with a single question.
-- **Broadcast** — many sources, many prompts. Apply the same analysis template
+- **Broadcast:** many sources, many prompts. Apply the same analysis template
   across multiple sources.
 
 These patterns describe the *shape* of work, not the implementation. An
-orchestration layer can optimize for each shape differently (reusing uploads
-in fan-out, parallelizing calls in broadcast).
+orchestration layer optimizes for each shape differently: reusing uploads
+in fan-out, parallelizing calls in broadcast.
 
 ### Reasoning Modes
 
@@ -140,8 +139,8 @@ provider calls concurrently.
 [`ResultEnvelope`](sending-content.md#resultenvelope-reference) with
 `answers`, optional `structured` data, and `usage` metadata.
 
-This separation lets Pollux support multimodal inputs and provider differences
-without forcing callers to reimplement orchestration logic.
+This separation is what lets Pollux handle multimodal inputs and provider
+differences without forcing callers to reimplement orchestration logic.
 
 ### Source Patterns in Pollux
 
@@ -171,7 +170,7 @@ graph LR
 ```
 
 Synthesize across multiple artifacts with a single question. The prompt
-stays stable while sources vary, keeping comparisons objective.
+stays stable while sources vary. Keeps comparisons objective.
 
 #### Broadcast: many sources, many prompts
 
@@ -186,7 +185,7 @@ graph LR
 ```
 
 Apply the same analysis template across multiple sources. Consistent prompts
-make output comparison and post-processing straightforward.
+make output comparison and post-processing predictable.
 
 ## Where Pollux Ends and You Begin
 
@@ -206,9 +205,10 @@ leaves domain-level decisions and workflow orchestration to your code.
 | **Concurrency** | Parallelizing across files or workflows | Concurrent API calls within a single `run_many()` |
 | **Output validation** | Domain-specific checks on answers | Structured parsing via `response_schema` |
 
-This boundary is intentional. By keeping workflow orchestration in your code,
-Pollux avoids imposing opinions about loop structures, error policies, or
-aggregation formats that vary across use cases.
+This boundary is intentional. Keeping workflow orchestration in your code
+means Pollux never imposes opinions about loop structures, error policies,
+or aggregation formats. Those vary too much across use cases to get right
+in a library.
 
 ---
 

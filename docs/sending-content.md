@@ -5,10 +5,9 @@
 
 # Sending Content to Models
 
-You want to send content — text, files, videos, or structured data — to an
-LLM and get answers back. This page covers the three things you need to know:
-how to wrap your input as a `Source`, which entry point to call, and how to
-read the result.
+You want to send content (text, files, videos, or structured data) to an
+LLM and get answers back. Three things to know: how to wrap your input as
+a `Source`, which entry point to call, and how to read the result.
 
 !!! info "Boundary"
     **Pollux owns:** uploading and caching source content, attaching it to
@@ -53,21 +52,21 @@ class UserProfile(BaseModel):
 profile = Source.from_json(UserProfile(name="Alice", preferences=["concise", "formal"]))
 ```
 
-`from_json` is useful when you want to pass structured application data — API
-responses, database records, or configuration objects — as context alongside
+`from_json` is useful when you want to pass structured application data (API
+responses, database records, or configuration objects) as context alongside
 a prompt, without manually serializing to a string.
 
 Pollux accepts PDFs, images, video, audio, and text files through the same
-interface. The source type is detected from the file extension or MIME type —
+interface. The source type is detected from the file extension or MIME type;
 you do not need to specify format-specific options. For media sources (images,
 video, audio), keep prompts concrete: ask for objects, attributes, timestamps,
 or quoted text rather than open-ended descriptions.
 
 ## Single Prompt: `run()`
 
-Let's start with the simplest case: one prompt, one source, one answer. Use
-`run()` when you have one prompt and at most one source — this is the place to
-tune prompt quality before scaling.
+Start with the simplest case: one prompt, one source, one answer.
+`run()` takes one prompt and at most one source. Use it to tune prompt
+quality before scaling up.
 
 ```python
 import asyncio
@@ -111,11 +110,10 @@ The paper concludes that context caching reduces repeated token cost by up to
 
 ## Multiple Prompts: `run_many()`
 
-Now that you can send a single prompt, let's scale up. `run_many()` handles
-multiple prompts and sources — with upload reuse, concurrency, and cache
-identity managed automatically. This is where source patterns (fan-out,
-fan-in, broadcast) come into play — see
-[Analyzing Collections with Source Patterns](source-patterns.md) for
+Now scale up. `run_many()` handles multiple prompts and sources, with
+upload reuse, concurrency, and cache identity managed automatically. This
+is where source patterns (fan-out, fan-in, broadcast) come into play.
+See [Analyzing Collections with Source Patterns](source-patterns.md) for
 collection-level workflows.
 
 ```python
@@ -159,9 +157,9 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 | Many questions across many sources | `run_many()` | Broadcast pattern |
 | Returning tool results to the model | `continue_tool()` | Feeds tool outputs back into the conversation |
 
-Rule of thumb: if prompts or sources are plural, use `run_many()`.
+Rule of thumb: if prompts or sources are plural, reach for `run_many()`.
 
-`continue_tool()` is a specialized entry point for agent loops — it takes a
+`continue_tool()` is a specialized entry point for agent loops. It takes a
 previous `ResultEnvelope` containing tool calls and your tool results, and
 returns the model's next response. See
 [Feeding Tool Results Back with `continue_tool()`](conversations-and-agents.md#feeding-tool-results-back-with-continue_tool)
@@ -173,8 +171,8 @@ workloads because it shares uploads and runs prompts concurrently.
 
 ## ResultEnvelope Reference
 
-Every `run()` and `run_many()` call returns a `ResultEnvelope` — a dict with a
-stable shape that works the same regardless of provider. Here are all fields:
+Every `run()` and `run_many()` call returns a `ResultEnvelope`: a dict with
+a stable shape that works the same regardless of provider. All fields:
 
 | Field | Type | Always present | Description |
 |---|---|---|---|
@@ -202,7 +200,7 @@ Example of a complete envelope:
 
 ## Notes
 
-- Conversation continuity (`history`, `continue_from`) supports one
+- Conversation continuity (`history`, `continue_from`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
 - `delivery_mode="deferred"` remains reserved and disabled.

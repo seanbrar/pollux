@@ -7,19 +7,19 @@
 # Continuing Conversations Across Turns
 
 You want a model that remembers prior exchanges, or one that calls tools and
-reasons over the results. This page covers the conversation mechanics —
+reasons over the results. This page covers the conversation mechanics:
 carrying context forward, injecting history, and setting up tool calling.
 
 The complete agent loop that brings these pieces together lives on the
 next page: [Building an Agent Loop](agent-loop.md).
 
-At the API level, LLMs are stateless — each call is independent. Multi-turn
+At the API level, LLMs are stateless. Each call is independent. Multi-turn
 conversations work by passing the full conversation history (previous user
 messages, assistant responses, and tool results) back to the model with each
-new prompt. The model itself stores nothing between calls; your code is
-responsible for carrying state forward. Tool calling extends this further: the
-model can request actions from your code mid-conversation, and you execute
-them and feed results back for the next turn.
+new prompt. The model stores nothing between calls; your code carries state
+forward. Tool calling extends this: the model can request actions from your
+code mid-conversation, and you execute them and feed results back for the
+next turn.
 
 !!! info "Boundary"
     **Pollux owns:** delivering tool definitions to the provider, surfacing
@@ -66,8 +66,8 @@ dictionary manipulation.
 
 ## Using `history` for Manual Control
 
-If you need to inject mid-conversation context, groom old context out to save
-tokens, or resume a chat from a database, `continue_from` is insufficient.
+If you need to inject mid-conversation context, groom old context out to
+save tokens, or resume a chat from a database, `continue_from` won't cut it.
 
 Instead, pass an explicit `history` list of dictionaries containing `role`
 and `content`:
@@ -126,7 +126,7 @@ result = await run(
 Pollux passes tool definitions to providers and surfaces tool call responses
 in the result envelope.
 
-**Defining tools** — pass a list of tool schemas in `Options.tools`:
+**Defining tools:** pass a list of tool schemas in `Options.tools`:
 
 ```python
 from pollux import Options
@@ -146,7 +146,7 @@ options = Options(
 )
 ```
 
-**Reading tool calls** — when the model invokes tools, the result envelope
+**Reading tool calls:** when the model invokes tools, the result envelope
 includes a `tool_calls` field:
 
 ```python
@@ -188,8 +188,9 @@ round of `tool_calls` (if the model needs more data) or a final text answer.
 
 ## What to Watch For
 
-- **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of lists —
-  one list per prompt. For `run()` (single prompt), access `result["tool_calls"][0]`.
+- **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of
+  lists, one per prompt. For `run()` (single prompt), access
+  `result["tool_calls"][0]`.
 - **Conversation continuity requires one prompt.** Both `history` and
   `continue_from` work with single-prompt `run()` calls, not `run_many()`.
 - **Provider differences exist.** Both Gemini and OpenAI support tool calling

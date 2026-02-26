@@ -7,8 +7,8 @@
 # Analyzing Collections with Source Patterns
 
 You have a directory of files and want to run the same analysis across all of
-them, or synthesize across multiple sources, or both. This page shows how to
-structure that work. Pollux handles each file's API calls; your code owns
+them, or synthesize across multiple sources, or both. This page shows how
+to structure that work. Pollux handles each file's API calls. Your code owns
 iteration, concurrency, and aggregation.
 
 Source patterns describe the relationship between sources and prompts:
@@ -31,13 +31,13 @@ graph LR
     end
 ```
 
-- **Fan-out** — one source, many prompts. Upload an artifact once, ask
+- **Fan-out:** one source, many prompts. Upload an artifact once, ask
   multiple questions. Context caching pays off here.
-- **Fan-in** — many sources, one prompt. Synthesize across artifacts with a
+- **Fan-in:** many sources, one prompt. Synthesize across artifacts with a
   single question. Useful for comparisons and cross-document analysis.
-- **Broadcast** — many sources × many prompts. Apply the same analysis
+- **Broadcast:** many sources × many prompts. Apply the same analysis
   template across a collection. Consistent prompts make output comparison
-  straightforward.
+  predictable.
 
 !!! info "Boundary"
     **Pollux owns:** source upload, context caching, concurrent API calls
@@ -120,7 +120,7 @@ asyncio.run(process_directory("./papers"))
 
 1. **Define stable prompts.** `PROMPTS` is a module-level list of questions
    applied to every file. Keeping prompts constant across files makes output
-   comparison and post-processing straightforward.
+   comparison and post-processing predictable.
 
 2. **Write `analyze_file`.** This function wraps a single file as a `Source`
    and calls `run_many()` with the shared prompts. Pollux handles upload,
@@ -128,14 +128,14 @@ asyncio.run(process_directory("./papers"))
 
 3. **Iterate in the outer loop.** `process_directory` discovers files and calls
    `analyze_file` for each one. The outer loop owns file discovery, ordering,
-   and result aggregation — concerns Pollux deliberately leaves to your code.
+   and result aggregation, concerns Pollux deliberately leaves to your code.
 
 4. **Handle failures per file.** Each `analyze_file` call is wrapped in a
    try/except. A bad PDF or a rate-limit exhaustion skips one file without
    aborting the entire run.
 
-That's the complete pattern. You wrote the outer loop, Pollux handled the API
-calls within each iteration, and the result is a structured summary per file.
+That's the complete pattern. You wrote the outer loop. Pollux handled the
+API calls within each iteration. The result is a structured summary per file.
 Every variation below builds on this same two-level structure.
 
 ## Fan-in: Synthesizing Across Sources
@@ -157,12 +157,12 @@ async def synthesize_collection(directory: str, question: str) -> str:
     return result["answers"][0]
 ```
 
-This sends all sources to the model in one call — useful for comparative
-questions like "Which paper has the strongest methodology?" or "What themes
+This sends all sources to the model in one call. Useful for comparative
+questions: "Which paper has the strongest methodology?" or "What themes
 appear across all documents?"
 
 For structured comparisons with typed output (similarities, differences,
-strengths), combine fan-in with a `response_schema` — see
+strengths), combine fan-in with a `response_schema`. See
 [Extracting Structured Data](structured-data.md).
 
 ## Concurrent File Processing
@@ -191,7 +191,7 @@ async def process_directory_concurrent(directory: str) -> list[dict]:
 
 Pollux already limits concurrent API calls *within* each `run_many()` via
 `Config.request_concurrency`. The semaphore here controls how many *files*
-are processed simultaneously — a separate concern. Start conservative (2-4
+are processed simultaneously (a separate concern). Start conservative (2-4
 concurrent files) and ramp up until reliability drops.
 
 ## Writing Results to JSONL
@@ -218,23 +218,23 @@ async def process_to_jsonl(directory: str, output: str) -> None:
 
 ## What to Watch For
 
-- **Fan-out per file vs fan-in across files.** The complete example uses
-  fan-out (one file, many prompts). The fan-in variation reverses this.
-  Choose based on whether your question is about individual files or the
+- **Fan-out per file vs. fan-in across files.** The complete example uses
+  fan-out (one file, many prompts). The fan-in variation reverses that.
+  Pick based on whether your question targets individual files or the
   collection as a whole.
 - **Semaphore vs `request_concurrency`.** Pollux's `request_concurrency`
   controls API calls within a single `run_many()`. Your semaphore controls
   how many files process simultaneously. Both matter for rate limits.
-- **Partial failures are normal.** Large collections will have occasional
-  failures — bad PDFs, rate limits that exhaust retries, timeouts. Design
+- **Partial failures are normal.** Large collections will hit occasional
+  failures: bad PDFs, exhausted rate limits, timeouts. Design
   your aggregation to handle `status: "error"` entries. See
   [Handling Errors and Recovery](error-handling.md) for production patterns.
 - **Memory with large collections.** Each `Source.from_file()` reads the
   file for hashing. For very large collections, process in batches rather
   than loading all sources at once.
 - **Caching helps fan-out, not iteration.** `enable_caching=True` saves
-  tokens when the *same source* is reused across multiple prompts. It does
-  not help when each file is different — see
+  tokens when the *same source* gets reused across multiple prompts. It
+  does not help when each file is different. See
   [Reducing Costs with Context Caching](caching.md).
 
 ---
