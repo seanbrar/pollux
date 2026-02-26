@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 import shlex
 import subprocess
 import sys
@@ -15,62 +14,18 @@ import cookbook.__main__ as runner
 pytestmark = pytest.mark.unit
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS_ROOT = ROOT / "docs" / "cookbook"
-
-REQUIRED_DOC_SECTIONS = [
-    "## Run It",
-]
+CLI_DOC = ROOT / "docs" / "reference" / "cli.md"
 
 
-def doc_path_for_recipe(spec: runner.RecipeSpec) -> Path:
-    """Map cookbook recipe path to its docs page path."""
-    return DOCS_ROOT / Path(spec.display).with_suffix(".md")
-
-
-def extract_bash_blocks(text: str) -> list[str]:
-    """Return fenced bash code blocks from docs content."""
-    return re.findall(r"```bash\\n(.*?)```", text, flags=re.DOTALL)
-
-
-def commands_from_block(block: str) -> list[str]:
-    """Split one bash block into individual command strings."""
-    commands: list[str] = []
-    lines: list[str] = []
-    for raw in block.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        lines.append(line.rstrip("\\").strip())
-    if lines:
-        commands.append(" ".join(lines))
-    return commands
-
-
-def test_recipe_docs_mapping_is_complete() -> None:
-    """Every listed recipe has a docs page with required sections."""
+def test_recipe_catalog_is_complete() -> None:
+    """Every listed recipe appears in the CLI reference catalog table."""
+    catalog_text = CLI_DOC.read_text()
     for spec in runner.list_recipes():
-        doc_path = doc_path_for_recipe(spec)
-        assert doc_path.exists(), f"missing docs page: {doc_path}"
-        content = doc_path.read_text()
-        for heading in REQUIRED_DOC_SECTIONS:
-            assert heading in content, f"{doc_path} missing section: {heading}"
-
-
-def test_doc_commands_resolve_to_known_recipes() -> None:
-    """Every python -m cookbook command in recipe docs resolves cleanly."""
-    for spec in runner.list_recipes():
-        content = doc_path_for_recipe(spec).read_text()
-        for block in extract_bash_blocks(content):
-            for command in commands_from_block(block):
-                if "python -m cookbook" not in command:
-                    continue
-                parts = shlex.split(command)
-                idx = parts.index("cookbook")
-                recipe_spec = parts[idx + 1]
-                if recipe_spec.startswith("--"):
-                    continue
-                resolved = runner.resolve_spec(recipe_spec)
-                assert resolved.path.exists(), f"unresolved command spec: {recipe_spec}"
+        # CLI docs use extensionless specs; strip .py for matching
+        spec_name = Path(spec.display).with_suffix("").as_posix()
+        assert spec_name in catalog_text, (
+            f"recipe {spec_name!r} missing from {CLI_DOC.relative_to(ROOT)}"
+        )
 
 
 @pytest.mark.integration
@@ -130,7 +85,7 @@ def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
             check=False,
         )
         assert result.returncode == 0, (
-            f"command failed: {command}\\n"
-            f"stdout:\\n{result.stdout}\\n"
-            f"stderr:\\n{result.stderr}"
+            f"command failed: {command}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
         )

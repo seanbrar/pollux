@@ -1,7 +1,22 @@
-# Caching and Efficiency
+<!-- Intent: Teach context caching mechanics: the redundant-context problem,
+     enabling caching, cache identity, TTL tuning, and when caching pays off.
+     Do NOT cover source patterns or structured output in depth — link to those
+     pages. Assumes the reader understands run_many() and fan-out workflows.
+     Register: conceptual opening → guided applied. -->
+
+# Reducing Costs with Context Caching
 
 Pollux's context caching uploads content once and reuses it across prompts,
 turning redundant re-uploads into cheap cache references.
+
+!!! info "Boundary"
+    **Pollux owns:** computing cache identity from content hashes, creating
+    and reusing cached context on the provider, single-flight deduplication,
+    and TTL management.
+
+    **You own:** deciding when caching is worth the overhead, tuning TTL to
+    match your reuse window, and keeping prompts and sources stable between
+    runs when comparing warm vs reuse behavior.
 
 ## The Redundant-Context Problem
 
@@ -14,8 +29,8 @@ Question 2: [video tokens] + [question 2] → [answer 2]
 Question 3: [video tokens] + [question 3] → [answer 3]
 ```
 
-For a 1-hour video (~946,800 tokens), asking 5 questions means transmitting
-~4.7M input tokens — even though the video content is identical each time.
+For a 1-hour video (~946,800 tokens), five questions means transmitting
+~4.7M input tokens. The video content is identical each time.
 
 With caching:
 
@@ -60,6 +75,8 @@ More questions on the same content = greater savings.
 
 ## Enabling Caching
 
+Let's see this in practice. Two flags in `Config` control caching:
+
 ```python
 import asyncio
 from pollux import Config, Source, run_many
@@ -72,7 +89,10 @@ async def main() -> None:
         ttl_seconds=3600,
     )
     prompts = ["Summarize in one sentence.", "List 3 keywords."]
-    sources = [Source.from_text("Caching demo: shared context text.")]
+    sources = [Source.from_text(
+        "ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), "
+        "operating margin 18.5%, guidance raised for Q4."
+    )]
 
     first = await run_many(prompts=prompts, sources=sources, config=config)
     second = await run_many(prompts=prompts, sources=sources, config=config)
@@ -83,6 +103,23 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+### Step-by-Step Walkthrough
+
+1. **Set `enable_caching=True`.** This tells Pollux to upload content to the
+   provider's cache on the first call, rather than sending it inline.
+
+2. **Set `ttl_seconds`.** The TTL controls how long the cached content lives on
+   the provider. Match it to your reuse window. 3600s (1 hour) is a
+   reasonable default for interactive sessions.
+
+3. **Run the same sources with different prompts.** The first `run_many()` call
+   uploads the content and creates a cache entry. The second call detects the
+   same content hash and reuses the cached reference.
+
+4. **Verify with `metrics.cache_used`.** Check
+   `result["metrics"]["cache_used"]` on subsequent calls. `True` confirms
+   the provider served content from cache rather than re-uploading.
 
 Pollux computes cache identity from model + source content hash. The second
 call reuses the cached context automatically.
@@ -103,7 +140,7 @@ This means:
 ## Single-Flight Protection
 
 When multiple concurrent calls target the same cache key (common in fan-out
-workloads), Pollux deduplicates the creation call — only one coroutine performs
+workloads), Pollux deduplicates the creation call: only one coroutine performs
 the upload, and others await the same result. This eliminates duplicate uploads
 without requiring caller-side coordination.
 
@@ -117,13 +154,27 @@ Check `metrics.cache_used` on subsequent calls:
 Keep prompts and sources stable between runs when comparing warm vs reuse
 behavior. Usage counters are provider-dependent.
 
+## Tuning TTL
+
+The default TTL is 3600 seconds (1 hour). Tune `ttl_seconds` to match your
+expected reuse window:
+
+- **Too short:** the cache expires before you reuse it, wasting the
+  warm-up cost.
+- **Too long:** cached content lingers unnecessarily. No correctness
+  issues, but it consumes provider-side resources.
+
+For interactive workloads where you run a batch and then refine prompts within
+the same session, 3600s is a reasonable starting point. For one-shot scripts,
+shorter TTLs (300-600s) avoid lingering cache entries.
+
 ## When Caching Pays Off
 
 Caching is most effective when:
 
-- **Sources are large** — video, long PDFs, multi-image sets
-- **Prompt sets are repeated** — fan-out workflows with 3+ prompts per source
-- **Reuse happens within TTL** — default 3600s; tune via `ttl_seconds`
+- **Sources are large:** video, long PDFs, multi-image sets
+- **Prompt sets are repeated:** fan-out workflows with 3+ prompts per source
+- **Reuse happens within TTL:** default 3600s; tune via `ttl_seconds`
 
 Caching adds overhead for single-prompt, small-source calls. Start without
 caching and enable it when you see repeated context in your workload.
@@ -131,6 +182,12 @@ caching and enable it when you see repeated context in your workload.
 ## Provider Dependency
 
 Context caching is **Gemini-only** in v1.0. Enabling it with OpenAI raises
-a clear error. See
+an actionable error. See
 [Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.
+
+---
+
+For the full provider feature matrix and portability guidance, see
+[Provider Capabilities](reference/provider-capabilities.md) and
+[Writing Portable Code Across Providers](portable-code.md).

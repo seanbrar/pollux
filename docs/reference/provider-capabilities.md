@@ -7,7 +7,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 ## Policy
 
 - Provider feature parity is **not** required for release.
-- Unsupported features must fail fast with clear errors.
+- Unsupported features must fail fast with actionable errors.
 - New provider features do not require immediate cross-provider implementation.
 
 ## Capability Matrix (v1.2)
