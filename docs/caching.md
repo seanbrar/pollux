@@ -110,7 +110,7 @@ asyncio.run(main())
    provider's cache on the first call, rather than sending it inline.
 
 2. **Set `ttl_seconds`.** The TTL controls how long the cached content lives on
-   the provider. Match it to your reuse window — 3600s (1 hour) is a
+   the provider. Match it to your reuse window. 3600s (1 hour) is a
    reasonable default for interactive sessions.
 
 3. **Run the same sources with different prompts.** The first `run_many()` call
@@ -118,7 +118,7 @@ asyncio.run(main())
    same content hash and reuses the cached reference.
 
 4. **Verify with `metrics.cache_used`.** Check
-   `result["metrics"]["cache_used"]` on subsequent calls — `True` confirms
+   `result["metrics"]["cache_used"]` on subsequent calls. `True` confirms
    the provider served content from cache rather than re-uploading.
 
 Pollux computes cache identity from model + source content hash. The second
@@ -140,7 +140,7 @@ This means:
 ## Single-Flight Protection
 
 When multiple concurrent calls target the same cache key (common in fan-out
-workloads), Pollux deduplicates the creation call — only one coroutine performs
+workloads), Pollux deduplicates the creation call: only one coroutine performs
 the upload, and others await the same result. This eliminates duplicate uploads
 without requiring caller-side coordination.
 

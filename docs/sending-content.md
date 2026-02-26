@@ -172,7 +172,7 @@ workloads because it shares uploads and runs prompts concurrently.
 ## ResultEnvelope Reference
 
 Every `run()` and `run_many()` call returns a `ResultEnvelope`: a dict with
-a stable shape that works the same regardless of provider. All fields:
+a stable shape that works the same regardless of provider.
 
 | Field | Type | Always present | Description |
 |---|---|---|---|
@@ -180,10 +180,11 @@ a stable shape that works the same regardless of provider. All fields:
 | `answers` | `list[str]` | Yes | One string per prompt |
 | `structured` | `list[Any]` | Only with `response_schema` | Parsed objects matching your schema |
 | `reasoning` | `list[str \| None]` | No | Provider reasoning traces (when available) |
-| `confidence` | `float` | Yes | `0.9` for ok, `0.5` otherwise |
+| `tool_calls` | `list[list[dict]]` | Only with tool calling | Per-prompt list of tool-call requests. See [Conversations](conversations-and-agents.md) |
+| `confidence` | `float` | Yes | Heuristic: `0.9` for ok, `0.5` otherwise |
 | `extraction_method` | `str` | Yes | Always `"text"` in v1.0 |
 | `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`) |
-| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` |
+| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used`, `finish_reasons` |
 
 Example of a complete envelope:
 

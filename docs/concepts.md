@@ -78,7 +78,7 @@ re-uploads the entire document with each prompt. **Context caching** uploads
 content once and assigns it a reference that subsequent calls can reuse,
 avoiding redundant data transfer and reducing token costs proportionally.
 
-The economics are simple. Providers charge per input token, and multimodal
+The economics are direct. Providers charge per input token, and multimodal
 content (video, long PDFs, image sets) can consume hundreds of
 thousands of tokens. Without caching, a fan-out workload with 10 prompts on a
 1-hour video pays for the video's tokens 10 times. With caching, it pays once
@@ -107,7 +107,7 @@ in fan-out, parallelizing calls in broadcast.
 
 ### Reasoning Modes
 
-Some models support explicit **reasoning** — an extended thinking phase before
+Some models support explicit **reasoning**: an extended thinking phase before
 generating a response. When enabled via an effort control, the model's internal
 reasoning trace may be returned alongside the answer, allowing you to audit
 how it arrived at its conclusions. Support for reasoning varies by model
@@ -157,7 +157,7 @@ graph LR
 ```
 
 Upload one artifact and ask many questions about it. This is the strongest
-fit for context caching — the source is uploaded once and reused for every
+fit for context caching, since the source is uploaded once and reused for every
 prompt.
 
 #### Fan-in: many sources, one prompt
@@ -213,5 +213,5 @@ in a library.
 ---
 
 Now that you have the mental model, see
-[Sending Content to Models](sending-content.md) to start using the API — create
+[Sending Content to Models](sending-content.md) to start using the API: create
 sources, call `run()`, and read results.

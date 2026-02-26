@@ -340,7 +340,7 @@ python -m cookbook production/resume-on-failure \
   a longer backoff at the workflow level.
 - **Check `result["status"]` even on success.** A successful call can return
   `"partial"` status with some empty answers. Don't assume all answers are
-  populated just because no exception was raised.
+  populated because no exception was raised.
 - **Don't catch `Exception` when you mean `PolluxError`.** Catching too
   broadly hides bugs in your own code. Catch `PolluxError` for
   Pollux-specific failures; let everything else propagate.

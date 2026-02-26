@@ -8,11 +8,11 @@
 
 # Building an Agent Loop
 
-This is where everything comes together. We're going to build a complete
-agent, a program that reasons, calls tools, reads results, and decides what
-to do next, using the primitives you've already learned.
+We're going to build a complete agent: a program that reasons, calls tools,
+reads results, and decides what to do next. Everything on this page uses
+primitives you've already learned.
 
-By the end of this page, you'll have a working agent loop and a clear
+By the end of this page, you'll have a working agent loop and an
 understanding of *why* it's built this way.
 
 !!! info "Boundary"

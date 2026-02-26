@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for considering a contribution to Pollux. Whether it's a bug fix, a
-new cookbook recipe, or a docs improvement — small, focused changes with
+new cookbook recipe, or a docs improvement, small, focused changes with
 focused rationale are what move this project forward.
 
 ## Development Setup

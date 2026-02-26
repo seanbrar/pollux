@@ -44,8 +44,8 @@ pip install pollux-ai
 - [Agent Loop](agent-loop.md)
 - [Context Caching](caching.md)
 - [Portable Code](portable-code.md)
-- [Configuration](configuration.md)
 - [Error Handling](error-handling.md)
+- [Configuration](configuration.md)
 - [API Reference](reference/api.md)
 
 ---
