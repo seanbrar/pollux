@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.2.0] - 2026-02-26
+
+### Added
+
+- Introduce continue_tool and fix continuation turn order mechanics ([`f1bd41c`](https://github.com/seanbrar/pollux/commit/f1bd41cc9ff10d67373ef9a1c418998f2ab715b3))
+- Add reasoning/thinking support ([`a25a5f2`](https://github.com/seanbrar/pollux/commit/a25a5f291841ffc6af01b16a0b082065945c049c))
+- Add Gemini conversation support and tool message pass-through (#118) ([`a32e32a`](https://github.com/seanbrar/pollux/commit/a32e32a6793562ce1c4309e2593e9f3db73ffb0b))
+- Add tool-call transparency in conversation history ([`10852e1`](https://github.com/seanbrar/pollux/commit/10852e18a817304bdf39fbca7ac984cce2211c27))
+- Add tool calling, generation params, and Source.from_json() ([`5b43d00`](https://github.com/seanbrar/pollux/commit/5b43d0041cbcacfaa21d55b9c8e3fd0981760604))
+
+### Changed
+
+- Restructure documentation around domain concepts ([`453feef`](https://github.com/seanbrar/pollux/commit/453feef4ef28e5660b91608b34e3ac00682eadab))
+
 ## [1.1.0] - 2026-02-20
 
 ### Added
@@ -100,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.2.0]: https://github.com/seanbrar/pollux/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/seanbrar/pollux/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/seanbrar/pollux/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/seanbrar/pollux/compare/v0.8.0...v0.9.0
