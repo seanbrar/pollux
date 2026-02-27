@@ -470,11 +470,14 @@ class GeminiProvider:
                     )
                 )
 
-        reasoning_parts = []
         finish_reason: str | None = None
+        reasoning_parts: list[str] = []
         try:
             if hasattr(response, "candidates") and response.candidates:
                 candidate = response.candidates[0]
+                finish_reason = _normalize_finish_reason(
+                    getattr(candidate, "finish_reason", None)
+                )
                 content = candidate.content
                 if hasattr(content, "parts"):
                     for part in content.parts:
@@ -482,9 +485,6 @@ class GeminiProvider:
                             part, "text", None
                         ):
                             reasoning_parts.append(part.text)
-                raw_reason = getattr(candidate, "finish_reason", None)
-                if raw_reason is not None:
-                    finish_reason = str(raw_reason).lower()
         except Exception:
             reasoning_parts.clear()
 
@@ -497,3 +497,16 @@ class GeminiProvider:
             response_id=None,
             finish_reason=finish_reason,
         )
+
+
+def _normalize_finish_reason(raw_reason: Any) -> str | None:
+    """Normalize Gemini finish_reason to a lowercase string.
+
+    The google.genai FinishReason is a ``(str, Enum)`` whose ``.value`` is the
+    bare member name (e.g. ``"STOP"``).  For plain strings, ``getattr`` falls
+    through to the string itself.
+    """
+    if raw_reason is None:
+        return None
+    value = str(getattr(raw_reason, "value", raw_reason)).strip()
+    return value.lower() if value else None

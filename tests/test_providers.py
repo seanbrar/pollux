@@ -379,11 +379,13 @@ def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
 
 def test_gemini_parse_response_extracts_finish_reason() -> None:
     """Characterize finish_reason extraction from Gemini candidate."""
+    from google.genai import types as genai_types
+
     provider = GeminiProvider("test-key")
 
     fake_candidate = MagicMock()
     fake_candidate.content = MagicMock(parts=[])
-    fake_candidate.finish_reason = "STOP"
+    fake_candidate.finish_reason = genai_types.FinishReason.STOP
 
     fake_response = MagicMock()
     fake_response.text = "The answer."
@@ -700,12 +702,20 @@ async def _async_return(value: Any) -> Any:
 class _FakeResponses:
     """Captures kwargs passed to responses.create()."""
 
-    def __init__(self, *, status: str = "completed") -> None:
+    def __init__(
+        self, *, status: str = "completed", incomplete_reason: str | None = None
+    ) -> None:
         self.last_kwargs: dict[str, Any] | None = None
         self._status = status
+        self._incomplete_reason = incomplete_reason
 
     async def create(self, **kwargs: Any) -> Any:
         self.last_kwargs = kwargs
+        incomplete_details = (
+            type("IncompleteDetails", (), {"reason": self._incomplete_reason})()
+            if self._incomplete_reason is not None
+            else None
+        )
         return type(
             "Response",
             (),
@@ -715,6 +725,7 @@ class _FakeResponses:
                 "id": None,
                 "output": [],
                 "status": self._status,
+                "incomplete_details": incomplete_details,
             },
         )()
 
@@ -996,7 +1007,25 @@ async def test_openai_extracts_finish_reason_from_response_status() -> None:
 
 @pytest.mark.asyncio
 async def test_openai_extracts_incomplete_finish_reason() -> None:
-    """Incomplete status should be forwarded as-is."""
+    """Incomplete responses should prefer incomplete_details.reason."""
+    responses = _FakeResponses(
+        status="incomplete", incomplete_reason="max_output_tokens"
+    )
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    result = await provider.generate(
+        ProviderRequest(model=OPENAI_MODEL, parts=["Hello"])
+    )
+
+    assert result.finish_reason == "max_output_tokens"
+
+
+@pytest.mark.asyncio
+async def test_openai_falls_back_to_incomplete_status_without_reason() -> None:
+    """Incomplete status should be used when no incomplete reason is provided."""
     responses = _FakeResponses(status="incomplete")
     fake_client = type("Client", (), {"responses": responses})()
 

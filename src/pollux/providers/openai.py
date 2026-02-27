@@ -210,11 +210,7 @@ class OpenAIProvider:
         response = await client.responses.create(**create_kwargs)
         text = getattr(response, "output_text", "") or ""
         response_id = getattr(response, "id", None)
-        finish_reason = getattr(response, "status", None)
-        if isinstance(finish_reason, str):
-            finish_reason = finish_reason.lower()
-        else:
-            finish_reason = None
+        finish_reason = _extract_finish_reason(response)
         structured: Any = None
         if response_schema is not None and text:
             try:
@@ -348,6 +344,28 @@ def _to_openai_strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(result, dict):
         raise APIError("Invalid response_schema: expected object schema")
     return result
+
+
+def _extract_finish_reason(response: Any) -> str | None:
+    """Extract OpenAI finish reason, preferring incomplete_details.reason.
+
+    The Responses API exposes ``response.status`` (a string like "completed" or
+    "incomplete") and, when incomplete, an ``IncompleteDetails`` model with a
+    ``.reason`` field ("max_output_tokens" or "content_filter").  We surface
+    the specific reason when available so callers get the actionable root cause.
+    """
+    status = getattr(response, "status", None)
+    if not isinstance(status, str):
+        return None
+
+    normalized_status = status.lower()
+    if normalized_status == "incomplete":
+        details = getattr(response, "incomplete_details", None)
+        reason = getattr(details, "reason", None) if details is not None else None
+        if isinstance(reason, str) and reason:
+            return reason.lower()
+
+    return normalized_status
 
 
 def _normalize_input_part(part: Any) -> dict[str, str] | None:
