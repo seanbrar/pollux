@@ -471,15 +471,20 @@ class GeminiProvider:
                 )
 
         reasoning_parts = []
+        finish_reason: str | None = None
         try:
             if hasattr(response, "candidates") and response.candidates:
-                content = response.candidates[0].content
+                candidate = response.candidates[0]
+                content = candidate.content
                 if hasattr(content, "parts"):
                     for part in content.parts:
                         if getattr(part, "thought", False) and getattr(
                             part, "text", None
                         ):
                             reasoning_parts.append(part.text)
+                raw_reason = getattr(candidate, "finish_reason", None)
+                if raw_reason is not None:
+                    finish_reason = str(raw_reason).lower()
         except Exception:
             reasoning_parts.clear()
 
@@ -490,4 +495,5 @@ class GeminiProvider:
             structured=structured,
             tool_calls=tool_calls if tool_calls else None,
             response_id=None,
+            finish_reason=finish_reason,
         )

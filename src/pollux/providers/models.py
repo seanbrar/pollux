@@ -53,3 +53,4 @@ class ProviderResponse:
     structured: dict[str, Any] | None = None
     tool_calls: list[ToolCall] | None = None
     response_id: str | None = None
+    finish_reason: str | None = None

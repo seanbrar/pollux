@@ -210,6 +210,11 @@ class OpenAIProvider:
         response = await client.responses.create(**create_kwargs)
         text = getattr(response, "output_text", "") or ""
         response_id = getattr(response, "id", None)
+        finish_reason = getattr(response, "status", None)
+        if isinstance(finish_reason, str):
+            finish_reason = finish_reason.lower()
+        else:
+            finish_reason = None
         structured: Any = None
         if response_schema is not None and text:
             try:
@@ -253,6 +258,7 @@ class OpenAIProvider:
             structured=structured,
             tool_calls=tool_calls if tool_calls else None,
             response_id=response_id if isinstance(response_id, str) else None,
+            finish_reason=finish_reason,
         )
 
     async def upload_file(self, path: Path, mime_type: str) -> str:

@@ -310,6 +310,8 @@ async def execute_plan(
                         ]
                     if resp.response_id is not None:
                         out["response_id"] = resp.response_id
+                    if resp.finish_reason is not None:
+                        out["finish_reason"] = resp.finish_reason
                     return out
 
                 except asyncio.CancelledError:
