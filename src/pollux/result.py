@@ -84,25 +84,10 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
     elif empty_count > 0:
         status = "partial"
 
-    # Extract finish reasons
-    finish_reasons: list[str | None] = []
-    for response in trace.responses:
-        reason = None
-        # OpenAI style
-        if (
-            "choices" in response
-            and isinstance(response["choices"], list)
-            and response["choices"]
-        ):
-            reason = response["choices"][0].get("finish_reason")
-        # Gemini style
-        elif (
-            "candidates" in response
-            and isinstance(response["candidates"], list)
-            and response["candidates"]
-        ):
-            reason = response["candidates"][0].get("finishReason")
-        finish_reasons.append(reason)
+    # Extract finish reasons forwarded from providers.
+    finish_reasons: list[str | None] = [
+        response.get("finish_reason") for response in trace.responses
+    ]
 
     envelope = ResultEnvelope(
         status=status,

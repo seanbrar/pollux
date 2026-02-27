@@ -1162,6 +1162,44 @@ async def test_result_status_classification(
 
 
 @pytest.mark.asyncio
+async def test_finish_reasons_forwarded_to_result_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider finish_reason should appear in metrics.finish_reasons."""
+    fake = ScriptedProvider(
+        script=[
+            ProviderResponse(
+                text="The answer.", usage={"total_tokens": 5}, finish_reason="stop"
+            ),
+        ]
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run("What?", config=cfg)
+
+    assert result["metrics"]["finish_reasons"] == ["stop"]
+
+
+@pytest.mark.asyncio
+async def test_finish_reasons_none_when_provider_omits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """finish_reasons should contain None when provider does not report it."""
+    fake = ScriptedProvider(
+        script=[
+            ProviderResponse(text="ok", usage={"total_tokens": 1}),
+        ]
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run("What?", config=cfg)
+
+    assert result["metrics"]["finish_reasons"] == [None]
+
+
+@pytest.mark.asyncio
 async def test_structured_validation_failure_returns_none_in_structured_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
