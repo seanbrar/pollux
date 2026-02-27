@@ -364,7 +364,11 @@ async def execute_plan(
                 if isinstance(v, int):
                     total_usage[k] = total_usage.get(k, 0) + v
 
-        if wants_conversation and responses:
+        # Build conversation state when either (a) the caller opted in via
+        # history/continue_from, or (b) the response contains tool calls that
+        # the caller may need to continue via continue_tool/continue_from.
+        has_tool_calls = bool(responses and responses[0].get("tool_calls"))
+        if (wants_conversation or has_tool_calls) and responses:
             prompt = (
                 prompts[0]
                 if isinstance(prompts[0], str)
