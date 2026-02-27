@@ -1225,6 +1225,67 @@ def test_history_still_rejects_items_without_role() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tool_call_response_populates_conversation_state_without_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """run() without history/continue_from must still populate _conversation_state
+    when the response contains tool calls, so continue_tool can work."""
+
+    @dataclass
+    class _ToolCallProvider(FakeProvider):
+        _capabilities: ProviderCapabilities = field(
+            default_factory=lambda: ProviderCapabilities(
+                caching=True,
+                uploads=True,
+                structured_outputs=False,
+                reasoning=False,
+                deferred_delivery=False,
+                conversation=True,
+            )
+        )
+
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            _ = request
+            return ProviderResponse(
+                text="",
+                tool_calls=[
+                    ToolCall(
+                        id="call_1", name="pick_color", arguments='{"color":"red"}'
+                    )
+                ],
+                response_id="resp_abc",
+            )
+
+    fake = _ToolCallProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    # No history, no continue_from — just tools
+    result = await pollux.run(
+        "Pick a color.",
+        config=cfg,
+        options=Options(tools=[{"name": "pick_color"}]),
+    )
+
+    # _conversation_state must be present and usable
+    state = result.get("_conversation_state")
+    assert isinstance(state, dict), (
+        "_conversation_state should be populated for tool-call responses"
+    )
+    assert "history" in state
+    assert state["history"][-1]["role"] == "assistant"
+    assert state["history"][-1]["tool_calls"] == [
+        {"id": "call_1", "name": "pick_color", "arguments": '{"color":"red"}'}
+    ]
+    assert state.get("response_id") == "resp_abc"
+
+    # The result should also have the tool_calls in the envelope
+    assert result.get("tool_calls") == [
+        [{"id": "call_1", "name": "pick_color", "arguments": '{"color":"red"}'}]
+    ]
+
+
+@pytest.mark.asyncio
 async def test_tool_calls_preserved_in_conversation_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
