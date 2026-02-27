@@ -150,18 +150,15 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         api_key_fixture=api_key_fixture,
         model_fixture=model_fixture,
     )
-    parameters: dict[str, Any] = {
-        "type": "object",
-        "properties": {"topic": {"type": "string"}},
-        "required": ["topic"],
-    }
-    if provider == "openai":
-        parameters["additionalProperties"] = False
     tools = [
         {
             "name": "get_secret",
             "description": "Return a code for a given topic.",
-            "parameters": parameters,
+            "parameters": {
+                "type": "object",
+                "properties": {"topic": {"type": "string"}},
+                "required": ["topic"],
+            },
         },
     ]
 

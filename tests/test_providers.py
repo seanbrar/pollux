@@ -526,6 +526,60 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
     assert tc.thinking_level.value == "LOW"
 
 
+@pytest.mark.asyncio
+async def test_gemini_strips_additional_properties_from_tool_schemas() -> None:
+    """Gemini rejects additionalProperties; Pollux should strip it."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(
+        *,
+        model: str,  # noqa: ARG001
+        contents: Any,  # noqa: ARG001
+        config: Any,
+    ) -> Any:
+        captured["config"] = config
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=["Pick a color"],
+            tools=[
+                {
+                    "name": "pick_color",
+                    "description": "Pick a color.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "color": {"type": "string", "enum": ["red", "blue"]},
+                        },
+                        "required": ["color"],
+                        "additionalProperties": False,
+                    },
+                }
+            ],
+            tool_choice="required",
+        )
+    )
+
+    config = captured["config"]
+    tool_decls = config.tools[0].function_declarations
+    assert len(tool_decls) == 1
+    params = tool_decls[0].parameters.model_dump(exclude_none=True)
+    assert "additional_properties" not in params
+    # Other fields should be preserved
+    assert "properties" in params
+    assert params["required"] == ["color"]
+
+
 # =============================================================================
 # Gemini Upload Behavior (Characterization)
 # =============================================================================
@@ -687,6 +741,79 @@ def test_openai_strict_schema_preserves_explicit_required_fields() -> None:
 
     assert strict["required"] == ["title"]
     assert strict["additionalProperties"] is False
+
+
+@pytest.mark.asyncio
+async def test_openai_normalizes_tool_parameters_for_strict_mode() -> None:
+    """Tool parameters should be auto-normalized when strict is true (default)."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Pick a color"],
+            tools=[
+                {
+                    "name": "pick_color",
+                    "description": "Pick a color.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "color": {"type": "string"},
+                        },
+                    },
+                }
+            ],
+            tool_choice="required",
+        )
+    )
+
+    assert responses.last_kwargs is not None
+    tool = responses.last_kwargs["tools"][0]
+    assert tool["strict"] is True
+    # Parameters should have been normalized for strict mode
+    params = tool["parameters"]
+    assert params["additionalProperties"] is False
+    assert params["required"] == ["color"]
+
+
+@pytest.mark.asyncio
+async def test_openai_skips_normalization_when_strict_is_false() -> None:
+    """Tool parameters should not be normalized when strict is explicitly false."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Pick a color"],
+            tools=[
+                {
+                    "name": "pick_color",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"color": {"type": "string"}},
+                    },
+                    "strict": False,
+                }
+            ],
+        )
+    )
+
+    assert responses.last_kwargs is not None
+    tool = responses.last_kwargs["tools"][0]
+    assert tool["strict"] is False
+    # Parameters should NOT have been normalized
+    params = tool["parameters"]
+    assert "additionalProperties" not in params
+    assert "required" not in params
 
 
 # =============================================================================
