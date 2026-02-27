@@ -135,13 +135,19 @@ class GeminiProvider:
             tool_objs = []
             for t in tools:
                 if "name" in t:
+                    raw_params = t.get("parameters")
+                    params = (
+                        _strip_additional_properties(raw_params)
+                        if isinstance(raw_params, dict)
+                        else raw_params
+                    )
                     tool_objs.append(
                         types.Tool(
                             function_declarations=[
                                 types.FunctionDeclaration(
                                     name=t["name"],
                                     description=t.get("description", ""),
-                                    parameters=t.get("parameters"),
+                                    parameters=params,  # type: ignore[arg-type]
                                 )
                             ]
                         )
@@ -510,3 +516,30 @@ def _normalize_finish_reason(raw_reason: Any) -> str | None:
         return None
     value = str(getattr(raw_reason, "value", raw_reason)).strip()
     return value.lower() if value else None
+
+
+def _strip_additional_properties(schema: dict[str, Any]) -> dict[str, Any]:
+    """Remove ``additionalProperties`` from a JSON schema recursively.
+
+    The Gemini API rejects schemas that contain this field, but OpenAI requires
+    it.  Stripping it at the provider boundary lets callers define one schema
+    for all providers.
+    """
+    from copy import deepcopy
+
+    cleaned = deepcopy(schema)
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        updated: dict[str, Any] = {}
+        for key, value in node.items():
+            if key == "additionalProperties":
+                continue
+            updated[key] = walk(value)
+        return updated
+
+    result = walk(cleaned)
+    return result if isinstance(result, dict) else schema

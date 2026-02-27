@@ -172,12 +172,13 @@ class OpenAIProvider:
                     }
                     if "description" in t:
                         tool_def["description"] = t["description"]
+                    strict = t.get("strict", True)
                     if "parameters" in t:
-                        tool_def["parameters"] = t["parameters"]
-                    if "strict" in t:
-                        tool_def["strict"] = t["strict"]
-                    else:
-                        tool_def["strict"] = True
+                        params = t["parameters"]
+                        if strict and isinstance(params, dict):
+                            params = _to_openai_strict_schema(params)
+                        tool_def["parameters"] = params
+                    tool_def["strict"] = strict
                     create_kwargs["tools"].append(tool_def)
             if tool_choice is not None:
                 if isinstance(tool_choice, str):
