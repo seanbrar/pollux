@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.2.1] - 2026-02-28
+
+### Fixed
+
+- Normalize tool parameter schemas per-provider ([`8eb2c94`](https://github.com/seanbrar/pollux/commit/8eb2c94241feb55fd73c6976913f08e3d8d12608))
+- Populate finish_reasons from provider responses ([`6d09119`](https://github.com/seanbrar/pollux/commit/6d0911900b9ba2bbb0674e8b53719eef251d1feb))
+- Populate conversation state for tool-call responses without history ([`64247d9`](https://github.com/seanbrar/pollux/commit/64247d9c89568d3c0a5433690912ae552f35553f))
+
+### Changed
+
+- Fix stale references and document post-v1.2.0 behavior ([`b42a7db`](https://github.com/seanbrar/pollux/commit/b42a7db655098ad0545bca3a6177425266038e25))
+
 ## [1.2.0] - 2026-02-26
 
 ### Added
@@ -114,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.2.1]: https://github.com/seanbrar/pollux/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/seanbrar/pollux/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/seanbrar/pollux/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/seanbrar/pollux/compare/v0.9.0...v1.0.0
