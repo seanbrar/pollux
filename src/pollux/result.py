@@ -31,7 +31,7 @@ class ResultEnvelope(TypedDict, total=False):
     #: Keys: ``input_tokens``, ``output_tokens``, ``total_tokens``,
     #: and optionally ``reasoning_tokens``.
     usage: dict[str, int]
-    #: Keys: ``duration_s``, ``n_calls``, ``cache_used``.
+    #: Keys: ``duration_s``, ``n_calls``, ``cache_used``, ``finish_reasons``.
     metrics: dict[str, Any]
     diagnostics: dict[str, Any]
     _conversation_state: dict[str, Any]

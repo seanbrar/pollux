@@ -146,6 +146,12 @@ options = Options(
 )
 ```
 
+Pollux normalizes tool parameter schemas at the provider boundary. For OpenAI
+(which defaults to strict mode), `additionalProperties: false` and `required`
+are injected automatically. For Gemini, unsupported fields like
+`additionalProperties` are stripped. You can define one schema and use it
+across both providers without modification.
+
 **Reading tool calls:** when the model invokes tools, the result envelope
 includes a `tool_calls` field:
 
@@ -193,6 +199,10 @@ round of `tool_calls` (if the model needs more data) or a final text answer.
   `result["tool_calls"][0]`.
 - **Conversation continuity requires one prompt.** Both `history` and
   `continue_from` work with single-prompt `run()` calls, not `run_many()`.
+- **Tool-call responses auto-populate conversation state.** When `run()`
+  returns tool calls, Pollux builds `_conversation_state` automatically, even
+  without explicit `history` or `continue_from`. This means `continue_tool()`
+  works on any result that contains tool calls.
 - **Provider differences exist.** Both Gemini and OpenAI support tool calling
   and tool messages in history. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.

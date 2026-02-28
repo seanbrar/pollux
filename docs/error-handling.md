@@ -68,11 +68,11 @@ Use this order when debugging. Most failures resolve by step 2.
 
 3. **Unsupported feature.** Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
-   `delivery_mode="deferred"` is reserved. Conversation continuity
+   `delivery_mode="deferred"` is not supported. Conversation continuity
    and tool calling are supported by both Gemini and OpenAI.
 
 4. **Source and payload.** Reduce to one source + one prompt and retry.
-   For OpenAI remote URLs in v1.0, only PDF and image URLs are supported.
+   For OpenAI remote URLs, only PDF and image URLs are supported.
 
 ## Complete Production Example
 
@@ -205,9 +205,9 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 | `ConfigurationError` at startup | Missing API key | `export GEMINI_API_KEY="your-key"` or pass `api_key` in `Config(...)` |
 | Outputs look like `echo: ...` | `use_mock=True` is set | Set `use_mock=False` (default) and ensure the API key is present |
 | `ConfigurationError` at request time | Provider/model mismatch | Verify the model belongs to the selected provider |
-| `ConfigurationError` mentioning `delivery_mode` | `"deferred"` is reserved | Use `delivery_mode="realtime"` (default) |
+| `ConfigurationError` mentioning `delivery_mode` | `"deferred"` is not supported | Use `delivery_mode="realtime"` (default) |
 | `status: "partial"` | Some prompts returned empty answers | Check individual entries in `answers` to identify which prompts failed |
-| Remote source rejected | Unsupported MIME type on OpenAI | In v1.0, OpenAI remote URL support is limited to PDFs and images |
+| Remote source rejected | Unsupported MIME type on OpenAI | OpenAI remote URL support is limited to PDFs and images |
 | Keys show as `***redacted***` | Intentional redaction | Your key is still being used. `Config` hides it from string representations |
 | Import errors | Missing dependencies | Use Python `>=3.10,<3.15` with `uv sync --all-extras` |
 

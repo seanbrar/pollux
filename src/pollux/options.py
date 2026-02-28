@@ -36,7 +36,7 @@ class Options:
 
     #: Controls model thinking depth; passed through to the provider.
     reasoning_effort: ReasoningEffort | None = None
-    #: ``"deferred"`` is reserved for future provider batch APIs.
+    # TODO: implement deferred delivery via provider batch APIs.
     delivery_mode: DeliveryMode = "realtime"
     #: Mutually exclusive with *continue_from*.
     history: list[dict[str, Any]] | None = None
