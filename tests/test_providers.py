@@ -1481,6 +1481,26 @@ def _fake_tool_use_block(
     )()
 
 
+def _fake_thinking_block(
+    *,
+    thinking: str = "Let me reason this through.",
+    signature: str = "sig_abc",
+) -> Any:
+    """Create a fake Anthropic thinking block."""
+    return type(
+        "ThinkingBlock",
+        (),
+        {"type": "thinking", "thinking": thinking, "signature": signature},
+    )()
+
+
+def _fake_redacted_thinking_block(*, data: str = "redacted_blob") -> Any:
+    """Create a fake Anthropic redacted thinking block."""
+    return type(
+        "RedactedThinkingBlock", (), {"type": "redacted_thinking", "data": data}
+    )()
+
+
 def test_anthropic_parse_text_and_usage() -> None:
     """Characterize extraction of text and usage from Anthropic response."""
     from pollux.providers.anthropic import _parse_response
@@ -1611,6 +1631,29 @@ def test_anthropic_parse_mixed_content() -> None:
     assert result.tool_calls is not None
     assert len(result.tool_calls) == 1
     assert result.tool_calls[0].name == "get_weather"
+
+
+def test_anthropic_parse_extracts_reasoning_and_thinking_state() -> None:
+    """Thinking blocks should populate reasoning + provider_state for replay."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[
+            _fake_thinking_block(thinking="First line", signature="sig1"),
+            _fake_redacted_thinking_block(data="opaque"),
+            _fake_text_block("Final answer."),
+        ]
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.reasoning == "First line"
+    assert result.provider_state == {
+        "anthropic_thinking_blocks": [
+            {"type": "thinking", "thinking": "First line", "signature": "sig1"},
+            {"type": "redacted_thinking", "data": "opaque"},
+        ]
+    }
 
 
 # =============================================================================
@@ -1762,6 +1805,84 @@ async def test_anthropic_generate_with_structured_output() -> None:
 
 
 @pytest.mark.asyncio
+async def test_anthropic_generate_maps_reasoning_to_output_effort_and_manual_thinking() -> (
+    None
+):
+    """Non-adaptive Anthropic models should use manual thinking budgets."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model="claude-haiku-4-5",
+            parts=["Think."],
+            reasoning_effort="high",
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["output_config"]["effort"] == "high"
+    assert messages.last_kwargs["thinking"] == {
+        "type": "enabled",
+        "budget_tokens": 6144,
+    }
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_maps_reasoning_to_adaptive_for_opus46() -> None:
+    """Opus 4.6 should use adaptive thinking mode."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model="claude-opus-4-6-20260219",
+            parts=["Think."],
+            reasoning_effort="medium",
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["output_config"]["effort"] == "medium"
+    assert messages.last_kwargs["thinking"] == {"type": "adaptive"}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header() -> (
+    None
+):
+    """Reasoning + tools should opt into interleaved-thinking beta header."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Need tool help."],
+            reasoning_effort="low",
+            tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["extra_headers"] == {
+        "anthropic-beta": "interleaved-thinking-2025-05-14"
+    }
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_rejects_unknown_reasoning_effort() -> None:
+    """Anthropic effort mapping should fail fast on unsupported values."""
+    provider, _messages = _anthropic_provider_with_fake()
+
+    with pytest.raises(APIError, match="Unsupported reasoning_effort"):
+        await provider.generate(
+            ProviderRequest(
+                model=ANTHROPIC_MODEL,
+                parts=["Think."],
+                reasoning_effort="16000",
+            )
+        )
+
+
+@pytest.mark.asyncio
 async def test_anthropic_generate_with_history() -> None:
     """History with tool turns merges consecutive same-role messages.
 
@@ -1820,6 +1941,54 @@ async def test_anthropic_generate_with_history() -> None:
     assert msgs[2]["content"][0]["type"] == "tool_result"
     assert msgs[2]["content"][0]["tool_use_id"] == "toolu_abc"
     assert msgs[2]["content"][1] == {"type": "text", "text": "Continue."}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_history_replays_preserved_thinking_blocks() -> None:
+    """History provider_state should replay signed thinking blocks verbatim."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=[],
+            history=[
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="toolu_abc", name="get_weather", arguments="{}")
+                    ],
+                ),
+                Message(role="tool", tool_call_id="toolu_abc", content='{"temp": 72}'),
+            ],
+            provider_state={
+                "history": [
+                    {
+                        "anthropic_thinking_blocks": [
+                            {
+                                "type": "thinking",
+                                "thinking": "I should call the weather tool.",
+                                "signature": "sig_123",
+                            },
+                            {"type": "redacted_thinking", "data": "blob"},
+                        ]
+                    },
+                    None,
+                ]
+            },
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assistant_blocks = messages.last_kwargs["messages"][0]["content"]
+    assert assistant_blocks[0] == {
+        "type": "thinking",
+        "thinking": "I should call the weather tool.",
+        "signature": "sig_123",
+    }
+    assert assistant_blocks[1] == {"type": "redacted_thinking", "data": "blob"}
+    assert assistant_blocks[2]["type"] == "tool_use"
 
 
 @pytest.mark.asyncio
@@ -1919,6 +2088,12 @@ async def test_anthropic_cache_raises() -> None:
         await provider.create_cache(
             model=ANTHROPIC_MODEL, parts=["test"], ttl_seconds=3600
         )
+
+
+def test_anthropic_capabilities_include_reasoning() -> None:
+    """Anthropic capability flags should advertise reasoning support."""
+    provider = AnthropicProvider("test-key")
+    assert provider.capabilities.reasoning is True
 
 
 # =============================================================================

@@ -1099,6 +1099,54 @@ async def test_conversation_result_includes_conversation_state(
 
 
 @pytest.mark.asyncio
+async def test_conversation_state_preserves_provider_state_from_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider response state should be persisted for continue_from loops."""
+
+    @dataclass
+    class _ProviderStateConversationProvider(FakeProvider):
+        _capabilities: ProviderCapabilities = field(
+            default_factory=lambda: ProviderCapabilities(
+                caching=True,
+                uploads=True,
+                structured_outputs=False,
+                reasoning=True,
+                deferred_delivery=False,
+                conversation=True,
+            )
+        )
+
+        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+            _ = request
+            return ProviderResponse(
+                text="Assistant reply.",
+                usage={"total_tokens": 1},
+                provider_state={"anthropic_thinking_blocks": [{"type": "thinking"}]},
+            )
+
+    fake = _ProviderStateConversationProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="anthropic", model="claude-haiku-4-5", use_mock=True)
+
+    result = await pollux.run(
+        "Next question?",
+        config=cfg,
+        options=Options(history=[{"role": "user", "content": "hello"}]),
+    )
+
+    state = result.get("_conversation_state")
+    assert isinstance(state, dict)
+    assert state["provider_state"] == {
+        "anthropic_thinking_blocks": [{"type": "thinking"}]
+    }
+    assistant = state["history"][-1]
+    assert assistant["provider_state"] == {
+        "anthropic_thinking_blocks": [{"type": "thinking"}]
+    }
+
+
+@pytest.mark.asyncio
 async def test_planning_error_wraps_source_loader_failure() -> None:
     """Source loader failures should surface as PlanningError with context."""
 
@@ -1415,6 +1463,68 @@ async def test_continue_from_preserves_tool_history_items(
     assert received_history[2].tool_call_id == "call_1"
     # Verify assistant tool_calls preserved
     assert received_history[1].tool_calls is not None
+
+
+@pytest.mark.asyncio
+async def test_continue_from_forwards_provider_state_with_history_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """History item provider_state should be forwarded in request.provider_state."""
+    fake = KwargsCaptureProvider(
+        _capabilities=ProviderCapabilities(
+            caching=True,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=True,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="anthropic", model="claude-haiku-4-5", use_mock=True)
+
+    previous: ResultEnvelope = {
+        "status": "ok",
+        "answers": [""],
+        "_conversation_state": {
+            "history": [
+                {"role": "user", "content": "Question"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"id": "call_1", "name": "lookup", "arguments": "{}"}
+                    ],
+                    "provider_state": {
+                        "anthropic_thinking_blocks": [
+                            {
+                                "type": "thinking",
+                                "thinking": "plan",
+                                "signature": "sig1",
+                            }
+                        ]
+                    },
+                },
+            ]
+        },
+    }
+
+    await pollux.run(
+        None,
+        config=cfg,
+        options=Options(continue_from=previous),
+    )
+
+    req = fake.generate_kwargs[0]["request"]
+    assert req.provider_state is not None
+    history_state = req.provider_state.get("history")
+    assert isinstance(history_state, list)
+    assert history_state[0] is None
+    assert history_state[1] == {
+        "anthropic_thinking_blocks": [
+            {"type": "thinking", "thinking": "plan", "signature": "sig1"}
+        ]
+    }
 
 
 @pytest.mark.asyncio

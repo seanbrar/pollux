@@ -41,6 +41,7 @@ class ProviderRequest:
     reasoning_effort: str | None = None
     history: list[Message] | None = None
     previous_response_id: str | None = None
+    provider_state: dict[str, Any] | None = None
 
 
 @dataclass
@@ -54,3 +55,4 @@ class ProviderResponse:
     tool_calls: list[ToolCall] | None = None
     response_id: str | None = None
     finish_reason: str | None = None
+    provider_state: dict[str, Any] | None = None

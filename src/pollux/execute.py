@@ -131,6 +131,7 @@ async def execute_plan(
         conversation_history = [dict(item) for item in history]
 
     previous_response_id: str | None = None
+    provider_state: dict[str, Any] | None = None
     if options.continue_from is not None:
         state = options.continue_from.get("_conversation_state")
         if not isinstance(state, dict):
@@ -155,6 +156,9 @@ async def execute_plan(
 
         prev = state.get("response_id")
         previous_response_id = prev if isinstance(prev, str) else None
+        raw_provider_state = state.get("provider_state")
+        if isinstance(raw_provider_state, dict):
+            provider_state = dict(raw_provider_state)
 
     upload_cache: dict[tuple[str, str], str] = {}
     upload_inflight: dict[tuple[str, str], asyncio.Future[str]] = {}
@@ -237,12 +241,20 @@ async def execute_plan(
                     )
 
                     history_msgs: list[Message] | None = None
+                    request_provider_state = (
+                        dict(provider_state)
+                        if isinstance(provider_state, dict)
+                        else None
+                    )
                     if history is not None:
                         history_msgs = []
+                        history_item_states: list[dict[str, Any] | None] = []
+                        has_history_item_states = False
                         for h in history:
                             role = h.get("role", "user")
                             content = h.get("content", "")
                             tc_id = h.get("tool_call_id")
+                            msg_provider_state = h.get("provider_state")
                             tcs = None
                             raw_tcs = h.get("tool_calls")
                             if isinstance(raw_tcs, list):
@@ -262,6 +274,11 @@ async def execute_plan(
                                                 arguments=args_str,
                                             )
                                         )
+                            if isinstance(msg_provider_state, dict):
+                                history_item_states.append(dict(msg_provider_state))
+                                has_history_item_states = True
+                            else:
+                                history_item_states.append(None)
                             history_msgs.append(
                                 Message(
                                     role=str(role),
@@ -274,6 +291,10 @@ async def execute_plan(
                                     tool_calls=tcs,
                                 )
                             )
+                        if has_history_item_states:
+                            if request_provider_state is None:
+                                request_provider_state = {}
+                            request_provider_state["history"] = history_item_states
 
                     req = ProviderRequest(
                         model=model,
@@ -288,6 +309,7 @@ async def execute_plan(
                         reasoning_effort=options.reasoning_effort,
                         history=history_msgs,
                         previous_response_id=previous_response_id,
+                        provider_state=request_provider_state,
                     )
 
                     if retry_policy.max_attempts <= 1:
@@ -313,6 +335,8 @@ async def execute_plan(
                         out["response_id"] = resp.response_id
                     if resp.finish_reason is not None:
                         out["finish_reason"] = resp.finish_reason
+                    if resp.provider_state is not None:
+                        out["provider_state"] = resp.provider_state
                     return out
 
                 except asyncio.CancelledError:
@@ -385,12 +409,17 @@ async def execute_plan(
             tool_calls = responses[0].get("tool_calls")
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
+            provider_msg_state = responses[0].get("provider_state")
+            if isinstance(provider_msg_state, dict):
+                assistant_msg["provider_state"] = provider_msg_state
 
             updated_history: list[dict[str, Any]] = [*conversation_history]
             if prompt is not None:
                 updated_history.append({"role": "user", "content": prompt})
             updated_history.append(assistant_msg)
             conversation_state = {"history": updated_history}
+            if isinstance(provider_msg_state, dict):
+                conversation_state["provider_state"] = provider_msg_state
             response_id = responses[0].get("response_id")
             if isinstance(response_id, str):
                 conversation_state["response_id"] = response_id
