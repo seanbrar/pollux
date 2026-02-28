@@ -82,6 +82,8 @@ class AnthropicProvider:
         _ = request.previous_response_id
 
         # Build the messages list from history + current parts.
+        # Anthropic requires strict user/assistant role alternation, so
+        # consecutive same-role messages must be merged.
         messages: list[dict[str, Any]] = []
 
         if history:
@@ -90,7 +92,8 @@ class AnthropicProvider:
                     call_id = item.tool_call_id
                     if not call_id:
                         continue
-                    messages.append(
+                    _append_message(
+                        messages,
                         {
                             "role": "user",
                             "content": [
@@ -100,7 +103,7 @@ class AnthropicProvider:
                                     "content": item.content or "",
                                 }
                             ],
-                        }
+                        },
                     )
                 elif item.role == "assistant":
                     content_blocks: list[dict[str, Any]] = []
@@ -126,19 +129,21 @@ class AnthropicProvider:
                                 }
                             )
                     if content_blocks:
-                        messages.append(
+                        _append_message(
+                            messages,
                             {
                                 "role": "assistant",
                                 "content": content_blocks,
-                            }
+                            },
                         )
                 elif item.role == "user":
                     if item.content:
-                        messages.append(
+                        _append_message(
+                            messages,
                             {
                                 "role": "user",
                                 "content": item.content,
-                            }
+                            },
                         )
 
         # Build user content from current parts.
@@ -158,7 +163,7 @@ class AnthropicProvider:
             user_content.append({"type": "text", "text": ""})
 
         if has_real_content or not messages:
-            messages.append({"role": "user", "content": user_content})
+            _append_message(messages, {"role": "user", "content": user_content})
 
         # Build create kwargs.
         create_kwargs: dict[str, Any] = {
@@ -326,6 +331,28 @@ def _normalize_stop_reason(stop_reason: Any) -> str | None:
         "tool_use": "tool_calls",
     }
     return mapping.get(reason, reason)
+
+
+def _append_message(messages: list[dict[str, Any]], msg: dict[str, Any]) -> None:
+    """Append *msg*, merging into the previous message when roles match.
+
+    Anthropic requires strict user/assistant alternation.  When consecutive
+    messages share a role (e.g. a tool_result user message followed by the
+    current prompt user message, or two assistant turns in history) we merge
+    their content blocks into a single message.
+    """
+    if messages and messages[-1]["role"] == msg["role"]:
+        prev = messages[-1]
+        prev_content = prev["content"]
+        new_content = msg["content"]
+        # Normalize both sides to list-of-blocks for merging.
+        if isinstance(prev_content, str):
+            prev_content = [{"type": "text", "text": prev_content}]
+        if isinstance(new_content, str):
+            new_content = [{"type": "text", "text": new_content}]
+        prev["content"] = prev_content + new_content
+    else:
+        messages.append(msg)
 
 
 def _normalize_input_part(part: Any) -> dict[str, Any] | None:

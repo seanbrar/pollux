@@ -1763,7 +1763,13 @@ async def test_anthropic_generate_with_structured_output() -> None:
 
 @pytest.mark.asyncio
 async def test_anthropic_generate_with_history() -> None:
-    """History should be replayed as full message list."""
+    """History with tool turns merges consecutive same-role messages.
+
+    Anthropic requires strict user/assistant alternation.  Two adjacent
+    assistant messages (text then tool_use) must be merged into one, and
+    the trailing tool_result (user) + current prompt (user) must be
+    merged so we never send consecutive same-role messages.
+    """
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
@@ -1795,17 +1801,97 @@ async def test_anthropic_generate_with_history() -> None:
 
     assert messages.last_kwargs is not None
     msgs = messages.last_kwargs["messages"]
-    # Expected order: user Hi, assistant Hello, assistant tool_use, user tool_result, user Continue
-    assert len(msgs) == 5
+
+    # After merging: user → assistant (text + tool_use) → user (tool_result + prompt)
+    assert len(msgs) == 3
     assert msgs[0]["role"] == "user"
     assert msgs[0]["content"] == "Hi"
+
+    # Assistant: text "Hello!" merged with tool_use block
     assert msgs[1]["role"] == "assistant"
-    assert msgs[1]["content"] == [{"type": "text", "text": "Hello!"}]
-    assert msgs[2]["role"] == "assistant"
-    assert msgs[2]["content"][0]["type"] == "tool_use"
-    assert msgs[3]["role"] == "user"
-    assert msgs[3]["content"][0]["type"] == "tool_result"
-    assert msgs[4]["role"] == "user"
+    assert len(msgs[1]["content"]) == 2
+    assert msgs[1]["content"][0] == {"type": "text", "text": "Hello!"}
+    assert msgs[1]["content"][1]["type"] == "tool_use"
+    assert msgs[1]["content"][1]["name"] == "get_weather"
+
+    # User: tool_result merged with current prompt
+    assert msgs[2]["role"] == "user"
+    assert len(msgs[2]["content"]) == 2
+    assert msgs[2]["content"][0]["type"] == "tool_result"
+    assert msgs[2]["content"][0]["tool_use_id"] == "toolu_abc"
+    assert msgs[2]["content"][1] == {"type": "text", "text": "Continue."}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_parallel_tool_results_merged() -> None:
+    """Multiple tool results (parallel tool calls) merge into one user message."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Summarize both."],
+            history=[
+                Message(role="user", content="Weather and time?"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="t1", name="get_weather", arguments="{}"),
+                        ToolCall(id="t2", name="get_time", arguments="{}"),
+                    ],
+                ),
+                Message(role="tool", tool_call_id="t1", content='{"temp": 72}'),
+                Message(role="tool", tool_call_id="t2", content='{"time": "3pm"}'),
+            ],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    msgs = messages.last_kwargs["messages"]
+
+    # user → assistant (2 tool_use) → user (2 tool_results + prompt)
+    assert len(msgs) == 3
+    assert msgs[2]["role"] == "user"
+    assert len(msgs[2]["content"]) == 3
+    assert msgs[2]["content"][0]["type"] == "tool_result"
+    assert msgs[2]["content"][0]["tool_use_id"] == "t1"
+    assert msgs[2]["content"][1]["type"] == "tool_result"
+    assert msgs[2]["content"][1]["tool_use_id"] == "t2"
+    assert msgs[2]["content"][2] == {"type": "text", "text": "Summarize both."}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_continuation_no_prompt() -> None:
+    """continue_tool pattern: history ends with tool_result, no new prompt."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=[],  # No prompt (continue_tool sends prompt=None → [])
+            history=[
+                Message(role="user", content="What's the weather?"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="t1", name="get_weather", arguments="{}"),
+                    ],
+                ),
+                Message(role="tool", tool_call_id="t1", content='{"temp": 72}'),
+            ],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    msgs = messages.last_kwargs["messages"]
+
+    # user → assistant (tool_use) → user (tool_result only, no extra empty message)
+    assert len(msgs) == 3
+    assert msgs[2]["role"] == "user"
+    assert len(msgs[2]["content"]) == 1
+    assert msgs[2]["content"][0]["type"] == "tool_result"
 
 
 # =============================================================================
