@@ -20,7 +20,7 @@ uv sync --all-extras          # or: pip install -e ".[dev]"
 Then seed demo inputs:
 
 ```bash
-make demo-data
+just demo-data
 ```
 
 ## Quick start
@@ -40,5 +40,5 @@ python -m cookbook getting-started/analyze-single-paper \
 
 Notes:
 
-- Use `make demo-data` for local sample inputs.
+- Use `just demo-data` for local sample inputs.
 - Most recipes support `--mock/--no-mock`, `--provider`, and `--model`.

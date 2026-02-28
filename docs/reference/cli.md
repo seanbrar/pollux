@@ -119,7 +119,7 @@ All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-ke
 ```bash
 uv sync --all-extras          # installs all dev/test/docs/lint deps
 python -m cookbook --list      # verify install
-make demo-data                # seed demo inputs
+just demo-data                # seed demo inputs
 ```
 
 ## Troubleshooting
@@ -127,6 +127,6 @@ make demo-data                # seed demo inputs
 - `could not import pollux`: run `uv sync --all-extras`.
 - `Recipe not found`: verify the spec with `python -m cookbook --list`.
 - Unexpected relative-path behavior: use `--no-cwd-repo-root` only when you need CWD-local paths.
-- **No demo files:** run `make demo-data` or provide explicit `--input` paths.
+- **No demo files:** run `just demo-data` or provide explicit `--input` paths.
 - **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
 - **Rate limits:** lower concurrency and stage workload size with `--limit`.

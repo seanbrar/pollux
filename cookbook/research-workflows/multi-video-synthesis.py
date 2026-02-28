@@ -113,7 +113,7 @@ def main() -> None:
     elif not raw_inputs:
         if not DEFAULT_MEDIA_DEMO_DIR.exists():
             raise SystemExit(
-                "No inputs found. Provide --input with paths/URLs or run `make demo-data`."
+                "No inputs found. Provide --input with paths/URLs or run `just demo-data`."
             )
         picks = pick_files_by_ext(
             DEFAULT_MEDIA_DEMO_DIR, [".mp4", ".mov"], limit=max(1, args.max_sources)

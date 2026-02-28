@@ -248,7 +248,7 @@ def main() -> None:
     directory = resolve_dir_or_exit(
         args.input,
         DEFAULT_TEXT_DEMO_DIR,
-        hint="No input directory found. Run `make demo-data` or pass --input /path/to/dir.",
+        hint="No input directory found. Run `just demo-data` or pass --input /path/to/dir.",
     )
     config = build_config_or_exit(args)
 

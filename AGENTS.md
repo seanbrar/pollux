@@ -120,7 +120,7 @@ Synchronous callers use `asyncio.run()`.
   architectural guarantee, boundary coverage, trivial delegation,
   non-behavioral change.
 - Verify incrementally: run the narrowest check that builds confidence first
-  (a single test file or marker), then finish with `make check` for
+  (a single test file or marker), then finish with `just check` for
   non-trivial changes.
 
 ### 4. Communicate
@@ -133,23 +133,23 @@ Synchronous callers use `asyncio.run()`.
 ### Install
 
 ```bash
-make install-dev          # Install all dev/test/docs/lint deps via uv
+just install-dev          # Install all dev/test/docs/lint deps via uv
 ```
 
 ### Verify (full suite)
 
 ```bash
-make check                # lint + typecheck + tests
-make test                 # All tests (except API tests)
-make test-api             # API tests (requires ENABLE_API_TESTS=1 + at least one provider API key)
-make lint                 # Ruff format check + lint
-make typecheck            # Mypy strict checks
+just check                # lint + typecheck + tests
+just test                 # All tests (except API tests)
+just test-api             # API tests (requires ENABLE_API_TESTS=1 + at least one provider API key)
+just lint                 # Ruff format check + lint
+just typecheck            # Mypy strict checks
 ```
 
 ### Fix
 
 ```bash
-make format               # Auto-format and apply safe Ruff fixes
+just format               # Auto-format and apply safe Ruff fixes
 ```
 
 ### Narrow (single target)
@@ -163,9 +163,9 @@ uv run pytest -m "unit" -v                         # By marker
 ### Docs & Demo Data
 
 ```bash
-make docs-serve           # Serve docs locally at http://127.0.0.1:8000
-make docs-build           # Build the documentation site
-make demo-data            # Fetch demo data into cookbook/data/demo/
+just docs-serve           # Serve docs locally at http://127.0.0.1:8000
+just docs-build           # Build the documentation site
+just demo-data            # Fetch demo data into cookbook/data/demo/
 ```
 
 ## Testing
@@ -216,7 +216,7 @@ Coverage is tracked in CI via Codecov (diagnostic only, no enforced targets).
 
 ## Code Style
 
-- **Formatting:** Ruff (88 cols, double quotes). Use `make format` after edits.
+- **Formatting:** Ruff (88 cols, double quotes). Use `just format` after edits.
 - **Types:** Library code uses strict mypy (`disallow_untyped_defs = true`).
   Tests are exempt from `disallow_untyped_defs`.
 - **Naming:** `snake_case` for functions/modules, `PascalCase` for classes.
@@ -250,7 +250,7 @@ sections:
 Before opening, ensure:
 
 - PR title follows conventional commits
-- `make check` passes (lint + typecheck + tests)
+- `just check` passes (lint + typecheck + tests)
 - Tests cover meaningful cases, not just the happy path
 - Docs updated if public API or user-facing behavior changed
 
@@ -370,7 +370,7 @@ worktree:
 git fetch origin
 git worktree add -b <branch> .worktrees/<topic> origin/main
 cd .worktrees/<topic>
-make check
+just check
 git add -A && git commit -m "fix(scope): <subject>" && git push -u origin <branch>
 gh pr create
 ```
@@ -384,7 +384,7 @@ Notes:
 ## Known Footguns
 
 - **API tests are double-gated.** `tests/` skip `@pytest.mark.api` unless
-  `ENABLE_API_TESTS=1` is set (even if keys are present). `make test-api`
+  `ENABLE_API_TESTS=1` is set (even if keys are present). `just test-api`
   selects `-m api`, but you still need `ENABLE_API_TESTS=1`.
 - **`.env` is loaded lazily during `Config` initialization.** `src/pollux/config.py`
   calls `load_dotenv()` only when `api_key` is omitted and the provider key is
