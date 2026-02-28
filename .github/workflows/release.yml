@@ -39,12 +39,6 @@ jobs:
           fetch-depth: 0  # Full history needed for semantic-release
           token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-      # uv is used by build_command to update uv.lock and build distributions.
-
       # Main release step using PSR action
       - name: Create and Publish Release
         id: release

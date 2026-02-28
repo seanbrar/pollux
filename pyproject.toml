@@ -279,6 +279,7 @@ pytest_add_cli_args = [
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 build_command = """
+    python -m pip install --disable-pip-version-check "uv==1.2.0"
     uv lock --upgrade-package "$PACKAGE_NAME"
     git add uv.lock
     uv build
