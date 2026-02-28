@@ -10,15 +10,15 @@ We use `uv` for dependency management:
 
 ```bash
 uv sync --all-extras          # installs all dev/test/docs/lint deps
-make check                    # lint + typecheck + tests
+just check                    # lint + typecheck + tests
 ```
 
 Requires Python `>=3.10,<3.15` (3.13 recommended).
 
 ## Before Opening a PR
 
-1. Run `make check` (lint + typecheck + tests).
-2. If docs changed, preview locally: `make docs-serve`.
+1. Run `just check` (lint + typecheck + tests).
+2. If docs changed, preview locally: `just docs-serve`.
 3. Write a test plan — describe how you verified the change and why.
 4. Keep changes focused: one PR, one idea.
 
@@ -39,7 +39,7 @@ Examples: `feat(api): add playlist support`, `fix(cache): handle expired tokens`
 **Checklist:**
 
 - [ ] PR title follows conventional commits
-- [ ] `make check` passes
+- [ ] `just check` passes
 - [ ] Tests cover meaningful cases, not only the happy path
 - [ ] Docs updated if public API or user-facing behavior changed
 

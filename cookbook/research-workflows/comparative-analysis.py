@@ -153,7 +153,7 @@ def main() -> None:
     else:
         if not DEFAULT_TEXT_DEMO_DIR.exists():
             raise SystemExit(
-                "Need two files. Run `make demo-data` or provide --input with two paths."
+                "Need two files. Run `just demo-data` or provide --input with two paths."
             )
         paths = pick_paths(DEFAULT_TEXT_DEMO_DIR, args.limit)
 

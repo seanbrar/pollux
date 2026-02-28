@@ -152,7 +152,7 @@ def main() -> None:
         args.input,
         search_dir=DEFAULT_TEXT_DEMO_DIR,
         exts=[".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg"],
-        hint="No input found. Run `make demo-data` or pass --input /path/to/file.",
+        hint="No input found. Run `just demo-data` or pass --input /path/to/file.",
     )
     config = build_config_or_exit(args)
 

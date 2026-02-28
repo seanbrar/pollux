@@ -61,6 +61,7 @@ dev = [
     { include-group = "docs" },
     { include-group = "release" },
     "pre-commit>=4.2.0",
+    "rust-just",
 ]
 
 # --- Tool Configurations ---

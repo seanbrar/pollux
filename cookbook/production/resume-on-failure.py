@@ -248,7 +248,7 @@ def main() -> None:
 
     if not args.input.exists():
         raise SystemExit(
-            "Input directory not found. Run `make demo-data` or pass --input /path/to/dir."
+            "Input directory not found. Run `just demo-data` or pass --input /path/to/dir."
         )
 
     config = build_config_or_exit(args)

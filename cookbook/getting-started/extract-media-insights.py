@@ -126,7 +126,7 @@ def main() -> None:
         args.input,
         search_dir=DEFAULT_MEDIA_DEMO_DIR,
         exts=[*VIDEO_EXTS, *IMAGE_EXTS, *AUDIO_EXTS],
-        hint="No media found. Run `make demo-data` or pass --input /path/to/media.",
+        hint="No media found. Run `just demo-data` or pass --input /path/to/media.",
     )
     config = build_config_or_exit(args)
 
