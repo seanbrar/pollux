@@ -235,6 +235,62 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
 
 
 @pytest.mark.asyncio
+async def test_live_anthropic_parallel_tool_result_history_roundtrip(
+    anthropic_api_key: str,
+    anthropic_test_model: str,
+) -> None:
+    """E2E: Anthropic accepts history with parallel tool results + prompt."""
+    config = Config(
+        provider="anthropic",
+        model=anthropic_test_model,
+        api_key=anthropic_api_key,
+    )
+    tools = [
+        {
+            "name": "get_secret",
+            "description": "Return a code for a given topic.",
+            "parameters": {
+                "type": "object",
+                "properties": {"topic": {"type": "string"}},
+                "required": ["topic"],
+            },
+        },
+    ]
+    history: list[dict[str, Any]] = [
+        {"role": "user", "content": "Need orbit and launch codes."},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "call_orbit", "name": "get_secret", "arguments": "{}"},
+                {"id": "call_launch", "name": "get_secret", "arguments": "{}"},
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_orbit",
+            "content": json.dumps({"code": "K9-ORBIT"}),
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_launch",
+            "content": json.dumps({"code": "L2-LAUNCH"}),
+        },
+    ]
+
+    result = await pollux.run(
+        "Using both tool results, reply with both codes in one line.",
+        config=config,
+        options=Options(history=history, tools=tools, tool_choice="none"),
+    )
+
+    assert result["status"] == "ok"
+    answer = result["answers"][0].lower()
+    assert "k9-orbit" in answer
+    assert "l2-launch" in answer
+
+
+@pytest.mark.asyncio
 async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> None:
     """E2E: Gemini reasoning_effort works on Gemini 3 model family."""
     config = Config(
