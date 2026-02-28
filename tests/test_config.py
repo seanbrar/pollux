@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
+import pollux.config as config_module
 from pollux.config import Config
 from pollux.errors import ConfigurationError
 
@@ -27,6 +30,24 @@ def test_config_auto_resolves_api_key_from_env(
     cfg = Config(provider="gemini", model=gemini_model)
 
     assert cfg.api_key == "env-key"
+
+
+def test_config_module_reload_has_no_dotenv_import_side_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reloading config module should not trigger dotenv loading."""
+    calls = 0
+
+    def fake_load_dotenv(*_args: object, **_kwargs: object) -> bool:
+        nonlocal calls
+        calls += 1
+        return False
+
+    monkeypatch.setattr("dotenv.load_dotenv", fake_load_dotenv)
+
+    importlib.reload(config_module)
+
+    assert calls == 0
 
 
 def test_config_loads_dotenv_lazily_when_env_missing(
