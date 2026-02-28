@@ -386,9 +386,10 @@ Notes:
 - **API tests are double-gated.** `tests/` skip `@pytest.mark.api` unless
   `ENABLE_API_TESTS=1` is set (even if keys are present). `make test-api`
   selects `-m api`, but you still need `ENABLE_API_TESTS=1`.
-- **`.env` is auto-loaded in library config.** `src/pollux/config.py` calls
-  `load_dotenv()` at import time. Tests intentionally block dotenv loading
-  unless explicitly opted out.
+- **`.env` is loaded lazily during `Config` initialization.** `src/pollux/config.py`
+  calls `load_dotenv()` only when `api_key` is omitted and the provider key is
+  not already exported. Tests intentionally block dotenv loading unless
+  explicitly opted out.
 - **Test isolation is intentional.** Autouse fixtures clear provider env vars
   and redirect home config by default; opt out only when the test requires it.
 - **Prefer the code as source of truth for API names.** The public API is

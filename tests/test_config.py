@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
+import pollux.config as config_module
 from pollux.config import Config
 from pollux.errors import ConfigurationError
 
@@ -26,6 +29,69 @@ def test_config_auto_resolves_api_key_from_env(
 
     cfg = Config(provider="gemini", model=gemini_model)
 
+    assert cfg.api_key == "env-key"
+
+
+def test_config_module_reload_has_no_dotenv_import_side_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reloading config module should not trigger dotenv loading."""
+    calls = 0
+
+    def fake_load_dotenv(*_args: object, **_kwargs: object) -> bool:
+        nonlocal calls
+        calls += 1
+        return False
+
+    monkeypatch.setattr("dotenv.load_dotenv", fake_load_dotenv)
+
+    importlib.reload(config_module)
+
+    assert calls == 0
+
+
+def test_config_loads_dotenv_lazily_when_env_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    gemini_model: str,
+) -> None:
+    """When env is missing, Config should trigger dotenv loading at init time."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    calls = 0
+
+    def fake_load_dotenv() -> bool:
+        nonlocal calls
+        calls += 1
+        monkeypatch.setenv("GEMINI_API_KEY", "dotenv-key")
+        return True
+
+    monkeypatch.setattr("pollux.config.dotenv.load_dotenv", fake_load_dotenv)
+
+    cfg = Config(provider="gemini", model=gemini_model)
+
+    assert calls == 1
+    assert cfg.api_key == "dotenv-key"
+
+
+def test_config_skips_dotenv_when_env_key_already_present(
+    monkeypatch: pytest.MonkeyPatch,
+    gemini_model: str,
+) -> None:
+    """If the key is already exported, dotenv loading is unnecessary."""
+    monkeypatch.setenv("GEMINI_API_KEY", "env-key")
+
+    calls = 0
+
+    def fake_load_dotenv() -> bool:
+        nonlocal calls
+        calls += 1
+        return True
+
+    monkeypatch.setattr("pollux.config.dotenv.load_dotenv", fake_load_dotenv)
+
+    cfg = Config(provider="gemini", model=gemini_model)
+
+    assert calls == 0
     assert cfg.api_key == "env-key"
 
 
