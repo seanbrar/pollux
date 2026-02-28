@@ -78,7 +78,7 @@ pipeline logic, testing integrations, and CI.
 config = Config(
     provider="gemini",
     model="gemini-2.5-flash-lite",
-    enable_caching=True,       # Reuse uploaded context (Gemini-only in v1.0)
+    enable_caching=True,       # Reuse uploaded context (Gemini-only)
     ttl_seconds=3600,          # Cache lifetime
     request_concurrency=6,     # Concurrent API calls
 )
@@ -135,7 +135,7 @@ options = Options(
     tool_choice="auto",               # Tool calling mode ('auto', 'required', 'none', or dict)
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Controls model thinking depth
-    delivery_mode="realtime",         # "deferred" reserved for future provider batch APIs
+    delivery_mode="realtime",         # Only "realtime" is supported
 )
 ```
 
@@ -148,7 +148,7 @@ options = Options(
 | `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
 | `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
-| `delivery_mode` | `str` | `"realtime"` | Reserved for future batch delivery |
+| `delivery_mode` | `str` | `"realtime"` | Only `"realtime"` is supported; `"deferred"` raises an error |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 

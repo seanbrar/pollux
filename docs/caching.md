@@ -181,7 +181,7 @@ caching and enable it when you see repeated context in your workload.
 
 ## Provider Dependency
 
-Context caching is **Gemini-only** in v1.0. Enabling it with OpenAI raises
+Context caching is **Gemini-only**. Enabling it with OpenAI raises
 an actionable error. See
 [Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.

@@ -23,7 +23,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Provider-side context caching | ✅ | ❌ | OpenAI provider returns unsupported for caching |
 | Structured outputs (`response_schema`) | ✅ | ✅ | JSON-schema path in both providers |
 | Reasoning controls (`reasoning_effort`) | ✅ | ✅ | Passed through to provider; see notes below |
-| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | Explicitly disabled |
+| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | Not supported; raises `ConfigurationError` |
 | Tool calling | ✅ | ✅ | Tool definitions via `Options.tools`; results in `ResultEnvelope.tool_calls` |
 | Tool message pass-through in history | ✅ | ✅ | Gemini maps to `Content`/`Part` types; OpenAI maps to `function_call`/`function_call_output` |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | Single prompt per call; supports tool messages in history |
@@ -37,6 +37,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   `Part.from_function_call` / `Part.from_function_response` for tool turns.
 - Gemini does not support `previous_response_id`; conversation state is
   carried entirely via `history`.
+- Tool parameter schemas are normalized at the provider boundary:
+  `additionalProperties` is stripped because the Gemini API rejects it.
 - Reasoning: `reasoning_effort` maps to `ThinkingConfig(thinking_level=...)`.
   Full thinking text is returned in `ResultEnvelope.reasoning`. This maps
   cleanly on Gemini 3 models (for example `gemini-3-flash-preview`). Gemini
@@ -55,6 +57,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Sampling controls are model-specific: GPT-5 family models currently reject
   `temperature` and `top_p`, while older models (for example `gpt-4.1-nano`)
   accept them.
+- Tool parameter schemas are normalized for strict mode: `additionalProperties:
+  false` and `required` are injected automatically. Callers who set `strict:
+  false` on a tool definition bypass normalization.
 - Reasoning: `reasoning_effort` maps to `reasoning.effort` with automatic
   `summary: "auto"` to request reasoning summaries. Summaries appear in
   `ResultEnvelope.reasoning`; raw reasoning traces are not exposed by OpenAI.

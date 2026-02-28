@@ -84,6 +84,7 @@ async def execute_plan(
         options.history is not None or options.continue_from is not None
     )
 
+    # TODO: implement deferred delivery via provider batch APIs.
     if options.delivery_mode == "deferred":
         provider_name = type(provider).__name__
         raise ConfigurationError(

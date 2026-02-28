@@ -82,6 +82,8 @@ def execute_tool_calls(tool_calls: list[dict]) -> list[dict]:
 
 async def agent(user_prompt: str) -> str:
     """Run a tool-calling agent loop and return the final answer."""
+    # history=[] is optional — Pollux auto-populates conversation state when
+    # tool calls are present — but included here for explicitness.
     options = Options(tools=tools, tool_choice="auto", history=[])
     result = await run(user_prompt, config=config, options=options)
 

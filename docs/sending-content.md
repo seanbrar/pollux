@@ -23,7 +23,7 @@ a `Source`, which entry point to call, and how to read the result.
 |---|---|---|
 | `Source.from_text(text)` | Plain string | Identifier defaults to first 50 chars |
 | `Source.from_file(path)` | Local file path | Supports PDF, images, video, audio, text |
-| `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI in v1.0 |
+| `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI |
 | `Source.from_arxiv(ref)` | arXiv ID or URL | Normalizes to canonical PDF URL (no download at construction time) |
 | `Source.from_uri(uri, mime_type=...)` | Remote URI | Generic fallback for any hosted content |
 | `Source.from_json(data)` | Dict or Pydantic model instance | Serializes via `json.dumps()`; calls `model_dump()` on Pydantic objects |
@@ -182,9 +182,9 @@ a stable shape that works the same regardless of provider.
 | `reasoning` | `list[str \| None]` | No | Provider reasoning traces (when available) |
 | `tool_calls` | `list[list[dict]]` | Only with tool calling | Per-prompt list of tool-call requests. See [Conversations](conversations-and-agents.md) |
 | `confidence` | `float` | Yes | Heuristic: `0.9` for ok, `0.5` otherwise |
-| `extraction_method` | `str` | Yes | Always `"text"` in v1.0 |
+| `extraction_method` | `str` | Yes | Always `"text"` |
 | `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`) |
-| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used`, `finish_reasons` |
+| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used`, `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`) |
 
 Example of a complete envelope:
 
@@ -195,7 +195,7 @@ Example of a complete envelope:
     "confidence": 0.9,
     "extraction_method": "text",
     "usage": {"input_tokens": 1250, "output_tokens": 89, "total_tokens": 1339},
-    "metrics": {"duration_s": 1.42, "n_calls": 1, "cache_used": False},
+    "metrics": {"duration_s": 1.42, "n_calls": 1, "cache_used": False, "finish_reasons": ["stop"]},
 }
 ```
 
@@ -204,7 +204,7 @@ Example of a complete envelope:
 - Conversation continuity (`history`, `continue_from`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
-- `delivery_mode="deferred"` remains reserved and disabled.
+- `delivery_mode="deferred"` is not supported and raises an error.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).
 
