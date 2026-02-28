@@ -1919,3 +1919,88 @@ async def test_anthropic_cache_raises() -> None:
         await provider.create_cache(
             model=ANTHROPIC_MODEL, parts=["test"], ttl_seconds=3600
         )
+
+
+# =============================================================================
+# Response Parsing — Tool Call Extraction (Characterization)
+# =============================================================================
+
+
+def test_gemini_parse_response_extracts_tool_calls() -> None:
+    """Characterize function_call → ToolCall extraction from Gemini response."""
+    provider = GeminiProvider("test-key")
+
+    fc = MagicMock()
+    fc.id = "call_abc"
+    fc.name = "get_weather"
+    fc.args = {"city": "NYC"}
+
+    fake_response = MagicMock()
+    fake_response.text = ""
+    fake_response.parsed = None
+    fake_response.usage_metadata = None
+    fake_response.function_calls = [fc]
+
+    result = provider._parse_response(fake_response)
+
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].id == "call_abc"
+    assert result.tool_calls[0].name == "get_weather"
+    assert result.tool_calls[0].arguments == '{"city": "NYC"}'
+
+
+def test_gemini_parse_response_generates_id_when_missing() -> None:
+    """Gemini may omit fc.id; a stable synthetic ID should be generated."""
+    provider = GeminiProvider("test-key")
+
+    fc = MagicMock()
+    fc.id = None
+    fc.name = "do_thing"
+    fc.args = {}
+
+    fake_response = MagicMock()
+    fake_response.text = ""
+    fake_response.parsed = None
+    fake_response.usage_metadata = None
+    fake_response.function_calls = [fc]
+
+    result = provider._parse_response(fake_response)
+
+    assert result.tool_calls is not None
+    assert result.tool_calls[0].id.startswith("call_")
+
+
+def test_openai_parse_response_extracts_tool_calls() -> None:
+    """Characterize function_call output → ToolCall extraction from OpenAI response."""
+    fc_item = type(
+        "FunctionCall",
+        (),
+        {
+            "type": "function_call",
+            "call_id": "call_abc",
+            "name": "get_weather",
+            "arguments": '{"city": "NYC"}',
+        },
+    )()
+
+    fake_response = type(
+        "Response",
+        (),
+        {
+            "output_text": "",
+            "id": "resp_123",
+            "usage": None,
+            "output": [fc_item],
+            "status": "completed",
+            "incomplete_details": None,
+        },
+    )()
+
+    result = OpenAIProvider._parse_response(fake_response, response_schema=None)
+
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].id == "call_abc"
+    assert result.tool_calls[0].name == "get_weather"
+    assert result.tool_calls[0].arguments == '{"city": "NYC"}'

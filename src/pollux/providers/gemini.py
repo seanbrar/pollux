@@ -92,6 +92,182 @@ class GeminiProvider:
                 converted.append(p)
         return converted
 
+    def _normalize_tools(self, tools: list[dict[str, Any]]) -> list[Any]:
+        """Convert tool dicts to Gemini FunctionDeclaration-wrapped Tools."""
+        from google.genai import types
+
+        tool_objs: list[Any] = []
+        for t in tools:
+            if "name" in t:
+                raw_params = t.get("parameters")
+                params = (
+                    _strip_additional_properties(raw_params)
+                    if isinstance(raw_params, dict)
+                    else raw_params
+                )
+                tool_objs.append(
+                    types.Tool(
+                        function_declarations=[
+                            types.FunctionDeclaration(
+                                name=t["name"],
+                                description=t.get("description", ""),
+                                parameters=params,  # type: ignore[arg-type]
+                            )
+                        ]
+                    )
+                )
+        return tool_objs
+
+    def _map_tool_choice(
+        self, tool_choice: str | dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Map tool_choice to Gemini tool_config dict."""
+        if isinstance(tool_choice, str):
+            mode = tool_choice.upper()
+            if mode in ("AUTO", "ANY", "NONE"):
+                return {"function_calling_config": {"mode": mode}}
+            if mode == "REQUIRED":
+                return {"function_calling_config": {"mode": "ANY"}}
+        elif isinstance(tool_choice, dict) and "name" in tool_choice:
+            return {
+                "function_calling_config": {
+                    "mode": "ANY",
+                    "allowed_function_names": [tool_choice["name"]],
+                }
+            }
+        return None
+
+    def _build_config_kwargs(self, request: ProviderRequest) -> dict[str, Any]:
+        """Assemble Gemini GenerateContentConfig keyword arguments."""
+        from google.genai import types
+
+        config_kwargs: dict[str, Any] = {}
+
+        if request.reasoning_effort is not None:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_level=request.reasoning_effort,  # type: ignore[arg-type]
+            )
+
+        if request.system_instruction is not None:
+            config_kwargs["system_instruction"] = request.system_instruction
+        if request.cache_name is not None:
+            config_kwargs["cached_content"] = request.cache_name
+        if request.response_schema is not None:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_json_schema"] = request.response_schema
+        if request.temperature is not None:
+            config_kwargs["temperature"] = request.temperature
+        if request.top_p is not None:
+            config_kwargs["top_p"] = request.top_p
+
+        if request.tools is not None:
+            tool_objs = self._normalize_tools(request.tools)
+            if tool_objs:
+                config_kwargs["tools"] = tool_objs
+
+            tool_config = self._map_tool_choice(request.tool_choice)
+            if tool_config is not None:
+                config_kwargs["tool_config"] = tool_config
+
+        return config_kwargs
+
+    def _build_contents(
+        self,
+        parts: list[Any],
+        history: list[Message] | None,
+    ) -> Any:
+        """Build Gemini contents from history + current parts."""
+        from google.genai import types
+
+        input_contents: list[Any] = []
+        call_id_to_name: dict[str, str] = {}
+
+        if history:
+            for item in history:
+                if item.role == "tool":
+                    call_id = item.tool_call_id
+                    name = "unknown_tool"
+                    if isinstance(call_id, str) and call_id in call_id_to_name:
+                        name = call_id_to_name[call_id]
+
+                    parsed_content: dict[str, Any] = {}
+                    if item.content:
+                        try:
+                            parsed_content = json.loads(item.content)
+                            if not isinstance(parsed_content, dict):
+                                parsed_content = {"result": item.content}
+                        except Exception:
+                            parsed_content = {"result": item.content}
+
+                    input_contents.append(
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_function_response(
+                                    name=name,
+                                    response=parsed_content,
+                                )
+                            ],
+                        )
+                    )
+                elif item.role == "assistant":
+                    ast_parts: list[Any] = []
+                    if item.content:
+                        ast_parts.append(types.Part.from_text(text=item.content))
+                    if item.tool_calls:
+                        for tc in item.tool_calls:
+                            call_id_to_name[tc.id] = tc.name
+                            try:
+                                args_dict = json.loads(tc.arguments)
+                            except Exception:
+                                args_dict = {}
+                            ast_parts.append(
+                                types.Part.from_function_call(
+                                    name=tc.name, args=args_dict
+                                )
+                            )
+                    if ast_parts:
+                        input_contents.append(
+                            types.Content(role="model", parts=ast_parts)
+                        )
+                elif item.role == "user":
+                    user_parts: list[Any] = []
+                    if item.content:
+                        user_parts.append(types.Part.from_text(text=item.content))
+                    if user_parts:
+                        input_contents.append(
+                            types.Content(role="user", parts=user_parts)
+                        )
+
+        if not input_contents:
+            return self._convert_parts(parts)
+
+        # Gemini enforces strict turn order: after a function response the
+        # model must speak next.  Appending a separate user Content would
+        # produce FunctionResponse → User → Model, which is rejected.
+        # Instead, merge the prompt parts into the existing function-
+        # response Content block (same "user" role) so the model still
+        # sees the instruction without a turn-order violation.
+        last_is_tool_response = bool(history and history[-1].role == "tool")
+        user_parts_list: list[Any] = []
+        for cp in self._convert_parts(parts):
+            if isinstance(cp, str):
+                user_parts_list.append(types.Part.from_text(text=cp))
+            else:
+                user_parts_list.append(cp)
+        if user_parts_list:
+            last_parts = (
+                input_contents[-1].parts
+                if last_is_tool_response and input_contents
+                else None
+            )
+            if last_parts is not None:
+                last_parts.extend(user_parts_list)
+            else:
+                input_contents.append(types.Content(role="user", parts=user_parts_list))
+        return input_contents
+
     async def generate(
         self,
         request: ProviderRequest,
@@ -100,177 +276,12 @@ class GeminiProvider:
         client = self._get_client()
         from google.genai import types
 
-        model = request.model
-        parts = request.parts
-        system_instruction = request.system_instruction
-        cache_name = request.cache_name
-        response_schema = request.response_schema
-        temperature = request.temperature
-        top_p = request.top_p
-        tools = request.tools
-        tool_choice = request.tool_choice
-        reasoning_effort = request.reasoning_effort
-        history = request.history
-
-        config_kwargs: dict[str, Any] = {}
-        if reasoning_effort is not None:
-            config_kwargs["thinking_config"] = types.ThinkingConfig(
-                include_thoughts=True,
-                thinking_level=reasoning_effort,  # type: ignore[arg-type]
-            )
-
-        if system_instruction is not None:
-            config_kwargs["system_instruction"] = system_instruction
-        if cache_name is not None:
-            config_kwargs["cached_content"] = cache_name
-        if response_schema is not None:
-            config_kwargs["response_mime_type"] = "application/json"
-            config_kwargs["response_json_schema"] = response_schema
-        if temperature is not None:
-            config_kwargs["temperature"] = temperature
-        if top_p is not None:
-            config_kwargs["top_p"] = top_p
-
-        if tools is not None:
-            tool_objs = []
-            for t in tools:
-                if "name" in t:
-                    raw_params = t.get("parameters")
-                    params = (
-                        _strip_additional_properties(raw_params)
-                        if isinstance(raw_params, dict)
-                        else raw_params
-                    )
-                    tool_objs.append(
-                        types.Tool(
-                            function_declarations=[
-                                types.FunctionDeclaration(
-                                    name=t["name"],
-                                    description=t.get("description", ""),
-                                    parameters=params,  # type: ignore[arg-type]
-                                )
-                            ]
-                        )
-                    )
-            if tool_objs:
-                config_kwargs["tools"] = tool_objs
-
-            if isinstance(tool_choice, str):
-                mode = tool_choice.upper()
-                if mode in ("AUTO", "ANY", "NONE"):
-                    config_kwargs["tool_config"] = {
-                        "function_calling_config": {"mode": mode}
-                    }
-                elif mode == "REQUIRED":
-                    config_kwargs["tool_config"] = {
-                        "function_calling_config": {"mode": "ANY"}
-                    }
-            elif isinstance(tool_choice, dict) and "name" in tool_choice:
-                # Force specific function
-                config_kwargs["tool_config"] = {
-                    "function_calling_config": {
-                        "mode": "ANY",
-                        "allowed_function_names": [tool_choice["name"]],
-                    }
-                }
-
-        input_contents = []
-        call_id_to_name: dict[str, str] = {}
-
-        if history:
-
-            def append_history(items: list[Message]) -> None:
-                for item in items:
-                    if item.role == "tool":
-                        call_id = item.tool_call_id
-                        name = "unknown_tool"
-                        if isinstance(call_id, str) and call_id in call_id_to_name:
-                            name = call_id_to_name[call_id]
-
-                        parsed_content: dict[str, Any] = {}
-                        if item.content:
-                            try:
-                                parsed_content = json.loads(item.content)
-                                if not isinstance(parsed_content, dict):
-                                    parsed_content = {"result": item.content}
-                            except Exception:
-                                parsed_content = {"result": item.content}
-
-                        input_contents.append(
-                            types.Content(
-                                role="user",
-                                parts=[
-                                    types.Part.from_function_response(
-                                        name=name,
-                                        response=parsed_content,
-                                    )
-                                ],
-                            )
-                        )
-                    elif item.role == "assistant":
-                        ast_parts: list[Any] = []
-                        if item.content:
-                            ast_parts.append(types.Part.from_text(text=item.content))
-                        if item.tool_calls:
-                            for tc in item.tool_calls:
-                                call_id_to_name[tc.id] = tc.name
-                                try:
-                                    args_dict = json.loads(tc.arguments)
-                                except Exception:
-                                    args_dict = {}
-                                ast_parts.append(
-                                    types.Part.from_function_call(
-                                        name=tc.name, args=args_dict
-                                    )
-                                )
-                        if ast_parts:
-                            input_contents.append(
-                                types.Content(role="model", parts=ast_parts)
-                            )
-                    elif item.role == "user":
-                        user_parts: list[Any] = []
-                        if item.content:
-                            user_parts.append(types.Part.from_text(text=item.content))
-                        if user_parts:
-                            input_contents.append(
-                                types.Content(role="user", parts=user_parts)
-                            )
-
-            append_history(history)
-
-        if not input_contents:
-            # No history — use the original flat-parts path unchanged.
-            contents: Any = self._convert_parts(parts)
-        else:
-            # Gemini enforces strict turn order: after a function response the
-            # model must speak next.  Appending a separate user Content would
-            # produce FunctionResponse → User → Model, which is rejected.
-            # Instead, merge the prompt parts into the existing function-
-            # response Content block (same "user" role) so the model still
-            # sees the instruction without a turn-order violation.
-            last_is_tool_response = bool(history and history[-1].role == "tool")
-            user_parts: list[Any] = []
-            for cp in self._convert_parts(parts):
-                if isinstance(cp, str):
-                    user_parts.append(types.Part.from_text(text=cp))
-                else:
-                    user_parts.append(cp)
-            if user_parts:
-                last_parts = (
-                    input_contents[-1].parts
-                    if last_is_tool_response and input_contents
-                    else None
-                )
-                if last_parts is not None:
-                    # Fold into the trailing function-response Content.
-                    last_parts.extend(user_parts)
-                else:
-                    input_contents.append(types.Content(role="user", parts=user_parts))
-            contents = input_contents
+        config_kwargs = self._build_config_kwargs(request)
+        contents = self._build_contents(request.parts, request.history)
 
         try:
             response = await client.aio.models.generate_content(
-                model=model,
+                model=request.model,
                 contents=contents,
                 config=types.GenerateContentConfig(**config_kwargs),
             )
