@@ -35,6 +35,9 @@ jobs:
           enable-cache: true
           python-version: ${{ inputs.python-version }}
 
+      - name: Install just
+        uses: extractions/setup-just@v2
+
       - name: Install dependencies
         run: uv sync --frozen
 
