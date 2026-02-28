@@ -6,12 +6,10 @@ from dataclasses import dataclass, field
 import os
 from typing import Literal
 
-from dotenv import load_dotenv
+import dotenv
 
 from pollux.errors import ConfigurationError
 from pollux.retry import RetryPolicy
-
-load_dotenv()
 
 ProviderName = Literal["gemini", "openai"]
 
@@ -80,6 +78,10 @@ class Config:
         if self.api_key is None and not self.use_mock:
             env_var = _API_KEY_ENV_VARS[self.provider]
             resolved_key = os.environ.get(env_var)
+            # Load .env lazily when the key is not already exported.
+            if not resolved_key:
+                dotenv.load_dotenv()
+                resolved_key = os.environ.get(env_var)
             object.__setattr__(self, "api_key", resolved_key)
 
         # Validate: real API calls need a key
