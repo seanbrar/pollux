@@ -278,7 +278,11 @@ pytest_add_cli_args = [
 # --- Semantic Release ---
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-build_command = "uv build"
+build_command = """
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
 tag_format = "v{version}"
 allow_zero_version = true
 major_on_zero = true
