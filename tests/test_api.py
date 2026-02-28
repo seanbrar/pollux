@@ -1,8 +1,8 @@
 """Real API integration tests.
 
-These tests make real Gemini/OpenAI calls and are intentionally compact:
+These tests make real provider API calls and are intentionally compact:
 - ENABLE_API_TESTS=1 is required to run any API tests
-- GEMINI_API_KEY / OPENAI_API_KEY are required per provider fixture
+- GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY are required per provider fixture
 
 The suite prioritizes high-signal end-to-end coverage with a small call budget.
 """
@@ -27,6 +27,7 @@ pytestmark = [pytest.mark.api, pytest.mark.slow]
 _PROVIDERS: list[tuple[str, str, str]] = [
     ("gemini", "gemini_api_key", "gemini_test_model"),
     ("openai", "openai_api_key", "openai_test_model"),
+    ("anthropic", "anthropic_api_key", "anthropic_test_model"),
 ]
 _GEMINI_REASONING_MODEL = "gemini-3-flash-preview"
 
@@ -80,7 +81,7 @@ def _provider_config(
 @pytest.mark.parametrize(
     ("provider", "api_key_fixture", "model_fixture"),
     _PROVIDERS,
-    ids=["gemini", "openai"],
+    ids=["gemini", "openai", "anthropic"],
 )
 async def test_live_source_patterns_and_generation_controls(
     request: pytest.FixtureRequest,
@@ -135,7 +136,7 @@ async def test_live_source_patterns_and_generation_controls(
 @pytest.mark.parametrize(
     ("provider", "api_key_fixture", "model_fixture"),
     _PROVIDERS,
-    ids=["gemini", "openai"],
+    ids=["gemini", "openai", "anthropic"],
 )
 async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
     request: pytest.FixtureRequest,
@@ -193,13 +194,11 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         }
     ]
 
-    response_schema: dict[str, Any] = {
+    response_schema: dict[str, Any] | None = {
         "type": "object",
         "properties": {"secret_code": {"type": "string"}},
         "required": ["secret_code"],
     }
-    if provider == "openai":
-        response_schema["additionalProperties"] = False
 
     second = await pollux.continue_tool(
         continue_from=first,

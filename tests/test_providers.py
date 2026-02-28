@@ -18,10 +18,12 @@ import pytest
 
 from pollux.errors import APIError
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
+from pollux.providers._utils import to_strict_schema
+from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.models import Message, ProviderRequest, ToolCall
-from pollux.providers.openai import OpenAIProvider, _to_openai_strict_schema
-from tests.conftest import GEMINI_MODEL, OPENAI_MODEL
+from pollux.providers.openai import OpenAIProvider
+from tests.conftest import ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL
 
 pytestmark = pytest.mark.contract
 
@@ -714,7 +716,7 @@ def test_openai_strict_schema_adds_required_and_additional_properties() -> None:
         },
     }
 
-    strict = _to_openai_strict_schema(raw)
+    strict = to_strict_schema(raw)
 
     # Top-level enforcement
     assert strict["required"] == ["title", "meta"]
@@ -737,7 +739,7 @@ def test_openai_strict_schema_preserves_explicit_required_fields() -> None:
         "required": ["title"],
     }
 
-    strict = _to_openai_strict_schema(raw)
+    strict = to_strict_schema(raw)
 
     assert strict["required"] == ["title"]
     assert strict["additionalProperties"] is False
@@ -1430,3 +1432,404 @@ async def test_gemini_merges_prompt_into_tool_response_content() -> None:
     assert contents[2].parts[0].function_response.name == "get_weather"
     # Prompt folded in as a second part.
     assert contents[2].parts[1].text == "Proceed."
+
+
+# =============================================================================
+# Anthropic Response Parsing (Characterization)
+# =============================================================================
+
+
+def _fake_anthropic_response(
+    *,
+    content: list[Any] | None = None,
+    usage: Any | None = None,
+    stop_reason: str | None = "end_turn",
+    response_id: str | None = "msg_test123",
+) -> Any:
+    """Create a minimal Anthropic-like Message response."""
+    if content is None:
+        content = []
+    if usage is None:
+        usage = type("Usage", (), {"input_tokens": 10, "output_tokens": 25})()
+    return type(
+        "Message",
+        (),
+        {
+            "content": content,
+            "usage": usage,
+            "stop_reason": stop_reason,
+            "id": response_id,
+        },
+    )()
+
+
+def _fake_text_block(text: str) -> Any:
+    """Create a fake Anthropic text content block."""
+    return type("TextBlock", (), {"type": "text", "text": text})()
+
+
+def _fake_tool_use_block(
+    *, tool_id: str = "toolu_abc", name: str = "get_weather", tool_input: Any = None
+) -> Any:
+    """Create a fake Anthropic tool_use content block."""
+    if tool_input is None:
+        tool_input = {"location": "NYC"}
+    return type(
+        "ToolUseBlock",
+        (),
+        {"type": "tool_use", "id": tool_id, "name": name, "input": tool_input},
+    )()
+
+
+def test_anthropic_parse_text_and_usage() -> None:
+    """Characterize extraction of text and usage from Anthropic response."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("The answer is 42.")],
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.text == "The answer is 42."
+    assert result.usage == {
+        "input_tokens": 10,
+        "output_tokens": 25,
+        "total_tokens": 35,
+    }
+    assert result.response_id == "msg_test123"
+    assert result.structured is None
+
+
+def test_anthropic_parse_structured_from_json_text() -> None:
+    """Characterize structured output extraction from JSON text."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[_fake_text_block('{"title": "Test", "score": 95}')],
+    )
+
+    result = _parse_response(response, response_schema={"type": "object"})
+
+    assert result.text == '{"title": "Test", "score": 95}'
+    assert result.structured == {"title": "Test", "score": 95}
+
+
+def test_anthropic_parse_non_json_text() -> None:
+    """Characterize behavior when text is not JSON and schema is requested."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("Just plain text.")],
+    )
+
+    result = _parse_response(response, response_schema={"type": "object"})
+
+    assert result.text == "Just plain text."
+    assert result.structured is None
+
+
+def test_anthropic_parse_tool_calls() -> None:
+    """Characterize tool_use block extraction into ToolCall list."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[
+            _fake_tool_use_block(
+                tool_id="toolu_abc",
+                name="get_weather",
+                tool_input={"location": "NYC"},
+            )
+        ],
+        stop_reason="tool_use",
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) == 1
+    tc = result.tool_calls[0]
+    assert tc.id == "toolu_abc"
+    assert tc.name == "get_weather"
+    assert tc.arguments == '{"location": "NYC"}'
+    assert result.finish_reason == "tool_calls"
+
+
+def test_anthropic_parse_finish_reason_end_turn() -> None:
+    """end_turn stop_reason should map to 'stop'."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("Done.")],
+        stop_reason="end_turn",
+    )
+
+    result = _parse_response(response, response_schema=None)
+    assert result.finish_reason == "stop"
+
+
+def test_anthropic_parse_finish_reason_max_tokens() -> None:
+    """max_tokens stop_reason should be forwarded as-is."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("Truncated...")],
+        stop_reason="max_tokens",
+    )
+
+    result = _parse_response(response, response_schema=None)
+    assert result.finish_reason == "max_tokens"
+
+
+def test_anthropic_parse_empty_content() -> None:
+    """Characterize graceful handling of empty content list."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(content=[])
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.text == ""
+    assert result.tool_calls is None
+
+
+def test_anthropic_parse_mixed_content() -> None:
+    """Characterize response with both text and tool_use blocks."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[
+            _fake_text_block("Let me check the weather."),
+            _fake_tool_use_block(name="get_weather"),
+        ],
+        stop_reason="tool_use",
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.text == "Let me check the weather."
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].name == "get_weather"
+
+
+# =============================================================================
+# Anthropic Generate Config (Characterization)
+# =============================================================================
+
+
+class _FakeAnthropicMessages:
+    """Captures kwargs passed to messages.create()."""
+
+    def __init__(self) -> None:
+        self.last_kwargs: dict[str, Any] | None = None
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.last_kwargs = kwargs
+        return _fake_anthropic_response(
+            content=[_fake_text_block("ok")],
+        )
+
+
+def _anthropic_provider_with_fake() -> tuple[AnthropicProvider, _FakeAnthropicMessages]:
+    """Wire an AnthropicProvider to a fake messages client."""
+    messages = _FakeAnthropicMessages()
+    fake_client = type("Client", (), {"messages": messages})()
+    provider = AnthropicProvider("test-key")
+    provider._client = fake_client
+    return provider, messages
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_basic_request() -> None:
+    """Characterize the basic kwargs shape sent to messages.create."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["What is 2+2?"],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["model"] == ANTHROPIC_MODEL
+    assert messages.last_kwargs["max_tokens"] == 8192
+    assert len(messages.last_kwargs["messages"]) == 1
+    msg = messages.last_kwargs["messages"][0]
+    assert msg["role"] == "user"
+    assert msg["content"] == [{"type": "text", "text": "What is 2+2?"}]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_with_system_instruction() -> None:
+    """system_instruction should map to the system parameter."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Hello"],
+            system_instruction="Be concise.",
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["system"] == "Be concise."
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_with_tools() -> None:
+    """Tools should be mapped to Anthropic format with input_schema."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["What's the weather?"],
+            tools=[
+                {
+                    "name": "get_weather",
+                    "description": "Get weather for a location.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {"type": "string"},
+                        },
+                        "required": ["location"],
+                    },
+                }
+            ],
+            tool_choice="required",
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    tools = messages.last_kwargs["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "get_weather"
+    assert tools[0]["description"] == "Get weather for a location."
+    assert "input_schema" in tools[0]
+    assert tools[0]["input_schema"]["properties"]["location"]["type"] == "string"
+    # "required" maps to {"type": "any"}
+    assert messages.last_kwargs["tool_choice"] == {"type": "any"}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_with_temperature() -> None:
+    """Temperature and top_p should pass through to messages.create."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Hello"],
+            temperature=0.5,
+            top_p=0.9,
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["temperature"] == 0.5
+    assert messages.last_kwargs["top_p"] == 0.9
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_with_structured_output() -> None:
+    """response_schema should map to output_config.format with json_schema."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    schema = {
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"],
+    }
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Answer the question."],
+            response_schema=schema,
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    output_config = messages.last_kwargs["output_config"]
+    assert output_config["format"]["type"] == "json_schema"
+    # to_strict_schema adds additionalProperties: False
+    expected = {**schema, "additionalProperties": False}
+    assert output_config["format"]["schema"] == expected
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_with_history() -> None:
+    """History should be replayed as full message list."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Continue."],
+            history=[
+                Message(role="user", content="Hi"),
+                Message(role="assistant", content="Hello!"),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="toolu_abc",
+                            name="get_weather",
+                            arguments='{"location": "NYC"}',
+                        )
+                    ],
+                ),
+                Message(
+                    role="tool",
+                    tool_call_id="toolu_abc",
+                    content='{"temp": 72}',
+                ),
+            ],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    msgs = messages.last_kwargs["messages"]
+    # Expected order: user Hi, assistant Hello, assistant tool_use, user tool_result, user Continue
+    assert len(msgs) == 5
+    assert msgs[0]["role"] == "user"
+    assert msgs[0]["content"] == "Hi"
+    assert msgs[1]["role"] == "assistant"
+    assert msgs[1]["content"] == [{"type": "text", "text": "Hello!"}]
+    assert msgs[2]["role"] == "assistant"
+    assert msgs[2]["content"][0]["type"] == "tool_use"
+    assert msgs[3]["role"] == "user"
+    assert msgs[3]["content"][0]["type"] == "tool_result"
+    assert msgs[4]["role"] == "user"
+
+
+# =============================================================================
+# Anthropic Capability Tests (Characterization)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_anthropic_upload_raises() -> None:
+    """upload_file should raise APIError: not supported."""
+    from pathlib import Path
+
+    provider = AnthropicProvider("test-key")
+
+    with pytest.raises(APIError, match="does not support file uploads"):
+        await provider.upload_file(Path("/dummy"), "application/pdf")
+
+
+@pytest.mark.asyncio
+async def test_anthropic_cache_raises() -> None:
+    """create_cache should raise APIError: not supported."""
+    provider = AnthropicProvider("test-key")
+
+    with pytest.raises(APIError, match="does not support context caching"):
+        await provider.create_cache(
+            model=ANTHROPIC_MODEL, parts=["test"], ttl_seconds=3600
+        )

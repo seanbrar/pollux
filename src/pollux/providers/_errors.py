@@ -117,6 +117,8 @@ def _auth_hint(
             env_var = "OPENAI_API_KEY"
         elif provider == "gemini":
             env_var = "GEMINI_API_KEY"
+        elif provider == "anthropic":
+            env_var = "ANTHROPIC_API_KEY"
         return (
             f"Check credentials/permissions (try setting {env_var} or Config.api_key)."
         )

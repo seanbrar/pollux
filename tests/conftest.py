@@ -15,9 +15,11 @@ from pollux.providers.models import ProviderRequest, ProviderResponse
 
 GEMINI_MODEL = "gemini-2.0-flash"
 OPENAI_MODEL = "gpt-5-nano"
+ANTHROPIC_MODEL = "claude-haiku-4-5"
 CACHE_MODEL = "cache-model"
 GEMINI_API_TEST_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
 OPENAI_API_TEST_MODEL = OPENAI_MODEL
+ANTHROPIC_API_TEST_MODEL = ANTHROPIC_MODEL
 
 
 @dataclass
@@ -116,7 +118,7 @@ def isolate_provider_env(request, monkeypatch):
         return
 
     for key in list(os.environ.keys()):
-        if key.startswith(("GEMINI_", "OPENAI_")):
+        if key.startswith(("GEMINI_", "OPENAI_", "ANTHROPIC_")):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.delenv("DEBUG", raising=False)
     monkeypatch.delenv("POLLUX_DEBUG_CONFIG", raising=False)
@@ -192,3 +194,24 @@ def openai_api_key():
 def openai_test_model():
     """Return the model to use for OpenAI API tests."""
     return OPENAI_API_TEST_MODEL
+
+
+@pytest.fixture
+def anthropic_model() -> str:
+    """Return the canonical Anthropic model for non-API tests."""
+    return ANTHROPIC_MODEL
+
+
+@pytest.fixture
+def anthropic_api_key():
+    """Return ANTHROPIC_API_KEY or skip the test if unavailable."""
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        pytest.skip("ANTHROPIC_API_KEY not set")
+    return key
+
+
+@pytest.fixture
+def anthropic_test_model():
+    """Return the model to use for Anthropic API tests."""
+    return ANTHROPIC_API_TEST_MODEL

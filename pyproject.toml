@@ -13,6 +13,7 @@ authors = [{ name = "Sean Brar", email = "hello@seanbrar.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.10, <3.15"
 dependencies = [
+    "anthropic>=0.83",
     "google-genai>=1.61",
     "httpx>=0.24",
     "openai>=2.16.0",
@@ -132,7 +133,7 @@ markers = [
     "contract: Architectural invariant tests spanning modules",
     "unit: Fast, isolated unit tests",
     "integration: Cross-component integration tests with mocked APIs",
-    "api: External API tests (requires GEMINI_API_KEY, auto-skipped otherwise)",
+    "api: External API tests (requires provider API key, auto-skipped otherwise)",
     # Secondary attributes (stackable with primary type)
     "security: Security-sensitive tests",
     "slow: Tests taking >1s (for CI optimization)",
