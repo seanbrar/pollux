@@ -61,27 +61,48 @@ class OpenAIProvider:
             conversation=True,
         )
 
-    async def generate(
-        self,
-        request: ProviderRequest,
-    ) -> ProviderResponse:
-        """Generate a response using OpenAI's responses endpoint."""
-        model = request.model
-        parts = request.parts
-        system_instruction = request.system_instruction
-        cache_name = request.cache_name
-        response_schema = request.response_schema
-        temperature = request.temperature
-        top_p = request.top_p
-        tools = request.tools
-        tool_choice = request.tool_choice
-        reasoning_effort = request.reasoning_effort
-        history = request.history
-        previous_response_id = request.previous_response_id
+    @staticmethod
+    def _normalize_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Convert tool dicts to OpenAI function tool format."""
+        result: list[dict[str, Any]] = []
+        for t in tools:
+            if "name" in t:
+                tool_def: dict[str, Any] = {
+                    "type": "function",
+                    "name": t["name"],
+                }
+                if "description" in t:
+                    tool_def["description"] = t["description"]
+                strict = t.get("strict", True)
+                if "parameters" in t:
+                    params = t["parameters"]
+                    if strict and isinstance(params, dict):
+                        params = to_strict_schema(params)
+                    tool_def["parameters"] = params
+                tool_def["strict"] = strict
+                result.append(tool_def)
+        return result
 
-        _ = cache_name
-        client = self._get_client()
+    @staticmethod
+    def _map_tool_choice(
+        tool_choice: str | dict[str, Any] | None,
+    ) -> str | dict[str, str] | None:
+        """Map tool_choice to OpenAI format."""
+        if tool_choice is None:
+            return None
+        if isinstance(tool_choice, str):
+            return tool_choice
+        if isinstance(tool_choice, dict) and "name" in tool_choice:
+            return {"type": "function", "name": tool_choice["name"]}
+        return None
 
+    @staticmethod
+    def _build_input(
+        parts: list[Any],
+        history: list[Any] | None,
+        previous_response_id: str | None,
+    ) -> list[dict[str, Any]]:
+        """Build the input messages list from history + current parts."""
         user_content: list[dict[str, str]] = []
         for part in parts:
             normalized = _normalize_input_part(part)
@@ -153,71 +174,24 @@ class OpenAIProvider:
         if has_real_content or not input_messages:
             input_messages.append({"role": "user", "content": user_content})
 
-        create_kwargs: dict[str, Any] = {
-            "model": model,
-            "input": input_messages,
-        }
-        if temperature is not None:
-            create_kwargs["temperature"] = temperature
-        if top_p is not None:
-            create_kwargs["top_p"] = top_p
+        return input_messages
 
-        if tools is not None:
-            create_kwargs["tools"] = []
-            for t in tools:
-                if "name" in t:
-                    tool_def: dict[str, Any] = {
-                        "type": "function",
-                        "name": t["name"],
-                    }
-                    if "description" in t:
-                        tool_def["description"] = t["description"]
-                    strict = t.get("strict", True)
-                    if "parameters" in t:
-                        params = t["parameters"]
-                        if strict and isinstance(params, dict):
-                            params = to_strict_schema(params)
-                        tool_def["parameters"] = params
-                    tool_def["strict"] = strict
-                    create_kwargs["tools"].append(tool_def)
-            if tool_choice is not None:
-                if isinstance(tool_choice, str):
-                    create_kwargs["tool_choice"] = tool_choice
-                elif isinstance(tool_choice, dict) and "name" in tool_choice:
-                    create_kwargs["tool_choice"] = {
-                        "type": "function",
-                        "name": tool_choice["name"],
-                    }
-        if system_instruction:
-            create_kwargs["instructions"] = system_instruction
-        if previous_response_id:
-            create_kwargs["previous_response_id"] = previous_response_id
-        if reasoning_effort is not None:
-            create_kwargs["reasoning"] = {
-                "effort": reasoning_effort,
-                "summary": "auto",
-            }
-        if response_schema is not None:
-            strict_schema = to_strict_schema(response_schema)
-            create_kwargs["text"] = {
-                "format": {
-                    "type": "json_schema",
-                    "name": "pollux_structured_output",
-                    "schema": strict_schema,
-                    "strict": True,
-                }
-            }
-
-        response = await client.responses.create(**create_kwargs)
+    @staticmethod
+    def _parse_response(
+        response: Any, *, response_schema: dict[str, Any] | None
+    ) -> ProviderResponse:
+        """Parse an OpenAI response into ProviderResponse."""
         text = getattr(response, "output_text", "") or ""
         response_id = getattr(response, "id", None)
         finish_reason = _extract_finish_reason(response)
+
         structured: Any = None
         if response_schema is not None and text:
             try:
                 structured = json.loads(text)
             except Exception:
                 structured = None
+
         usage_raw = getattr(response, "usage", None)
         usage: dict[str, int] = {}
         if usage_raw is not None:
@@ -232,7 +206,7 @@ class OpenAIProvider:
                 if reasoning_toks is not None:
                     usage["reasoning_tokens"] = int(reasoning_toks)
 
-        tool_calls = []
+        tool_calls: list[ToolCall] = []
         reasoning_parts: list[str] = []
         for item in getattr(response, "output", []):
             if item.type == "function_call":
@@ -251,12 +225,64 @@ class OpenAIProvider:
         return ProviderResponse(
             text=text,
             usage=usage,
-            reasoning="\n\n".join(reasoning_parts).strip() if reasoning_parts else None,
+            reasoning=(
+                "\n\n".join(reasoning_parts).strip() if reasoning_parts else None
+            ),
             structured=structured,
             tool_calls=tool_calls if tool_calls else None,
             response_id=response_id if isinstance(response_id, str) else None,
             finish_reason=finish_reason,
         )
+
+    async def generate(
+        self,
+        request: ProviderRequest,
+    ) -> ProviderResponse:
+        """Generate a response using OpenAI's responses endpoint."""
+        _ = request.cache_name
+        client = self._get_client()
+
+        input_messages = self._build_input(
+            request.parts, request.history, request.previous_response_id
+        )
+
+        create_kwargs: dict[str, Any] = {
+            "model": request.model,
+            "input": input_messages,
+        }
+        if request.temperature is not None:
+            create_kwargs["temperature"] = request.temperature
+        if request.top_p is not None:
+            create_kwargs["top_p"] = request.top_p
+
+        if request.tools is not None:
+            create_kwargs["tools"] = self._normalize_tools(request.tools)
+            mapped = self._map_tool_choice(request.tool_choice)
+            if mapped is not None:
+                create_kwargs["tool_choice"] = mapped
+
+        if request.system_instruction:
+            create_kwargs["instructions"] = request.system_instruction
+        if request.previous_response_id:
+            create_kwargs["previous_response_id"] = request.previous_response_id
+        if request.reasoning_effort is not None:
+            create_kwargs["reasoning"] = {
+                "effort": request.reasoning_effort,
+                "summary": "auto",
+            }
+        if request.response_schema is not None:
+            strict_schema = to_strict_schema(request.response_schema)
+            create_kwargs["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": "pollux_structured_output",
+                    "schema": strict_schema,
+                    "strict": True,
+                }
+            }
+
+        response = await client.responses.create(**create_kwargs)
+        return self._parse_response(response, response_schema=request.response_schema)
 
     async def upload_file(self, path: Path, mime_type: str) -> str:
         """Upload a local file and return a URI-like identifier."""
