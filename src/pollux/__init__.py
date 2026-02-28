@@ -186,6 +186,16 @@ def _get_provider(config: Config) -> Provider:
             )
         return OpenAIProvider(config.api_key)
 
+    if config.provider == "anthropic":
+        from pollux.providers.anthropic import AnthropicProvider
+
+        if not config.api_key:
+            raise ConfigurationError(
+                "api_key required for real API",
+                hint="Set ANTHROPIC_API_KEY or pass Config(api_key=...).",
+            )
+        return AnthropicProvider(config.api_key)
+
     from pollux.providers.gemini import GeminiProvider
 
     if not config.api_key:

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from copy import deepcopy
 import json
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
+from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import ProviderRequest, ProviderResponse, ToolCall
 
@@ -176,7 +176,7 @@ class OpenAIProvider:
                     if "parameters" in t:
                         params = t["parameters"]
                         if strict and isinstance(params, dict):
-                            params = _to_openai_strict_schema(params)
+                            params = to_strict_schema(params)
                         tool_def["parameters"] = params
                     tool_def["strict"] = strict
                     create_kwargs["tools"].append(tool_def)
@@ -198,7 +198,7 @@ class OpenAIProvider:
                 "summary": "auto",
             }
         if response_schema is not None:
-            strict_schema = _to_openai_strict_schema(response_schema)
+            strict_schema = to_strict_schema(response_schema)
             create_kwargs["text"] = {
                 "format": {
                     "type": "json_schema",
@@ -316,35 +316,6 @@ class OpenAIProvider:
             return
         self._client = None
         await client.close()
-
-
-def _to_openai_strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
-    """Normalize a JSON schema for OpenAI strict structured-output requirements."""
-    normalized = deepcopy(schema)
-
-    def walk(node: Any) -> Any:
-        if isinstance(node, list):
-            return [walk(item) for item in node]
-        if not isinstance(node, dict):
-            return node
-
-        updated: dict[str, Any] = {}
-        for key, value in node.items():
-            updated[key] = walk(value)
-
-        if updated.get("type") == "object" or "properties" in updated:
-            properties = updated.get("properties", {})
-            if isinstance(properties, dict):
-                updated["additionalProperties"] = False
-                if "required" not in updated:
-                    updated["required"] = list(properties.keys())
-
-        return updated
-
-    result = walk(normalized)
-    if not isinstance(result, dict):
-        raise APIError("Invalid response_schema: expected object schema")
-    return result
 
 
 def _extract_finish_reason(response: Any) -> str | None:
