@@ -35,7 +35,7 @@ jobs:
     secrets: inherit
     with:
       python-version: ${{ matrix.python-version }}
-      test-command: make test
+      test-command: just test
       enable-api-tests: false
       # Upload coverage from a single matrix entry to avoid duplicate Codecov reports.
       upload-coverage: ${{ matrix.python-version == '3.13' }}
@@ -48,7 +48,7 @@ jobs:
     secrets: inherit
     with:
       python-version: "3.10"
-      test-command: make test-api
+      test-command: just test-api
       enable-api-tests: true
       upload-coverage: false
 
