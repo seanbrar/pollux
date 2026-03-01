@@ -65,6 +65,7 @@ class FakeProvider:
             "reasoning_effort": request.reasoning_effort,
             "history": request.history,
             "previous_response_id": request.previous_response_id,
+            "provider_state": request.provider_state,
         }
         prompt = (
             request.parts[-1]
