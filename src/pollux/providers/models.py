@@ -16,6 +16,16 @@ class ToolCall:
 
 
 @dataclass(frozen=True)
+class ProviderFileAsset:
+    """A formally tracked remote file asset returned by upload_file."""
+
+    file_id: str
+    provider: str
+    mime_type: str
+    is_inline_fallback: bool = False
+
+
+@dataclass(frozen=True)
 class Message:
     """A standard conversational message turn."""
 

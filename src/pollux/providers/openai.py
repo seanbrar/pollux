@@ -12,7 +12,12 @@ from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderRequest, ProviderResponse, ToolCall
+from pollux.providers.models import (
+    ProviderFileAsset,
+    ProviderRequest,
+    ProviderResponse,
+    ToolCall,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -284,8 +289,8 @@ class OpenAIProvider:
         response = await client.responses.create(**create_kwargs)
         return self._parse_response(response, response_schema=request.response_schema)
 
-    async def upload_file(self, path: Path, mime_type: str) -> str:
-        """Upload a local file and return a URI-like identifier."""
+    async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
+        """Upload a local file and return an asset."""
         client = self._get_client()
 
         try:
@@ -293,7 +298,12 @@ class OpenAIProvider:
                 # Files API rejects plain text uploads; inline as input_text payload.
                 text = path.read_text(encoding="utf-8")
                 encoded = base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
-                return f"openai://text/{encoded}"
+                return ProviderFileAsset(
+                    file_id=encoded,
+                    provider="openai",
+                    mime_type=mime_type,
+                    is_inline_fallback=True,
+                )
 
             result = await client.files.create(
                 file=path,
@@ -304,7 +314,9 @@ class OpenAIProvider:
             file_id = getattr(result, "id", None)
             if not isinstance(file_id, str):
                 raise APIError("OpenAI upload did not return a file id")
-            return f"openai://file/{file_id}"
+            return ProviderFileAsset(
+                file_id=file_id, provider="openai", mime_type=mime_type
+            )
         except asyncio.CancelledError:
             raise
         except APIError:
@@ -371,6 +383,31 @@ def _normalize_input_part(part: Any) -> dict[str, str] | None:
     if isinstance(part, str):
         return {"type": "input_text", "text": part}
 
+    if isinstance(part, ProviderFileAsset):
+        if part.provider != "openai":
+            raise APIError(f"OpenAI cannot use {part.provider} file assets.")
+
+        if part.is_inline_fallback:
+            encoded_text = part.file_id
+            if not encoded_text:
+                raise APIError("Invalid OpenAI text asset: missing content payload")
+            try:
+                text = base64.urlsafe_b64decode(encoded_text.encode("ascii")).decode(
+                    "utf-8"
+                )
+            except Exception as e:
+                raise APIError(
+                    "Invalid OpenAI text asset: malformed content payload"
+                ) from e
+            return {"type": "input_text", "text": text}
+
+        file_id = part.file_id
+        if not file_id:
+            raise APIError("Invalid OpenAI file asset: missing file id")
+        if part.mime_type.startswith("image/"):
+            return {"type": "input_image", "file_id": file_id}
+        return {"type": "input_file", "file_id": file_id}
+
     if not isinstance(part, dict):
         return None
 
@@ -378,28 +415,6 @@ def _normalize_input_part(part: Any) -> dict[str, str] | None:
     mime_type = part.get("mime_type")
     if not isinstance(uri, str) or not isinstance(mime_type, str):
         return None
-
-    uploaded_prefix = "openai://file/"
-    inline_text_prefix = "openai://text/"
-    if uri.startswith(inline_text_prefix):
-        encoded_text = uri.removeprefix(inline_text_prefix)
-        if not encoded_text:
-            raise APIError("Invalid OpenAI text URI: missing content payload")
-        try:
-            text = base64.urlsafe_b64decode(encoded_text.encode("ascii")).decode(
-                "utf-8"
-            )
-        except Exception as e:
-            raise APIError("Invalid OpenAI text URI: malformed content payload") from e
-        return {"type": "input_text", "text": text}
-
-    if uri.startswith(uploaded_prefix):
-        file_id = uri.removeprefix(uploaded_prefix)
-        if not file_id:
-            raise APIError("Invalid OpenAI file URI: missing file id")
-        if mime_type.startswith("image/"):
-            return {"type": "input_image", "file_id": file_id}
-        return {"type": "input_file", "file_id": file_id}
 
     parsed = urlparse(uri)
     if parsed.scheme not in {"http", "https"}:

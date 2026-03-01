@@ -3,7 +3,10 @@ case:
   file_name: doc.pdf
   file_bytes: "%PDF-1.4 fake pdf content"
 expected:
-  uri: openai://file/file_abc123
+
+  asset:
+    file_id: file_abc123
+    is_inline_fallback: false
   files_create:
     purpose: user_data
     expires_after:

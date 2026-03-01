@@ -15,7 +15,13 @@ from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError, PlanningError, SourceError
 from pollux.options import Options
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import Message, ProviderRequest, ProviderResponse, ToolCall
+from pollux.providers.models import (
+    Message,
+    ProviderFileAsset,
+    ProviderRequest,
+    ProviderResponse,
+    ToolCall,
+)
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
@@ -158,8 +164,7 @@ async def test_upload_error_attributes_provider_and_call_index(
 
     @dataclass
     class _Provider(FakeProvider):
-        async def upload_file(self, path: Any, mime_type: str) -> str:
-            _ = path, mime_type
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:  # noqa: ARG002
             raise APIError(
                 "upload failed",
                 retryable=False,
@@ -313,12 +318,13 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
             if self.mode.startswith("upload_"):
                 parts = request.parts
                 assert any(
-                    isinstance(p, dict) and p.get("uri") == "mock://uploaded/doc.txt"
+                    isinstance(p, ProviderFileAsset)
+                    and p.file_id == "mock://uploaded/doc.txt"
                     for p in parts
                 )
             return ProviderResponse(text="ok", usage={"total_tokens": 1})
 
-        async def upload_file(self, path: Any, mime_type: str) -> str:
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:
             _ = path, mime_type
             self.upload_attempts += 1
             if self.mode == "upload_retry" and self.upload_attempts == 1:
@@ -330,7 +336,9 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
                 )
             if self.mode == "upload_no_retry":
                 raise APIError("upload timed out", provider="gemini", phase="upload")
-            return "mock://uploaded/doc.txt"
+            return ProviderFileAsset(
+                file_id="mock://uploaded/doc.txt", provider="mock", mime_type=mime_type
+            )
 
     file_path = tmp_path / "doc.txt"
     file_path.write_text("hello")
@@ -452,7 +460,8 @@ async def test_file_placeholders_are_uploaded_before_generate(
     assert fake.last_parts is not None
     assert not any(isinstance(p, dict) and "file_path" in p for p in fake.last_parts)
     assert any(
-        isinstance(p, dict) and isinstance(p.get("uri"), str) for p in fake.last_parts
+        isinstance(p, ProviderFileAsset) and isinstance(p.file_id, str)
+        for p in fake.last_parts
     )
 
 
@@ -518,10 +527,13 @@ async def test_openai_uploads_are_cleaned_up_after_pipeline(
     class TrackingProvider(FakeProvider):
         deleted_file_ids: list[str] = field(default_factory=list)
 
-        async def upload_file(self, path: Any, mime_type: str) -> str:
-            del mime_type
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:
             self.upload_calls += 1
-            return f"openai://file/file-{path.name}"
+            return ProviderFileAsset(
+                file_id=f"openai://file/file-{path.name}",
+                provider="openai",
+                mime_type=mime_type,
+            )
 
         async def delete_file(self, file_id: str) -> None:
             self.deleted_file_ids.append(file_id)
@@ -541,7 +553,7 @@ async def test_openai_uploads_are_cleaned_up_after_pipeline(
 
     assert result["status"] == "ok"
     assert fake.upload_calls == 1
-    assert fake.deleted_file_ids == ["file-doc.pdf"]
+    assert fake.deleted_file_ids == ["openai://file/file-doc.pdf"]
 
 
 @pytest.mark.asyncio
@@ -554,9 +566,14 @@ async def test_text_uploads_are_not_cleaned_up(
     class TrackingProvider(FakeProvider):
         deleted_file_ids: list[str] = field(default_factory=list)
 
-        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:  # noqa: ARG002
             self.upload_calls += 1
-            return "openai://text/aW5saW5lZA=="
+            return ProviderFileAsset(
+                file_id="aW5saW5lZA==",
+                provider="openai",
+                mime_type=mime_type,
+                is_inline_fallback=True,
+            )
 
         async def delete_file(self, file_id: str) -> None:
             self.deleted_file_ids.append(file_id)
@@ -586,9 +603,13 @@ async def test_upload_cleanup_failure_does_not_raise(
 
     @dataclass
     class FailingCleanupProvider(FakeProvider):
-        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:  # noqa: ARG002
             self.upload_calls += 1
-            return "openai://file/file-broken"
+            return ProviderFileAsset(
+                file_id="openai://file/file-broken",
+                provider="openai",
+                mime_type=mime_type,
+            )
 
         async def delete_file(self, file_id: str) -> None:
             raise RuntimeError(f"delete failed for {file_id}")
@@ -641,9 +662,13 @@ async def test_openai_upload_cleanup_runs_even_when_generate_fails(
     class FailingGenerateProvider(FakeProvider):
         deleted_file_ids: list[str] = field(default_factory=list)
 
-        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:  # noqa: ARG002
             self.upload_calls += 1
-            return "openai://file/file-failed-generate"
+            return ProviderFileAsset(
+                file_id="openai://file/file-failed-generate",
+                provider="openai",
+                mime_type=mime_type,
+            )
 
         async def generate(self, request: ProviderRequest) -> ProviderResponse:  # noqa: ARG002
             raise APIError("boom", retryable=False)
@@ -666,7 +691,7 @@ async def test_openai_upload_cleanup_runs_even_when_generate_fails(
         )
 
     assert fake.upload_calls == 1
-    assert fake.deleted_file_ids == ["file-failed-generate"]
+    assert fake.deleted_file_ids == ["openai://file/file-failed-generate"]
 
 
 @pytest.mark.asyncio
@@ -678,9 +703,13 @@ async def test_duration_includes_upload_cleanup_latency(
 
     @dataclass
     class SlowCleanupProvider(FakeProvider):
-        async def upload_file(self, path: Any, mime_type: str) -> str:  # noqa: ARG002
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:  # noqa: ARG002
             self.upload_calls += 1
-            return "openai://file/file-slow-cleanup"
+            return ProviderFileAsset(
+                file_id="openai://file/file-slow-cleanup",
+                provider="openai",
+                mime_type=mime_type,
+            )
 
         async def delete_file(self, file_id: str) -> None:  # noqa: ARG002
             await asyncio.sleep(cleanup_delay_s)
