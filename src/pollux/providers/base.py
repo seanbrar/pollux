@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from pollux.providers.models import ProviderRequest, ProviderResponse
+    from pollux.providers.models import (
+        ProviderFileAsset,
+        ProviderRequest,
+        ProviderResponse,
+    )
 
 
 @dataclass(frozen=True)
@@ -34,8 +38,8 @@ class Provider(Protocol):
         """Generate content from the model."""
         ...
 
-    async def upload_file(self, path: Path, mime_type: str) -> str:
-        """Upload a file and return its URI."""
+    async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
+        """Upload a file and return its asset representation."""
         ...
 
     async def create_cache(

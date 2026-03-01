@@ -21,7 +21,12 @@ from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.gemini import GeminiProvider
-from pollux.providers.models import Message, ProviderRequest, ToolCall
+from pollux.providers.models import (
+    Message,
+    ProviderFileAsset,
+    ProviderRequest,
+    ToolCall,
+)
 from pollux.providers.openai import OpenAIProvider
 from tests.conftest import ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL
 
@@ -650,11 +655,15 @@ async def test_gemini_upload_returns_active_without_polling(tmp_path: Any) -> No
     files = _FakeGeminiFiles(upload_result=upload_result, get_results=None)
     provider = _gemini_provider_with_files(files)
 
-    uri = await provider.upload_file(
+    asset = await provider.upload_file(
         path=tmp_path / "already-ready.pdf", mime_type="application/pdf"
     )
 
-    assert uri == str(upload_result.uri)
+    assert isinstance(asset, ProviderFileAsset)
+    assert asset.file_id == str(upload_result.uri)
+    assert asset.provider == "gemini"
+    assert asset.mime_type == "application/pdf"
+    assert asset.is_inline_fallback is False
     assert files.upload_calls == 1
     assert files.get_calls == 0
 
@@ -671,11 +680,17 @@ async def test_gemini_upload_polls_until_active_for_any_mime_type(
     files = _FakeGeminiFiles(upload_result=processing, get_results=[active])
     provider = _gemini_provider_with_files(files)
 
-    uri = await provider.upload_file(
+    asset = await provider.upload_file(
         path=tmp_path / "still-processing.bin", mime_type="application/octet-stream"
     )
 
-    assert uri == "https://generativelanguage.googleapis.com/v1beta/files/ready"
+    assert isinstance(asset, ProviderFileAsset)
+    assert (
+        asset.file_id == "https://generativelanguage.googleapis.com/v1beta/files/ready"
+    )
+    assert asset.provider == "gemini"
+    assert asset.mime_type == "application/octet-stream"
+    assert asset.is_inline_fallback is False
     assert files.upload_calls == 1
     assert files.get_calls == 1
     assert files.last_get_name == "files/abc123"
@@ -881,8 +896,17 @@ async def test_openai_generate_characterizes_multimodal_request_shape(
                     "mime_type": "application/pdf",
                 },
                 {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
-                {"uri": "openai://file/file_abc123", "mime_type": "application/pdf"},
-                {"uri": "openai://text/SGVsbG8gV29ybGQ=", "mime_type": "text/plain"},
+                ProviderFileAsset(
+                    file_id="file_abc123",
+                    provider="openai",
+                    mime_type="application/pdf",
+                ),
+                ProviderFileAsset(
+                    file_id="SGVsbG8gV29ybGQ=",
+                    provider="openai",
+                    mime_type="text/plain",
+                    is_inline_fallback=True,
+                ),
             ],
         )
     )
@@ -1098,8 +1122,18 @@ async def test_openai_upload_characterization(golden: Any, tmp_path: Any) -> Non
     files = _FakeFiles()
     provider._client = type("Client", (), {"files": files})()
 
-    uri = await provider.upload_file(path=file_path, mime_type=mime_type)
-    assert expected["uri"] == uri
+    asset = await provider.upload_file(path=file_path, mime_type=mime_type)
+
+    assert isinstance(asset, ProviderFileAsset)
+
+    expected_asset = expected.get("asset")
+    if expected_asset:
+        assert asset.file_id == expected_asset["file_id"]
+        assert asset.provider == "openai"
+        assert asset.mime_type == mime_type
+        assert asset.is_inline_fallback == expected_asset.get(
+            "is_inline_fallback", False
+        )
 
     expected_files_create = expected.get("files_create")
     if expected_files_create is None:
@@ -1866,7 +1900,7 @@ async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header_f
 
     assert messages.last_kwargs is not None
     assert messages.last_kwargs["extra_headers"] == {
-        "anthropic-beta": "interleaved-thinking-2025-05-14"
+        "anthropic-beta": "files-api-2025-04-14,interleaved-thinking-2025-05-14"
     }
 
 
@@ -1887,7 +1921,9 @@ async def test_anthropic_generate_reasoning_with_tools_omits_header_for_adaptive
     )
 
     assert messages.last_kwargs is not None
-    assert "extra_headers" not in messages.last_kwargs
+    assert messages.last_kwargs["extra_headers"] == {
+        "anthropic-beta": "files-api-2025-04-14"
+    }
 
 
 @pytest.mark.asyncio
@@ -2128,13 +2164,103 @@ async def test_anthropic_generate_continuation_no_prompt() -> None:
 
 @pytest.mark.asyncio
 async def test_anthropic_upload_raises() -> None:
-    """upload_file should raise APIError: not supported."""
+    """upload_file should raise APIError on network or IO failure."""
     from pathlib import Path
 
     provider = AnthropicProvider("test-key")
 
-    with pytest.raises(APIError, match="does not support file uploads"):
+    with pytest.raises(APIError, match="Anthropic upload failed"):
         await provider.upload_file(Path("/dummy"), "application/pdf")
+
+
+@pytest.mark.asyncio
+async def test_anthropic_upload_success(tmp_path: Any) -> None:
+    """Characterize successful Anthropic file upload."""
+    from pollux.providers.models import ProviderFileAsset
+
+    class _FakeBetaFiles:
+        def __init__(self) -> None:
+            self.last_kwargs: dict[str, Any] = {}
+
+        async def create(self, **kwargs: Any) -> Any:
+            self.last_kwargs = kwargs
+            return type("Result", (), {"id": "file_123"})()
+
+    fake_files = _FakeBetaFiles()
+    fake_client = type(
+        "Client", (), {"beta": type("Beta", (), {"files": fake_files})()}
+    )()
+
+    provider = AnthropicProvider("test-key")
+    provider._client = fake_client
+
+    file_path = tmp_path / "test.jpg"
+    file_path.write_bytes(b"image data")
+
+    asset = await provider.upload_file(file_path, "image/jpeg")
+
+    assert isinstance(asset, ProviderFileAsset)
+    assert asset.file_id == "file_123"
+    assert asset.provider == "anthropic"
+    assert asset.mime_type == "image/jpeg"
+
+    assert fake_files.last_kwargs["file"] == b"image data"
+    assert fake_files.last_kwargs["file_name"] == "test.jpg"
+    assert fake_files.last_kwargs["file_type"] == "image/jpeg"
+    assert fake_files.last_kwargs["extra_headers"] == {
+        "anthropic-beta": "files-api-2025-04-14"
+    }
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_resolves_file_assets() -> None:
+    """ProviderFileAsset parts should be resolved to corresponding Anthropic source blocks."""
+    from pollux.providers.models import ProviderFileAsset
+
+    provider, messages = _anthropic_provider_with_fake()
+
+    # Mix of image and pdf
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=[
+                ProviderFileAsset(
+                    file_id="abc", provider="anthropic", mime_type="image/jpeg"
+                ),
+                ProviderFileAsset(
+                    file_id="xyz", provider="anthropic", mime_type="application/pdf"
+                ),
+                "Please describe both.",
+            ],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    msgs = messages.last_kwargs["messages"]
+    assert len(msgs) == 1
+    content = msgs[0]["content"]
+
+    assert content[0] == {
+        "type": "image",
+        "source": {
+            "type": "file",
+            "file_id": "abc",
+        },
+    }
+    assert content[1] == {
+        "type": "document",
+        "source": {
+            "type": "file",
+            "file_id": "xyz",
+        },
+    }
+    assert content[2] == {"type": "text", "text": "Please describe both."}
+
+    # Files API requires the beta header for messages.create too
+    assert (
+        messages.last_kwargs["extra_headers"]["anthropic-beta"]
+        == "files-api-2025-04-14"
+    )
 
 
 @pytest.mark.asyncio

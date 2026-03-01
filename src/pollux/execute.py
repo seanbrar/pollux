@@ -13,7 +13,12 @@ from typing import TYPE_CHECKING, Any
 from pollux._singleflight import singleflight_cached
 from pollux.cache import CacheRegistry, get_or_create_cache
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
-from pollux.providers.models import Message, ProviderRequest, ToolCall
+from pollux.providers.models import (
+    Message,
+    ProviderFileAsset,
+    ProviderRequest,
+    ToolCall,
+)
 from pollux.retry import (
     RetryPolicy,
     retry_async,
@@ -160,8 +165,8 @@ async def execute_plan(
         if isinstance(raw_provider_state, dict):
             provider_state = dict(raw_provider_state)
 
-    upload_cache: dict[tuple[str, str], str] = {}
-    upload_inflight: dict[tuple[str, str], asyncio.Future[str]] = {}
+    upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
+    upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]] = {}
     upload_lock = asyncio.Lock()
     retry_policy = config.retry
     cache_name: str | None = None
@@ -446,12 +451,12 @@ async def _substitute_upload_parts(
     *,
     provider: Provider,
     call_idx: int | None,
-    upload_cache: dict[tuple[str, str], str],
-    upload_inflight: dict[tuple[str, str], asyncio.Future[str]],
+    upload_cache: dict[tuple[str, str], ProviderFileAsset],
+    upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]],
     upload_lock: asyncio.Lock,
     retry_policy: RetryPolicy,
 ) -> list[Any]:
-    """Replace local file placeholders with provider URIs."""
+    """Replace local file placeholders with provider file assets."""
     resolved: list[Any] = []
 
     for part in parts:
@@ -464,7 +469,9 @@ async def _substitute_upload_parts(
             mime_type = part["mime_type"]
             cache_key = (file_path, mime_type)
 
-            async def _work(fp: str = file_path, mt: str = mime_type) -> str:
+            async def _work(
+                fp: str = file_path, mt: str = mime_type
+            ) -> ProviderFileAsset:
                 try:
                     if retry_policy.max_attempts <= 1:
                         return await provider.upload_file(Path(fp), mt)
@@ -494,7 +501,9 @@ async def _substitute_upload_parts(
             except APIError as e:
                 raise _with_call_idx(e, call_idx) from e
 
-            resolved.append({"uri": uri, "mime_type": mime_type})
+            # Instead of appending a {"uri": ...} dict, we append the object itself
+            # The provider's _normalize_input_parts logic will reconstruct the SDK payload.
+            resolved.append(uri)
             continue
 
         resolved.append(part)
@@ -506,7 +515,7 @@ _OPENAI_FILE_PREFIX = "openai://file/"
 
 
 async def _cleanup_uploads(
-    upload_cache: dict[tuple[str, str], str],
+    upload_cache: dict[tuple[str, str], ProviderFileAsset],
     provider: Provider,
 ) -> None:
     """Delete provider-managed uploaded files (best-effort).
@@ -520,9 +529,9 @@ async def _cleanup_uploads(
         return
 
     file_ids: list[str] = []
-    for uri in upload_cache.values():
-        if uri.startswith(_OPENAI_FILE_PREFIX):
-            file_ids.append(uri[len(_OPENAI_FILE_PREFIX) :])
+    for asset in upload_cache.values():
+        if asset.provider == "openai" and not asset.is_inline_fallback:
+            file_ids.append(asset.file_id)
 
     for file_id in file_ids:
         try:

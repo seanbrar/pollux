@@ -3,4 +3,6 @@ case:
   file_name: data.txt
   file_text: content
 expected:
-  uri: openai://text/Y29udGVudA==
+  asset:
+    is_inline_fallback: true
+    file_id: Y29udGVudA==

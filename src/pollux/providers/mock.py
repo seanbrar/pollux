@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -56,9 +56,13 @@ class MockProvider:
             usage={"input_tokens": 10, "total_tokens": 20},
         )
 
-    async def upload_file(self, path: Path, mime_type: str) -> str:  # noqa: ARG002
-        """Return a mock upload URI."""
-        return f"mock://uploaded/{path.name}"
+    async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
+        """Return a mock upload asset."""
+        return ProviderFileAsset(
+            file_id=f"mock://uploaded/{path.name}",
+            provider="mock",
+            mime_type=mime_type,
+        )
 
     async def create_cache(
         self,
