@@ -12,7 +12,7 @@ from typing import Any
 
 from pollux.errors import APIError
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
 from tests.conftest import FakeProvider
 
 
@@ -85,7 +85,7 @@ class GateProvider(FakeProvider):
         self.generate_calls += 1
         return await super().generate(request)
 
-    async def upload_file(self, path: Any, mime_type: str) -> str:
+    async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:
         _ = path, mime_type
         self.upload_calls += 1
         self.started.set()
@@ -98,7 +98,11 @@ class GateProvider(FakeProvider):
                 provider="gemini",
                 phase="upload",
             )
-        return "mock://uploaded/shared.pdf"
+        return ProviderFileAsset(
+            file_id="mock://uploaded/shared.pdf",
+            provider="mock",
+            mime_type=mime_type,
+        )
 
     async def create_cache(self, **kwargs: Any) -> str:
         _ = kwargs
