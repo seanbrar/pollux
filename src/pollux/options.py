@@ -42,6 +42,8 @@ class Options:
     history: list[dict[str, Any]] | None = None
     #: Mutually exclusive with *history*.
     continue_from: ResultEnvelope | None = None
+    #: Hard limit on the model's total output tokens. Provider-specific semantics.
+    max_tokens: int | None = None
 
     def __post_init__(self) -> None:
         """Validate option shapes early for clear errors."""
@@ -63,6 +65,14 @@ class Options:
             raise ConfigurationError(
                 "response_schema must be a Pydantic model class or JSON schema dict",
                 hint="Pass a BaseModel subclass or a dict following JSON Schema.",
+            )
+
+        if self.max_tokens is not None and (
+            not isinstance(self.max_tokens, int) or self.max_tokens <= 0
+        ):
+            raise ConfigurationError(
+                "max_tokens must be a positive integer",
+                hint="Pass max_tokens=16384 or greater for thinking models.",
             )
 
         if self.history is not None and self.continue_from is not None:

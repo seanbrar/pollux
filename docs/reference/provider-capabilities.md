@@ -71,11 +71,14 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Remote URL support is intentionally narrow: images and PDFs only.
 - Reasoning: `reasoning_effort` maps to `output_config.effort`.
   Pollux uses `thinking.type="adaptive"` on adaptive-capable models
-  (currently Opus 4.6) and falls back to manual thinking budgets on older
-  models.
+  (currently Opus 4.6 and Sonnet 4.6) and falls back to manual thinking budgets on older
+  models. The `"max"` effort is strictly limited to Opus 4.6.
 - Thinking block replay: when Anthropic returns `thinking` or
   `redacted_thinking` blocks, Pollux preserves them in conversation state and
   replays them verbatim on continuation turns so tool loops remain valid.
+- `Options.max_tokens`: limits the output length. Default is `16384` for Anthropic
+  (which reserves enough room for all supported manual thinking budgets). Other providers
+  currently ignore this option.
 
 ## Error Semantics
 

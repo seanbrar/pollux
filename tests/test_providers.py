@@ -1697,7 +1697,7 @@ async def test_anthropic_generate_basic_request() -> None:
 
     assert messages.last_kwargs is not None
     assert messages.last_kwargs["model"] == ANTHROPIC_MODEL
-    assert messages.last_kwargs["max_tokens"] == 8192
+    assert messages.last_kwargs["max_tokens"] == 16384
     assert len(messages.last_kwargs["messages"]) == 1
     msg = messages.last_kwargs["messages"][0]
     assert msg["role"] == "user"
@@ -1823,38 +1823,41 @@ async def test_anthropic_generate_maps_reasoning_to_output_effort_and_manual_thi
     assert messages.last_kwargs["output_config"]["effort"] == "high"
     assert messages.last_kwargs["thinking"] == {
         "type": "enabled",
-        "budget_tokens": 6144,
+        "budget_tokens": 10240,
     }
 
 
 @pytest.mark.asyncio
-async def test_anthropic_generate_maps_reasoning_to_adaptive_for_opus46() -> None:
-    """Opus 4.6 should use adaptive thinking mode."""
+async def test_anthropic_generate_maps_reasoning_to_adaptive_for_opus_and_sonnet() -> (
+    None
+):
+    """Opus 4.6 and Sonnet 4.6 should use adaptive thinking mode."""
     provider, messages = _anthropic_provider_with_fake()
 
-    await provider.generate(
-        ProviderRequest(
-            model="claude-opus-4-6-20260219",
-            parts=["Think."],
-            reasoning_effort="medium",
+    for model in ("claude-opus-4-6-20260219", "claude-sonnet-4-6-20260219"):
+        await provider.generate(
+            ProviderRequest(
+                model=model,
+                parts=["Think."],
+                reasoning_effort="medium",
+            )
         )
-    )
 
-    assert messages.last_kwargs is not None
-    assert messages.last_kwargs["output_config"]["effort"] == "medium"
-    assert messages.last_kwargs["thinking"] == {"type": "adaptive"}
+        assert messages.last_kwargs is not None
+        assert messages.last_kwargs["output_config"]["effort"] == "medium"
+        assert messages.last_kwargs["thinking"] == {"type": "adaptive"}
 
 
 @pytest.mark.asyncio
-async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header() -> (
+async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header_for_manual() -> (
     None
 ):
-    """Reasoning + tools should opt into interleaved-thinking beta header."""
+    """Reasoning + tools should opt into interleaved-thinking beta header for non-adaptive models."""
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
         ProviderRequest(
-            model=ANTHROPIC_MODEL,
+            model="claude-sonnet-4-5",
             parts=["Need tool help."],
             reasoning_effort="low",
             tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
@@ -1865,6 +1868,26 @@ async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header()
     assert messages.last_kwargs["extra_headers"] == {
         "anthropic-beta": "interleaved-thinking-2025-05-14"
     }
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_reasoning_with_tools_omits_header_for_adaptive() -> (
+    None
+):
+    """Reasoning + tools should omit beta header for adaptive models."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model="claude-sonnet-4-6-20260219",
+            parts=["Need tool help."],
+            reasoning_effort="low",
+            tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert "extra_headers" not in messages.last_kwargs
 
 
 @pytest.mark.asyncio
@@ -1880,6 +1903,41 @@ async def test_anthropic_generate_rejects_unknown_reasoning_effort() -> None:
                 reasoning_effort="16000",
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_rejects_max_effort_on_non_opus_4_6() -> None:
+    """Anthropic 'max' effort requires Opus 4.6."""
+    from pollux.errors import ConfigurationError
+
+    provider, _messages = _anthropic_provider_with_fake()
+
+    with pytest.raises(ConfigurationError, match=r"supported on Claude Opus 4\.6"):
+        await provider.generate(
+            ProviderRequest(
+                model="claude-sonnet-4-6",
+                parts=["Think."],
+                reasoning_effort="max",
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_max_tokens_default_and_override() -> None:
+    """max_tokens defaults to 16384 but respects explicit overrides."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    # Default
+    await provider.generate(ProviderRequest(model=ANTHROPIC_MODEL, parts=["Hello"]))
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["max_tokens"] == 16384
+
+    # Override
+    await provider.generate(
+        ProviderRequest(model=ANTHROPIC_MODEL, parts=["Hello"], max_tokens=25000)
+    )
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["max_tokens"] == 25000
 
 
 @pytest.mark.asyncio

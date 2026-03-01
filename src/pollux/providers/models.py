@@ -42,6 +42,7 @@ class ProviderRequest:
     history: list[Message] | None = None
     previous_response_id: str | None = None
     provider_state: dict[str, Any] | None = None
+    max_tokens: int | None = None
 
 
 @dataclass

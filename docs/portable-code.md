@@ -181,7 +181,7 @@ if "reasoning" in result:
 | **OpenAI** | `gpt-5` family | `"low"`, `"medium"`, `"high"` | Returns a reasoning summary |
 | **Gemini** | `gemini-3` family | `"low"`, `"medium"`, `"high"`, `"minimal"` | Returns full thinking text |
 | **Gemini** | `gemini-2.5` family | *N/A (raises error)* | *N/A* |
-| **Anthropic** | `claude-4.x` family | `"low"`, `"medium"`, `"high"`, `"max"` | Returns thinking text and preserves replay blocks for tool loops |
+| **Anthropic** | `claude-4.x` family | `"low"`, `"medium"`, `"high"`, `"max"` (Opus 4.6 only) | Returns thinking text and preserves replay blocks for tool loops |
 
 ## Variations
 

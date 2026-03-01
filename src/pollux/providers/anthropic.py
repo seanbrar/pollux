@@ -6,7 +6,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 
-from pollux.errors import APIError
+from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
@@ -15,16 +15,18 @@ from pollux.providers.models import Message, ProviderRequest, ProviderResponse, 
 if TYPE_CHECKING:
     from pathlib import Path
 
-_ANTHROPIC_MAX_TOKENS = 8192
+_ANTHROPIC_DEFAULT_MAX_TOKENS = 16384
 _INTERLEAVED_THINKING_BETA_HEADER = "interleaved-thinking-2025-05-14"
 _ANTHROPIC_THINKING_BLOCKS_KEY = "anthropic_thinking_blocks"
 _ALLOWED_REASONING_EFFORTS = {"low", "medium", "high", "max"}
-_ADAPTIVE_THINKING_MODEL_PREFIXES = ("claude-opus-4-6",)
+# Note: Sonnet 4.6 supports both manual and adaptive thinking.
+# We route through adaptive as it is the recommended path and simpler UX.
+_ADAPTIVE_THINKING_MODEL_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
 _MANUAL_THINKING_BUDGETS = {
     "low": 2048,
-    "medium": 4096,
-    "high": 6144,
-    "max": 7168,
+    "medium": 5120,
+    "high": 10240,
+    "max": 12288,
 }
 
 
@@ -226,7 +228,11 @@ class AnthropicProvider:
         create_kwargs: dict[str, Any] = {
             "model": request.model,
             "messages": messages,
-            "max_tokens": _ANTHROPIC_MAX_TOKENS,
+            "max_tokens": (
+                request.max_tokens
+                if request.max_tokens is not None
+                else _ANTHROPIC_DEFAULT_MAX_TOKENS
+            ),
         }
 
         if request.system_instruction:
@@ -257,7 +263,9 @@ class AnthropicProvider:
             }
 
         if request.reasoning_effort is not None:
-            effort = _normalize_reasoning_effort(request.reasoning_effort)
+            effort = _normalize_reasoning_effort(
+                request.reasoning_effort, request.model
+            )
             output_config["effort"] = effort
             if _supports_adaptive_thinking(request.model):
                 create_kwargs["thinking"] = {"type": "adaptive"}
@@ -266,10 +274,12 @@ class AnthropicProvider:
                     "type": "enabled",
                     "budget_tokens": _MANUAL_THINKING_BUDGETS[effort],
                 }
-            if request.tools:
-                create_kwargs["extra_headers"] = {
-                    "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
-                }
+                # Older models only support interleaved thinking via beta header manually.
+                # Adaptive models do this automatically.
+                if request.tools:
+                    create_kwargs["extra_headers"] = {
+                        "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
+                    }
 
         if output_config:
             create_kwargs["output_config"] = output_config
@@ -415,7 +425,7 @@ def _normalize_stop_reason(stop_reason: Any) -> str | None:
     return mapping.get(reason, reason)
 
 
-def _normalize_reasoning_effort(reasoning_effort: str) -> str:
+def _normalize_reasoning_effort(reasoning_effort: str, model_name: str) -> str:
     """Normalize and validate Anthropic effort values."""
     effort = reasoning_effort.strip().lower()
     if effort not in _ALLOWED_REASONING_EFFORTS:
@@ -424,6 +434,13 @@ def _normalize_reasoning_effort(reasoning_effort: str) -> str:
             f"Unsupported reasoning_effort for Anthropic: {reasoning_effort!r}",
             hint=f"Use one of: {allowed}.",
         )
+
+    if effort == "max" and not model_name.lower().startswith("claude-opus-4-6"):
+        raise ConfigurationError(
+            "reasoning_effort='max' is only supported on Claude Opus 4.6.",
+            hint="Try 'high' for this model.",
+        )
+
     return effort
 
 

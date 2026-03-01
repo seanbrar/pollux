@@ -310,6 +310,7 @@ async def execute_plan(
                         history=history_msgs,
                         previous_response_id=previous_response_id,
                         provider_state=request_provider_state,
+                        max_tokens=options.max_tokens,
                     )
 
                     if retry_policy.max_attempts <= 1:
