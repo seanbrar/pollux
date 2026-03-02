@@ -11,7 +11,13 @@ import uuid
 from pollux.errors import APIError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import Message, ProviderRequest, ProviderResponse, ToolCall
+from pollux.providers.models import (
+    Message,
+    ProviderFileAsset,
+    ProviderRequest,
+    ProviderResponse,
+    ToolCall,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -72,6 +78,16 @@ class GeminiProvider:
         for p in parts:
             if isinstance(p, str):
                 converted.append(p)
+            elif isinstance(p, ProviderFileAsset):
+                if p.provider != "gemini":
+                    raise APIError(f"Gemini cannot use {p.provider} file assets.")
+                converted.append(
+                    types.Part(
+                        file_data=types.FileData(
+                            file_uri=p.file_id, mime_type=p.mime_type
+                        )
+                    )
+                )
             elif isinstance(p, dict):
                 # Handle URI-based parts (after upload)
                 if "uri" in p and "mime_type" in p:
@@ -335,7 +351,7 @@ class GeminiProvider:
             f"{timeout_seconds}s (stuck in {last_state})"
         )
 
-    async def upload_file(self, path: Path, mime_type: str) -> str:
+    async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a file to Gemini."""
         client = self._get_client()
 
@@ -360,7 +376,9 @@ class GeminiProvider:
             if not isinstance(file_uri, str) or not file_uri:
                 raise APIError("Gemini upload did not return a file uri")
 
-            return file_uri
+            return ProviderFileAsset(
+                file_id=file_uri, provider="gemini", mime_type=mime_type
+            )
         except asyncio.CancelledError:
             raise
         except APIError:

@@ -10,7 +10,13 @@ from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import Message, ProviderRequest, ProviderResponse, ToolCall
+from pollux.providers.models import (
+    Message,
+    ProviderFileAsset,
+    ProviderRequest,
+    ProviderResponse,
+    ToolCall,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -66,7 +72,7 @@ class AnthropicProvider:
         """Return supported feature flags."""
         return ProviderCapabilities(
             caching=False,
-            uploads=False,
+            uploads=True,
             structured_outputs=True,
             reasoning=True,
             deferred_delivery=False,
@@ -284,6 +290,16 @@ class AnthropicProvider:
         if output_config:
             create_kwargs["output_config"] = output_config
 
+        # The Files API requires this beta header.
+        beta_headers = ["files-api-2025-04-14"]
+        if (
+            "extra_headers" in create_kwargs
+            and "anthropic-beta" in create_kwargs["extra_headers"]
+        ):
+            beta_headers.append(create_kwargs["extra_headers"]["anthropic-beta"])
+
+        create_kwargs["extra_headers"] = {"anthropic-beta": ",".join(beta_headers)}
+
         try:
             response = await client.messages.create(**create_kwargs)
             return _parse_response(response, response_schema=request.response_schema)
@@ -300,10 +316,34 @@ class AnthropicProvider:
                 message="Anthropic generate failed",
             ) from e
 
-    async def upload_file(self, path: Path, mime_type: str) -> str:
-        """Raise because Anthropic file uploads are not supported."""
-        _ = path, mime_type
-        raise APIError("Anthropic provider does not support file uploads")
+    async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
+        """Upload a local file using the Anthropic Files API."""
+        client = self._get_client()
+
+        try:
+            with path.open("rb") as f:
+                result = await client.beta.files.create(
+                    file=f.read(),
+                    file_name=path.name,
+                    file_type=mime_type,
+                    extra_headers={"anthropic-beta": "files-api-2025-04-14"},
+                )
+
+            return ProviderFileAsset(
+                file_id=result.id, provider="anthropic", mime_type=mime_type
+            )
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="anthropic",
+                phase="upload",
+                allow_network_errors=False,
+                message="Anthropic upload failed",
+            ) from e
 
     async def create_cache(
         self,
@@ -529,31 +569,68 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
     if isinstance(part, str):
         return {"type": "text", "text": part}
 
+    if isinstance(part, ProviderFileAsset):
+        if part.provider != "anthropic":
+            raise APIError(f"Cannot use {part.provider} asset with Anthropic provider.")
+        uri = part.file_id
+        if not isinstance(uri, str):
+            raise APIError(
+                f"Anthropic provider expects string file_id, got {type(uri)}"
+            )
+        mime_type = part.mime_type
+        if not isinstance(mime_type, str):
+            raise APIError(
+                f"Anthropic provider expects string mime_type, got {type(mime_type)}"
+            )
+        # Anthropic Files API requires 'source' for assets
+        if mime_type.startswith("image/"):
+            return {
+                "type": "image",
+                "source": {
+                    "type": "file",
+                    "file_id": uri,
+                },
+            }
+        if mime_type == "application/pdf" or mime_type.startswith("text/"):
+            return {
+                "type": "document",
+                "source": {
+                    "type": "file",
+                    "file_id": uri,
+                },
+            }
+        raise APIError(
+            f"Unsupported mime type for Anthropic Files API: {mime_type}",
+            hint="Anthropic supports text, images and PDFs via file IDs.",
+        )
+
     if not isinstance(part, dict):
         return None
 
-    uri = part.get("uri")
-    mime_type = part.get("mime_type")
-    if not isinstance(uri, str) or not isinstance(mime_type, str):
+    dict_uri = part.get("uri")
+    dict_mime_type = part.get("mime_type")
+
+    # Mypy requires explicit string inference over Any
+    if not isinstance(dict_uri, str) or not isinstance(dict_mime_type, str):
         return None
 
     # Image URL support.
-    if mime_type.startswith("image/"):
+    if dict_mime_type.startswith("image/"):
         return {
             "type": "image",
             "source": {
                 "type": "url",
-                "url": uri,
+                "url": dict_uri,
             },
         }
 
     # PDF support via document blocks.
-    if mime_type == "application/pdf":
+    if dict_mime_type == "application/pdf":
         return {
             "type": "document",
             "source": {
                 "type": "url",
-                "url": uri,
+                "url": dict_uri,
             },
         }
 

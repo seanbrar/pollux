@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
 
 GEMINI_MODEL = "gemini-2.0-flash"
 OPENAI_MODEL = "gpt-5-nano"
@@ -74,10 +74,11 @@ class FakeProvider:
         )
         return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
 
-    async def upload_file(self, path: Any, mime_type: str) -> str:
-        del mime_type
+    async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:
         self.upload_calls += 1
-        return f"mock://uploaded/{path.name}"
+        return ProviderFileAsset(
+            file_id=f"mock://uploaded/{path.name}", provider="mock", mime_type=mime_type
+        )
 
     async def create_cache(
         self,
