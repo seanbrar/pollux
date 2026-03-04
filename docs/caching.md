@@ -95,8 +95,8 @@ async def main() -> None:
     handle = await create_cache(sources, config=config, ttl_seconds=3600)
 
     prompts = ["Summarize in one sentence.", "List 3 keywords."]
-    first = await run_many(prompts=prompts, sources=sources, config=config, options=Options(cache=handle))
-    second = await run_many(prompts=prompts, sources=sources, config=config, options=Options(cache=handle))
+    first = await run_many(prompts=prompts, config=config, options=Options(cache=handle))
+    second = await run_many(prompts=prompts, config=config, options=Options(cache=handle))
 
     print("first:", first["status"])
     print("second:", second["status"])
@@ -133,6 +133,7 @@ the same handle reuse the cached context automatically.
       instead.
     - `tools` / `tool_choice` — bake them into `create_cache()` instead (when
       supported).
+    - `sources` — bake them into `create_cache()` instead.
 
     Pollux raises `ConfigurationError` immediately if it detects these
     conflicts.  This mirrors a hard constraint in the Gemini API, where
