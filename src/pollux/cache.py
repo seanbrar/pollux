@@ -10,6 +10,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
+from pollux.errors import ConfigurationError
 from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 
 if TYPE_CHECKING:
@@ -77,8 +78,14 @@ def compute_cache_key(
     if tools:
         import json
 
-        # sort_keys to ensure deterministic JSON representation
-        parts.append(json.dumps(tools, sort_keys=True))
+        try:
+            # sort_keys to ensure deterministic JSON representation
+            parts.append(json.dumps(tools, sort_keys=True))
+        except TypeError as e:
+            raise ConfigurationError(
+                "Tools provided to create_cache() must be JSON serializable.",
+                hint="If using custom objects or Pydantic models for tools, convert them to dicts first.",
+            ) from e
 
     for source in sources:
         # Use content hash, not identifier

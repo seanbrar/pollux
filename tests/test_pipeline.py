@@ -1041,6 +1041,30 @@ async def test_create_cache_returns_handle(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_create_cache_rejects_unserializable_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create_cache() should raise ConfigurationError with a hint for non-JSON tools."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+
+    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+
+    class CustomTool:
+        pass
+
+    with pytest.raises(ConfigurationError, match="JSON serializable") as exc:
+        await pollux.create_cache(
+            (Source.from_text("hello"),),
+            config=cfg,
+            tools=[CustomTool()],
+        )
+
+    assert "convert them to dicts" in str(exc.value.hint)
+
+
+@pytest.mark.asyncio
 async def test_create_cache_rejects_unsupported_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
