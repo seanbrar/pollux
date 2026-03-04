@@ -1061,21 +1061,19 @@ async def test_create_cache_rejects_unsupported_provider(
         )
 
 
-def test_create_cache_validates_ttl() -> None:
+@pytest.mark.asyncio
+async def test_create_cache_validates_ttl() -> None:
     """create_cache() should reject invalid ttl_seconds synchronously (via coroutine)."""
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
-    async def _check() -> None:
-        with pytest.raises(ConfigurationError, match="ttl_seconds"):
-            await pollux.create_cache(
-                (Source.from_text("hello"),), config=cfg, ttl_seconds=0
-            )
-        with pytest.raises(ConfigurationError, match="ttl_seconds"):
-            await pollux.create_cache(
-                (Source.from_text("hello"),), config=cfg, ttl_seconds=-1
-            )
-
-    asyncio.get_event_loop().run_until_complete(_check())
+    with pytest.raises(ConfigurationError, match="ttl_seconds"):
+        await pollux.create_cache(
+            (Source.from_text("hello"),), config=cfg, ttl_seconds=0
+        )
+    with pytest.raises(ConfigurationError, match="ttl_seconds"):
+        await pollux.create_cache(
+            (Source.from_text("hello"),), config=cfg, ttl_seconds=-1
+        )
 
 
 @pytest.mark.asyncio
