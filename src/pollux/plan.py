@@ -12,12 +12,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Plan:
-    """Execution plan with shared context and cache identity."""
+    """Execution plan with shared context and optional cache reference."""
 
     request: Request
     shared_parts: tuple[Any, ...] = ()
-    use_cache: bool = False
-    cache_key: str | None = None
+    cache_name: str | None = None
 
     @property
     def n_calls(self) -> int:
@@ -30,34 +29,22 @@ def build_plan(request: Request) -> Plan:
 
     Handles both single-prompt and vectorized (multi-prompt) scenarios.
     """
-    config = request.config
     sources = request.sources
+    shared_parts = build_shared_parts(sources)
 
-    # Build shared parts from sources
-    shared_parts = _build_shared_parts(sources)
-
-    # Determine if caching should be used
-    use_cache = config.enable_caching and len(shared_parts) > 0
-    cache_key = None
-
-    if use_cache:
-        from pollux.cache import compute_cache_key
-
-        cache_key = compute_cache_key(
-            config.model,
-            sources,
-            system_instruction=request.options.system_instruction,
-        )
+    # Resolve cache_name from Options.cache if provided.
+    cache_name: str | None = None
+    if request.options.cache is not None:
+        cache_name = request.options.cache.name
 
     return Plan(
         request=request,
         shared_parts=tuple(shared_parts),
-        use_cache=use_cache,
-        cache_key=cache_key,
+        cache_name=cache_name,
     )
 
 
-def _build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
+def build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
     """Convert sources to API parts."""
     parts: list[Any] = []
 

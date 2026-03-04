@@ -10,7 +10,7 @@ from pydantic import BaseModel
 import pytest
 
 import pollux
-from pollux.cache import CacheRegistry, compute_cache_key
+from pollux.cache import CacheHandle, CacheRegistry, compute_cache_key
 from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError, PlanningError, SourceError
 from pollux.options import Options
@@ -202,7 +202,7 @@ async def test_upload_error_attributes_provider_and_call_index(
 async def test_cache_error_attributes_provider_without_call_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cache failures should carry provider and phase but no call index."""
+    """Cache failures from create_cache() should carry provider and phase."""
 
     @dataclass
     class _Provider(FakeProvider):
@@ -222,21 +222,18 @@ async def test_cache_error_attributes_provider_without_call_index(
         provider="gemini",
         model=CACHE_MODEL,
         use_mock=True,
-        enable_caching=True,
         retry=RetryPolicy(max_attempts=1),
     )
 
     with pytest.raises(APIError) as exc:
-        await pollux.run_many(
-            ("Q",),
-            sources=(Source.from_text("cache me"),),
+        await pollux.create_cache(
+            (Source.from_text("cache me"),),
             config=cfg,
         )
 
     err = exc.value
     assert err.provider == "gemini"
     assert err.phase == "cache"
-    assert err.call_idx is None
 
 
 # =============================================================================
@@ -283,6 +280,53 @@ async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) ->
             assert result["status"] == "ok"
 
         assert fake.closed == 1, name
+
+
+@pytest.mark.asyncio
+async def test_create_cache_closes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """create_cache should close provider resources on success and failure."""
+
+    @dataclass
+    class _Provider(FakeProvider):
+        closed: int = 0
+        fail_cache: bool = False
+
+        async def create_cache(
+            self,
+            *,
+            model: str,
+            parts: list[Any],
+            system_instruction: str | None = None,
+            ttl_seconds: int = 3600,
+        ) -> str:
+            if self.fail_cache:
+                raise APIError("cache failed", provider="gemini", phase="cache")
+            return await super().create_cache(
+                model=model,
+                parts=parts,
+                system_instruction=system_instruction,
+                ttl_seconds=ttl_seconds,
+            )
+
+        async def aclose(self) -> None:
+            self.closed += 1
+
+    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+    for fail_cache in (False, True):
+        fake = _Provider(fail_cache=fail_cache)
+        monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
+        monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+
+        if fail_cache:
+            with pytest.raises(APIError, match="cache failed"):
+                await pollux.create_cache((Source.from_text("cache me"),), config=cfg)
+        else:
+            handle = await pollux.create_cache(
+                (Source.from_text("cache me"),), config=cfg
+            )
+            assert isinstance(handle, CacheHandle)
+
+        assert fake.closed == 1
 
 
 # =============================================================================
@@ -401,7 +445,7 @@ async def test_source_from_json_is_sent_as_inline_content() -> None:
 async def test_cache_single_flight_propagates_failure_and_clears_inflight(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If cache creation fails, all waiters should see the error and future calls can recover."""
+    """If cache creation fails, concurrent callers see the error; future calls recover."""
     fake = GateProvider(kind="cache")
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     monkeypatch.setattr(pollux, "_registry", CacheRegistry())
@@ -410,17 +454,16 @@ async def test_cache_single_flight_propagates_failure_and_clears_inflight(
         provider="gemini",
         model=CACHE_MODEL,
         use_mock=True,
-        enable_caching=True,
         retry=RetryPolicy(max_attempts=1),
     )
     source = Source.from_text("cache me", identifier="same-id")
 
     t1 = asyncio.create_task(
-        pollux.run_many(("A",), sources=(source,), config=cfg),
+        pollux.create_cache((source,), config=cfg),
     )
     await fake.started.wait()
     t2 = asyncio.create_task(
-        pollux.run_many(("B",), sources=(source,), config=cfg),
+        pollux.create_cache((source,), config=cfg),
     )
     fake.release.set()
 
@@ -430,13 +473,13 @@ async def test_cache_single_flight_propagates_failure_and_clears_inflight(
     assert fake.cache_calls == 1
 
     # After the failure, the registry should not be stuck; it should be able to create a cache.
-    result = await pollux.run_many(("C",), sources=(source,), config=cfg)
-    assert result["status"] == "ok"
+    handle = await pollux.create_cache((source,), config=cfg)
+    assert isinstance(handle, CacheHandle)
     assert fake.cache_calls == 2
 
     # And after a successful cache, additional calls should not recreate it.
-    result2 = await pollux.run_many(("D",), sources=(source,), config=cfg)
-    assert result2["status"] == "ok"
+    handle2 = await pollux.create_cache((source,), config=cfg)
+    assert isinstance(handle2, CacheHandle)
     assert fake.cache_calls == 2
 
 
@@ -735,7 +778,8 @@ async def test_duration_includes_upload_cleanup_latency(
 async def test_cached_context_is_not_resent_on_each_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When cache is active, call payloads should include only prompt-specific parts."""
+    """When cache is active via Options(cache=handle), payloads include only prompts."""
+    import time
 
     @dataclass
     class PartsCaptureProvider(FakeProvider):
@@ -755,23 +799,177 @@ async def test_cached_context_is_not_resent_on_each_call(
     fake = PartsCaptureProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
 
-    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
-
     cfg = Config(
         provider="gemini",
         model=CACHE_MODEL,
         use_mock=True,
-        enable_caching=True,
     )
+
+    handle = CacheHandle(
+        name="cachedContents/test",
+        model=CACHE_MODEL,
+        provider="gemini",
+        expires_at=time.time() + 3600,
+    )
+
     await pollux.run_many(
         prompts=("A", "B"),
         sources=(Source.from_text("shared context"),),
         config=cfg,
+        options=Options(cache=handle),
     )
 
-    assert fake.cache_calls == 1
     assert fake.cache_names == ["cachedContents/test", "cachedContents/test"]
     assert fake.received_parts == [["A"], ["B"]]
+
+
+@pytest.mark.asyncio
+async def test_options_cache_requires_persistent_cache_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Passing Options(cache=...) should fail on providers without persistent caching."""
+    import time
+
+    fake = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=False,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=False,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+    handle = CacheHandle(
+        name="cachedContents/test",
+        model=OPENAI_MODEL,
+        provider="openai",
+        expires_at=time.time() + 3600,
+    )
+
+    with pytest.raises(ConfigurationError, match="persistent caching"):
+        await pollux.run_many(
+            prompts=("Q",),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=handle),
+        )
+
+    assert fake.last_parts is None
+
+
+@pytest.mark.asyncio
+async def test_options_cache_rejects_provider_and_model_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cache handles must match the active provider and model."""
+    import time
+
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    bad_provider = CacheHandle(
+        name="cachedContents/test",
+        model=GEMINI_MODEL,
+        provider="openai",
+        expires_at=time.time() + 3600,
+    )
+    bad_model = CacheHandle(
+        name="cachedContents/test",
+        model=OPENAI_MODEL,
+        provider="gemini",
+        expires_at=time.time() + 3600,
+    )
+
+    with pytest.raises(ConfigurationError, match="provider does not match"):
+        await pollux.run_many(
+            prompts=("Q",),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=bad_provider),
+        )
+    with pytest.raises(ConfigurationError, match="model does not match"):
+        await pollux.run_many(
+            prompts=("Q",),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=bad_model),
+        )
+
+    assert fake.last_parts is None
+
+
+@pytest.mark.asyncio
+async def test_options_cache_rejects_system_instruction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """system_instruction cannot coexist with a cache handle."""
+    import time
+
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    handle = CacheHandle(
+        name="cachedContents/test",
+        model=GEMINI_MODEL,
+        provider="gemini",
+        expires_at=time.time() + 3600,
+    )
+
+    with pytest.raises(ConfigurationError, match="system_instruction cannot be used"):
+        await pollux.run_many(
+            prompts=("Q",),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=handle, system_instruction="Be concise."),
+        )
+
+    assert fake.last_parts is None
+
+
+@pytest.mark.asyncio
+async def test_options_cache_rejects_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """tools cannot coexist with a cache handle."""
+    import time
+
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    handle = CacheHandle(
+        name="cachedContents/test",
+        model=GEMINI_MODEL,
+        provider="gemini",
+        expires_at=time.time() + 3600,
+    )
+
+    tools = [
+        {
+            "name": "get_weather",
+            "description": "Get weather",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+            },
+        }
+    ]
+
+    with pytest.raises(ConfigurationError, match="tools cannot be used"):
+        await pollux.run_many(
+            prompts=("Q",),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=handle, tools=tools),
+        )
+
+    assert fake.last_parts is None
 
 
 def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
@@ -819,6 +1017,68 @@ def test_cache_identity_includes_system_instruction() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_cache_returns_handle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """create_cache() should return a CacheHandle with the expected fields."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+
+    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+    handle = await pollux.create_cache(
+        (Source.from_text("hello"),),
+        config=cfg,
+        ttl_seconds=600,
+    )
+
+    assert isinstance(handle, CacheHandle)
+    assert handle.name == "cachedContents/test"
+    assert handle.model == CACHE_MODEL
+    assert handle.provider == "gemini"
+    assert handle.expires_at > 0
+    assert fake.cache_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_create_cache_rejects_unsupported_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create_cache() should raise ConfigurationError for providers without persistent_cache."""
+    fake = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=False,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="persistent caching"):
+        await pollux.create_cache(
+            (Source.from_text("hello"),),
+            config=cfg,
+        )
+
+
+def test_create_cache_validates_ttl() -> None:
+    """create_cache() should reject invalid ttl_seconds synchronously (via coroutine)."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    async def _check() -> None:
+        with pytest.raises(ConfigurationError, match="ttl_seconds"):
+            await pollux.create_cache(
+                (Source.from_text("hello"),), config=cfg, ttl_seconds=0
+            )
+        with pytest.raises(ConfigurationError, match="ttl_seconds"):
+            await pollux.create_cache(
+                (Source.from_text("hello"),), config=cfg, ttl_seconds=-1
+            )
+
+    asyncio.get_event_loop().run_until_complete(_check())
+
+
+@pytest.mark.asyncio
 async def test_options_response_schema_requires_provider_capability() -> None:
     """Strict capability checks reject unsupported structured outputs."""
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
@@ -859,7 +1119,7 @@ async def test_options_are_forwarded_when_provider_supports_features(
 
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=True,
@@ -898,7 +1158,7 @@ async def test_delivery_mode_deferred_is_explicitly_not_implemented(
     """Deferred delivery should fail clearly until backend support lands."""
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=True,
@@ -931,7 +1191,7 @@ async def test_structured_output_returns_pydantic_instances(
     class _StructuredProvider(FakeProvider):
         _capabilities: ProviderCapabilities = field(
             default_factory=lambda: ProviderCapabilities(
-                caching=True,
+                persistent_cache=True,
                 uploads=True,
                 structured_outputs=True,
                 reasoning=False,
@@ -986,7 +1246,7 @@ async def test_conversation_options_are_forwarded_when_provider_supports_them(
     """Conversation options should pass through when provider supports the feature."""
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=True,
@@ -1015,7 +1275,7 @@ async def test_conversation_requires_single_prompt_per_call(
     """Conversation continuity is single-turn per API call in v1.1."""
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=False,
@@ -1041,7 +1301,7 @@ async def test_continue_from_requires_conversation_state(
     """continue_from must include _conversation_state; valid state is forwarded."""
     fake = KwargsCaptureProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=False,
@@ -1090,7 +1350,7 @@ async def test_conversation_result_includes_conversation_state(
     class _ConversationProvider(FakeProvider):
         _capabilities: ProviderCapabilities = field(
             default_factory=lambda: ProviderCapabilities(
-                caching=True,
+                persistent_cache=True,
                 uploads=True,
                 structured_outputs=False,
                 reasoning=False,
@@ -1137,7 +1397,7 @@ async def test_conversation_state_preserves_provider_state_from_response(
     class _ProviderStateConversationProvider(FakeProvider):
         _capabilities: ProviderCapabilities = field(
             default_factory=lambda: ProviderCapabilities(
-                caching=True,
+                persistent_cache=True,
                 uploads=True,
                 structured_outputs=False,
                 reasoning=True,
@@ -1288,7 +1548,7 @@ async def test_structured_validation_failure_returns_none_in_structured_list(
 
     fake = ScriptedProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=False,
@@ -1350,7 +1610,7 @@ async def test_tool_call_response_populates_conversation_state_without_history(
     class _ToolCallProvider(FakeProvider):
         _capabilities: ProviderCapabilities = field(
             default_factory=lambda: ProviderCapabilities(
-                caching=True,
+                persistent_cache=True,
                 uploads=True,
                 structured_outputs=False,
                 reasoning=False,
@@ -1410,7 +1670,7 @@ async def test_tool_calls_preserved_in_conversation_state(
     class _ToolCallProvider(FakeProvider):
         _capabilities: ProviderCapabilities = field(
             default_factory=lambda: ProviderCapabilities(
-                caching=True,
+                persistent_cache=True,
                 uploads=True,
                 structured_outputs=False,
                 reasoning=False,
@@ -1452,7 +1712,7 @@ async def test_continue_from_preserves_tool_history_items(
     """continue_from with tool messages in history passes them to provider."""
     fake = KwargsCaptureProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=False,
             reasoning=False,
@@ -1501,7 +1761,7 @@ async def test_continue_from_forwards_provider_state_with_history_items(
     """History item provider_state should be forwarded in request.provider_state."""
     fake = KwargsCaptureProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=False,
             reasoning=True,
@@ -1561,7 +1821,7 @@ async def test_continue_tool_mechanics(monkeypatch: pytest.MonkeyPatch) -> None:
     """continue_tool should neatly append tool results and allow None prompt."""
     fake = KwargsCaptureProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=False,
             reasoning=False,
@@ -1621,7 +1881,7 @@ async def test_reasoning_surfaced_in_result_envelope(
     """Provider reasoning text should appear in ResultEnvelope.reasoning."""
     fake = ScriptedProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             reasoning=True,
         ),
@@ -1653,7 +1913,7 @@ async def test_reasoning_omitted_when_absent(
     """ResultEnvelope should not include reasoning key when provider omits it."""
     fake = ScriptedProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             reasoning=True,
         ),
@@ -1676,7 +1936,7 @@ async def test_reasoning_mixed_across_multi_prompt(
     """Multi-prompt: reasoning=None for calls without thinking content."""
     fake = ScriptedProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             reasoning=True,
         ),
@@ -1705,7 +1965,7 @@ async def test_reasoning_tokens_aggregate_in_result_usage(
     """Pipeline should preserve and sum reasoning_tokens across calls."""
     fake = ScriptedProvider(
         _capabilities=ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             reasoning=True,
         ),

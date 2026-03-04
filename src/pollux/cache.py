@@ -19,6 +19,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class CacheHandle:
+    """Opaque handle returned by ``create_cache()``.
+
+    Pass instances via ``Options(cache=handle)`` to reuse a persistent
+    context cache across ``run()`` / ``run_many()`` calls.
+    """
+
+    name: str
+    model: str
+    provider: str
+    expires_at: float
+
+
 @dataclass
 class CacheRegistry:
     """Registry tracking cache entries with expiration."""
@@ -82,7 +96,7 @@ async def get_or_create_cache(
 
     Single-flight: concurrent requests for the same key share one creation call.
     """
-    if not provider.supports_caching:
+    if not provider.capabilities.persistent_cache:
         return None
 
     async def _work() -> str:

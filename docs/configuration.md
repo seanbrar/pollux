@@ -35,8 +35,6 @@ All fields and their defaults:
 | `model` | `str` | *(required)* | Model identifier |
 | `api_key` | `str \| None` | `None` | Explicit key; auto-resolved from env if omitted |
 | `use_mock` | `bool` | `False` | Use mock provider (no network calls) |
-| `enable_caching` | `bool` | `False` | Enable provider-side context caching |
-| `ttl_seconds` | `int` | `3600` | Cache time-to-live in seconds |
 | `request_concurrency` | `int` | `6` | Max concurrent API calls in multi-prompt execution |
 | `retry` | `RetryPolicy` | `RetryPolicy()` | Retry configuration |
 
@@ -78,8 +76,6 @@ pipeline logic, testing integrations, and CI.
 config = Config(
     provider="gemini",
     model="gemini-2.5-flash-lite",
-    enable_caching=True,       # Reuse uploaded context (Gemini-only)
-    ttl_seconds=3600,          # Cache lifetime
     request_concurrency=6,     # Concurrent API calls
 )
 ```
@@ -87,7 +83,7 @@ config = Config(
 | Need | Direction |
 |---|---|
 | Fast iteration without API calls | `use_mock=True` |
-| Reduce token spend on repeated context | `enable_caching=True`. See [Reducing Costs with Context Caching](caching.md) |
+| Reduce token spend on repeated context | Use `create_cache()`. See [Reducing Costs with Context Caching](caching.md) |
 | Higher throughput for many prompts/sources | Increase `request_concurrency` |
 | Better resilience to transient failures | Customize `retry=RetryPolicy(...)` |
 
@@ -151,6 +147,7 @@ options = Options(
 | `delivery_mode` | `str` | `"realtime"` | Only `"realtime"` is supported; `"deferred"` raises an error |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `cache` | `CacheHandle \| None` | `None` | Persistent context cache. See [Reducing Costs with Context Caching](caching.md) |
 
 !!! note
     OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject
@@ -158,6 +155,11 @@ options = Options(
     Older OpenAI models (for example `gpt-4.1-nano`) still accept them.
     See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints)
     for the full constraints mapping.
+
+!!! warning "Cache handle restrictions"
+    When `cache` is set, `system_instruction` and `tools` **must not** be
+    passed in the same `Options`. Bake them into `create_cache()` instead.
+    See [Reducing Costs with Context Caching](caching.md) for details.
 
 ## Safety Notes
 

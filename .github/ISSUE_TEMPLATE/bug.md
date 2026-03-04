@@ -40,7 +40,7 @@ labels: [bug]
 <!--
 Anything that may affect repro:
 - Input type (local file, PDF URL, image URL, YouTube URL)
-- Config toggles (for example enable_caching)
+- Config toggles (for example use_mock, request_concurrency)
 - Expected limits/cost considerations
 -->
 

@@ -138,7 +138,6 @@ from pollux import Config
 config = Config(
     provider="gemini",
     model="gemini-2.5-flash-lite",
-    enable_caching=True,  # Gemini-only in v1.0
 )
 ```
 

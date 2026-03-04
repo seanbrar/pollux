@@ -11,7 +11,6 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
-from pollux.cache import CacheRegistry, get_or_create_cache
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.providers.models import (
     Message,
@@ -68,9 +67,7 @@ class ExecutionTrace:
     conversation_state: dict[str, Any] | None = None
 
 
-async def execute_plan(
-    plan: Plan, provider: Provider, registry: CacheRegistry
-) -> ExecutionTrace:
+async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
     """Execute the plan with the given provider.
 
     Handles:
@@ -116,8 +113,54 @@ async def execute_plan(
             "Conversation continuity currently supports exactly one prompt per call",
             hint="Use run() or run_many() with a single prompt when passing history/continue_from.",
         )
+    if options.cache is not None:
+        cache_handle = options.cache
+        if not caps.persistent_cache:
+            raise ConfigurationError(
+                "Provider does not support persistent caching",
+                hint=(
+                    "Remove options.cache or choose a provider with "
+                    "persistent_cache support."
+                ),
+            )
+        if cache_handle.provider != config.provider:
+            raise ConfigurationError(
+                "cache handle provider does not match config provider",
+                hint=(
+                    f"Create the cache with provider={config.provider!r} and "
+                    "reuse it with the same provider."
+                ),
+            )
+        if cache_handle.model != model:
+            raise ConfigurationError(
+                "cache handle model does not match config model",
+                hint=(
+                    f"Create the cache with model={model!r} and reuse it "
+                    "with the same model."
+                ),
+            )
+        # Gemini (and potentially other providers) reject requests that pass
+        # system_instruction or tools alongside cached_content.  Catch the
+        # conflict early so users get a clear Pollux error instead of a
+        # provider 400.
+        if options.system_instruction is not None:
+            raise ConfigurationError(
+                "system_instruction cannot be used with a cache handle",
+                hint=(
+                    "Bake the system instruction into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        if options.tools is not None:
+            raise ConfigurationError(
+                "tools cannot be used with a cache handle",
+                hint=(
+                    "Bake tools into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
 
-    if (not provider.supports_uploads) and any(
+    if (not provider.capabilities.uploads) and any(
         isinstance(p, dict)
         and isinstance(p.get("file_path"), str)
         and isinstance(p.get("mime_type"), str)
@@ -169,48 +212,13 @@ async def execute_plan(
     upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]] = {}
     upload_lock = asyncio.Lock()
     retry_policy = config.retry
-    cache_name: str | None = None
     responses: list[dict[str, Any]] = []
     total_usage: dict[str, int] = {}
     conversation_state: dict[str, Any] | None = None
 
     try:
-        # Handle caching
-        if plan.use_cache:
-            # Resolve uploads for shared parts first, as cache creation requires URIs
-            shared_parts = list(plan.shared_parts)
-            if shared_parts:
-                shared_parts = await _substitute_upload_parts(
-                    shared_parts,
-                    provider=provider,
-                    call_idx=None,
-                    upload_cache=upload_cache,
-                    upload_inflight=upload_inflight,
-                    upload_lock=upload_lock,
-                    retry_policy=retry_policy,
-                )
-
-            if plan.cache_key:
-                try:
-                    cache_name = await get_or_create_cache(
-                        provider,
-                        registry,
-                        key=plan.cache_key,
-                        model=config.model,
-                        parts=shared_parts,  # Use resolved parts with URIs
-                        system_instruction=options.system_instruction,
-                        ttl_seconds=config.ttl_seconds,
-                        retry_policy=retry_policy,
-                    )
-                except asyncio.CancelledError:
-                    raise
-                except PolluxError:
-                    raise
-                except Exception as e:
-                    raise InternalError(
-                        f"Cache creation failed: {type(e).__name__}: {e}",
-                        hint="This is a Pollux internal error. Please report it.",
-                    ) from e
+        # Use pre-created cache name from Options.cache (via plan).
+        cache_name = options.cache.name if options.cache is not None else None
 
         # Execute calls with concurrency control
         concurrency = config.request_concurrency

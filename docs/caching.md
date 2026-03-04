@@ -1,5 +1,5 @@
 <!-- Intent: Teach context caching mechanics: the redundant-context problem,
-     enabling caching, cache identity, TTL tuning, and when caching pays off.
+     creating a cache, cache identity, TTL tuning, and when caching pays off.
      Do NOT cover source patterns or structured output in depth — link to those
      pages. Assumes the reader understands run_many() and fan-out workflows.
      Register: conceptual opening → guided applied. -->
@@ -73,29 +73,30 @@ compare_efficiency(946_800, 10)
 
 More questions on the same content = greater savings.
 
-## Enabling Caching
+## Creating a Cache
 
-Let's see this in practice. Two flags in `Config` control caching:
+Use `create_cache()` to upload content to the provider once, then pass the
+returned handle to `run()` or `run_many()` via `Options(cache=handle)`:
 
 ```python
 import asyncio
-from pollux import Config, Source, run_many
+from pollux import Config, Options, Source, create_cache, run_many
 
 async def main() -> None:
     config = Config(
         provider="gemini",
         model="gemini-2.5-flash-lite",
-        enable_caching=True,
-        ttl_seconds=3600,
     )
-    prompts = ["Summarize in one sentence.", "List 3 keywords."]
     sources = [Source.from_text(
         "ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), "
         "operating margin 18.5%, guidance raised for Q4."
     )]
 
-    first = await run_many(prompts=prompts, sources=sources, config=config)
-    second = await run_many(prompts=prompts, sources=sources, config=config)
+    handle = await create_cache(sources, config=config, ttl_seconds=3600)
+
+    prompts = ["Summarize in one sentence.", "List 3 keywords."]
+    first = await run_many(prompts=prompts, sources=sources, config=config, options=Options(cache=handle))
+    second = await run_many(prompts=prompts, sources=sources, config=config, options=Options(cache=handle))
 
     print("first:", first["status"])
     print("second:", second["status"])
@@ -106,23 +107,37 @@ asyncio.run(main())
 
 ### Step-by-Step Walkthrough
 
-1. **Set `enable_caching=True`.** This tells Pollux to upload content to the
-   provider's cache on the first call, rather than sending it inline.
+1. **Call `create_cache()`.** Pass your sources, config, and a TTL. Pollux
+   uploads the content to the provider and returns a `CacheHandle`.
 
 2. **Set `ttl_seconds`.** The TTL controls how long the cached content lives on
    the provider. Match it to your reuse window. 3600s (1 hour) is a
    reasonable default for interactive sessions.
 
-3. **Run the same sources with different prompts.** The first `run_many()` call
-   uploads the content and creates a cache entry. The second call detects the
-   same content hash and reuses the cached reference.
+3. **Pass the handle via `Options(cache=handle)`.** Each `run()` or `run_many()`
+   call that uses this handle references the cached content instead of
+   re-uploading it.
 
 4. **Verify with `metrics.cache_used`.** Check
    `result["metrics"]["cache_used"]` on subsequent calls. `True` confirms
    the provider served content from cache rather than re-uploading.
 
-Pollux computes cache identity from model + source content hash. The second
-call reuses the cached context automatically.
+Pollux computes cache identity from model + source content hash. Calls with
+the same handle reuse the cached context automatically.
+
+!!! warning "Options restricted when using a cache handle"
+    When `Options(cache=handle)` is set, the following fields **cannot** be
+    passed alongside it:
+
+    - `system_instruction` — bake it into `create_cache(system_instruction=...)`
+      instead.
+    - `tools` / `tool_choice` — bake them into `create_cache()` instead (when
+      supported).
+
+    Pollux raises `ConfigurationError` immediately if it detects these
+    conflicts.  This mirrors a hard constraint in the Gemini API, where
+    `cached_content` cannot coexist with `system_instruction`, `tools`, or
+    `tool_config` in the same `GenerateContent` request.
 
 ## Cache Identity
 
@@ -156,8 +171,8 @@ behavior. Usage counters are provider-dependent.
 
 ## Tuning TTL
 
-The default TTL is 3600 seconds (1 hour). Tune `ttl_seconds` to match your
-expected reuse window:
+Pass `ttl_seconds` to `create_cache()` to control the cache lifetime. The
+default is 3600 seconds (1 hour). Tune it to match your expected reuse window:
 
 - **Too short:** the cache expires before you reuse it, wasting the
   warm-up cost.
@@ -181,9 +196,9 @@ caching and enable it when you see repeated context in your workload.
 
 ## Provider Dependency
 
-Context caching is **Gemini-only**. Enabling it with OpenAI raises
-an actionable error. See
-[Provider Capabilities](reference/provider-capabilities.md) for the full
+Persistent context caching is **Gemini-only**. Calling `create_cache()` with
+a provider that lacks `persistent_cache` support raises an actionable error.
+See [Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.
 
 ---

@@ -3,6 +3,7 @@
 Public API:
     - run(): Single prompt execution
     - run_many(): Multi-prompt source-pattern execution
+    - create_cache(): Create a persistent context cache
     - Source: Explicit input types
     - Config: Configuration dataclass
 """
@@ -11,9 +12,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
-from pollux.cache import CacheRegistry
+from pollux.cache import CacheHandle, CacheRegistry
 from pollux.config import Config
 from pollux.errors import (
     APIError,
@@ -113,17 +115,9 @@ async def run_many(
     provider = _get_provider(request.config)
 
     try:
-        trace = await execute_plan(plan, provider, _registry)
+        trace = await execute_plan(plan, provider)
     finally:
-        aclose = getattr(provider, "aclose", None)
-        if callable(aclose):
-            try:
-                await aclose()
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                # Cleanup should never mask the primary failure.
-                logger.warning("Provider cleanup failed: %s", exc)
+        await _close_provider(provider)
 
     return build_result(plan, trace)
 
@@ -169,6 +163,127 @@ async def continue_tool(
     return await run(prompt=None, config=config, options=merged_options)
 
 
+async def create_cache(
+    sources: tuple[Source, ...] | list[Source],
+    *,
+    config: Config,
+    system_instruction: str | None = None,
+    ttl_seconds: int = 3600,
+) -> CacheHandle:
+    """Create a persistent context cache for use with ``run()`` / ``run_many()``.
+
+    Args:
+        sources: Content to cache (files, text, URLs).
+        config: Configuration specifying provider and model.
+        system_instruction: Optional system-level instruction baked into the cache.
+        ttl_seconds: Time-to-live in seconds (must be ≥ 1).
+
+    Returns:
+        A ``CacheHandle`` that can be passed via ``Options(cache=handle)``.
+
+    Raises:
+        ConfigurationError: If the provider does not support persistent caching
+            or *ttl_seconds* is invalid.
+
+    Example:
+        handle = await create_cache(
+            [Source.from_file("book.pdf")],
+            config=Config(provider="gemini", model="gemini-2.5-flash"),
+            ttl_seconds=3600,
+        )
+        result = await run("Summarize.", config=config, options=Options(cache=handle))
+    """
+    from pollux.cache import get_or_create_cache
+    from pollux.execute import _substitute_upload_parts
+    from pollux.plan import build_shared_parts
+
+    if not isinstance(ttl_seconds, int) or ttl_seconds < 1:
+        raise ConfigurationError(
+            f"ttl_seconds must be an integer ≥ 1, got {ttl_seconds!r}",
+            hint="Pass a positive integer for the cache TTL.",
+        )
+
+    provider = _get_provider(config)
+    try:
+        if not provider.capabilities.persistent_cache:
+            raise ConfigurationError(
+                f"Provider {config.provider!r} does not support persistent caching",
+                hint="Use a provider that supports persistent_cache (e.g. Gemini).",
+            )
+
+        src_tuple = tuple(sources) if not isinstance(sources, tuple) else sources
+
+        # Validate sources
+        for s in src_tuple:
+            if not isinstance(s, Source):
+                raise ConfigurationError(
+                    f"Expected Source, got {type(s).__name__}",
+                    hint="Use Source.from_file(), Source.from_text(), etc.",
+                )
+
+        parts = build_shared_parts(src_tuple)
+
+        # Resolve file uploads.
+        upload_cache: dict[tuple[str, str], Any] = {}
+        upload_inflight: dict[tuple[str, str], asyncio.Future[Any]] = {}
+        upload_lock = asyncio.Lock()
+        retry_policy = config.retry
+
+        parts = await _substitute_upload_parts(
+            parts,
+            provider=provider,
+            call_idx=None,
+            upload_cache=upload_cache,
+            upload_inflight=upload_inflight,
+            upload_lock=upload_lock,
+            retry_policy=retry_policy,
+        )
+
+        from pollux.cache import compute_cache_key
+
+        key = compute_cache_key(
+            config.model, src_tuple, system_instruction=system_instruction
+        )
+
+        cache_name = await get_or_create_cache(
+            provider,
+            _registry,
+            key=key,
+            model=config.model,
+            parts=parts,
+            system_instruction=system_instruction,
+            ttl_seconds=ttl_seconds,
+            retry_policy=retry_policy,
+        )
+
+        if cache_name is None:
+            raise InternalError(
+                "Cache creation returned None unexpectedly",
+                hint="This is a Pollux internal error. Please report it.",
+            )
+
+        return CacheHandle(
+            name=cache_name,
+            model=config.model,
+            provider=config.provider,
+            expires_at=time.time() + ttl_seconds,
+        )
+    finally:
+        await _close_provider(provider)
+
+
+async def _close_provider(provider: Provider) -> None:
+    """Close provider resources without masking primary errors."""
+    aclose = getattr(provider, "aclose", None)
+    if callable(aclose):
+        try:
+            await aclose()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Provider cleanup failed: %s", exc)
+
+
 def _get_provider(config: Config) -> Provider:
     """Get the appropriate provider based on configuration."""
     if config.use_mock:
@@ -210,6 +325,7 @@ def _get_provider(config: Config) -> Provider:
 __all__ = [
     "APIError",
     "CacheError",
+    "CacheHandle",
     "Config",
     "ConfigurationError",
     "InternalError",
@@ -222,6 +338,7 @@ __all__ = [
     "Source",
     "SourceError",
     "continue_tool",
+    "create_cache",
     "run",
     "run_many",
 ]

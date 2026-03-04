@@ -49,20 +49,10 @@ class GeminiProvider:
         return self._client
 
     @property
-    def supports_caching(self) -> bool:
-        """Whether this provider supports context caching."""
-        return self.capabilities.caching
-
-    @property
-    def supports_uploads(self) -> bool:
-        """Whether this provider supports file uploads."""
-        return self.capabilities.uploads
-
-    @property
     def capabilities(self) -> ProviderCapabilities:
         """Return supported feature flags."""
         return ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=True,

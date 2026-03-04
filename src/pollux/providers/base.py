@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class ProviderCapabilities:
     """Feature flags exposed by providers."""
 
-    caching: bool
+    persistent_cache: bool
     uploads: bool
     structured_outputs: bool = False
     reasoning: bool = False
@@ -51,16 +51,6 @@ class Provider(Protocol):
         ttl_seconds: int = 3600,
     ) -> str:
         """Create a cache and return its name."""
-        ...
-
-    @property
-    def supports_caching(self) -> bool:
-        """Whether this provider supports caching."""
-        ...
-
-    @property
-    def supports_uploads(self) -> bool:
-        """Whether this provider supports file uploads."""
         ...
 
     @property

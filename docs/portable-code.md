@@ -35,8 +35,7 @@ varying parts in config; keep the stable parts in functions.
 
 ## Complete Example
 
-A document analysis function that works on any provider. Caching is used
-when available, skipped otherwise.
+A document analysis function that works on any provider.
 
 ```python
 import asyncio
@@ -55,27 +54,22 @@ class DocumentSummary(BaseModel):
 
 @dataclass
 class ProviderConfig:
-    """Maps a provider to a model and capability flags."""
+    """Maps a provider to a model."""
     provider: str
     model: str
-    supports_caching: bool = False
 
 
 # Provider-specific details live here, not in your pipeline logic
 PROVIDERS = {
-    "gemini": ProviderConfig("gemini", "gemini-2.5-flash-lite", supports_caching=True),
+    "gemini": ProviderConfig("gemini", "gemini-2.5-flash-lite"),
     "openai": ProviderConfig("openai", "gpt-5-nano"),
 }
 
 
-def make_config(provider_name: str, *, enable_caching: bool = False) -> Config:
+def make_config(provider_name: str) -> Config:
     """Build a Config for the given provider with safe defaults."""
     pc = PROVIDERS[provider_name]
-    return Config(
-        provider=pc.provider,
-        model=pc.model,
-        enable_caching=enable_caching and pc.supports_caching,
-    )
+    return Config(provider=pc.provider, model=pc.model)
 
 
 async def analyze_document(
@@ -83,10 +77,9 @@ async def analyze_document(
     prompt: str,
     *,
     provider_name: str = "gemini",
-    enable_caching: bool = False,
 ) -> DocumentSummary:
     """Analyze a document — works with any supported provider."""
-    config = make_config(provider_name, enable_caching=enable_caching)
+    config = make_config(provider_name)
     options = Options(response_schema=DocumentSummary)
 
     result = await run(
@@ -118,12 +111,12 @@ asyncio.run(main())
 ### Step-by-Step Walkthrough
 
 1. **Centralize provider details.** `ProviderConfig` maps each provider to
-   its model and capability flags. Your analysis functions never reference
-   provider names or models directly.
+   its model. Your analysis functions never reference provider names or
+   models directly.
 
-2. **Guard capability-specific features.** `make_config` only enables caching
-   when both the caller requests it *and* the provider supports it. This
-   avoids `ConfigurationError` at runtime.
+2. **Use `create_cache()` for persistent caching.** Caching is now
+   opt-in via `create_cache()` and `Options(cache=handle)`. Only call
+   it when the provider supports `persistent_cache` (e.g. Gemini).
 
 3. **Write provider-agnostic functions.** `analyze_document` accepts a
    provider name and builds the config internally. The prompt, source, and
