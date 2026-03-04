@@ -777,28 +777,13 @@ async def test_duration_includes_upload_cleanup_latency(
 
 
 @pytest.mark.asyncio
-async def test_cached_context_is_not_resent_on_each_call(
+async def test_cached_context_rejects_sources(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When cache is active via Options(cache=handle), payloads include only prompts."""
+    """When cache is active via Options(cache=handle), passing sources raises ConfigurationError."""
     import time
 
-    @dataclass
-    class PartsCaptureProvider(FakeProvider):
-        received_parts: list[list[Any]] = field(default_factory=list)
-        cache_names: list[str | None] = field(default_factory=list)
-
-        async def generate(self, request: ProviderRequest) -> ProviderResponse:
-            self.received_parts.append(request.parts)
-            self.cache_names.append(request.cache_name)
-            prompt = (
-                request.parts[-1]
-                if request.parts and isinstance(request.parts[-1], str)
-                else ""
-            )
-            return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
-
-    fake = PartsCaptureProvider()
+    fake = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
 
     cfg = Config(
@@ -814,15 +799,15 @@ async def test_cached_context_is_not_resent_on_each_call(
         expires_at=time.time() + 3600,
     )
 
-    await pollux.run_many(
-        prompts=("A", "B"),
-        sources=(Source.from_text("shared context"),),
-        config=cfg,
-        options=Options(cache=handle),
-    )
+    with pytest.raises(ConfigurationError, match="sources cannot be used"):
+        await pollux.run_many(
+            prompts=("A", "B"),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=handle),
+        )
 
-    assert fake.cache_names == ["cachedContents/test", "cachedContents/test"]
-    assert fake.received_parts == [["A"], ["B"]]
+    assert fake.last_parts is None
 
 
 @pytest.mark.asyncio

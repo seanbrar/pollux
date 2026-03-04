@@ -60,12 +60,8 @@ async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -
 
     handle = await create_cache(sources, config=config, ttl_seconds=ttl)
 
-    warm = await run_many(
-        PROMPTS, sources=sources, config=config, options=Options(cache=handle)
-    )
-    reuse = await run_many(
-        PROMPTS, sources=sources, config=config, options=Options(cache=handle)
-    )
+    warm = await run_many(PROMPTS, config=config, options=Options(cache=handle))
+    reuse = await run_many(PROMPTS, config=config, options=Options(cache=handle))
     warm_tokens = usage_tokens(warm)
     reuse_tokens = usage_tokens(reuse)
     saved = None

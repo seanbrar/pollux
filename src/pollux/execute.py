@@ -159,6 +159,14 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                     "or remove the cache handle."
                 ),
             )
+        if plan.shared_parts:
+            raise ConfigurationError(
+                "sources cannot be used with a cache handle",
+                hint=(
+                    "Bake sources into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
 
     if (not provider.capabilities.uploads) and any(
         isinstance(p, dict)
