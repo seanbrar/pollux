@@ -159,6 +159,14 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                     "or remove the cache handle."
                 ),
             )
+        if options.tool_choice is not None:
+            raise ConfigurationError(
+                "tool_choice cannot be used with a cache handle",
+                hint=(
+                    "Bake tools/tool_choice into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
         if plan.shared_parts:
             raise ConfigurationError(
                 "sources cannot be used with a cache handle",

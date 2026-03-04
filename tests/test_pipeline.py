@@ -959,6 +959,35 @@ async def test_options_cache_rejects_tools(
     assert fake.last_parts is None
 
 
+@pytest.mark.asyncio
+async def test_options_cache_rejects_tool_choice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """tool_choice cannot coexist with a cache handle."""
+    import time
+
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    handle = CacheHandle(
+        name="cachedContents/test",
+        model=GEMINI_MODEL,
+        provider="gemini",
+        expires_at=time.time() + 3600,
+    )
+
+    with pytest.raises(ConfigurationError, match="tool_choice cannot be used"):
+        await pollux.run_many(
+            prompts=("Q",),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+            options=Options(cache=handle, tool_choice="required"),
+        )
+
+    assert fake.last_parts is None
+
+
 def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
     """Regression: cache identity keys must not collide across distinct sources."""
     model = GEMINI_MODEL
@@ -1026,6 +1055,28 @@ async def test_create_cache_returns_handle(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_create_cache_cache_hit_skips_uploads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """Repeated create_cache() calls for the same key should not re-upload files."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+
+    file_path = tmp_path / "cache-me.txt"
+    file_path.write_text("hello cache", encoding="utf-8")
+
+    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+    first = await pollux.create_cache((Source.from_file(file_path),), config=cfg)
+    second = await pollux.create_cache((Source.from_file(file_path),), config=cfg)
+
+    assert first.name == second.name
+    assert fake.cache_calls == 1
+    assert fake.upload_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_create_cache_rejects_unserializable_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1047,6 +1098,8 @@ async def test_create_cache_rejects_unserializable_tools(
         )
 
     assert "convert them to dicts" in str(exc.value.hint)
+    assert fake.upload_calls == 0
+    assert fake.cache_calls == 0
 
 
 @pytest.mark.asyncio

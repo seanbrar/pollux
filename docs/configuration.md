@@ -157,9 +157,10 @@ options = Options(
     for the full constraints mapping.
 
 !!! warning "Cache handle restrictions"
-    When `cache` is set, `system_instruction` and `tools` **must not** be
-    passed in the same `Options`. Bake them into `create_cache()` instead.
-    See [Reducing Costs with Context Caching](caching.md) for details.
+    When `cache` is set, `system_instruction`, `tools`, and `tool_choice`
+    **must not** be passed in the same `Options`. Bake them into
+    `create_cache()` instead. See
+    [Reducing Costs with Context Caching](caching.md) for details.
 
 ## Safety Notes
 

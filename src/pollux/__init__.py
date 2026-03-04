@@ -194,7 +194,7 @@ async def create_cache(
         )
         result = await run("Summarize.", config=config, options=Options(cache=handle))
     """
-    from pollux.cache import get_or_create_cache
+    from pollux.cache import compute_cache_key, get_or_create_cache
     from pollux.execute import _substitute_upload_parts
     from pollux.plan import build_shared_parts
 
@@ -222,6 +222,20 @@ async def create_cache(
                     hint="Use Source.from_file(), Source.from_text(), etc.",
                 )
 
+        key = compute_cache_key(
+            config.model, src_tuple, system_instruction=system_instruction, tools=tools
+        )
+
+        cached = _registry.get(key)
+        if cached is not None:
+            cache_name, expires_at = cached
+            return CacheHandle(
+                name=cache_name,
+                model=config.model,
+                provider=config.provider,
+                expires_at=expires_at,
+            )
+
         parts = build_shared_parts(src_tuple)
 
         # Resolve file uploads.
@@ -238,12 +252,6 @@ async def create_cache(
             upload_inflight=upload_inflight,
             upload_lock=upload_lock,
             retry_policy=retry_policy,
-        )
-
-        from pollux.cache import compute_cache_key
-
-        key = compute_cache_key(
-            config.model, src_tuple, system_instruction=system_instruction, tools=tools
         )
 
         result = await get_or_create_cache(
