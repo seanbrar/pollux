@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 from pollux.cache import CacheHandle, CacheRegistry
@@ -168,6 +167,7 @@ async def create_cache(
     *,
     config: Config,
     system_instruction: str | None = None,
+    tools: list[dict[str, Any]] | list[Any] | None = None,
     ttl_seconds: int = 3600,
 ) -> CacheHandle:
     """Create a persistent context cache for use with ``run()`` / ``run_many()``.
@@ -176,6 +176,7 @@ async def create_cache(
         sources: Content to cache (files, text, URLs).
         config: Configuration specifying provider and model.
         system_instruction: Optional system-level instruction baked into the cache.
+        tools: Optional tools to bake into the cache.
         ttl_seconds: Time-to-live in seconds (must be ≥ 1).
 
     Returns:
@@ -242,31 +243,34 @@ async def create_cache(
         from pollux.cache import compute_cache_key
 
         key = compute_cache_key(
-            config.model, src_tuple, system_instruction=system_instruction
+            config.model, src_tuple, system_instruction=system_instruction, tools=tools
         )
 
-        cache_name = await get_or_create_cache(
+        result = await get_or_create_cache(
             provider,
             _registry,
             key=key,
             model=config.model,
             parts=parts,
             system_instruction=system_instruction,
+            tools=tools,
             ttl_seconds=ttl_seconds,
             retry_policy=retry_policy,
         )
 
-        if cache_name is None:
+        if result is None:
             raise InternalError(
                 "Cache creation returned None unexpectedly",
                 hint="This is a Pollux internal error. Please report it.",
             )
 
+        cache_name, expires_at = result
+
         return CacheHandle(
             name=cache_name,
             model=config.model,
             provider=config.provider,
-            expires_at=time.time() + ttl_seconds,
+            expires_at=expires_at,
         )
     finally:
         await _close_provider(provider)

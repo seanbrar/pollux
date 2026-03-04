@@ -341,10 +341,11 @@ class AnthropicProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Raise because Anthropic caching is deferred."""
-        _ = model, parts, system_instruction, ttl_seconds
+        _ = model, parts, system_instruction, tools, ttl_seconds
         raise APIError("Anthropic provider does not support context caching")
 
     async def aclose(self) -> None:

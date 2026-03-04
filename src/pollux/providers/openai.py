@@ -326,10 +326,11 @@ class OpenAIProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Raise because OpenAI context caching is not supported."""
-        _ = model, parts, system_instruction, ttl_seconds
+        _ = model, parts, system_instruction, tools, ttl_seconds
         raise APIError("OpenAI provider does not support context caching")
 
     async def delete_file(self, file_id: str) -> None:

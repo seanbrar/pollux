@@ -48,6 +48,7 @@ class Provider(Protocol):
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Create a cache and return its name."""

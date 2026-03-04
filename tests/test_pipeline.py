@@ -297,6 +297,7 @@ async def test_create_cache_closes_provider(monkeypatch: pytest.MonkeyPatch) -> 
             model: str,
             parts: list[Any],
             system_instruction: str | None = None,
+            tools: list[dict[str, Any]] | list[Any] | None = None,
             ttl_seconds: int = 3600,
         ) -> str:
             if self.fail_cache:
@@ -305,6 +306,7 @@ async def test_create_cache_closes_provider(monkeypatch: pytest.MonkeyPatch) -> 
                 model=model,
                 parts=parts,
                 system_instruction=system_instruction,
+                tools=tools,
                 ttl_seconds=ttl_seconds,
             )
 

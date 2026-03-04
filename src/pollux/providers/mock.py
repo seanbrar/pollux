@@ -60,6 +60,7 @@ class MockProvider:
         model: str,
         parts: list[Any],  # noqa: ARG002
         system_instruction: str | None = None,  # noqa: ARG002
+        tools: list[dict[str, Any]] | list[Any] | None = None,  # noqa: ARG002
         ttl_seconds: int = 3600,  # noqa: ARG002
     ) -> str:
         """Return a mock cache name."""

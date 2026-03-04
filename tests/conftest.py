@@ -78,9 +78,10 @@ class FakeProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
-        del model, parts, system_instruction, ttl_seconds
+        del model, parts, system_instruction, tools, ttl_seconds
         self.cache_calls += 1
         return "cachedContents/test"
 

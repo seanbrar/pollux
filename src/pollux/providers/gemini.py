@@ -415,20 +415,27 @@ class GeminiProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Create a cached content entry."""
         client = self._get_client()
         from google.genai import types
 
+        config_kwargs: dict[str, Any] = {
+            "contents": self._convert_parts(parts),
+            "system_instruction": system_instruction,
+            "ttl": f"{ttl_seconds}s",
+        }
+        if tools is not None:
+            tool_objs = self._normalize_tools(tools)
+            if tool_objs:
+                config_kwargs["tools"] = tool_objs
+
         try:
             result = await client.aio.caches.create(
                 model=model,
-                config=types.CreateCachedContentConfig(
-                    contents=self._convert_parts(parts),
-                    system_instruction=system_instruction,
-                    ttl=f"{ttl_seconds}s",
-                ),
+                config=types.CreateCachedContentConfig(**config_kwargs),
             )
             return str(result.name)
         except asyncio.CancelledError:
