@@ -35,6 +35,8 @@ from pollux.retry import RetryPolicy
 from pollux.source import Source
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from pollux.providers.base import Provider
 
 try:
@@ -79,9 +81,9 @@ async def run(
 
 
 async def run_many(
-    prompts: str | list[str | None] | tuple[str | None, ...] | None = None,
+    prompts: str | Sequence[str | None] | None = None,
     *,
-    sources: tuple[Source, ...] | list[Source] = (),
+    sources: Sequence[Source] = (),
     config: Config,
     options: Options | None = None,
 ) -> ResultEnvelope:
@@ -160,7 +162,7 @@ async def continue_tool(
 
 
 async def create_cache(
-    sources: tuple[Source, ...] | list[Source],
+    sources: Sequence[Source],
     *,
     config: Config,
     system_instruction: str | None = None,
