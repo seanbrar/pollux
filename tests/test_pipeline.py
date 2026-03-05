@@ -1168,7 +1168,7 @@ async def test_create_cache_deduplicates_file_uploads_within_call(
 async def test_create_cache_rejects_unserializable_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """create_cache() should raise ConfigurationError with a hint for non-JSON tools."""
+    """create_cache() should raise ConfigurationError for non-dict tool items."""
     fake = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
@@ -1178,14 +1178,14 @@ async def test_create_cache_rejects_unserializable_tools(
     class CustomTool:
         pass
 
-    with pytest.raises(ConfigurationError, match="JSON serializable") as exc:
+    with pytest.raises(ConfigurationError, match="must be a dictionary") as exc:
         await pollux.create_cache(
             (Source.from_text("hello"),),
             config=cfg,
             tools=[CustomTool()],
         )
 
-    assert "convert them to dicts" in str(exc.value.hint)
+    assert exc.value.hint is not None
     assert fake.upload_calls == 0
     assert fake.cache_calls == 0
 

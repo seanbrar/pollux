@@ -230,6 +230,12 @@ async def create_cache_impl(
             hint="Pass a positive integer for the cache TTL.",
         )
 
+    if system_instruction is not None and not isinstance(system_instruction, str):
+        raise ConfigurationError(
+            f"system_instruction must be a string, got {type(system_instruction).__name__}",
+            hint="Pass a string for the system instruction.",
+        )
+
     if not provider.capabilities.persistent_cache:
         raise ConfigurationError(
             f"Provider {config.provider!r} does not support persistent caching",
@@ -244,6 +250,14 @@ async def create_cache_impl(
                 f"Expected Source, got {type(s).__name__}",
                 hint="Use Source.from_file(), Source.from_text(), etc.",
             )
+
+    if tools is not None:
+        for i, t in enumerate(tools):
+            if not isinstance(t, dict):
+                raise ConfigurationError(
+                    f"Tool at index {i} must be a dictionary, got {type(t).__name__}",
+                    hint="Ensure all items in the tools list are dictionaries.",
+                )
 
     key = compute_cache_key(
         config.model,
