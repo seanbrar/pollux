@@ -445,6 +445,51 @@ async def test_source_from_json_is_sent_as_inline_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cache_single_flight_deduplicates_file_uploads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """Concurrent create_cache() calls should share uploads via single-flight."""
+    gate = asyncio.Event()
+    entered = asyncio.Event()
+
+    @dataclass
+    class _SlowCacheProvider(FakeProvider):
+        async def create_cache(self, **kwargs: Any) -> str:  # noqa: ARG002
+            self.cache_calls += 1
+            entered.set()
+            await gate.wait()
+            return "cachedContents/test"
+
+    fake = _SlowCacheProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
+
+    file_path = tmp_path / "shared.txt"
+    file_path.write_text("shared content", encoding="utf-8")
+
+    cfg = Config(
+        provider="gemini",
+        model=CACHE_MODEL,
+        use_mock=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+    source = Source.from_file(file_path)
+
+    t1 = asyncio.create_task(pollux.create_cache((source,), config=cfg))
+    await entered.wait()
+    t2 = asyncio.create_task(pollux.create_cache((source,), config=cfg))
+    # Small yield to let t2 join the singleflight waiters.
+    await asyncio.sleep(0)
+    gate.set()
+
+    results = await asyncio.gather(t1, t2, return_exceptions=True)
+    assert all(isinstance(r, CacheHandle) for r in results)
+    assert fake.upload_calls == 1, "concurrent calls should share uploads"
+    assert fake.cache_calls == 1, "concurrent calls should share cache creation"
+
+
+@pytest.mark.asyncio
 async def test_cache_single_flight_propagates_failure_and_clears_inflight(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

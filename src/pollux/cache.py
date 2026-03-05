@@ -106,7 +106,7 @@ async def get_or_create_cache(
     *,
     key: str,
     model: str,
-    parts: list[Any],
+    raw_parts: list[Any],
     system_instruction: str | None,
     tools: list[dict[str, Any]] | list[Any] | None = None,
     ttl_seconds: int,
@@ -114,14 +114,17 @@ async def get_or_create_cache(
 ) -> tuple[str, float] | None:
     """Get existing cache or create new one with single-flight protection.
 
-    Single-flight: concurrent requests for the same key share one creation call.
+    File placeholders in *raw_parts* are resolved inside the single-flight
+    work function so concurrent callers share both uploads and cache creation.
     """
     if not provider.capabilities.persistent_cache:
         return None
 
     async def _work() -> tuple[str, float]:
         logger.debug("Creating cache key=%s…", key[:8])
-        if retry_policy is None or retry_policy.max_attempts <= 1:
+        policy = retry_policy or RetryPolicy(max_attempts=1)
+        parts = await _resolve_file_parts(raw_parts, provider, policy)
+        if policy.max_attempts <= 1:
             name = await provider.create_cache(
                 model=model,
                 parts=parts,
@@ -139,7 +142,7 @@ async def get_or_create_cache(
                 tools=tools,
                 ttl_seconds=ttl_seconds,
             ),
-            policy=retry_policy,
+            policy=policy,
             should_retry=should_retry_side_effect,
         )
         return name, time.time() + max(0, ttl_seconds)
@@ -256,20 +259,18 @@ async def create_cache_impl(
             expires_at=expires_at,
         )
 
-    parts = build_shared_parts(src_tuple)
-    retry_policy = config.retry
-    parts = await _resolve_file_parts(parts, provider, retry_policy)
+    raw_parts = build_shared_parts(src_tuple)
 
     result = await get_or_create_cache(
         provider,
         _registry,
         key=key,
         model=config.model,
-        parts=parts,
+        raw_parts=raw_parts,
         system_instruction=system_instruction,
         tools=tools,
         ttl_seconds=ttl_seconds,
-        retry_policy=retry_policy,
+        retry_policy=config.retry,
     )
 
     if result is None:
