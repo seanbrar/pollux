@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import TYPE_CHECKING, Any
+
+from pollux.errors import ConfigurationError
 
 if TYPE_CHECKING:
     from pollux.request import Request
@@ -12,12 +15,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Plan:
-    """Execution plan with shared context and cache identity."""
+    """Execution plan with shared context and optional cache reference."""
 
     request: Request
     shared_parts: tuple[Any, ...] = ()
-    use_cache: bool = False
-    cache_key: str | None = None
+    cache_name: str | None = None
 
     @property
     def n_calls(self) -> int:
@@ -29,35 +31,78 @@ def build_plan(request: Request) -> Plan:
     """Build execution plan from normalized request.
 
     Handles both single-prompt and vectorized (multi-prompt) scenarios.
+    Validates cache handle conflicts eagerly so callers get clear errors
+    before any network I/O.
     """
-    config = request.config
     sources = request.sources
+    shared_parts = build_shared_parts(sources)
 
-    # Build shared parts from sources
-    shared_parts = _build_shared_parts(sources)
-
-    # Determine if caching should be used
-    use_cache = config.enable_caching and len(shared_parts) > 0
-    cache_key = None
-
-    if use_cache:
-        from pollux.cache import compute_cache_key
-
-        cache_key = compute_cache_key(
-            config.model,
-            sources,
-            system_instruction=request.options.system_instruction,
-        )
+    cache_name: str | None = None
+    if request.options.cache is not None:
+        cache = request.options.cache
+        if time.time() >= cache.expires_at:
+            raise ConfigurationError(
+                "cache handle has expired",
+                hint="Create a new cache with create_cache().",
+            )
+        if cache.provider != request.config.provider:
+            raise ConfigurationError(
+                "cache handle provider does not match config provider",
+                hint=(
+                    f"Create the cache with provider={request.config.provider!r} and "
+                    "reuse it with the same provider."
+                ),
+            )
+        if cache.model != request.config.model:
+            raise ConfigurationError(
+                "cache handle model does not match config model",
+                hint=(
+                    f"Create the cache with model={request.config.model!r} and reuse it "
+                    "with the same model."
+                ),
+            )
+        if request.options.system_instruction is not None:
+            raise ConfigurationError(
+                "system_instruction cannot be used with a cache handle",
+                hint=(
+                    "Bake the system instruction into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        if request.options.tools is not None:
+            raise ConfigurationError(
+                "tools cannot be used with a cache handle",
+                hint=(
+                    "Bake tools into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        if request.options.tool_choice is not None:
+            raise ConfigurationError(
+                "tool_choice cannot be used with a cache handle",
+                hint=(
+                    "Remove tool_choice when using a cache handle, "
+                    "or remove the cache handle."
+                ),
+            )
+        if shared_parts:
+            raise ConfigurationError(
+                "sources cannot be used with a cache handle",
+                hint=(
+                    "Bake sources into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        cache_name = cache.name
 
     return Plan(
         request=request,
         shared_parts=tuple(shared_parts),
-        use_cache=use_cache,
-        cache_key=cache_key,
+        cache_name=cache_name,
     )
 
 
-def _build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
+def build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
     """Convert sources to API parts."""
     parts: list[Any] = []
 

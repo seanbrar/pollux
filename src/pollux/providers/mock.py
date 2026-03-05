@@ -18,20 +18,10 @@ class MockProvider:
     """
 
     @property
-    def supports_caching(self) -> bool:
-        """Whether this provider supports caching."""
-        return self.capabilities.caching
-
-    @property
-    def supports_uploads(self) -> bool:
-        """Whether this provider supports file uploads."""
-        return self.capabilities.uploads
-
-    @property
     def capabilities(self) -> ProviderCapabilities:
         """Return supported feature flags."""
         return ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=False,
             reasoning=False,
@@ -70,6 +60,7 @@ class MockProvider:
         model: str,
         parts: list[Any],  # noqa: ARG002
         system_instruction: str | None = None,  # noqa: ARG002
+        tools: list[dict[str, Any]] | list[Any] | None = None,  # noqa: ARG002
         ttl_seconds: int = 3600,  # noqa: ARG002
     ) -> str:
         """Return a mock cache name."""

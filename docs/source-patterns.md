@@ -232,7 +232,7 @@ async def process_to_jsonl(directory: str, output: str) -> None:
 - **Memory with large collections.** Each `Source.from_file()` reads the
   file for hashing. For very large collections, process in batches rather
   than loading all sources at once.
-- **Caching helps fan-out, not iteration.** `enable_caching=True` saves
+- **Caching helps fan-out, not iteration.** `create_cache()` saves
   tokens when the *same source* gets reused across multiple prompts. It
   does not help when each file is different. See
   [Reducing Costs with Context Caching](caching.md).

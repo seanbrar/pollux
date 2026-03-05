@@ -184,31 +184,6 @@ def test_non_integer_request_concurrency_raises_clear_error(gemini_model: str) -
     assert exc.value.hint is not None
 
 
-def test_negative_ttl_seconds_raises_clear_error(gemini_model: str) -> None:
-    """Negative TTL is nonsensical; must fail at construction."""
-    with pytest.raises(ConfigurationError, match="ttl_seconds must be") as exc:
-        Config(provider="gemini", model=gemini_model, use_mock=True, ttl_seconds=-1)
-    assert exc.value.hint is not None
-
-
-def test_non_integer_ttl_seconds_raises_clear_error(gemini_model: str) -> None:
-    """Non-integer TTL should raise ConfigurationError, not TypeError."""
-    with pytest.raises(ConfigurationError, match="must be an integer") as exc:
-        Config(
-            provider="gemini",
-            model=gemini_model,
-            use_mock=True,
-            ttl_seconds="3600",  # type: ignore[arg-type]
-        )
-    assert exc.value.hint is not None
-
-
-def test_zero_ttl_seconds_is_allowed(gemini_model: str) -> None:
-    """ttl_seconds=0 is valid (disables caching TTL)."""
-    cfg = Config(provider="gemini", model=gemini_model, use_mock=True, ttl_seconds=0)
-    assert cfg.ttl_seconds == 0
-
-
 def test_config_str_and_repr_redact_api_key(gemini_model: str) -> None:
     """String representations must not leak secrets."""
     secret = "top-secret-key"

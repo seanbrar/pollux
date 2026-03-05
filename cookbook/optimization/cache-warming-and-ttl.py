@@ -7,7 +7,7 @@ Problem:
 
 Pattern:
     - Keep prompts and sources fixed.
-    - Enable caching with a meaningful TTL.
+    - Create a persistent cache via ``create_cache()``.
     - Run once to warm and once to reuse (back-to-back).
     - Compare tokens and cache signal.
 """
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -28,15 +27,15 @@ from cookbook.utils.presentation import (
     print_section,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
-from pollux import Config, Source, run_many
+from pollux import Config, Options, Source, create_cache, run_many
 
 if TYPE_CHECKING:
     from pollux.result import ResultEnvelope
 
-PROMPTS = [
+PROMPTS = (
     "List 5 key concepts with one-sentence explanations.",
     "Extract three actionable recommendations.",
-]
+)
 
 
 def describe(run_name: str, envelope: ResultEnvelope) -> None:
@@ -52,15 +51,17 @@ def describe(run_name: str, envelope: ResultEnvelope) -> None:
     )
 
 
-async def main_async(directory: Path, *, limit: int, config: Config) -> None:
+async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -> None:
     files = sorted(path for path in directory.rglob("*") if path.is_file())[:limit]
     if not files:
         raise SystemExit(f"No files found under: {directory}")
 
     sources = [Source.from_file(path) for path in files]
 
-    warm = await run_many(PROMPTS, sources=sources, config=config)
-    reuse = await run_many(PROMPTS, sources=sources, config=config)
+    handle = await create_cache(sources, config=config, ttl_seconds=ttl)
+
+    warm = await run_many(PROMPTS, config=config, options=Options(cache=handle))
+    reuse = await run_many(PROMPTS, config=config, options=Options(cache=handle))
     warm_tokens = usage_tokens(warm)
     reuse_tokens = usage_tokens(reuse)
     saved = None
@@ -107,16 +108,14 @@ def main() -> None:
         hint="No input directory found. Run `just demo-data` or pass --input /path/to/dir.",
     )
     config = build_config_or_exit(args)
-    cached_config = replace(
-        config, enable_caching=True, ttl_seconds=max(1, int(args.ttl))
-    )
 
-    print_header("Cache warming and TTL", config=cached_config)
+    print_header("Cache warming and TTL", config=config)
     asyncio.run(
         main_async(
             directory,
             limit=max(1, int(args.limit)),
-            config=cached_config,
+            config=config,
+            ttl=max(1, int(args.ttl)),
         )
     )
 

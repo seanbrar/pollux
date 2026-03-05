@@ -58,20 +58,10 @@ class AnthropicProvider:
         return self._client
 
     @property
-    def supports_caching(self) -> bool:
-        """Whether this provider supports context caching."""
-        return self.capabilities.caching
-
-    @property
-    def supports_uploads(self) -> bool:
-        """Whether this provider supports file uploads."""
-        return self.capabilities.uploads
-
-    @property
     def capabilities(self) -> ProviderCapabilities:
         """Return supported feature flags."""
         return ProviderCapabilities(
-            caching=False,
+            persistent_cache=False,
             uploads=True,
             structured_outputs=True,
             reasoning=True,
@@ -351,10 +341,11 @@ class AnthropicProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Raise because Anthropic caching is deferred."""
-        _ = model, parts, system_instruction, ttl_seconds
+        _ = model, parts, system_instruction, tools, ttl_seconds
         raise APIError("Anthropic provider does not support context caching")
 
     async def aclose(self) -> None:

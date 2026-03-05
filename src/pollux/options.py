@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from pollux.errors import ConfigurationError
 
 if TYPE_CHECKING:
+    from pollux.cache import CacheHandle
     from pollux.result import ResultEnvelope
 
 ReasoningEffort = str
@@ -44,6 +45,8 @@ class Options:
     continue_from: ResultEnvelope | None = None
     #: Hard limit on the model's total output tokens. Provider-specific semantics.
     max_tokens: int | None = None
+    #: Persistent context cache obtained from ``create_cache()``.
+    cache: CacheHandle | None = None
 
     def __post_init__(self) -> None:
         """Validate option shapes early for clear errors."""
@@ -101,6 +104,14 @@ class Options:
                 "continue_from must be a prior Pollux result envelope",
                 hint="Pass the dict returned by run() or run_many().",
             )
+        if self.cache is not None:
+            from pollux.cache import CacheHandle
+
+            if not isinstance(self.cache, CacheHandle):
+                raise ConfigurationError(
+                    "cache must be a CacheHandle from create_cache()",
+                    hint="Call create_cache() first, then pass Options(cache=handle).",
+                )
 
     def response_schema_json(self) -> dict[str, Any] | None:
         """Return JSON Schema for provider APIs."""

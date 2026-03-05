@@ -45,20 +45,10 @@ class OpenAIProvider:
         return self._client
 
     @property
-    def supports_caching(self) -> bool:
-        """Whether this provider supports context caching."""
-        return self.capabilities.caching
-
-    @property
-    def supports_uploads(self) -> bool:
-        """Whether this provider supports file uploads."""
-        return self.capabilities.uploads
-
-    @property
     def capabilities(self) -> ProviderCapabilities:
         """Return supported feature flags."""
         return ProviderCapabilities(
-            caching=False,
+            persistent_cache=False,
             uploads=True,
             structured_outputs=True,
             reasoning=True,
@@ -336,10 +326,11 @@ class OpenAIProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Raise because OpenAI context caching is not supported."""
-        _ = model, parts, system_instruction, ttl_seconds
+        _ = model, parts, system_instruction, tools, ttl_seconds
         raise APIError("OpenAI provider does not support context caching")
 
     async def delete_file(self, file_id: str) -> None:

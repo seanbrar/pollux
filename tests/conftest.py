@@ -32,7 +32,7 @@ class FakeProvider:
     last_generate_kwargs: dict[str, Any] | None = None
     _capabilities: ProviderCapabilities = field(
         default_factory=lambda: ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=False,
             reasoning=False,
@@ -40,14 +40,6 @@ class FakeProvider:
             conversation=False,
         )
     )
-
-    @property
-    def supports_caching(self) -> bool:
-        return self.capabilities.caching
-
-    @property
-    def supports_uploads(self) -> bool:
-        return self.capabilities.uploads
 
     @property
     def capabilities(self) -> ProviderCapabilities:
@@ -86,9 +78,10 @@ class FakeProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
-        del model, parts, system_instruction, ttl_seconds
+        del model, parts, system_instruction, tools, ttl_seconds
         self.cache_calls += 1
         return "cachedContents/test"
 

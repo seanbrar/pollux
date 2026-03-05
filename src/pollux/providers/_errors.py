@@ -16,6 +16,7 @@ from pollux._http import RETRYABLE_STATUS_CODES
 from pollux.errors import (
     APIError,
     CacheError,
+    ConfigurationError,
     RateLimitError,
     _walk_exception_chain,
 )
@@ -136,6 +137,11 @@ def wrap_provider_error(
 ) -> APIError:
     """Map provider SDK exceptions into APIError with stable retry metadata."""
     if isinstance(exc, asyncio.CancelledError):
+        raise exc
+
+    # ConfigurationError should propagate as-is, not be re-wrapped as
+    # CacheError/APIError — it signals a caller mistake, not a provider failure.
+    if isinstance(exc, ConfigurationError):
         raise exc
 
     # Already wrapped — fill in missing context only.

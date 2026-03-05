@@ -3,6 +3,7 @@
 Public API:
     - run(): Single prompt execution
     - run_many(): Multi-prompt source-pattern execution
+    - create_cache(): Create a persistent context cache
     - Source: Explicit input types
     - Config: Configuration dataclass
 """
@@ -13,7 +14,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pollux.cache import CacheRegistry
+from pollux.cache import CacheHandle
 from pollux.config import Config
 from pollux.errors import (
     APIError,
@@ -47,9 +48,6 @@ except PackageNotFoundError:
 logging.getLogger("pollux").addHandler(logging.NullHandler())
 
 logger = logging.getLogger(__name__)
-
-# Module-level cache registry for reuse across calls
-_registry = CacheRegistry()
 
 
 async def run(
@@ -113,17 +111,9 @@ async def run_many(
     provider = _get_provider(request.config)
 
     try:
-        trace = await execute_plan(plan, provider, _registry)
+        trace = await execute_plan(plan, provider)
     finally:
-        aclose = getattr(provider, "aclose", None)
-        if callable(aclose):
-            try:
-                await aclose()
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                # Cleanup should never mask the primary failure.
-                logger.warning("Provider cleanup failed: %s", exc)
+        await _close_provider(provider)
 
     return build_result(plan, trace)
 
@@ -169,6 +159,67 @@ async def continue_tool(
     return await run(prompt=None, config=config, options=merged_options)
 
 
+async def create_cache(
+    sources: tuple[Source, ...] | list[Source],
+    *,
+    config: Config,
+    system_instruction: str | None = None,
+    tools: list[dict[str, Any]] | list[Any] | None = None,
+    ttl_seconds: int = 3600,
+) -> CacheHandle:
+    """Create a persistent context cache for use with ``run()`` / ``run_many()``.
+
+    Args:
+        sources: Content to cache (files, text, URLs).
+        config: Configuration specifying provider and model.
+        system_instruction: Optional system-level instruction baked into the cache.
+        tools: Optional tools to bake into the cache.
+        ttl_seconds: Time-to-live in seconds (must be ≥ 1).
+
+    Returns:
+        A ``CacheHandle`` that can be passed via ``Options(cache=handle)``.
+
+    Raises:
+        ConfigurationError: If the provider does not support persistent caching
+            or *ttl_seconds* is invalid.
+
+    Example:
+        cfg = Config(provider="gemini", model="gemini-2.5-flash")
+        handle = await create_cache(
+            [Source.from_file("book.pdf")],
+            config=cfg,
+            ttl_seconds=3600,
+        )
+        result = await run("Summarize.", config=cfg, options=Options(cache=handle))
+    """
+    from pollux.cache import create_cache_impl
+
+    provider = _get_provider(config)
+    try:
+        return await create_cache_impl(
+            sources,
+            provider=provider,
+            config=config,
+            system_instruction=system_instruction,
+            tools=tools,
+            ttl_seconds=ttl_seconds,
+        )
+    finally:
+        await _close_provider(provider)
+
+
+async def _close_provider(provider: Provider) -> None:
+    """Close provider resources without masking primary errors."""
+    aclose = getattr(provider, "aclose", None)
+    if callable(aclose):
+        try:
+            await aclose()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Provider cleanup failed: %s", exc)
+
+
 def _get_provider(config: Config) -> Provider:
     """Get the appropriate provider based on configuration."""
     if config.use_mock:
@@ -210,6 +261,7 @@ def _get_provider(config: Config) -> Provider:
 __all__ = [
     "APIError",
     "CacheError",
+    "CacheHandle",
     "Config",
     "ConfigurationError",
     "InternalError",
@@ -222,6 +274,7 @@ __all__ = [
     "Source",
     "SourceError",
     "continue_tool",
+    "create_cache",
     "run",
     "run_many",
 ]

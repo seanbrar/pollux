@@ -14,9 +14,13 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.continue_tool
 
+::: pollux.create_cache
+
 ## Core Types
 
 ::: pollux.Source
+
+::: pollux.CacheHandle
 
 ::: pollux.Config
 

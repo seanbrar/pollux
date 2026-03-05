@@ -72,7 +72,7 @@ class GateProvider(FakeProvider):
             self,
             "_capabilities",
             ProviderCapabilities(
-                caching=True,
+                persistent_cache=True,
                 uploads=True,
                 structured_outputs=True,
                 reasoning=True,

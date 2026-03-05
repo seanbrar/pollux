@@ -8,7 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any
 import uuid
 
-from pollux.errors import APIError
+from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
@@ -49,20 +49,10 @@ class GeminiProvider:
         return self._client
 
     @property
-    def supports_caching(self) -> bool:
-        """Whether this provider supports context caching."""
-        return self.capabilities.caching
-
-    @property
-    def supports_uploads(self) -> bool:
-        """Whether this provider supports file uploads."""
-        return self.capabilities.uploads
-
-    @property
     def capabilities(self) -> ProviderCapabilities:
         """Return supported feature flags."""
         return ProviderCapabilities(
-            caching=True,
+            persistent_cache=True,
             uploads=True,
             structured_outputs=True,
             reasoning=True,
@@ -114,6 +104,11 @@ class GeminiProvider:
 
         tool_objs: list[Any] = []
         for t in tools:
+            if not isinstance(t, dict):
+                raise ConfigurationError(
+                    f"Tool must be a dictionary, got {type(t).__name__}",
+                    hint="Ensure all items in the tools list are dictionaries.",
+                )
             if "name" in t:
                 raw_params = t.get("parameters")
                 params = (
@@ -425,20 +420,28 @@ class GeminiProvider:
         model: str,
         parts: list[Any],
         system_instruction: str | None = None,
+        tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
         """Create a cached content entry."""
         client = self._get_client()
         from google.genai import types
 
+        config_kwargs: dict[str, Any] = {
+            "contents": self._convert_parts(parts),
+            "system_instruction": system_instruction,
+            "ttl": f"{ttl_seconds}s",
+        }
+
         try:
+            if tools is not None:
+                tool_objs = self._normalize_tools(tools)
+                if tool_objs:
+                    config_kwargs["tools"] = tool_objs
+
             result = await client.aio.caches.create(
                 model=model,
-                config=types.CreateCachedContentConfig(
-                    contents=self._convert_parts(parts),
-                    system_instruction=system_instruction,
-                    ttl=f"{ttl_seconds}s",
-                ),
+                config=types.CreateCachedContentConfig(**config_kwargs),
             )
             return str(result.name)
         except asyncio.CancelledError:
