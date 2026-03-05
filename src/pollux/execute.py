@@ -113,68 +113,17 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             "Conversation continuity currently supports exactly one prompt per call",
             hint="Use run() or run_many() with a single prompt when passing history/continue_from.",
         )
-    if options.cache is not None:
-        cache_handle = options.cache
-        if not caps.persistent_cache:
-            raise ConfigurationError(
-                "Provider does not support persistent caching",
-                hint=(
-                    "Remove options.cache or choose a provider with "
-                    "persistent_cache support."
-                ),
-            )
-        if cache_handle.provider != config.provider:
-            raise ConfigurationError(
-                "cache handle provider does not match config provider",
-                hint=(
-                    f"Create the cache with provider={config.provider!r} and "
-                    "reuse it with the same provider."
-                ),
-            )
-        if cache_handle.model != model:
-            raise ConfigurationError(
-                "cache handle model does not match config model",
-                hint=(
-                    f"Create the cache with model={model!r} and reuse it "
-                    "with the same model."
-                ),
-            )
-        # Gemini (and potentially other providers) reject requests that pass
-        # system_instruction or tools alongside cached_content.  Catch the
-        # conflict early so users get a clear Pollux error instead of a
-        # provider 400.
-        if options.system_instruction is not None:
-            raise ConfigurationError(
-                "system_instruction cannot be used with a cache handle",
-                hint=(
-                    "Bake the system instruction into create_cache() instead, "
-                    "or remove the cache handle."
-                ),
-            )
-        if options.tools is not None:
-            raise ConfigurationError(
-                "tools cannot be used with a cache handle",
-                hint=(
-                    "Bake tools into create_cache() instead, "
-                    "or remove the cache handle."
-                ),
-            )
-        if options.tool_choice is not None:
-            raise ConfigurationError(
-                "tool_choice cannot be used with a cache handle",
-                hint=(
-                    "Remove tool_choice when using a cache handle, "
-                    "or remove the cache handle."
-                ),
-            )
-        if plan.shared_parts:
-            raise ConfigurationError(
-                "sources cannot be used with a cache handle",
-                hint=(
-                    "Bake sources into create_cache() instead, "
-                    "or remove the cache handle."
-                ),
-            )
+    # Runtime safety net: reject hand-built handles targeting providers
+    # that lack persistent caching (the planner already validates other
+    # cache conflicts).
+    if plan.cache_name is not None and not caps.persistent_cache:
+        raise ConfigurationError(
+            "Provider does not support persistent caching",
+            hint=(
+                "Remove options.cache or choose a provider with "
+                "persistent_cache support."
+            ),
+        )
 
     if (not provider.capabilities.uploads) and any(
         isinstance(p, dict)
@@ -233,8 +182,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
     conversation_state: dict[str, Any] | None = None
 
     try:
-        # Use pre-created cache name from Options.cache (via plan).
-        cache_name = options.cache.name if options.cache is not None else None
+        cache_name = plan.cache_name
 
         # Execute calls with concurrency control
         concurrency = config.request_concurrency

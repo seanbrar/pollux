@@ -14,7 +14,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pollux.cache import CacheHandle, CacheRegistry
+from pollux.cache import CacheHandle
 from pollux.config import Config
 from pollux.errors import (
     APIError,
@@ -48,9 +48,6 @@ except PackageNotFoundError:
 logging.getLogger("pollux").addHandler(logging.NullHandler())
 
 logger = logging.getLogger(__name__)
-
-# Module-level cache registry for reuse across calls
-_registry = CacheRegistry()
 
 
 async def run(
@@ -194,95 +191,17 @@ async def create_cache(
         )
         result = await run("Summarize.", config=config, options=Options(cache=handle))
     """
-    from pollux.cache import compute_cache_key, get_or_create_cache
-    from pollux.execute import _substitute_upload_parts
-    from pollux.plan import build_shared_parts
-
-    if not isinstance(ttl_seconds, int) or ttl_seconds < 1:
-        raise ConfigurationError(
-            f"ttl_seconds must be an integer ≥ 1, got {ttl_seconds!r}",
-            hint="Pass a positive integer for the cache TTL.",
-        )
+    from pollux.cache import create_cache_impl
 
     provider = _get_provider(config)
     try:
-        if not provider.capabilities.persistent_cache:
-            raise ConfigurationError(
-                f"Provider {config.provider!r} does not support persistent caching",
-                hint="Use a provider that supports persistent_cache (e.g. Gemini).",
-            )
-
-        src_tuple = tuple(sources) if not isinstance(sources, tuple) else sources
-
-        # Validate sources
-        for s in src_tuple:
-            if not isinstance(s, Source):
-                raise ConfigurationError(
-                    f"Expected Source, got {type(s).__name__}",
-                    hint="Use Source.from_file(), Source.from_text(), etc.",
-                )
-
-        key = compute_cache_key(
-            config.model,
-            src_tuple,
-            provider=config.provider,
-            system_instruction=system_instruction,
-            tools=tools,
-        )
-
-        cached = _registry.get(key)
-        if cached is not None:
-            cache_name, expires_at = cached
-            return CacheHandle(
-                name=cache_name,
-                model=config.model,
-                provider=config.provider,
-                expires_at=expires_at,
-            )
-
-        parts = build_shared_parts(src_tuple)
-
-        # Resolve file uploads.
-        upload_cache: dict[tuple[str, str], Any] = {}
-        upload_inflight: dict[tuple[str, str], asyncio.Future[Any]] = {}
-        upload_lock = asyncio.Lock()
-        retry_policy = config.retry
-
-        parts = await _substitute_upload_parts(
-            parts,
+        return await create_cache_impl(
+            sources,
             provider=provider,
-            call_idx=None,
-            upload_cache=upload_cache,
-            upload_inflight=upload_inflight,
-            upload_lock=upload_lock,
-            retry_policy=retry_policy,
-        )
-
-        result = await get_or_create_cache(
-            provider,
-            _registry,
-            key=key,
-            model=config.model,
-            parts=parts,
+            config=config,
             system_instruction=system_instruction,
             tools=tools,
             ttl_seconds=ttl_seconds,
-            retry_policy=retry_policy,
-        )
-
-        if result is None:
-            raise InternalError(
-                "Cache creation returned None unexpectedly",
-                hint="This is a Pollux internal error. Please report it.",
-            )
-
-        cache_name, expires_at = result
-
-        return CacheHandle(
-            name=cache_name,
-            model=config.model,
-            provider=config.provider,
-            expires_at=expires_at,
         )
     finally:
         await _close_provider(provider)

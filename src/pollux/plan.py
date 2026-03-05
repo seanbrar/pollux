@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pollux.errors import ConfigurationError
+
 if TYPE_CHECKING:
     from pollux.request import Request
     from pollux.source import Source
@@ -28,14 +30,64 @@ def build_plan(request: Request) -> Plan:
     """Build execution plan from normalized request.
 
     Handles both single-prompt and vectorized (multi-prompt) scenarios.
+    Validates cache handle conflicts eagerly so callers get clear errors
+    before any network I/O.
     """
     sources = request.sources
     shared_parts = build_shared_parts(sources)
 
-    # Resolve cache_name from Options.cache if provided.
     cache_name: str | None = None
     if request.options.cache is not None:
-        cache_name = request.options.cache.name
+        cache = request.options.cache
+        if cache.provider != request.config.provider:
+            raise ConfigurationError(
+                "cache handle provider does not match config provider",
+                hint=(
+                    f"Create the cache with provider={request.config.provider!r} and "
+                    "reuse it with the same provider."
+                ),
+            )
+        if cache.model != request.config.model:
+            raise ConfigurationError(
+                "cache handle model does not match config model",
+                hint=(
+                    f"Create the cache with model={request.config.model!r} and reuse it "
+                    "with the same model."
+                ),
+            )
+        if request.options.system_instruction is not None:
+            raise ConfigurationError(
+                "system_instruction cannot be used with a cache handle",
+                hint=(
+                    "Bake the system instruction into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        if request.options.tools is not None:
+            raise ConfigurationError(
+                "tools cannot be used with a cache handle",
+                hint=(
+                    "Bake tools into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        if request.options.tool_choice is not None:
+            raise ConfigurationError(
+                "tool_choice cannot be used with a cache handle",
+                hint=(
+                    "Remove tool_choice when using a cache handle, "
+                    "or remove the cache handle."
+                ),
+            )
+        if shared_parts:
+            raise ConfigurationError(
+                "sources cannot be used with a cache handle",
+                hint=(
+                    "Bake sources into create_cache() instead, "
+                    "or remove the cache handle."
+                ),
+            )
+        cache_name = cache.name
 
     return Plan(
         request=request,

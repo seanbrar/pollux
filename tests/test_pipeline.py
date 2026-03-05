@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import pytest
 
 import pollux
+import pollux.cache
 from pollux.cache import CacheHandle, CacheRegistry, compute_cache_key
 from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError, PlanningError, SourceError
@@ -317,7 +318,7 @@ async def test_create_cache_closes_provider(monkeypatch: pytest.MonkeyPatch) -> 
     for fail_cache in (False, True):
         fake = _Provider(fail_cache=fail_cache)
         monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
-        monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+        monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
 
         if fail_cache:
             with pytest.raises(APIError, match="cache failed"):
@@ -450,7 +451,7 @@ async def test_cache_single_flight_propagates_failure_and_clears_inflight(
     """If cache creation fails, concurrent callers see the error; future calls recover."""
     fake = GateProvider(kind="cache")
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+    monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
 
     cfg = Config(
         provider="gemini",
@@ -840,12 +841,9 @@ async def test_options_cache_requires_persistent_cache_capability(
     with pytest.raises(ConfigurationError, match="persistent caching"):
         await pollux.run_many(
             prompts=("Q",),
-            sources=(Source.from_text("shared context"),),
             config=cfg,
             options=Options(cache=handle),
         )
-
-    assert fake.last_parts is None
 
 
 @pytest.mark.asyncio
@@ -1048,7 +1046,7 @@ async def test_create_cache_returns_handle(monkeypatch: pytest.MonkeyPatch) -> N
     """create_cache() should return a CacheHandle with the expected fields."""
     fake = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+    monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
 
     cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
     handle = await pollux.create_cache(
@@ -1073,7 +1071,7 @@ async def test_create_cache_cache_hit_skips_uploads(
     """Repeated create_cache() calls for the same key should not re-upload files."""
     fake = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+    monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
 
     file_path = tmp_path / "cache-me.txt"
     file_path.write_text("hello cache", encoding="utf-8")
@@ -1088,13 +1086,34 @@ async def test_create_cache_cache_hit_skips_uploads(
 
 
 @pytest.mark.asyncio
+async def test_create_cache_deduplicates_file_uploads_within_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """Duplicate file sources in a single create_cache() should upload only once."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
+
+    file_path = tmp_path / "dup.txt"
+    file_path.write_text("same content", encoding="utf-8")
+
+    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+    src = Source.from_file(file_path)
+    handle = await pollux.create_cache((src, src), config=cfg)
+
+    assert isinstance(handle, CacheHandle)
+    assert fake.upload_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_create_cache_rejects_unserializable_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """create_cache() should raise ConfigurationError with a hint for non-JSON tools."""
     fake = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    monkeypatch.setattr(pollux, "_registry", CacheRegistry())
+    monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
 
     cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
 

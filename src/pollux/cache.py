@@ -6,14 +6,16 @@ import asyncio
 from dataclasses import dataclass, field
 import hashlib
 import logging
+from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
-from pollux.errors import ConfigurationError
+from pollux.errors import ConfigurationError, InternalError
 from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 
 if TYPE_CHECKING:
+    from pollux.config import Config
     from pollux.providers.base import Provider
     from pollux.source import Source
 
@@ -149,4 +151,138 @@ async def get_or_create_cache(
         cache_get=registry.get,
         cache_set=registry.set,
         work=_work,
+    )
+
+
+# Module-level registry shared across create_cache calls.
+_registry = CacheRegistry()
+
+
+async def _resolve_file_parts(
+    parts: list[Any],
+    provider: Provider,
+    retry_policy: RetryPolicy,
+) -> list[Any]:
+    """Replace file placeholders with uploaded assets.
+
+    Memoizes by ``(file_path, mime_type)`` so duplicate file sources in a
+    single ``create_cache()`` call share one upload.  No singleflight
+    needed because ``create_cache`` is sequential, not concurrent fan-out.
+    """
+    resolved: list[Any] = []
+    seen: dict[tuple[str, str], Any] = {}
+    for part in parts:
+        if (
+            isinstance(part, dict)
+            and isinstance(part.get("file_path"), str)
+            and isinstance(part.get("mime_type"), str)
+        ):
+            fp, mt = part["file_path"], part["mime_type"]
+            key = (fp, mt)
+            if key in seen:
+                resolved.append(seen[key])
+                continue
+            if retry_policy.max_attempts <= 1:
+                asset = await provider.upload_file(Path(fp), mt)
+            else:
+
+                async def _upload(_fp: str = fp, _mt: str = mt) -> Any:
+                    return await provider.upload_file(Path(_fp), _mt)
+
+                asset = await retry_async(
+                    _upload,
+                    policy=retry_policy,
+                    should_retry=should_retry_side_effect,
+                )
+            seen[key] = asset
+            resolved.append(asset)
+        else:
+            resolved.append(part)
+    return resolved
+
+
+async def create_cache_impl(
+    sources: tuple[Source, ...] | list[Source],
+    *,
+    provider: Provider,
+    config: Config,
+    system_instruction: str | None = None,
+    tools: list[dict[str, Any]] | list[Any] | None = None,
+    ttl_seconds: int = 3600,
+) -> CacheHandle:
+    """Core implementation of ``create_cache()``.
+
+    Receives an already-initialized provider; the caller manages its lifecycle.
+    """
+    from pollux.plan import build_shared_parts
+    from pollux.source import Source as SourceCls
+
+    if not isinstance(ttl_seconds, int) or ttl_seconds < 1:
+        raise ConfigurationError(
+            f"ttl_seconds must be an integer ≥ 1, got {ttl_seconds!r}",
+            hint="Pass a positive integer for the cache TTL.",
+        )
+
+    if not provider.capabilities.persistent_cache:
+        raise ConfigurationError(
+            f"Provider {config.provider!r} does not support persistent caching",
+            hint="Use a provider that supports persistent_cache (e.g. Gemini).",
+        )
+
+    src_tuple = tuple(sources) if not isinstance(sources, tuple) else sources
+
+    for s in src_tuple:
+        if not isinstance(s, SourceCls):
+            raise ConfigurationError(
+                f"Expected Source, got {type(s).__name__}",
+                hint="Use Source.from_file(), Source.from_text(), etc.",
+            )
+
+    key = compute_cache_key(
+        config.model,
+        src_tuple,
+        provider=config.provider,
+        system_instruction=system_instruction,
+        tools=tools,
+    )
+
+    cached = _registry.get(key)
+    if cached is not None:
+        cache_name, expires_at = cached
+        return CacheHandle(
+            name=cache_name,
+            model=config.model,
+            provider=config.provider,
+            expires_at=expires_at,
+        )
+
+    parts = build_shared_parts(src_tuple)
+    retry_policy = config.retry
+    parts = await _resolve_file_parts(parts, provider, retry_policy)
+
+    result = await get_or_create_cache(
+        provider,
+        _registry,
+        key=key,
+        model=config.model,
+        parts=parts,
+        system_instruction=system_instruction,
+        tools=tools,
+        ttl_seconds=ttl_seconds,
+        retry_policy=retry_policy,
+    )
+
+    if result is None:
+        raise InternalError(
+            "Cache creation returned None unexpectedly",
+            hint="This is a Pollux internal error. Please report it.",
+        )
+
+    cache_name, expires_at = result
+
+    return CacheHandle(
+        name=cache_name,
+        model=config.model,
+        provider=config.provider,
+        expires_at=expires_at,
     )
