@@ -64,15 +64,18 @@ class CacheRegistry:
 def compute_cache_key(
     model: str,
     sources: tuple[Source, ...],
+    provider: str | None = None,
     system_instruction: str | None = None,
     tools: list[dict[str, Any]] | list[Any] | None = None,
 ) -> str:
     """Compute deterministic cache key using content hashes.
 
-    Key = hash(model + system + content digests of sources)
+    Key = hash(model + provider + system + content digests of sources)
     This fixes the cache identity collision bug where identifier+size was used.
     """
     parts = [model]
+    if provider:
+        parts.append(provider)
     if system_instruction:
         parts.append(system_instruction)
     if tools:

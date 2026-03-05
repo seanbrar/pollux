@@ -163,7 +163,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             raise ConfigurationError(
                 "tool_choice cannot be used with a cache handle",
                 hint=(
-                    "Bake tools/tool_choice into create_cache() instead, "
+                    "Remove tool_choice when using a cache handle, "
                     "or remove the cache handle."
                 ),
             )

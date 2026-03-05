@@ -158,8 +158,9 @@ options = Options(
 
 !!! warning "Cache handle restrictions"
     When `cache` is set, `system_instruction`, `tools`, and `tool_choice`
-    **must not** be passed in the same `Options`. Bake them into
-    `create_cache()` instead. See
+    **must not** be passed in the same `Options`. `system_instruction` and
+    `tools` can be baked into `create_cache()`, while `tool_choice` must be
+    set only on uncached calls. See
     [Reducing Costs with Context Caching](caching.md) for details.
 
 ## Safety Notes

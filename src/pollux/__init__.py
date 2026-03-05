@@ -223,7 +223,11 @@ async def create_cache(
                 )
 
         key = compute_cache_key(
-            config.model, src_tuple, system_instruction=system_instruction, tools=tools
+            config.model,
+            src_tuple,
+            provider=config.provider,
+            system_instruction=system_instruction,
+            tools=tools,
         )
 
         cached = _registry.get(key)

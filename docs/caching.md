@@ -131,8 +131,9 @@ the same handle reuse the cached context automatically.
 
     - `system_instruction` — bake it into `create_cache(system_instruction=...)`
       instead.
-    - `tools` / `tool_choice` — bake them into `create_cache()` instead (when
+    - `tools` — bake them into `create_cache(tools=...)` instead (when
       supported).
+    - `tool_choice` — remove it when using cached content.
     - `sources` — bake them into `create_cache()` instead.
 
     Pollux raises `ConfigurationError` immediately if it detects these
@@ -142,7 +143,7 @@ the same handle reuse the cached context automatically.
 
 ## Cache Identity
 
-Cache keys are deterministic: `hash(model + content hashes of sources)`.
+Cache keys are deterministic: `hash(model + provider + content hashes of sources)`.
 
 This means:
 

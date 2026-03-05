@@ -977,7 +977,7 @@ async def test_options_cache_rejects_tool_choice(
         expires_at=time.time() + 3600,
     )
 
-    with pytest.raises(ConfigurationError, match="tool_choice cannot be used"):
+    with pytest.raises(ConfigurationError, match="tool_choice cannot be used") as exc:
         await pollux.run_many(
             prompts=("Q",),
             sources=(Source.from_text("shared context"),),
@@ -985,6 +985,8 @@ async def test_options_cache_rejects_tool_choice(
             options=Options(cache=handle, tool_choice="required"),
         )
 
+    assert exc.value.hint is not None
+    assert "Remove tool_choice" in exc.value.hint
     assert fake.last_parts is None
 
 
@@ -1030,6 +1032,15 @@ def test_cache_identity_includes_system_instruction() -> None:
     )
 
     assert concise != verbose
+
+
+def test_cache_identity_includes_provider() -> None:
+    """Identical model/content across providers must not share cache keys."""
+    source = Source.from_text("shared context")
+    gemini = compute_cache_key(GEMINI_MODEL, (source,), provider="gemini")
+    openai = compute_cache_key(GEMINI_MODEL, (source,), provider="openai")
+
+    assert gemini != openai
 
 
 @pytest.mark.asyncio
