@@ -220,6 +220,11 @@ async def create_cache_impl(
     """Core implementation of ``create_cache()``.
 
     Receives an already-initialized provider; the caller manages its lifecycle.
+
+    All input validation is intentionally front-loaded before any I/O
+    (uploads, API calls).  If the parameter surface grows beyond the
+    current five axes, consider a validated ``CacheSpec`` dataclass to
+    keep this boundary manageable.
     """
     from pollux.plan import build_shared_parts
     from pollux.source import Source as SourceCls
