@@ -67,17 +67,21 @@ def compute_cache_key(
     model: str,
     sources: tuple[Source, ...],
     provider: str | None = None,
+    api_key: str | None = None,
     system_instruction: str | None = None,
     tools: list[dict[str, Any]] | list[Any] | None = None,
 ) -> str:
     """Compute deterministic cache key using content hashes.
 
-    Key = hash(model + provider + system + content digests of sources)
-    This fixes the cache identity collision bug where identifier+size was used.
+    Key = hash(model + provider + api_key + system + content digests of sources).
+    Including ``api_key`` prevents cross-account handle reuse when multiple
+    keys for the same provider/model coexist in one process.
     """
     parts = [model]
     if provider:
         parts.append(provider)
+    if api_key:
+        parts.append(api_key)
     if system_instruction:
         parts.append(system_instruction)
     if tools:
@@ -245,6 +249,7 @@ async def create_cache_impl(
         config.model,
         src_tuple,
         provider=config.provider,
+        api_key=config.api_key,
         system_instruction=system_instruction,
         tools=tools,
     )

@@ -1086,6 +1086,19 @@ def test_cache_identity_includes_provider() -> None:
     assert gemini != openai
 
 
+def test_cache_identity_includes_api_key() -> None:
+    """Different API keys for the same provider/model must not share cache keys."""
+    source = Source.from_text("shared context")
+    key_a = compute_cache_key(
+        GEMINI_MODEL, (source,), provider="gemini", api_key="key-aaa"
+    )
+    key_b = compute_cache_key(
+        GEMINI_MODEL, (source,), provider="gemini", api_key="key-bbb"
+    )
+
+    assert key_a != key_b
+
+
 @pytest.mark.asyncio
 async def test_create_cache_returns_handle(monkeypatch: pytest.MonkeyPatch) -> None:
     """create_cache() should return a CacheHandle with the expected fields."""

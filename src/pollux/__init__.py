@@ -184,12 +184,13 @@ async def create_cache(
             or *ttl_seconds* is invalid.
 
     Example:
+        cfg = Config(provider="gemini", model="gemini-2.5-flash")
         handle = await create_cache(
             [Source.from_file("book.pdf")],
-            config=Config(provider="gemini", model="gemini-2.5-flash"),
+            config=cfg,
             ttl_seconds=3600,
         )
-        result = await run("Summarize.", config=config, options=Options(cache=handle))
+        result = await run("Summarize.", config=cfg, options=Options(cache=handle))
     """
     from pollux.cache import create_cache_impl
 
