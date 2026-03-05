@@ -10,6 +10,8 @@ from pollux.options import Options
 from pollux.source import Source
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from pollux.config import Config
 
 
@@ -24,8 +26,8 @@ class Request:
 
 
 def normalize_request(
-    prompts: tuple[str | None, ...] | list[str | None] | str | None,
-    sources: tuple[Source, ...] | list[Source],
+    prompts: str | Sequence[str | None] | None,
+    sources: Sequence[Source],
     config: Config,
     *,
     options: Options | None = None,

@@ -15,6 +15,8 @@ from pollux.errors import ConfigurationError, InternalError
 from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from pollux.config import Config
     from pollux.providers.base import Provider
     from pollux.source import Source
@@ -209,7 +211,7 @@ async def _resolve_file_parts(
 
 
 async def create_cache_impl(
-    sources: tuple[Source, ...] | list[Source],
+    sources: Sequence[Source],
     *,
     provider: Provider,
     config: Config,
