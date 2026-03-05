@@ -892,6 +892,30 @@ async def test_options_cache_requires_persistent_cache_capability(
 
 
 @pytest.mark.asyncio
+async def test_options_cache_rejects_expired_handle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Expired cache handles must be rejected before any network I/O."""
+    import time
+
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    expired = CacheHandle(
+        name="cachedContents/test",
+        model=GEMINI_MODEL,
+        provider="gemini",
+        expires_at=time.time() - 1,
+    )
+
+    with pytest.raises(ConfigurationError, match="expired"):
+        await pollux.run("Q", config=cfg, options=Options(cache=expired))
+
+    assert fake.last_parts is None
+
+
+@pytest.mark.asyncio
 async def test_options_cache_rejects_provider_and_model_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

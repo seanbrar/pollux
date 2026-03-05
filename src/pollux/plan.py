@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import ConfigurationError
@@ -39,6 +40,11 @@ def build_plan(request: Request) -> Plan:
     cache_name: str | None = None
     if request.options.cache is not None:
         cache = request.options.cache
+        if time.time() >= cache.expires_at:
+            raise ConfigurationError(
+                "cache handle has expired",
+                hint="Create a new cache with create_cache().",
+            )
         if cache.provider != request.config.provider:
             raise ConfigurationError(
                 "cache handle provider does not match config provider",
