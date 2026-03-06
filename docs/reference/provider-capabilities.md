@@ -90,6 +90,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 - OpenRouter is a routed provider: Pollux sends requests to OpenRouter, and the
   selected model slug determines the upstream model family.
+- Pollux validates OpenRouter model availability and model-level capabilities
+  against the OpenRouter models API metadata.
 - The current Pollux OpenRouter support is intentionally narrow:
   text generation plus text-history conversation only.
 - Pollux does not expose OpenRouter routing controls in the public API.

@@ -2394,8 +2394,14 @@ def test_openai_parse_response_extracts_tool_calls() -> None:
 class _FakeOpenRouterClient:
     """Captures payloads passed to OpenRouter chat completions."""
 
-    def __init__(self, payload: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        payload: dict[str, Any] | None = None,
+        models_payload: dict[str, Any] | None = None,
+    ) -> None:
         self.last_json: dict[str, Any] | None = None
+        self.get_calls = 0
         self.closed = False
         self._payload = payload or {
             "id": "gen_123",
@@ -2411,11 +2417,60 @@ class _FakeOpenRouterClient:
                 "total_tokens": 15,
             },
         }
+        self._models_payload = models_payload or {
+            "data": [
+                {
+                    "id": OPENROUTER_MODEL,
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                    "supported_parameters": [
+                        "max_tokens",
+                        "temperature",
+                        "top_p",
+                    ],
+                },
+                {
+                    "id": "openai/gpt-4.1-mini",
+                    "architecture": {
+                        "input_modalities": ["text", "image", "file"],
+                        "output_modalities": ["text"],
+                    },
+                    "supported_parameters": [
+                        "max_tokens",
+                        "response_format",
+                        "structured_outputs",
+                        "temperature",
+                        "tool_choice",
+                        "tools",
+                        "top_p",
+                    ],
+                },
+                {
+                    "id": "meta-llama/llama-3.2-11b-vision-instruct",
+                    "architecture": {
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"],
+                    },
+                    "supported_parameters": [
+                        "max_tokens",
+                        "temperature",
+                        "top_p",
+                    ],
+                },
+            ]
+        }
 
     async def post(self, path: str, json: dict[str, Any]) -> Any:
         self.last_json = json
         request = httpx.Request("POST", f"https://openrouter.ai/api/v1{path}")
         return httpx.Response(200, json=self._payload, request=request)
+
+    async def get(self, path: str) -> Any:
+        self.get_calls += 1
+        request = httpx.Request("GET", f"https://openrouter.ai/api/v1{path}")
+        return httpx.Response(200, json=self._models_payload, request=request)
 
     async def aclose(self) -> None:
         self.closed = True
@@ -2464,14 +2519,17 @@ async def test_openrouter_generate_builds_text_and_history_messages() -> None:
         "output_tokens": 5,
         "total_tokens": 15,
     }
+    assert fake_client.get_calls == 1
 
 
 @pytest.mark.asyncio
-async def test_openrouter_generate_rejects_tools_for_now() -> None:
-    """OpenRouter PR 1 should fail fast on unsupported tool definitions."""
+async def test_openrouter_generate_rejects_tools_when_model_lacks_support() -> None:
+    """Metadata should distinguish unsupported-by-model tool calls."""
+    fake_client = _FakeOpenRouterClient()
     provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
 
-    with pytest.raises(ConfigurationError, match="tool calling is not supported"):
+    with pytest.raises(ConfigurationError, match="does not support tool calling"):
         await provider.generate(
             ProviderRequest(
                 model=OPENROUTER_MODEL,
@@ -2482,22 +2540,73 @@ async def test_openrouter_generate_rejects_tools_for_now() -> None:
 
 
 @pytest.mark.asyncio
-async def test_openrouter_generate_rejects_url_inputs_for_now() -> None:
-    """OpenRouter PR 1 should fail fast on multimodal inputs."""
+async def test_openrouter_generate_rejects_tools_when_pollux_support_is_deferred() -> (
+    None
+):
+    """Metadata should distinguish deferred Pollux support from model support."""
+    fake_client = _FakeOpenRouterClient()
     provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
 
-    with pytest.raises(ConfigurationError, match="URL inputs are not supported"):
+    with pytest.raises(ConfigurationError, match="tool calling is not supported yet"):
         await provider.generate(
             ProviderRequest(
-                model=OPENROUTER_MODEL,
+                model="openai/gpt-4.1-mini",
+                parts=["Hello"],
+                tools=[{"name": "get_weather"}],
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_rejects_image_inputs_when_pollux_support_is_deferred() -> (
+    None
+):
+    """Image-capable models should still fail clearly until multimodal lands."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(
+        ConfigurationError, match="multimodal input is not supported yet"
+    ):
+        await provider.generate(
+            ProviderRequest(
+                model="meta-llama/llama-3.2-11b-vision-instruct",
                 parts=[
                     {
-                        "uri": "https://example.com/report.pdf",
-                        "mime_type": "application/pdf",
+                        "uri": "https://example.com/photo.jpg",
+                        "mime_type": "image/jpeg",
                     }
                 ],
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_validate_request_rejects_unknown_model() -> None:
+    """Unknown OpenRouter model slugs should fail before dispatch."""
+    fake_client = _FakeOpenRouterClient(models_payload={"data": []})
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(ConfigurationError, match="model not found"):
+        await provider.validate_request(
+            ProviderRequest(model="missing/model", parts=["Hello"])
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_validate_request_reuses_cached_metadata() -> None:
+    """Metadata lookup should be cached across validations within the TTL."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    await provider.validate_request(ProviderRequest(model=OPENROUTER_MODEL, parts=[]))
+    await provider.validate_request(ProviderRequest(model=OPENROUTER_MODEL, parts=[]))
+
+    assert fake_client.get_calls == 1
 
 
 @pytest.mark.asyncio
