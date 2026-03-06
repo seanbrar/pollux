@@ -124,6 +124,7 @@ class OpenRouterProvider:
             ) from e
 
         if not isinstance(data, dict):
+            # TODO: add provider="openrouter", phase="generate" for consistent attribution
             raise APIError("OpenRouter returned a non-object response")
 
         return _parse_response(data)
@@ -186,7 +187,11 @@ class OpenRouterProvider:
         try:
             data_url = _to_data_url(path.read_bytes(), mime_type)
         except Exception as e:
-            raise APIError(f"Failed to read file for OpenRouter upload: {path}") from e
+            raise APIError(
+                f"Failed to read file for OpenRouter upload: {path}",
+                provider="openrouter",
+                phase="upload",
+            ) from e
 
         return ProviderFileAsset(
             file_id=data_url,
@@ -263,10 +268,12 @@ class OpenRouterProvider:
             ) from e
 
         if not isinstance(payload, Mapping):
+            # TODO: add provider="openrouter", phase="metadata" for consistent attribution
             raise APIError("OpenRouter models lookup returned a non-object response")
 
         data = payload.get("data")
         if not isinstance(data, list):
+            # TODO: add provider="openrouter", phase="metadata" for consistent attribution
             raise APIError("OpenRouter models lookup returned an invalid payload")
 
         metadata_by_model: dict[str, _OpenRouterModelMetadata] = {}
@@ -465,6 +472,8 @@ def _validate_input_modalities(
                 f"Unsupported OpenRouter input type for {modality} input",
                 hint="OpenRouter currently supports image inputs and PDF files only.",
             )
+        # PDFs are routed through OpenRouter's platform-level parser, which is
+        # independent of the model's native input_modalities metadata.
         if _is_pdf_part(part):
             continue
         if modality not in metadata.input_modalities:
