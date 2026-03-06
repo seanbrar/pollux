@@ -23,7 +23,7 @@ a `Source`, which entry point to call, and how to read the result.
 |---|---|---|
 | `Source.from_text(text)` | Plain string | Identifier defaults to first 50 chars |
 | `Source.from_file(path)` | Local file path | Supports PDF, images, video, audio, text |
-| `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI |
+| `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI and Anthropic |
 | `Source.from_arxiv(ref)` | arXiv ID or URL | Normalizes to canonical PDF URL (no download at construction time) |
 | `Source.from_uri(uri, mime_type=...)` | Remote URI | Generic fallback for any hosted content |
 | `Source.from_json(data)` | Dict or Pydantic model instance | Serializes via `json.dumps()`; calls `model_dump()` on Pydantic objects |

@@ -32,9 +32,20 @@ next turn.
 
 ## Continuing a Conversation with `continue_from`
 
-Every successful `run()` returns a `ResultEnvelope` containing internal
-conversation state. Pass this envelope back into `Options` to
-automatically resume the conversation.
+Pass a prior `ResultEnvelope` back into `Options(continue_from=...)` to
+automatically resume a conversation. Pollux unpacks the initial prompt,
+the assistant's previous response, and any tool calls directly into the
+context payload without requiring manual dictionary manipulation.
+
+To use `continue_from`, the first turn must opt into conversation tracking
+by passing `history=[]` (an empty list is enough). Without it, Pollux
+treats the call as stateless and does not build conversation state.
+
+!!! note
+    When tool calling is active, Pollux auto-populates conversation state
+    whenever the model returns `tool_calls` — no explicit `history=[]`
+    needed. The opt-in requirement only applies to plain conversational
+    calls without tools.
 
 ```python
 import asyncio
@@ -43,12 +54,16 @@ from pollux import Config, Options, run
 async def chat_loop() -> None:
     config = Config(provider="gemini", model="gemini-2.5-flash-lite")
 
-    # Turn 1: Initial query
+    # Turn 1: opt into conversation tracking with history=[]
     print("User: Hello! Please remember my name is Sean.")
-    result1 = await run("Hello! Please remember my name is Sean.", config=config)
+    result1 = await run(
+        "Hello! Please remember my name is Sean.",
+        config=config,
+        options=Options(history=[]),  # Enable conversation state
+    )
     print(f"Assistant: {result1['answers'][0]}")
 
-    # Turn 2: Continuing the session
+    # Turn 2: continue from prior result
     print("\nUser: What is my name?")
     result2 = await run(
         "What is my name?",
@@ -59,10 +74,6 @@ async def chat_loop() -> None:
 
 asyncio.run(chat_loop())
 ```
-
-`continue_from` unpacks the initial prompt, the assistant's previous response,
-and any tool calls directly into the context payload without requiring manual
-dictionary manipulation.
 
 ## Using `history` for Manual Control
 
@@ -150,7 +161,7 @@ Pollux normalizes tool parameter schemas at the provider boundary. For OpenAI
 (which defaults to strict mode), `additionalProperties: false` and `required`
 are injected automatically. For Gemini, unsupported fields like
 `additionalProperties` are stripped. You can define one schema and use it
-across both providers without modification.
+across all providers without modification.
 
 **Reading tool calls:** when the model invokes tools, the result envelope
 includes a `tool_calls` field:
@@ -199,12 +210,16 @@ round of `tool_calls` (if the model needs more data) or a final text answer.
   `result["tool_calls"][0]`.
 - **Conversation continuity requires one prompt.** Both `history` and
   `continue_from` work with single-prompt `run()` calls, not `run_many()`.
+- **Plain conversations need `history=[]` on the first turn.** Without
+  `history` or `continue_from`, Pollux treats a call as stateless and
+  does not produce conversation state. Pass `history=[]` on the first
+  turn to enable `continue_from` on subsequent turns.
 - **Tool-call responses auto-populate conversation state.** When `run()`
-  returns tool calls, Pollux builds `_conversation_state` automatically, even
+  returns tool calls, Pollux builds conversation state automatically, even
   without explicit `history` or `continue_from`. This means `continue_tool()`
-  works on any result that contains tool calls.
-- **Provider differences exist.** Both Gemini and OpenAI support tool calling
-  and tool messages in history. See
+  works on any result that contains tool calls — no opt-in needed.
+- **Provider differences exist.** Gemini, OpenAI, and Anthropic all support
+  tool calling and tool messages in history. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.
 
 ---
