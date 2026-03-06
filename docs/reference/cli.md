@@ -128,5 +128,5 @@ just demo-data                # seed demo inputs
 - `Recipe not found`: verify the spec with `python -m cookbook --list`.
 - Unexpected relative-path behavior: use `--no-cwd-repo-root` only when you need CWD-local paths.
 - **No demo files:** run `just demo-data` or provide explicit `--input` paths.
-- **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`, then use `--no-mock`.
+- **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, then use `--no-mock`.
 - **Rate limits:** lower concurrency and stage workload size with `--limit`.

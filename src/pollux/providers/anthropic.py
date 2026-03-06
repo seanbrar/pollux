@@ -317,10 +317,8 @@ class AnthropicProvider:
 
         try:
             with path.open("rb") as f:
-                result = await client.beta.files.create(
-                    file=f.read(),
-                    file_name=path.name,
-                    file_type=mime_type,
+                result = await client.beta.files.upload(
+                    file=(path.name, f.read(), mime_type),
                     extra_headers={"anthropic-beta": "files-api-2025-04-14"},
                 )
 

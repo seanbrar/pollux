@@ -34,8 +34,17 @@ Or download the latest wheel from
     export OPENAI_API_KEY="your-key-here"
     ```
 
-Not sure which provider? Start with Gemini: it's the original path and
-supports context caching out of the box.
+=== "Anthropic"
+
+    Get a key from the [Anthropic Console](https://console.anthropic.com/settings/keys), then:
+
+    ```bash
+    export ANTHROPIC_API_KEY="your-key-here"
+    ```
+
+Not sure which provider? Start with Gemini for explicit context caching,
+OpenAI for broad model selection, or Anthropic for implicit caching and
+extended thinking.
 
 ## 3. Run
 
@@ -60,7 +69,8 @@ asyncio.run(main())
 ```
 
 If you chose OpenAI, change config to
-`Config(provider="openai", model="gpt-5-nano")`.
+`Config(provider="openai", model="gpt-5-nano")`. For Anthropic, use
+`Config(provider="anthropic", model="claude-haiku-4-5")`.
 
 !!! tip "No API key yet?"
     Use `Config(provider="gemini", model="gemini-2.5-flash-lite", use_mock=True)` to

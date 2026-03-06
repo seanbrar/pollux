@@ -61,7 +61,8 @@ strings.
 Use this order when debugging. Most failures resolve by step 2.
 
 1. **Auth and mode check.** Is `use_mock` what you expect? For real mode,
-   ensure the matching key exists (`GEMINI_API_KEY` or `OPENAI_API_KEY`).
+   ensure the matching key exists (`GEMINI_API_KEY`, `OPENAI_API_KEY`, or
+   `ANTHROPIC_API_KEY`).
 
 2. **Provider/model pairing.** Verify the model belongs to the selected
    provider. Re-run a minimal prompt after fixing any mismatch.
@@ -69,7 +70,7 @@ Use this order when debugging. Most failures resolve by step 2.
 3. **Unsupported feature.** Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
    `delivery_mode="deferred"` is not supported. Conversation continuity
-   and tool calling are supported by both Gemini and OpenAI.
+   and tool calling are supported by all three providers.
 
 4. **Source and payload.** Reduce to one source + one prompt and retry.
    For OpenAI remote URLs, only PDF and image URLs are supported.
@@ -202,7 +203,7 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| `ConfigurationError` at startup | Missing API key | `export GEMINI_API_KEY="your-key"` or pass `api_key` in `Config(...)` |
+| `ConfigurationError` at startup | Missing API key | `export GEMINI_API_KEY="your-key"` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) or pass `api_key` in `Config(...)` |
 | Outputs look like `echo: ...` | `use_mock=True` is set | Set `use_mock=False` (default) and ensure the API key is present |
 | `ConfigurationError` at request time | Provider/model mismatch | Verify the model belongs to the selected provider |
 | `ConfigurationError` mentioning `delivery_mode` | `"deferred"` is not supported | Use `delivery_mode="realtime"` (default) |

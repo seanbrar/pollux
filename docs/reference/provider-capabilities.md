@@ -1,6 +1,6 @@
 # Provider Capabilities
 
-This page defines the v1.2 capability contract by provider.
+This page defines the v1.3 capability contract by provider.
 
 Pollux is **capability-transparent**, not capability-equalizing: providers are allowed to differ, and those differences are surfaced clearly.
 
@@ -10,13 +10,13 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Unsupported features must fail fast with actionable errors.
 - New provider features do not require immediate cross-provider implementation.
 
-## Capability Matrix (v1.2)
+## Capability Matrix (v1.3)
 
 | Capability | Gemini | OpenAI | Anthropic | Notes |
 |---|---|---|---|---|
 | Text generation | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | One call per prompt, shared context |
-| Local file inputs | ✅ | ✅ | ❌ | OpenAI uses Files API upload; Anthropic supports URL inputs only |
+| Local file inputs | ✅ | ✅ | ✅ | Each provider uses its own Files API for uploads |
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
@@ -69,6 +69,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 ### Anthropic
 
+- Local file uploads use the Anthropic Files API (beta). Supported types:
+  images, PDFs, and text files.
 - Remote URL support is intentionally narrow: images and PDFs only.
 - Implicit prompt caching is enabled with `Options(implicit_caching=True)`.
   Pollux defaults it on for single-call workloads and off for multi-call

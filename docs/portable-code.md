@@ -65,6 +65,7 @@ class ProviderConfig:
 PROVIDERS = {
     "gemini": ProviderConfig("gemini", "gemini-2.5-flash-lite"),
     "openai": ProviderConfig("openai", "gpt-5-nano"),
+    "anthropic": ProviderConfig("anthropic", "claude-haiku-4-5"),
 }
 
 
@@ -186,9 +187,9 @@ preferences to provider-specific models:
 
 ```python
 MODEL_TIERS = {
-    "fast": {"gemini": "gemini-2.5-flash-lite", "openai": "gpt-5-nano"},
-    "balanced": {"gemini": "gemini-2.5-flash", "openai": "gpt-5-mini"},
-    "quality": {"gemini": "gemini-2.5-pro", "openai": "gpt-5"},
+    "fast": {"gemini": "gemini-2.5-flash-lite", "openai": "gpt-5-nano", "anthropic": "claude-haiku-4-5"},
+    "balanced": {"gemini": "gemini-2.5-flash", "openai": "gpt-5-mini", "anthropic": "claude-sonnet-4-6"},
+    "quality": {"gemini": "gemini-2.5-pro", "openai": "gpt-5", "anthropic": "claude-opus-4-6"},
 }
 
 
@@ -239,7 +240,7 @@ provider in CI with real credentials:
 ```python
 import pytest
 
-@pytest.mark.parametrize("provider", ["gemini", "openai"])
+@pytest.mark.parametrize("provider", ["gemini", "openai", "anthropic"])
 async def test_analyze_document_mock(provider: str) -> None:
     config = Config(provider=provider, model="any-model", use_mock=True)
     result = await run(
@@ -256,7 +257,7 @@ async def test_analyze_document_mock(provider: str) -> None:
 - **Keep the portable subset in mind.** Text generation, structured output,
   tool calling, and conversation continuity work on all providers. Context
   caching has different paradigms (explicit for Gemini, implicit for Anthropic). 
-  YouTube URLs have limited OpenAI support.
+  YouTube URLs have limited OpenAI and Anthropic support.
   Check [Provider Capabilities](reference/provider-capabilities.md).
 - **Config errors are your portability signal.** A `ConfigurationError` for
   an unsupported feature marks the boundary of portability. Handle it at
@@ -267,7 +268,7 @@ async def test_analyze_document_mock(provider: str) -> None:
   and `top_p`. If you use these, guard them with a provider check or catch
   the error.
 - **Test with mock first.** `use_mock=True` validates your pipeline structure
-  without API calls. Both providers return synthetic responses in mock mode.
+  without API calls. All providers return synthetic responses in mock mode.
 
 ---
 

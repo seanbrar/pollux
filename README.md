@@ -39,6 +39,7 @@ print(result["answers"][0])
 `run()` returns a `ResultEnvelope` dict — `answers` is a list with one entry per prompt.
 
 To use OpenAI instead: `Config(provider="openai", model="gpt-5-nano")`.
+For Anthropic: `Config(provider="anthropic", model="claude-haiku-4-5")`.
 
 For a full 2-minute walkthrough (install, key setup, success checks), see the
 [Quickstart](https://polluxlib.dev/quickstart/).
@@ -59,14 +60,17 @@ pip install pollux-ai
 
 ### API Keys
 
-Get a key from [Google AI Studio](https://ai.dev/) or [OpenAI Platform](https://platform.openai.com/api-keys), then:
+Get a key from [Google AI Studio](https://ai.dev/), [OpenAI Platform](https://platform.openai.com/api-keys), or the [Anthropic Console](https://console.anthropic.com/settings/keys), then:
 
 ```bash
-# Gemini (recommended starting point — supports context caching)
+# Gemini
 export GEMINI_API_KEY="your-key-here"
 
 # OpenAI
 export OPENAI_API_KEY="your-key-here"
+
+# Anthropic
+export ANTHROPIC_API_KEY="your-key-here"
 ```
 
 ## Usage

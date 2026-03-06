@@ -2203,7 +2203,7 @@ async def test_anthropic_upload_success(tmp_path: Any) -> None:
         def __init__(self) -> None:
             self.last_kwargs: dict[str, Any] = {}
 
-        async def create(self, **kwargs: Any) -> Any:
+        async def upload(self, **kwargs: Any) -> Any:
             self.last_kwargs = kwargs
             return type("Result", (), {"id": "file_123"})()
 
@@ -2225,9 +2225,7 @@ async def test_anthropic_upload_success(tmp_path: Any) -> None:
     assert asset.provider == "anthropic"
     assert asset.mime_type == "image/jpeg"
 
-    assert fake_files.last_kwargs["file"] == b"image data"
-    assert fake_files.last_kwargs["file_name"] == "test.jpg"
-    assert fake_files.last_kwargs["file_type"] == "image/jpeg"
+    assert fake_files.last_kwargs["file"] == ("test.jpg", b"image data", "image/jpeg")
     assert fake_files.last_kwargs["extra_headers"] == {
         "anthropic-beta": "files-api-2025-04-14"
     }
