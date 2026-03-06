@@ -42,9 +42,17 @@ Or download the latest wheel from
     export ANTHROPIC_API_KEY="your-key-here"
     ```
 
+=== "OpenRouter"
+
+    Get a key from [OpenRouter](https://openrouter.ai/keys), then:
+
+    ```bash
+    export OPENROUTER_API_KEY="your-key-here"
+    ```
+
 Not sure which provider? Start with Gemini for explicit context caching,
-OpenAI for broad model selection, or Anthropic for implicit caching and
-extended thinking.
+OpenAI for broad model selection, Anthropic for implicit caching and
+extended thinking, or OpenRouter for routed model access.
 
 ## 3. Run
 
@@ -70,7 +78,8 @@ asyncio.run(main())
 
 If you chose OpenAI, change config to
 `Config(provider="openai", model="gpt-5-nano")`. For Anthropic, use
-`Config(provider="anthropic", model="claude-haiku-4-5")`.
+`Config(provider="anthropic", model="claude-haiku-4-5")`. For OpenRouter,
+use `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.
 
 !!! tip "No API key yet?"
     Use `Config(provider="gemini", model="gemini-2.5-flash-lite", use_mock=True)` to

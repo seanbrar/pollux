@@ -16,6 +16,7 @@ from pollux.providers.models import ProviderFileAsset, ProviderRequest, Provider
 GEMINI_MODEL = "gemini-2.0-flash"
 OPENAI_MODEL = "gpt-5-nano"
 ANTHROPIC_MODEL = "claude-haiku-4-5"
+OPENROUTER_MODEL = "google/gemma-3-27b-it:free"
 CACHE_MODEL = "cache-model"
 GEMINI_API_TEST_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
 OPENAI_API_TEST_MODEL = OPENAI_MODEL
@@ -105,7 +106,7 @@ def block_dotenv(request, monkeypatch):
 def isolate_provider_env(request, monkeypatch):
     """Ensure a clean provider environment for each test.
 
-    Clears GEMINI_* and OPENAI_* env vars to prevent test pollution.
+    Clears provider auth env vars to prevent test pollution.
     Opt-out: @pytest.mark.allow_env_pollution or @pytest.mark.api
     """
     if request.node.get_closest_marker("allow_env_pollution") or (
@@ -114,7 +115,7 @@ def isolate_provider_env(request, monkeypatch):
         return
 
     for key in list(os.environ.keys()):
-        if key.startswith(("GEMINI_", "OPENAI_", "ANTHROPIC_")):
+        if key.startswith(("GEMINI_", "OPENAI_", "ANTHROPIC_", "OPENROUTER_")):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.delenv("DEBUG", raising=False)
     monkeypatch.delenv("POLLUX_DEBUG_CONFIG", raising=False)
@@ -196,6 +197,27 @@ def openai_test_model():
 def anthropic_model() -> str:
     """Return the canonical Anthropic model for non-API tests."""
     return ANTHROPIC_MODEL
+
+
+@pytest.fixture
+def openrouter_model() -> str:
+    """Return the canonical OpenRouter model for non-API tests."""
+    return OPENROUTER_MODEL
+
+
+@pytest.fixture
+def openrouter_api_key():
+    """Return OPENROUTER_API_KEY or skip the test if unavailable."""
+    key = os.getenv("OPENROUTER_API_KEY")
+    if not key:
+        pytest.skip("OPENROUTER_API_KEY not set")
+    return key
+
+
+@pytest.fixture
+def openrouter_test_model():
+    """Return the model to use for OpenRouter API tests."""
+    return "meta-llama/llama-3.2-1b-instruct"
 
 
 @pytest.fixture

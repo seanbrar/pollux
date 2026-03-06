@@ -11,13 +11,14 @@ import dotenv
 from pollux.errors import ConfigurationError
 from pollux.retry import RetryPolicy
 
-ProviderName = Literal["gemini", "openai", "anthropic"]
+ProviderName = Literal["gemini", "openai", "anthropic", "openrouter"]
 
 # Provider-specific API key environment variable names
 _API_KEY_ENV_VARS: dict[ProviderName, str] = {
     "gemini": "GEMINI_API_KEY",
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
 }
 
 
@@ -35,7 +36,7 @@ class Config:
 
     provider: ProviderName
     model: str
-    #: Auto-resolved from ``GEMINI_API_KEY`` or ``OPENAI_API_KEY`` when *None*.
+    #: Auto-resolved from the provider-specific API key env var when *None*.
     api_key: str | None = None
     use_mock: bool = False
     request_concurrency: int = 6
@@ -44,10 +45,12 @@ class Config:
     def __post_init__(self) -> None:
         """Auto-resolve API key and validate configuration."""
         # Validate provider
-        if self.provider not in ("gemini", "openai", "anthropic"):
+        if self.provider not in ("gemini", "openai", "anthropic", "openrouter"):
             raise ConfigurationError(
                 f"Unknown provider: {self.provider!r}",
-                hint="Supported providers: 'gemini', 'openai', 'anthropic'",
+                hint=(
+                    "Supported providers: 'gemini', 'openai', 'anthropic', 'openrouter'"
+                ),
             )
 
         # Validate numeric fields

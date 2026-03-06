@@ -14,9 +14,10 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
-from pollux.errors import APIError
+from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.anthropic import AnthropicProvider
@@ -28,7 +29,8 @@ from pollux.providers.models import (
     ToolCall,
 )
 from pollux.providers.openai import OpenAIProvider
-from tests.conftest import ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL
+from pollux.providers.openrouter import OpenRouterProvider
+from tests.conftest import ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENROUTER_MODEL
 
 pytestmark = pytest.mark.contract
 
@@ -2382,3 +2384,138 @@ def test_openai_parse_response_extracts_tool_calls() -> None:
     assert result.tool_calls[0].id == "call_abc"
     assert result.tool_calls[0].name == "get_weather"
     assert result.tool_calls[0].arguments == '{"city": "NYC"}'
+
+
+# =============================================================================
+# OpenRouter Request / Response Characterization
+# =============================================================================
+
+
+class _FakeOpenRouterClient:
+    """Captures payloads passed to OpenRouter chat completions."""
+
+    def __init__(self, payload: dict[str, Any] | None = None) -> None:
+        self.last_json: dict[str, Any] | None = None
+        self.closed = False
+        self._payload = payload or {
+            "id": "gen_123",
+            "choices": [
+                {
+                    "message": {"content": "ok"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+    async def post(self, path: str, json: dict[str, Any]) -> Any:
+        self.last_json = json
+        request = httpx.Request("POST", f"https://openrouter.ai/api/v1{path}")
+        return httpx.Response(200, json=self._payload, request=request)
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_builds_text_and_history_messages() -> None:
+    """OpenRouter should send OpenAI-style messages for text/history requests."""
+    fake_client = _FakeOpenRouterClient()
+
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    result = await provider.generate(
+        ProviderRequest(
+            model=OPENROUTER_MODEL,
+            parts=["Current prompt"],
+            system_instruction="Be concise.",
+            history=[
+                Message(role="user", content="Earlier question"),
+                Message(role="assistant", content="Earlier answer"),
+            ],
+            temperature=0.2,
+            top_p=0.9,
+            max_tokens=128,
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {"role": "system", "content": "Be concise."},
+            {"role": "user", "content": "Earlier question"},
+            {"role": "assistant", "content": "Earlier answer"},
+            {"role": "user", "content": "Current prompt"},
+        ],
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "max_tokens": 128,
+    }
+    assert result.text == "ok"
+    assert result.finish_reason == "stop"
+    assert result.response_id == "gen_123"
+    assert result.usage == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+    }
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_rejects_tools_for_now() -> None:
+    """OpenRouter PR 1 should fail fast on unsupported tool definitions."""
+    provider = OpenRouterProvider("test-key")
+
+    with pytest.raises(ConfigurationError, match="tool calling is not supported"):
+        await provider.generate(
+            ProviderRequest(
+                model=OPENROUTER_MODEL,
+                parts=["Hello"],
+                tools=[{"name": "get_weather"}],
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_rejects_url_inputs_for_now() -> None:
+    """OpenRouter PR 1 should fail fast on multimodal inputs."""
+    provider = OpenRouterProvider("test-key")
+
+    with pytest.raises(ConfigurationError, match="URL inputs are not supported"):
+        await provider.generate(
+            ProviderRequest(
+                model=OPENROUTER_MODEL,
+                parts=[
+                    {
+                        "uri": "https://example.com/report.pdf",
+                        "mime_type": "application/pdf",
+                    }
+                ],
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_cache_raises() -> None:
+    """create_cache should raise APIError: not supported."""
+    provider = OpenRouterProvider("test-key")
+
+    with pytest.raises(APIError, match="does not support context caching"):
+        await provider.create_cache(model=OPENROUTER_MODEL, parts=["test"])
+
+
+@pytest.mark.asyncio
+async def test_openrouter_aclose_closes_http_client() -> None:
+    """OpenRouter should close its shared HTTP client cleanly."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    await provider.aclose()
+
+    assert fake_client.closed is True

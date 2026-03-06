@@ -31,7 +31,7 @@ All fields and their defaults:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `provider` | `"gemini" \| "openai" \| "anthropic"` | *(required)* | Provider to use |
+| `provider` | `"gemini" \| "openai" \| "anthropic" \| "openrouter"` | *(required)* | Provider to use |
 | `model` | `str` | *(required)* | Model identifier |
 | `api_key` | `str \| None` | `None` | Explicit key; auto-resolved from env if omitted |
 | `use_mock` | `bool` | `False` | Use mock provider (no network calls) |
@@ -45,11 +45,13 @@ If `api_key` is omitted, Pollux resolves it from environment variables:
 - Gemini: `GEMINI_API_KEY`
 - OpenAI: `OPENAI_API_KEY`
 - Anthropic: `ANTHROPIC_API_KEY`
+- OpenRouter: `OPENROUTER_API_KEY`
 
 ```bash
 export GEMINI_API_KEY="your-key"
 export OPENAI_API_KEY="your-key"
 export ANTHROPIC_API_KEY="your-key"
+export OPENROUTER_API_KEY="your-key"
 ```
 
 You can also pass a key directly:

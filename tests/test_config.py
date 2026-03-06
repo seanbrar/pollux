@@ -121,6 +121,20 @@ def test_openai_provider_uses_openai_api_key(
     assert cfg.api_key == "openai-secret"
 
 
+def test_openrouter_provider_uses_openrouter_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    openrouter_model: str,
+) -> None:
+    """Provider-specific env key selection should prefer OPENROUTER_API_KEY."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-secret")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    cfg = Config(provider="openrouter", model=openrouter_model)
+
+    assert cfg.provider == "openrouter"
+    assert cfg.api_key == "openrouter-secret"
+
+
 def test_missing_api_key_raises_clear_error(
     monkeypatch: pytest.MonkeyPatch,
     gemini_model: str,
