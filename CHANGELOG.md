@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.3.0] - 2026-03-06
+
+### Added
+
+- Add Anthropic implicit caching support ([`9869d96`](https://github.com/seanbrar/pollux/commit/9869d96f881369850281bf7b81128edb37a5da85))
+- Implement explicit create_cache API ([`86d2039`](https://github.com/seanbrar/pollux/commit/86d2039756eab13357a0548b8fd62b0713704001))
+- Update v1.3 integration and documentation ([`867783a`](https://github.com/seanbrar/pollux/commit/867783afd834c33547b7c46a5d6eba4b3e6b2fdf))
+- Add Anthropic provider ([`667c4fc`](https://github.com/seanbrar/pollux/commit/667c4fc7b0b74e7a13695f30a29cf0d3771ea42a))
+- Add Anthropic reasoning levels and thinking replay ([`a947450`](https://github.com/seanbrar/pollux/commit/a947450e541aaa60889d45db83843c4d0a7acfbb))
+
+### Fixed
+
+- Harden Anthropic provider and decompose provider generate() methods ([`027d5ea`](https://github.com/seanbrar/pollux/commit/027d5ea85160baa15c324716736d6bef758546cb))
+
 ## [1.2.2] - 2026-02-28
 
 ### Fixed
@@ -132,6 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.3.0]: https://github.com/seanbrar/pollux/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/seanbrar/pollux/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/seanbrar/pollux/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/seanbrar/pollux/compare/v1.1.0...v1.2.0
