@@ -2459,6 +2459,18 @@ class _FakeOpenRouterClient:
                         "top_p",
                     ],
                 },
+                {
+                    "id": "google/gemma-3-4b-it",
+                    "architecture": {
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"],
+                    },
+                    "supported_parameters": [
+                        "max_tokens",
+                        "temperature",
+                        "top_p",
+                    ],
+                },
             ]
         }
 
@@ -2571,7 +2583,10 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
                     },
                     {
                         "type": "file",
-                        "file": {"file_data": "https://example.com/report.pdf"},
+                        "file": {
+                            "filename": "report.pdf",
+                            "file_data": "https://example.com/report.pdf",
+                        },
                     },
                     {
                         "type": "image_url",
@@ -2579,7 +2594,10 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
                     },
                     {
                         "type": "file",
-                        "file": {"file_data": pdf_asset.file_id},
+                        "file": {
+                            "filename": "report.pdf",
+                            "file_data": pdf_asset.file_id,
+                        },
                     },
                 ],
             }
@@ -2587,6 +2605,7 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
     }
     assert image_asset.file_id.startswith("data:image/jpeg;base64,")
     assert pdf_asset.file_id.startswith("data:application/pdf;base64,")
+    assert pdf_asset.file_name == "report.pdf"
 
 
 @pytest.mark.asyncio
@@ -2646,6 +2665,46 @@ async def test_openrouter_generate_rejects_image_inputs_when_model_lacks_support
                 ],
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_allows_pdf_inputs_when_openrouter_parses_them() -> (
+    None
+):
+    """PDF inputs should bypass native file-modality metadata checks."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model="google/gemma-3-4b-it",
+            parts=[
+                {
+                    "uri": "https://example.com/report.pdf",
+                    "mime_type": "application/pdf",
+                }
+            ],
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "google/gemma-3-4b-it",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "file",
+                        "file": {
+                            "filename": "report.pdf",
+                            "file_data": "https://example.com/report.pdf",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
 
 
 @pytest.mark.asyncio

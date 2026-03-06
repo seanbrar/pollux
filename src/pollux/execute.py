@@ -464,7 +464,7 @@ async def _substitute_upload_parts(
                         policy=retry_policy,
                         should_retry=should_retry_side_effect,
                     )
-                except APIError:
+                except PolluxError:
                     raise
                 except Exception as e:
                     raise InternalError(

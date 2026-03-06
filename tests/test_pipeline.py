@@ -206,6 +206,41 @@ async def test_upload_error_attributes_provider_and_call_index(
 
 
 @pytest.mark.asyncio
+async def test_upload_configuration_errors_propagate_without_internal_wrap(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Provider-side upload validation should stay a ConfigurationError."""
+
+    @dataclass
+    class _Provider(FakeProvider):
+        async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:  # noqa: ARG002
+            raise ConfigurationError(
+                f"unsupported mime type: {mime_type}",
+                hint="Only PDFs are supported.",
+            )
+
+    fake = _Provider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
+
+    file_path = tmp_path / "data.csv"
+    file_path.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    cfg = Config(
+        provider="openrouter",
+        model=OPENAI_MODEL,
+        use_mock=True,
+        retry=RetryPolicy(max_attempts=1),
+    )
+
+    with pytest.raises(ConfigurationError, match="unsupported mime type: text/csv"):
+        await pollux.run(
+            "Read this",
+            source=Source.from_file(file_path, mime_type="text/csv"),
+            config=cfg,
+        )
+
+
+@pytest.mark.asyncio
 async def test_cache_error_attributes_provider_without_call_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -6,8 +6,10 @@ import asyncio
 import base64
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 import time
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import urlparse
 
 import httpx
 
@@ -190,6 +192,7 @@ class OpenRouterProvider:
             file_id=data_url,
             provider="openrouter",
             mime_type=mime_type,
+            file_name=path.name,
         )
 
     async def create_cache(
@@ -343,7 +346,10 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
             if mime_type == "application/pdf":
                 return {
                     "type": "file",
-                    "file": {"file_data": uri},
+                    "file": {
+                        "filename": _pdf_filename(uri=uri),
+                        "file_data": uri,
+                    },
                 }
             raise ConfigurationError(
                 f"Unsupported OpenRouter remote mime type: {mime_type}",
@@ -361,7 +367,13 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
         if part.mime_type == "application/pdf":
             return {
                 "type": "file",
-                "file": {"file_data": part.file_id},
+                "file": {
+                    "filename": _pdf_filename(
+                        uri=part.file_id,
+                        file_name=part.file_name,
+                    ),
+                    "file_data": part.file_id,
+                },
             }
         raise ConfigurationError(
             f"Unsupported OpenRouter local mime type: {part.mime_type}",
@@ -448,17 +460,18 @@ def _validate_input_modalities(
         modality = _requested_input_modality(part)
         if modality is None:
             continue
+        if not _is_supported_multimodal_part(part):
+            raise ConfigurationError(
+                f"Unsupported OpenRouter input type for {modality} input",
+                hint="OpenRouter currently supports image inputs and PDF files only.",
+            )
+        if _is_pdf_part(part):
+            continue
         if modality not in metadata.input_modalities:
             raise ConfigurationError(
                 f"OpenRouter model {model!r} does not support {modality} input",
                 hint=f"Choose an OpenRouter model that supports {modality} input.",
             )
-        if _is_supported_multimodal_part(part):
-            continue
-        raise ConfigurationError(
-            f"Unsupported OpenRouter input type for {modality} input",
-            hint="OpenRouter currently supports image inputs and PDF files only.",
-        )
 
 
 def _requested_input_modality(part: Any) -> str | None:
@@ -493,10 +506,32 @@ def _is_supported_multimodal_part(part: Any) -> bool:
     )
 
 
+def _is_pdf_part(part: Any) -> bool:
+    """Return True when *part* is a PDF supported by OpenRouter parsing."""
+    if isinstance(part, ProviderFileAsset):
+        return part.mime_type == "application/pdf"
+    if isinstance(part, Mapping):
+        return part.get("mime_type") == "application/pdf"
+    return False
+
+
 def _to_data_url(data: bytes, mime_type: str) -> str:
     """Encode raw file bytes as a base64 data URL."""
     encoded = base64.b64encode(data).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
+
+
+def _pdf_filename(*, uri: str, file_name: str | None = None) -> str:
+    """Return the filename OpenRouter expects for PDF content items."""
+    if file_name:
+        return file_name
+
+    parsed = urlparse(uri)
+    path_name = PurePosixPath(parsed.path).name
+    if path_name:
+        return path_name
+
+    return "document.pdf"
 
 
 def _parse_response(data: Mapping[str, Any]) -> ProviderResponse:
