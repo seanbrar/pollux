@@ -27,6 +27,7 @@ class MockProvider:
             reasoning=False,
             deferred_delivery=False,
             conversation=False,
+            implicit_caching=False,
         )
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:

@@ -26,7 +26,13 @@ from pollux.providers.models import (
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
-from tests.conftest import CACHE_MODEL, GEMINI_MODEL, OPENAI_MODEL, FakeProvider
+from tests.conftest import (
+    ANTHROPIC_MODEL,
+    CACHE_MODEL,
+    GEMINI_MODEL,
+    OPENAI_MODEL,
+    FakeProvider,
+)
 from tests.helpers import CaptureProvider as KwargsCaptureProvider
 from tests.helpers import GateProvider, ScriptedProvider
 
@@ -1323,6 +1329,78 @@ async def test_options_are_forwarded_when_provider_supports_features(
     response_schema = fake.last_generate_kwargs["response_schema"]
     assert isinstance(response_schema, dict)
     assert response_schema["type"] == "object"
+
+
+@pytest.mark.asyncio
+async def test_implicit_caching_defaults_to_true_for_single_call_when_supported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-call Anthropic-style workloads should default implicit caching on."""
+    fake = KwargsCaptureProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=False,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=False,
+            implicit_caching=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
+
+    await pollux.run("Q1?", config=cfg)
+
+    assert len(fake.generate_kwargs) == 1
+    request = fake.generate_kwargs[0]["request"]
+    assert request.implicit_caching is True
+
+
+@pytest.mark.asyncio
+async def test_implicit_caching_defaults_to_false_for_multi_call_fanout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multi-call fan-out should default implicit caching off."""
+    fake = KwargsCaptureProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=False,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=False,
+            implicit_caching=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
+
+    await pollux.run_many(("Q1?", "Q2?"), config=cfg)
+
+    assert len(fake.generate_kwargs) == 2
+    assert all(
+        call["request"].implicit_caching is False for call in fake.generate_kwargs
+    )
+
+
+@pytest.mark.asyncio
+async def test_implicit_caching_requires_provider_capability_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit implicit_caching=True should fail on providers that lack it."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    with pytest.raises(ConfigurationError, match="implicit caching") as exc:
+        await pollux.run(
+            "Q1?",
+            config=cfg,
+            options=Options(implicit_caching=True),
+        )
+
+    assert exc.value.hint is not None
 
 
 @pytest.mark.asyncio

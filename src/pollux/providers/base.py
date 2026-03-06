@@ -25,6 +25,7 @@ class ProviderCapabilities:
     reasoning: bool = False
     deferred_delivery: bool = False
     conversation: bool = False
+    implicit_caching: bool = False
 
 
 @runtime_checkable

@@ -67,6 +67,7 @@ class AnthropicProvider:
             reasoning=True,
             deferred_delivery=False,
             conversation=True,
+            implicit_caching=True,
         )
 
     @staticmethod
@@ -231,8 +232,12 @@ class AnthropicProvider:
             ),
         }
 
+        if request.implicit_caching:
+            create_kwargs["cache_control"] = {"type": "ephemeral"}
+
         if request.system_instruction:
             create_kwargs["system"] = request.system_instruction
+
         if request.temperature is not None:
             create_kwargs["temperature"] = request.temperature
         if request.top_p is not None:

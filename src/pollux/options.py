@@ -47,6 +47,9 @@ class Options:
     max_tokens: int | None = None
     #: Persistent context cache obtained from ``create_cache()``.
     cache: CacheHandle | None = None
+    #: Controls implicit model-level caching (e.g., Anthropic prefix caching).
+    #: Defaults to True for a single provider call, False for multi-call fan-out.
+    implicit_caching: bool | None = None
 
     def __post_init__(self) -> None:
         """Validate option shapes early for clear errors."""
