@@ -2505,7 +2505,10 @@ async def test_openrouter_generate_builds_text_and_history_messages() -> None:
             {"role": "system", "content": "Be concise."},
             {"role": "user", "content": "Earlier question"},
             {"role": "assistant", "content": "Earlier answer"},
-            {"role": "user", "content": "Current prompt"},
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Current prompt"}],
+            },
         ],
         "temperature": 0.2,
         "top_p": 0.9,
@@ -2520,6 +2523,70 @@ async def test_openrouter_generate_builds_text_and_history_messages() -> None:
         "total_tokens": 15,
     }
     assert fake_client.get_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
+    tmp_path: Any,
+) -> None:
+    """OpenRouter should encode the verified multimodal subset correctly."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    image_path = tmp_path / "photo.jpg"
+    image_path.write_bytes(b"\xff\xd8\xff")
+    pdf_path = tmp_path / "report.pdf"
+    pdf_path.write_bytes(b"%PDF-1.7")
+
+    image_asset = await provider.upload_file(image_path, "image/jpeg")
+    pdf_asset = await provider.upload_file(pdf_path, "application/pdf")
+
+    await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-4.1-mini",
+            parts=[
+                "Summarize these assets.",
+                {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
+                {
+                    "uri": "https://example.com/report.pdf",
+                    "mime_type": "application/pdf",
+                },
+                image_asset,
+                pdf_asset,
+            ],
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "openai/gpt-4.1-mini",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Summarize these assets."},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/photo.jpg"},
+                    },
+                    {
+                        "type": "file",
+                        "file": {"file_data": "https://example.com/report.pdf"},
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_asset.file_id},
+                    },
+                    {
+                        "type": "file",
+                        "file": {"file_data": pdf_asset.file_id},
+                    },
+                ],
+            }
+        ],
+    }
+    assert image_asset.file_id.startswith("data:image/jpeg;base64,")
+    assert pdf_asset.file_id.startswith("data:application/pdf;base64,")
 
 
 @pytest.mark.asyncio
@@ -2559,24 +2626,43 @@ async def test_openrouter_generate_rejects_tools_when_pollux_support_is_deferred
 
 
 @pytest.mark.asyncio
-async def test_openrouter_generate_rejects_image_inputs_when_pollux_support_is_deferred() -> (
+async def test_openrouter_generate_rejects_image_inputs_when_model_lacks_support() -> (
     None
 ):
-    """Image-capable models should still fail clearly until multimodal lands."""
+    """Metadata should reject image inputs for text-only OpenRouter models."""
     fake_client = _FakeOpenRouterClient()
     provider = OpenRouterProvider("test-key")
     provider._client = fake_client
 
-    with pytest.raises(
-        ConfigurationError, match="multimodal input is not supported yet"
-    ):
+    with pytest.raises(ConfigurationError, match="does not support image input"):
         await provider.generate(
             ProviderRequest(
-                model="meta-llama/llama-3.2-11b-vision-instruct",
+                model=OPENROUTER_MODEL,
                 parts=[
                     {
                         "uri": "https://example.com/photo.jpg",
                         "mime_type": "image/jpeg",
+                    }
+                ],
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_rejects_non_pdf_file_inputs() -> None:
+    """OpenRouter PR 3 should keep the file subset to PDFs only."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(ConfigurationError, match="Unsupported OpenRouter input type"):
+        await provider.generate(
+            ProviderRequest(
+                model="openai/gpt-4.1-mini",
+                parts=[
+                    {
+                        "uri": "https://example.com/data.csv",
+                        "mime_type": "text/csv",
                     }
                 ],
             )
@@ -2607,6 +2693,17 @@ async def test_openrouter_validate_request_reuses_cached_metadata() -> None:
     await provider.validate_request(ProviderRequest(model=OPENROUTER_MODEL, parts=[]))
 
     assert fake_client.get_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_openrouter_upload_rejects_non_image_non_pdf_files(tmp_path: Any) -> None:
+    """Local uploads should stay constrained to the verified subset."""
+    provider = OpenRouterProvider("test-key")
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="local mime type"):
+        await provider.upload_file(csv_path, "text/csv")
 
 
 @pytest.mark.asyncio

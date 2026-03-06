@@ -16,9 +16,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 |---|---|---|---|---|---|
 | Text generation | ✅ | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
-| Local file inputs | ✅ | ✅ | ✅ | ❌ | OpenRouter multimodal input is planned separately |
-| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ❌ | |
-| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ❌ | |
+| Local file inputs | ✅ | ✅ | ✅ | ✅ (images/PDFs on supported models) | OpenRouter keeps the local file subset narrow |
+| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ✅ (supported models) | |
+| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ✅ (supported models) | |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
 | Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
@@ -93,12 +93,16 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Pollux validates OpenRouter model availability and model-level capabilities
   against the OpenRouter models API metadata.
 - The current Pollux OpenRouter support is intentionally narrow:
-  text generation plus text-history conversation only.
+  text generation, text-history conversation, and verified image/PDF inputs.
 - Pollux does not expose OpenRouter routing controls in the public API.
 - `continue_from` works through Pollux conversation state replay; there is no
   OpenRouter-specific equivalent to OpenAI's `previous_response_id`.
-- Persistent cache handles, multimodal inputs, structured outputs, reasoning,
-  and tool calling are planned as separate OpenRouter follow-ups.
+- OpenRouter multimodal input currently supports:
+  local image files, image URLs, local PDFs, and PDF URLs.
+- Capability checks are model-driven. For example, image input fails early on
+  text-only OpenRouter models.
+- Persistent cache handles, structured outputs, reasoning, and tool calling
+  are planned as separate OpenRouter follow-ups.
 
 ## Error Semantics
 

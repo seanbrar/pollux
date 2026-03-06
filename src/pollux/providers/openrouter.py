@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections.abc import Mapping
 from dataclasses import dataclass
 import time
@@ -52,7 +53,7 @@ class OpenRouterProvider:
         """Return supported feature flags."""
         return ProviderCapabilities(
             persistent_cache=False,
-            uploads=False,
+            uploads=True,
             structured_outputs=False,
             reasoning=False,
             deferred_delivery=False,
@@ -173,9 +174,23 @@ class OpenRouterProvider:
         )
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
-        """Raise because OpenRouter uploads are not supported yet."""
-        _ = path, mime_type
-        raise APIError("OpenRouter provider does not support file uploads yet")
+        """Inline local files as data URLs for OpenRouter chat completions."""
+        if not (mime_type.startswith("image/") or mime_type == "application/pdf"):
+            raise ConfigurationError(
+                f"Unsupported OpenRouter local mime type: {mime_type}",
+                hint="OpenRouter currently supports local image files and PDFs only.",
+            )
+
+        try:
+            data_url = _to_data_url(path.read_bytes(), mime_type)
+        except Exception as e:
+            raise APIError(f"Failed to read file for OpenRouter upload: {path}") from e
+
+        return ProviderFileAsset(
+            file_id=data_url,
+            provider="openrouter",
+            mime_type=mime_type,
+        )
 
     async def create_cache(
         self,
@@ -291,43 +306,66 @@ def _build_messages(
                 }
             )
 
-    user_texts: list[str] = []
+    user_content: list[dict[str, Any]] = []
     for part in parts:
         normalized = _normalize_input_part(part)
         if normalized is not None:
-            user_texts.append(normalized)
+            user_content.append(normalized)
 
-    user_text = "\n\n".join(text for text in user_texts if text)
-    if user_text or not messages:
-        messages.append({"role": "user", "content": user_text})
+    if user_content or not messages:
+        messages.append(
+            {
+                "role": "user",
+                "content": user_content or [{"type": "text", "text": ""}],
+            }
+        )
 
     return messages
 
 
-def _normalize_input_part(part: Any) -> str | None:
+def _normalize_input_part(part: Any) -> dict[str, Any] | None:
     """Convert Pollux parts into OpenRouter-compatible text content."""
     if isinstance(part, str):
-        return part
+        return {"type": "text", "text": part}
 
     if isinstance(part, dict) and isinstance(part.get("text"), str):
-        return cast("str", part["text"])
+        return {"type": "text", "text": cast("str", part["text"])}
 
     if isinstance(part, dict):
-        if isinstance(part.get("file_path"), str):
+        uri = part.get("uri")
+        mime_type = part.get("mime_type")
+        if isinstance(uri, str) and isinstance(mime_type, str):
+            if mime_type.startswith("image/"):
+                return {
+                    "type": "image_url",
+                    "image_url": {"url": uri},
+                }
+            if mime_type == "application/pdf":
+                return {
+                    "type": "file",
+                    "file": {"file_data": uri},
+                }
             raise ConfigurationError(
-                "OpenRouter local file inputs are not supported yet",
-                hint="Use text sources for now. OpenRouter multimodal input support is planned for a later release.",
-            )
-        if isinstance(part.get("uri"), str):
-            raise ConfigurationError(
-                "OpenRouter URL inputs are not supported yet",
-                hint="Use text sources for now. OpenRouter multimodal input support is planned for a later release.",
+                f"Unsupported OpenRouter remote mime type: {mime_type}",
+                hint="OpenRouter currently supports remote image URLs and PDF URLs only.",
             )
 
     if isinstance(part, ProviderFileAsset):
+        if part.provider != "openrouter":
+            raise APIError(f"OpenRouter cannot use {part.provider} file assets.")
+        if part.mime_type.startswith("image/"):
+            return {
+                "type": "image_url",
+                "image_url": {"url": part.file_id},
+            }
+        if part.mime_type == "application/pdf":
+            return {
+                "type": "file",
+                "file": {"file_data": part.file_id},
+            }
         raise ConfigurationError(
-            "OpenRouter does not support file assets",
-            hint="Remove file sources; OpenRouter multimodal support is planned.",
+            f"Unsupported OpenRouter local mime type: {part.mime_type}",
+            hint="OpenRouter currently supports local image files and PDFs only.",
         )
 
     if part is None:
@@ -415,12 +453,11 @@ def _validate_input_modalities(
                 f"OpenRouter model {model!r} does not support {modality} input",
                 hint=f"Choose an OpenRouter model that supports {modality} input.",
             )
+        if _is_supported_multimodal_part(part):
+            continue
         raise ConfigurationError(
-            "OpenRouter multimodal input is not supported yet",
-            hint=(
-                "Use text sources for now. OpenRouter multimodal input support "
-                "is planned for a later release."
-            ),
+            f"Unsupported OpenRouter input type for {modality} input",
+            hint="OpenRouter currently supports image inputs and PDF files only.",
         )
 
 
@@ -439,6 +476,27 @@ def _requested_input_modality(part: Any) -> str | None:
     if mime_type.startswith("image/"):
         return "image"
     return "file"
+
+
+def _is_supported_multimodal_part(part: Any) -> bool:
+    """Return True for the verified OpenRouter multimodal input subset."""
+    mime_type: Any
+    if isinstance(part, ProviderFileAsset):
+        mime_type = part.mime_type
+    elif isinstance(part, Mapping):
+        mime_type = part.get("mime_type")
+    else:
+        return True
+
+    return isinstance(mime_type, str) and (
+        mime_type.startswith("image/") or mime_type == "application/pdf"
+    )
+
+
+def _to_data_url(data: bytes, mime_type: str) -> str:
+    """Encode raw file bytes as a base64 data URL."""
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def _parse_response(data: Mapping[str, Any]) -> ProviderResponse:
