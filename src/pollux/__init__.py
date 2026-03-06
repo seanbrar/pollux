@@ -249,6 +249,16 @@ def _get_provider(config: Config) -> Provider:
             )
         return AnthropicProvider(config.api_key)
 
+    if config.provider == "openrouter":
+        from pollux.providers.openrouter import OpenRouterProvider
+
+        if not config.api_key:
+            raise ConfigurationError(
+                "api_key required for real API",
+                hint="Set OPENROUTER_API_KEY or pass Config(api_key=...).",
+            )
+        return OpenRouterProvider(config.api_key)
+
     from pollux.providers.gemini import GeminiProvider
 
     if not config.api_key:

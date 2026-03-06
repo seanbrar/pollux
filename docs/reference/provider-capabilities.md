@@ -1,6 +1,6 @@
 # Provider Capabilities
 
-This page defines the v1.3 capability contract by provider.
+This page defines the current capability contract by provider.
 
 Pollux is **capability-transparent**, not capability-equalizing: providers are allowed to differ, and those differences are surfaced clearly.
 
@@ -10,24 +10,24 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Unsupported features must fail fast with actionable errors.
 - New provider features do not require immediate cross-provider implementation.
 
-## Capability Matrix (v1.3)
+## Capability Matrix
 
-| Capability | Gemini | OpenAI | Anthropic | Notes |
-|---|---|---|---|---|
-| Text generation | ✅ | ✅ | ✅ | Core feature |
-| Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | One call per prompt, shared context |
-| Local file inputs | ✅ | ✅ | ✅ | Each provider uses its own Files API for uploads |
-| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | |
-| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | |
-| YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
-| Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | Persistent cache handles are Gemini-only |
-| Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | Anthropic-only request-level optimization |
-| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | JSON-schema path in all providers |
-| Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | Passed through to provider; see notes below |
-| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
-| Tool calling | ✅ | ✅ | ✅ | Tool definitions via `Options.tools`; results in `ResultEnvelope.tool_calls` |
-| Tool message pass-through in history | ✅ | ✅ | ✅ | Provider-native tool call/result encoding |
-| Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | Single prompt per call; supports tool messages in history |
+| Capability | Gemini | OpenAI | Anthropic | OpenRouter | Notes |
+|---|---|---|---|---|---|
+| Text generation | ✅ | ✅ | ✅ | ✅ | Core feature |
+| Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
+| Local file inputs | ✅ | ✅ | ✅ | ❌ | OpenRouter multimodal input is planned separately |
+| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ❌ | |
+| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ❌ | |
+| YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
+| Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
+| Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
+| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ❌ | OpenRouter support is planned separately |
+| Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ❌ | Passed through to provider where supported; see notes below |
+| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
+| Tool calling | ✅ | ✅ | ✅ | ❌ | OpenRouter support is planned separately |
+| Tool message pass-through in history | ✅ | ✅ | ✅ | ❌ | OpenRouter conversation is text-history only in the current release |
+| Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
 ## Provider-Specific Notes
 
@@ -85,6 +85,18 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - `Options.max_tokens`: limits the output length. Default is `16384` for Anthropic
   (which reserves enough room for all supported manual thinking budgets). Other providers
   currently ignore this option.
+
+### OpenRouter
+
+- OpenRouter is a routed provider: Pollux sends requests to OpenRouter, and the
+  selected model slug determines the upstream model family.
+- The current Pollux OpenRouter support is intentionally narrow:
+  text generation plus text-history conversation only.
+- Pollux does not expose OpenRouter routing controls in the public API.
+- `continue_from` works through Pollux conversation state replay; there is no
+  OpenRouter-specific equivalent to OpenAI's `previous_response_id`.
+- Persistent cache handles, multimodal inputs, structured outputs, reasoning,
+  and tool calling are planned as separate OpenRouter follow-ups.
 
 ## Error Semantics
 

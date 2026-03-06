@@ -120,6 +120,8 @@ def _auth_hint(
             env_var = "GEMINI_API_KEY"
         elif provider == "anthropic":
             env_var = "ANTHROPIC_API_KEY"
+        elif provider == "openrouter":
+            env_var = "OPENROUTER_API_KEY"
         return (
             f"Check credentials/permissions (try setting {env_var} or Config.api_key)."
         )
