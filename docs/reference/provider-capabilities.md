@@ -20,7 +20,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
-| Provider-side context caching | ✅ | ❌ | ❌ | OpenAI and Anthropic providers return unsupported for caching |
+| Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | Persistent cache handles are Gemini-only |
+| Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | Anthropic-only request-level optimization |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | JSON-schema path in all providers |
 | Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | Passed through to provider; see notes below |
 | Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
@@ -69,6 +70,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 ### Anthropic
 
 - Remote URL support is intentionally narrow: images and PDFs only.
+- Implicit prompt caching is enabled with `Options(implicit_caching=True)`.
+  Pollux defaults it on for single-call workloads and off for multi-call
+  fan-out. Requesting it on unsupported providers raises `ConfigurationError`.
 - Reasoning: `reasoning_effort` maps to `output_config.effort`.
   Pollux uses `thinking.type="adaptive"` on adaptive-capable models
   (currently Opus 4.6 and Sonnet 4.6) and falls back to manual thinking budgets on older

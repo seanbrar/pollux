@@ -31,7 +31,7 @@ All fields and their defaults:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `provider` | `"gemini" \| "openai"` | *(required)* | Provider to use |
+| `provider` | `"gemini" \| "openai" \| "anthropic"` | *(required)* | Provider to use |
 | `model` | `str` | *(required)* | Model identifier |
 | `api_key` | `str \| None` | `None` | Explicit key; auto-resolved from env if omitted |
 | `use_mock` | `bool` | `False` | Use mock provider (no network calls) |
@@ -44,10 +44,12 @@ If `api_key` is omitted, Pollux resolves it from environment variables:
 
 - Gemini: `GEMINI_API_KEY`
 - OpenAI: `OPENAI_API_KEY`
+- Anthropic: `ANTHROPIC_API_KEY`
 
 ```bash
 export GEMINI_API_KEY="your-key"
 export OPENAI_API_KEY="your-key"
+export ANTHROPIC_API_KEY="your-key"
 ```
 
 You can also pass a key directly:
@@ -132,6 +134,7 @@ options = Options(
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Controls model thinking depth
     delivery_mode="realtime",         # Only "realtime" is supported
+    implicit_caching=True,            # Auto-cache prefix (Anthropic only)
 )
 ```
 
@@ -147,7 +150,8 @@ options = Options(
 | `delivery_mode` | `str` | `"realtime"` | Only `"realtime"` is supported; `"deferred"` raises an error |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
-| `cache` | `CacheHandle \| None` | `None` | Persistent context cache. See [Reducing Costs with Context Caching](caching.md) |
+| `cache` | `CacheHandle \| None` | `None` | Persistent explicit cache (Gemini). See [Reducing Costs with Context Caching](caching.md) |
+| `implicit_caching` | `bool \| None` | `None` | Enable or disable Anthropic implicit caching. Defaults to `True` for a single provider call and `False` for multi-call fan-out. `implicit_caching=True` raises on providers that do not support it. See [Reducing Costs with Context Caching](caching.md) |
 
 !!! note
     OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject

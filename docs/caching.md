@@ -73,9 +73,65 @@ compare_efficiency(946_800, 10)
 
 More questions on the same content = greater savings.
 
-## Creating a Cache
+## Two Approaches to Caching
 
-Use `create_cache()` to upload content to the provider once, then pass the
+Context caching implementations vary significantly across providers:
+
+- **Implicit caching (Anthropic):** Anthropic caches prompt prefixes during
+  generation. Pollux toggles this with `Options(implicit_caching=...)`.
+- **Explicit caching (Gemini):** You upload context once with
+  `create_cache()`, get a handle back, and pass that handle to later calls.
+
+## Implicit Caching (Anthropic)
+
+Anthropic caches shared prefixes from the top of the request downward:
+system instruction, tools, conversation history, and repeated prompt context.
+You do not create a cache object yourself. Pollux decides whether to ask for
+implicit caching on each provider call.
+
+### Cost Mechanics
+
+Unlike explicit caching, Anthropic changes token pricing per request:
+
+- **Cache writes:** +25% (1.25x standard cost)
+- **Cache reads:** -90% (0.10x standard cost)
+
+Caching pays off when a prefix is written once and then reused. Without
+caching, sending the same prefix twice costs 2.0x. With caching, it costs
+1.35x.
+
+### Default Behavior
+
+Because cache writes cost more, Pollux does not treat implicit caching as a
+blanket default:
+
+- **Single provider call:** Pollux enables implicit caching by default.
+- **Multi-call fan-out:** Pollux disables it by default.
+
+This is a request-shape rule, not an API-entrypoint rule. `run()` always makes
+one provider call, so the default is on. `run_many()` with multiple prompts
+makes multiple parallel calls, so the default is off. `run_many(["Q"])` still
+makes one provider call, so the default is on there too.
+
+The reason is cost. In a conversation, the write premium lands once and later
+turns benefit from cheap cache reads. In a wide fan-out, many identical calls
+arrive before the cache is warm, so you pay the write premium repeatedly.
+
+You can override the default when you need to:
+
+```python
+from pollux import Options
+
+# Disable Anthropic implicit caching for a one-off call.
+options = Options(implicit_caching=False)
+```
+
+Setting `implicit_caching=True` on a provider that does not support it raises
+`ConfigurationError`. Pollux does not silently ignore the request.
+
+## Explicit Caching (Gemini)
+
+For Gemini, use `create_cache()` to upload content to the provider once, then pass the
 returned handle to `run()` or `run_many()` via `Options(cache=handle)`:
 
 ```python
@@ -143,7 +199,7 @@ the same handle reuse the cached context automatically.
 
 ## Cache Identity
 
-Cache keys are deterministic: `hash(model + provider + content hashes of sources)`.
+For explicit caches, keys are deterministic: `hash(model + provider + content hashes of sources)`.
 
 This means:
 
@@ -156,7 +212,7 @@ This means:
 
 ## Single-Flight Protection
 
-When multiple concurrent calls target the same cache key (common in fan-out
+When multiple concurrent calls target the same explicit cache key (common in fan-out
 workloads), Pollux deduplicates the creation call: only one coroutine performs
 the upload, and others await the same result. This eliminates duplicate uploads
 without requiring caller-side coordination.
@@ -171,9 +227,9 @@ Check `metrics.cache_used` on subsequent calls:
 Keep prompts and sources stable between runs when comparing warm vs reuse
 behavior. Usage counters are provider-dependent.
 
-## Tuning TTL
+## Tuning Explicit Cache TTL
 
-Pass `ttl_seconds` to `create_cache()` to control the cache lifetime. The
+Pass `ttl_seconds` to `create_cache()` to control the explicit cache lifetime. The
 default is 3600 seconds (1 hour). Tune it to match your expected reuse window:
 
 - **Too short:** the cache expires before you reuse it, wasting the
@@ -183,7 +239,8 @@ default is 3600 seconds (1 hour). Tune it to match your expected reuse window:
 
 For interactive workloads where you run a batch and then refine prompts within
 the same session, 3600s is a reasonable starting point. For one-shot scripts,
-shorter TTLs (300-600s) avoid lingering cache entries.
+shorter TTLs (300-600s) avoid lingering cache entries. Anthropic manages the
+lifetime of implicit caches on its side.
 
 ## When Caching Pays Off
 
@@ -191,16 +248,19 @@ Caching is most effective when:
 
 - **Sources are large:** video, long PDFs, multi-image sets
 - **Prompt sets are repeated:** fan-out workflows with 3+ prompts per source
-- **Reuse happens within TTL:** default 3600s; tune via `ttl_seconds`
+  using explicit caching
+- **Conversations are deep:** multi-turn dialogues with large system prompts
+  using implicit caching
 
 Caching adds overhead for single-prompt, small-source calls. Start without
 caching and enable it when you see repeated context in your workload.
 
 ## Provider Dependency
 
-Persistent context caching is **Gemini-only**. Calling `create_cache()` with
-a provider that lacks `persistent_cache` support raises an actionable error.
-See [Provider Capabilities](reference/provider-capabilities.md) for the full
+Calling `create_cache()` with a provider that lacks `persistent_cache`
+support raises an actionable error. `Options(implicit_caching=True)` raises in
+the same way on providers that lack implicit caching support. See
+[Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.
 
 ---

@@ -103,6 +103,11 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             "Provider does not support reasoning controls",
             hint="Remove reasoning_effort or choose a provider with reasoning support.",
         )
+    if options.implicit_caching is True and not caps.implicit_caching:
+        raise ConfigurationError(
+            "Provider does not support implicit caching",
+            hint="Remove implicit_caching=True or choose a provider with implicit caching support.",
+        )
     if wants_conversation and not caps.conversation:
         raise ConfigurationError(
             "Provider does not support conversation continuity",
@@ -178,6 +183,11 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
     upload_lock = asyncio.Lock()
     retry_policy = config.retry
     responses: list[dict[str, Any]] = []
+    implicit_caching = (
+        options.implicit_caching
+        if options.implicit_caching is not None
+        else caps.implicit_caching and len(prompts) == 1
+    )
     total_usage: dict[str, int] = {}
     conversation_state: dict[str, Any] | None = None
 
@@ -288,6 +298,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         previous_response_id=previous_response_id,
                         provider_state=request_provider_state,
                         max_tokens=options.max_tokens,
+                        implicit_caching=implicit_caching,
                     )
 
                     if retry_policy.max_attempts <= 1:

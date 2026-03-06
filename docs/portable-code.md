@@ -11,11 +11,13 @@ You want analysis code that works across providers. Switch from Gemini to
 OpenAI (or back) by changing a config line, not rewriting your pipeline.
 This page shows the patterns that make that work.
 
-Pollux is capability-transparent, not capability-equalizing. Both providers
+Pollux is capability-transparent, not capability-equalizing. All providers
 support the core pipeline (text generation, structured output, tool calling,
-conversation continuity), but some features are provider-specific. Context
-caching is Gemini-only, for example. When you use an unsupported feature,
-Pollux raises a `ConfigurationError` or `APIError`. No silent degradation.
+conversation continuity), but some features are provider-specific. For
+example, Gemini uses explicit cache handles (`create_cache()`), while
+Anthropic uses implicit caching (`Options(implicit_caching=True)`).
+When you use an unsupported feature for a provider, Pollux raises a
+`ConfigurationError` or `APIError`. No silent degradation.
 This keeps behavior legible in both development and production.
 
 !!! info "Boundary"
@@ -114,9 +116,8 @@ asyncio.run(main())
    its model. Your analysis functions never reference provider names or
    models directly.
 
-2. **Use `create_cache()` for persistent caching.** Caching is now
-   opt-in via `create_cache()` and `Options(cache=handle)`. Only call
-   it when the provider supports `persistent_cache` (e.g. Gemini).
+2. **Handle features conditionally.** Explicit caching (`create_cache()`) is
+   Gemini-specific, while implicit caching (`implicit_caching=True`) is Anthropic-specific. Handle conditional optimizations near the edge, or wrap them dynamically if needed.
 
 3. **Write provider-agnostic functions.** `analyze_document` accepts a
    provider name and builds the config internally. The prompt, source, and
@@ -253,8 +254,9 @@ async def test_analyze_document_mock(provider: str) -> None:
 ## What to Watch For
 
 - **Keep the portable subset in mind.** Text generation, structured output,
-  tool calling, and conversation continuity work on both providers. Context
-  caching is Gemini-only. YouTube URLs have limited OpenAI support.
+  tool calling, and conversation continuity work on all providers. Context
+  caching has different paradigms (explicit for Gemini, implicit for Anthropic). 
+  YouTube URLs have limited OpenAI support.
   Check [Provider Capabilities](reference/provider-capabilities.md).
 - **Config errors are your portability signal.** A `ConfigurationError` for
   an unsupported feature marks the boundary of portability. Handle it at

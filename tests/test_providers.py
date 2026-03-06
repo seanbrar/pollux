@@ -1748,11 +1748,32 @@ async def test_anthropic_generate_with_system_instruction() -> None:
             model=ANTHROPIC_MODEL,
             parts=["Hello"],
             system_instruction="Be concise.",
+            implicit_caching=True,
         )
     )
 
     assert messages.last_kwargs is not None
     assert messages.last_kwargs["system"] == "Be concise."
+    assert messages.last_kwargs["cache_control"] == {"type": "ephemeral"}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generate_with_implicit_caching_disabled() -> None:
+    """Disabling implicit_caching omits Anthropic cache_control."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Hello"],
+            system_instruction="Be concise.",
+            implicit_caching=False,
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["system"] == "Be concise."
+    assert "cache_control" not in messages.last_kwargs
 
 
 @pytest.mark.asyncio
