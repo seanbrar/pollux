@@ -12,10 +12,10 @@ OpenAI (or back) by changing a config line, not rewriting your pipeline.
 This page shows the patterns that make that work.
 
 Pollux is capability-transparent, not capability-equalizing. All providers
-support the core pipeline (text generation, structured output, tool calling,
-conversation continuity), but some features are provider-specific. For
-example, Gemini uses explicit cache handles (`create_cache()`), while
-Anthropic uses implicit caching (`Options(implicit_caching=True)`).
+support the core text pipeline, but some features are provider-specific. For
+example, Gemini uses explicit cache handles (`create_cache()`), Anthropic uses
+implicit caching (`Options(implicit_caching=True)`), and OpenRouter currently
+does not support Pollux tool calling or structured outputs.
 When you use an unsupported feature for a provider, Pollux raises a
 `ConfigurationError` or `APIError`. No silent degradation.
 This keeps behavior legible in both development and production.
@@ -254,11 +254,12 @@ async def test_analyze_document_mock(provider: str) -> None:
 
 ## What to Watch For
 
-- **Keep the portable subset in mind.** Text generation, structured output,
-  tool calling, and conversation continuity work on all providers. Context
-  caching has different paradigms (explicit for Gemini, implicit for Anthropic). 
-  YouTube URLs have limited OpenAI and Anthropic support.
-  Check [Provider Capabilities](reference/provider-capabilities.md).
+- **Keep the portable subset in mind.** Text generation and conversation
+  continuity work on all providers. Structured output and tool calling exclude
+  OpenRouter in the current release. Context caching has different paradigms
+  (explicit for Gemini, implicit for Anthropic). YouTube URLs have limited
+  OpenAI and Anthropic support. Check
+  [Provider Capabilities](reference/provider-capabilities.md).
 - **Config errors are your portability signal.** A `ConfigurationError` for
   an unsupported feature marks the boundary of portability. Handle it at
   the call site.

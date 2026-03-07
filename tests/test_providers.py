@@ -11,6 +11,7 @@ and drift is hard to detect.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -29,7 +30,7 @@ from pollux.providers.models import (
     ToolCall,
 )
 from pollux.providers.openai import OpenAIProvider
-from pollux.providers.openrouter import OpenRouterProvider
+from pollux.providers.openrouter import OpenRouterProvider, _extract_error_message
 from tests.conftest import ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENROUTER_MODEL
 
 pytestmark = pytest.mark.contract
@@ -2397,8 +2398,8 @@ class _FakeOpenRouterClient:
     def __init__(
         self,
         *,
-        payload: dict[str, Any] | None = None,
-        models_payload: dict[str, Any] | None = None,
+        payload: Any = None,
+        models_payload: Any = None,
     ) -> None:
         self.last_json: dict[str, Any] | None = None
         self.get_calls = 0
@@ -2459,6 +2460,18 @@ class _FakeOpenRouterClient:
                         "top_p",
                     ],
                 },
+                {
+                    "id": "google/gemma-3-4b-it",
+                    "architecture": {
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"],
+                    },
+                    "supported_parameters": [
+                        "max_tokens",
+                        "temperature",
+                        "top_p",
+                    ],
+                },
             ]
         }
 
@@ -2505,7 +2518,10 @@ async def test_openrouter_generate_builds_text_and_history_messages() -> None:
             {"role": "system", "content": "Be concise."},
             {"role": "user", "content": "Earlier question"},
             {"role": "assistant", "content": "Earlier answer"},
-            {"role": "user", "content": "Current prompt"},
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Current prompt"}],
+            },
         ],
         "temperature": 0.2,
         "top_p": 0.9,
@@ -2520,6 +2536,77 @@ async def test_openrouter_generate_builds_text_and_history_messages() -> None:
         "total_tokens": 15,
     }
     assert fake_client.get_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
+    tmp_path: Any,
+) -> None:
+    """OpenRouter should encode the verified multimodal subset correctly."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    image_path = tmp_path / "photo.jpg"
+    image_path.write_bytes(b"\xff\xd8\xff")
+    pdf_path = tmp_path / "report.pdf"
+    pdf_path.write_bytes(b"%PDF-1.7")
+
+    image_asset = await provider.upload_file(image_path, "image/jpeg")
+    pdf_asset = await provider.upload_file(pdf_path, "application/pdf")
+
+    await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-4.1-mini",
+            parts=[
+                "Summarize these assets.",
+                {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
+                {
+                    "uri": "https://example.com/report.pdf",
+                    "mime_type": "application/pdf",
+                },
+                image_asset,
+                pdf_asset,
+            ],
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "openai/gpt-4.1-mini",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Summarize these assets."},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/photo.jpg"},
+                    },
+                    {
+                        "type": "file",
+                        "file": {
+                            "filename": "report.pdf",
+                            "file_data": "https://example.com/report.pdf",
+                        },
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_asset.file_id},
+                    },
+                    {
+                        "type": "file",
+                        "file": {
+                            "filename": "report.pdf",
+                            "file_data": pdf_asset.file_id,
+                        },
+                    },
+                ],
+            }
+        ],
+    }
+    assert image_asset.file_id.startswith("data:image/jpeg;base64,")
+    assert pdf_asset.file_id.startswith("data:application/pdf;base64,")
+    assert pdf_asset.file_name == "report.pdf"
 
 
 @pytest.mark.asyncio
@@ -2559,20 +2646,18 @@ async def test_openrouter_generate_rejects_tools_when_pollux_support_is_deferred
 
 
 @pytest.mark.asyncio
-async def test_openrouter_generate_rejects_image_inputs_when_pollux_support_is_deferred() -> (
+async def test_openrouter_generate_rejects_image_inputs_when_model_lacks_support() -> (
     None
 ):
-    """Image-capable models should still fail clearly until multimodal lands."""
+    """Metadata should reject image inputs for text-only OpenRouter models."""
     fake_client = _FakeOpenRouterClient()
     provider = OpenRouterProvider("test-key")
     provider._client = fake_client
 
-    with pytest.raises(
-        ConfigurationError, match="multimodal input is not supported yet"
-    ):
+    with pytest.raises(ConfigurationError, match="does not support image input"):
         await provider.generate(
             ProviderRequest(
-                model="meta-llama/llama-3.2-11b-vision-instruct",
+                model=OPENROUTER_MODEL,
                 parts=[
                     {
                         "uri": "https://example.com/photo.jpg",
@@ -2581,6 +2666,84 @@ async def test_openrouter_generate_rejects_image_inputs_when_pollux_support_is_d
                 ],
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_allows_pdf_inputs_when_openrouter_parses_them() -> (
+    None
+):
+    """PDF inputs should bypass native file-modality metadata checks."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model="google/gemma-3-4b-it",
+            parts=[
+                {
+                    "uri": "https://example.com/report.pdf",
+                    "mime_type": "application/pdf",
+                }
+            ],
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "google/gemma-3-4b-it",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "file",
+                        "file": {
+                            "filename": "report.pdf",
+                            "file_data": "https://example.com/report.pdf",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_rejects_non_pdf_file_inputs() -> None:
+    """OpenRouter PR 3 should keep the file subset to PDFs only."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(ConfigurationError, match="Unsupported OpenRouter input type"):
+        await provider.generate(
+            ProviderRequest(
+                model="openai/gpt-4.1-mini",
+                parts=[
+                    {
+                        "uri": "https://example.com/data.csv",
+                        "mime_type": "text/csv",
+                    }
+                ],
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_attributes_non_object_payload_errors() -> None:
+    """Malformed chat completions payloads should keep provider attribution."""
+    fake_client = _FakeOpenRouterClient(payload=["not", "an", "object"])
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(APIError, match="non-object response") as exc:
+        await provider.generate(
+            ProviderRequest(model=OPENROUTER_MODEL, parts=["Hello"])
+        )
+
+    err = exc.value
+    assert err.provider == "openrouter"
+    assert err.phase == "generate"
 
 
 @pytest.mark.asyncio
@@ -2610,12 +2773,130 @@ async def test_openrouter_validate_request_reuses_cached_metadata() -> None:
 
 
 @pytest.mark.asyncio
+async def test_openrouter_validate_request_attributes_non_object_metadata_errors() -> (
+    None
+):
+    """Malformed models payloads should report the metadata phase clearly."""
+    fake_client = _FakeOpenRouterClient(models_payload=["not", "an", "object"])
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(APIError, match="non-object response") as exc:
+        await provider.validate_request(
+            ProviderRequest(model=OPENROUTER_MODEL, parts=["Hello"])
+        )
+
+    err = exc.value
+    assert err.provider == "openrouter"
+    assert err.phase == "metadata"
+
+
+@pytest.mark.asyncio
+async def test_openrouter_validate_request_attributes_invalid_metadata_errors() -> None:
+    """A missing models `data` list should still attribute metadata failures."""
+    fake_client = _FakeOpenRouterClient(models_payload={"data": {}})
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(APIError, match="invalid payload") as exc:
+        await provider.validate_request(
+            ProviderRequest(model=OPENROUTER_MODEL, parts=["Hello"])
+        )
+
+    err = exc.value
+    assert err.provider == "openrouter"
+    assert err.phase == "metadata"
+
+
+def test_openrouter_extract_error_message_prefers_nested_provider_message() -> None:
+    """Nested provider messages should replace OpenRouter's generic stub."""
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    response = httpx.Response(
+        400,
+        json={
+            "error": {
+                "message": "Provider returned error",
+                "metadata": {
+                    "provider_name": "Azure",
+                    "raw": (
+                        '{"error":{"message":"The image data you provided does not '
+                        'represent a valid image."}}'
+                    ),
+                },
+            }
+        },
+        request=request,
+    )
+
+    assert (
+        _extract_error_message(response)
+        == "Azure: The image data you provided does not represent a valid image."
+    )
+
+
+def test_openrouter_extract_error_message_handles_nested_error_arrays() -> None:
+    """Cloudflare-style nested `errors` arrays should still surface the root cause."""
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    response = httpx.Response(
+        400,
+        json={
+            "error": {
+                "message": "Provider returned error",
+                "metadata": {
+                    "provider_name": "Cloudflare",
+                    "raw": (
+                        '{"errors":[{"message":"AiError: Bad input: unsupported '
+                        'content array","code":5006}],"success":false}'
+                    ),
+                },
+            }
+        },
+        request=request,
+    )
+
+    assert (
+        _extract_error_message(response)
+        == "Cloudflare: AiError: Bad input: unsupported content array"
+    )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_upload_rejects_non_image_non_pdf_files(tmp_path: Any) -> None:
+    """Local uploads should stay constrained to the verified subset."""
+    provider = OpenRouterProvider("test-key")
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="local mime type"):
+        await provider.upload_file(csv_path, "text/csv")
+
+
+@pytest.mark.asyncio
+async def test_openrouter_upload_attributes_local_read_failures() -> None:
+    """Local file read failures should carry provider + upload phase context."""
+    provider = OpenRouterProvider("test-key")
+
+    with pytest.raises(APIError, match="Failed to read file") as exc:
+        await provider.upload_file(
+            Path("/definitely/missing/file.pdf"), "application/pdf"
+        )
+
+    err = exc.value
+    assert err.provider == "openrouter"
+    assert err.phase == "upload"
+
+
+@pytest.mark.asyncio
 async def test_openrouter_cache_raises() -> None:
     """create_cache should raise APIError: not supported."""
     provider = OpenRouterProvider("test-key")
 
-    with pytest.raises(APIError, match="does not support context caching"):
+    with pytest.raises(APIError, match="does not support context caching") as exc:
         await provider.create_cache(model=OPENROUTER_MODEL, parts=["test"])
+
+    err = exc.value
+    assert err.provider == "openrouter"
+    assert err.phase == "cache"
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,7 @@ class ProviderFileAsset:
     file_id: str
     provider: str
     mime_type: str
+    file_name: str | None = None
     is_inline_fallback: bool = False
 
 

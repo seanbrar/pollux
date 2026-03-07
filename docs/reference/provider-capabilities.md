@@ -1,3 +1,9 @@
+<!-- Intent: Define the user-facing capability contract by provider. Clarify
+     where provider behavior differs, especially for OpenRouter's routed
+     multimodal support. Do NOT explain internal request shaping or SDK
+     implementation details. Assumes the reader already knows Pollux's core
+     API surface. Register: reference. -->
+
 # Provider Capabilities
 
 This page defines the current capability contract by provider.
@@ -16,9 +22,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 |---|---|---|---|---|---|
 | Text generation | ✅ | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
-| Local file inputs | ✅ | ✅ | ✅ | ❌ | OpenRouter multimodal input is planned separately |
-| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ❌ | |
-| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ❌ | |
+| Local file inputs | ✅ | ✅ | ✅ | ✅ (images and PDFs) | OpenRouter keeps the local file subset narrow |
+| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | Prefer local PDFs when reliability matters |
+| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | Remote fetch behavior can vary by route |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
 | Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
@@ -93,12 +99,33 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Pollux validates OpenRouter model availability and model-level capabilities
   against the OpenRouter models API metadata.
 - The current Pollux OpenRouter support is intentionally narrow:
-  text generation plus text-history conversation only.
+  text generation, text-history conversation, and verified image/PDF inputs.
 - Pollux does not expose OpenRouter routing controls in the public API.
 - `continue_from` works through Pollux conversation state replay; there is no
   OpenRouter-specific equivalent to OpenAI's `previous_response_id`.
-- Persistent cache handles, multimodal inputs, structured outputs, reasoning,
-  and tool calling are planned as separate OpenRouter follow-ups.
+- OpenRouter multimodal input currently supports:
+  local image files, image URLs, local PDFs, and PDF URLs.
+- Image input is model-driven. If the selected OpenRouter model does not accept
+  images, Pollux fails early with `ConfigurationError`.
+- Image routes can still fail at execution time even when the model metadata
+  advertises image input. OpenRouter may choose an upstream route that rejects
+  the image payload or cannot fetch the remote URL.
+- PDF input uses OpenRouter's provider-side PDF parser rather than the model's
+  native `input_modalities` metadata. Pollux therefore allows PDFs even when a
+  model does not advertise native `file` input.
+- Local PDFs are the most reliable OpenRouter document path in the current
+  release.
+- PDF URLs are best-effort. Some routes parse them correctly, some return
+  `PDF_UNAVAILABLE`, and some reject the request before the model sees the
+  document.
+- When an OpenRouter route rejects or mishandles an image or PDF, Pollux
+  surfaces that upstream provider error. The first fix is usually choosing a
+  different OpenRouter model or route. For documents, another good fallback is
+  downloading the PDF locally and sending it with `Source.from_file()`.
+- Unsupported OpenRouter file types fail fast. For example, local CSV uploads
+  raise `ConfigurationError`.
+- Persistent cache handles, structured outputs, reasoning, and tool calling
+  are planned as separate OpenRouter follow-ups.
 
 ## Error Semantics
 
