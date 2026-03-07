@@ -20,7 +20,7 @@ def add_runtime_args(parser: argparse.ArgumentParser) -> None:
     """Add common provider/model/runtime arguments to a recipe parser."""
     parser.add_argument(
         "--provider",
-        choices=("gemini", "openai"),
+        choices=("gemini", "openai", "anthropic", "openrouter"),
         default=DEFAULT_PROVIDER,
         help="Model provider to use.",
     )

@@ -2,12 +2,16 @@
 
 Practical, problem-first recipes for multimodal analysis with Pollux.
 
-This folder contains the runnable recipe code. The canonical cookbook
-documentation (learning paths, recipe pages, and authoring guidance) lives under
-`docs/cookbook/` and is published on the documentation site.
+This folder contains runnable recipe code. The teaching layer lives in the
+published docs under `docs/`, where each concept has one authoritative page.
+Use the cookbook when you want a complete script you can run and modify after
+you understand the concept. Some recipes are compact on-ramps; others are small
+forkable applications under `cookbook/projects/`.
 
-- Start here: `docs/cookbook/index.md`
-- Recipe templates: `docs/cookbook/templates.md`
+- Learn the API and boundaries in `docs/getting-started.md`,
+  `docs/sending-content.md`, `docs/source-patterns.md`, and related topical pages
+- Find recipe specs and descriptions in `docs/reference/cli.md`
+- Start from a template in `cookbook/templates/`
 
 ## Setup
 
@@ -33,7 +37,11 @@ python -m cookbook --list
 python -m cookbook getting-started/analyze-single-paper \
   --input cookbook/data/demo/text-medium/input.txt
 
-# 3) Run against a real provider
+# 3) Run a project recipe
+python -m cookbook projects/paper-to-workshop-kit \
+  --input cookbook/data/demo/multimodal-basic/sample.pdf
+
+# 4) Run against a real provider
 python -m cookbook getting-started/analyze-single-paper \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
