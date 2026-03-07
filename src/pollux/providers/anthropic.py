@@ -222,13 +222,20 @@ class AnthropicProvider:
         )
 
         # Build create kwargs.
+        default_max_tokens = _ANTHROPIC_DEFAULT_MAX_TOKENS
+        if "claude-3-" in request.model:
+            # claude-3-haiku, claude-3-sonnet, claude-3-opus only support 4096
+            default_max_tokens = 4096
+            if "claude-3-5" in request.model:
+                default_max_tokens = 8192
+
         create_kwargs: dict[str, Any] = {
             "model": request.model,
             "messages": messages,
             "max_tokens": (
                 request.max_tokens
                 if request.max_tokens is not None
-                else _ANTHROPIC_DEFAULT_MAX_TOKENS
+                else default_max_tokens
             ),
         }
 
