@@ -216,8 +216,8 @@ def openrouter_api_key():
 
 @pytest.fixture
 def openrouter_test_model():
-    """Return the model to use for OpenRouter API tests."""
-    return "meta-llama/llama-3.2-1b-instruct"
+    """Return the stable low-cost route used for OpenRouter API tests."""
+    return "openai/gpt-5-nano"
 
 
 @pytest.fixture

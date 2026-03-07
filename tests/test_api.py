@@ -2,7 +2,8 @@
 
 These tests make real provider API calls and are intentionally compact:
 - ENABLE_API_TESTS=1 is required to run any API tests
-- GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY are required per provider fixture
+- GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / OPENROUTER_API_KEY
+  are required per provider fixture
 
 The suite prioritizes high-signal end-to-end coverage with a small call budget.
 """
@@ -60,6 +61,53 @@ def _minimal_pdf_bytes() -> bytes:
     )
     trailer = (
         b"trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n"
+        + str(xref_pos).encode("ascii")
+        + b"\n%%EOF\n"
+    )
+    return body + xref + trailer
+
+
+def _pdf_escape(text: str) -> str:
+    """Escape a string for use in a PDF text stream."""
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _pdf_with_text(text: str) -> bytes:
+    """Return a tiny single-page PDF with visible text."""
+    stream = (f"BT\n/F1 12 Tf\n72 120 Td\n({_pdf_escape(text)}) Tj\nET\n").encode(
+        "ascii"
+    )
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        (
+            b"3 0 obj\n"
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 200] "
+            b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\n"
+            b"endobj\n"
+        ),
+        (
+            b"4 0 obj\n<< /Length "
+            + str(len(stream)).encode("ascii")
+            + b" >>\nstream\n"
+            + stream
+            + b"endstream\nendobj\n"
+        ),
+        b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    ]
+
+    body = b"%PDF-1.4\n"
+    offsets: list[int] = []
+    for obj in objects:
+        offsets.append(len(body))
+        body += obj
+
+    xref_pos = len(body)
+    xref = b"xref\n0 6\n0000000000 65535 f \n" + b"".join(
+        f"{offset:010d} 00000 n \n".encode("ascii") for offset in offsets
+    )
+    trailer = (
+        b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"
         + str(xref_pos).encode("ascii")
         + b"\n%%EOF\n"
     )
@@ -350,3 +398,32 @@ async def test_openai_binary_upload_cleanup_roundtrip(
     assert "pdf_ok" in result["answers"][0].lower()
     assert deleted_file_ids
     assert all(isinstance(file_id, str) and file_id for file_id in deleted_file_ids)
+
+
+@pytest.mark.asyncio
+async def test_openrouter_local_pdf_roundtrip(
+    openrouter_api_key: str,
+    openrouter_test_model: str,
+    tmp_path: Any,
+) -> None:
+    """E2E: OpenRouter local PDF uploads remain accepted on the stable route."""
+    pdf_path = tmp_path / "token.pdf"
+    token = "PDFLOCAL314159"
+    pdf_path.write_bytes(_pdf_with_text(token))
+
+    config = Config(
+        provider="openrouter",
+        model=openrouter_test_model,
+        api_key=openrouter_api_key,
+    )
+    result = await pollux.run(
+        "Reply with exactly the token printed inside the PDF. "
+        "If you cannot read the PDF text, reply CANNOT_READ_PDF.",
+        source=Source.from_file(pdf_path, mime_type="application/pdf"),
+        config=config,
+    )
+
+    assert result["status"] == "ok"
+    assert result["answers"][0].strip() == token
+    if result["usage"]:
+        assert result["usage"].get("total_tokens", 0) > 0

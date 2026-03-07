@@ -23,8 +23,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Text generation | ✅ | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
 | Local file inputs | ✅ | ✅ | ✅ | ✅ (images and PDFs) | OpenRouter keeps the local file subset narrow |
-| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ✅ (verified subset; routed behavior varies by model route) | |
-| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ✅ (supported models) | |
+| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | Prefer local PDFs when reliability matters |
+| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | Remote fetch behavior can vary by route |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
 | Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
@@ -107,11 +107,21 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   local image files, image URLs, local PDFs, and PDF URLs.
 - Image input is model-driven. If the selected OpenRouter model does not accept
   images, Pollux fails early with `ConfigurationError`.
-- PDF input uses OpenRouter's provider-side PDF path. PDFs can work on some
-  OpenRouter models whose metadata does not advertise native `file` input.
-- Routed behavior can still vary by model route, especially for PDF URLs. If a
-  model rejects or mishandles a PDF URL, switch to another OpenRouter model
-  before changing the rest of your Pollux code.
+- Image routes can still fail at execution time even when the model metadata
+  advertises image input. OpenRouter may choose an upstream route that rejects
+  the image payload or cannot fetch the remote URL.
+- PDF input uses OpenRouter's provider-side PDF parser rather than the model's
+  native `input_modalities` metadata. Pollux therefore allows PDFs even when a
+  model does not advertise native `file` input.
+- Local PDFs are the most reliable OpenRouter document path in the current
+  release.
+- PDF URLs are best-effort. Some routes parse them correctly, some return
+  `PDF_UNAVAILABLE`, and some reject the request before the model sees the
+  document.
+- When an OpenRouter route rejects or mishandles an image or PDF, Pollux
+  surfaces that upstream provider error. The first fix is usually choosing a
+  different OpenRouter model or route. For documents, another good fallback is
+  downloading the PDF locally and sending it with `Source.from_file()`.
 - Unsupported OpenRouter file types fail fast. For example, local CSV uploads
   raise `ConfigurationError`.
 - Persistent cache handles, structured outputs, reasoning, and tool calling

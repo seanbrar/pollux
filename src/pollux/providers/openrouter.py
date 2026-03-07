@@ -6,6 +6,7 @@ import asyncio
 import base64
 from collections.abc import Mapping
 from dataclasses import dataclass
+import json
 from pathlib import PurePosixPath
 import time
 from typing import TYPE_CHECKING, Any, cast
@@ -124,8 +125,10 @@ class OpenRouterProvider:
             ) from e
 
         if not isinstance(data, dict):
-            # TODO: add provider="openrouter", phase="generate" for consistent attribution
-            raise APIError("OpenRouter returned a non-object response")
+            raise _openrouter_api_error(
+                "OpenRouter returned a non-object response",
+                phase="generate",
+            )
 
         return _parse_response(data)
 
@@ -187,9 +190,8 @@ class OpenRouterProvider:
         try:
             data_url = _to_data_url(path.read_bytes(), mime_type)
         except Exception as e:
-            raise APIError(
+            raise _openrouter_api_error(
                 f"Failed to read file for OpenRouter upload: {path}",
-                provider="openrouter",
                 phase="upload",
             ) from e
 
@@ -211,7 +213,10 @@ class OpenRouterProvider:
     ) -> str:
         """Raise because OpenRouter does not expose Pollux cache handles."""
         _ = model, parts, system_instruction, tools, ttl_seconds
-        raise APIError("OpenRouter provider does not support context caching")
+        raise _openrouter_api_error(
+            "OpenRouter provider does not support context caching",
+            phase="cache",
+        )
 
     async def aclose(self) -> None:
         """Close underlying async HTTP resources."""
@@ -268,13 +273,17 @@ class OpenRouterProvider:
             ) from e
 
         if not isinstance(payload, Mapping):
-            # TODO: add provider="openrouter", phase="metadata" for consistent attribution
-            raise APIError("OpenRouter models lookup returned a non-object response")
+            raise _openrouter_api_error(
+                "OpenRouter models lookup returned a non-object response",
+                phase="metadata",
+            )
 
         data = payload.get("data")
         if not isinstance(data, list):
-            # TODO: add provider="openrouter", phase="metadata" for consistent attribution
-            raise APIError("OpenRouter models lookup returned an invalid payload")
+            raise _openrouter_api_error(
+                "OpenRouter models lookup returned an invalid payload",
+                phase="metadata",
+            )
 
         metadata_by_model: dict[str, _OpenRouterModelMetadata] = {}
         for item in data:
@@ -365,7 +374,10 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
 
     if isinstance(part, ProviderFileAsset):
         if part.provider != "openrouter":
-            raise APIError(f"OpenRouter cannot use {part.provider} file assets.")
+            raise _openrouter_api_error(
+                f"OpenRouter cannot use {part.provider} file assets.",
+                phase="generate",
+            )
         if part.mime_type.startswith("image/"):
             return {
                 "type": "image_url",
@@ -420,6 +432,16 @@ def _normalize_str_set(value: Any) -> frozenset[str]:
     return frozenset(
         item.strip().lower() for item in value if isinstance(item, str) and item.strip()
     )
+
+
+def _openrouter_api_error(
+    message: str,
+    *,
+    phase: str,
+    hint: str | None = None,
+) -> APIError:
+    """Return an OpenRouter-attributed APIError for direct boundary failures."""
+    return APIError(message, hint=hint, provider="openrouter", phase=phase)
 
 
 def _require_text_io(metadata: _OpenRouterModelMetadata, *, model: str) -> None:
@@ -608,6 +630,9 @@ def _extract_error_message(response: httpx.Response) -> str:
     if isinstance(payload, Mapping):
         error = payload.get("error")
         if isinstance(error, Mapping):
+            nested_message = _extract_nested_provider_error_message(error)
+            if nested_message is not None:
+                return nested_message
             message = error.get("message")
             if isinstance(message, str) and message:
                 return message
@@ -619,3 +644,65 @@ def _extract_error_message(response: httpx.Response) -> str:
     if text:
         return text
     return f"HTTP {response.status_code}"
+
+
+def _extract_nested_provider_error_message(error: Mapping[str, Any]) -> str | None:
+    """Extract a provider-specific nested error when OpenRouter returns a stub."""
+    metadata = error.get("metadata")
+    provider_name: str | None = None
+    raw: str | None = None
+    if isinstance(metadata, Mapping):
+        candidate_provider = metadata.get("provider_name")
+        if isinstance(candidate_provider, str) and candidate_provider:
+            provider_name = candidate_provider
+        candidate_raw = metadata.get("raw")
+        if isinstance(candidate_raw, str) and candidate_raw.strip():
+            raw = candidate_raw.strip()
+
+    if raw is None:
+        return None
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        nested = raw
+    else:
+        nested = _find_nested_message(parsed) or raw
+
+    if provider_name is None:
+        return nested
+    return f"{provider_name}: {nested}"
+
+
+def _find_nested_message(value: Any) -> str | None:
+    """Return the first useful nested `message` string from JSON-like data."""
+    if isinstance(value, Mapping):
+        message = value.get("message")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+
+        error = value.get("error")
+        if error is not None:
+            nested = _find_nested_message(error)
+            if nested is not None:
+                return nested
+
+        errors = value.get("errors")
+        if errors is not None:
+            nested = _find_nested_message(errors)
+            if nested is not None:
+                return nested
+
+        for item in value.values():
+            nested = _find_nested_message(item)
+            if nested is not None:
+                return nested
+        return None
+
+    if isinstance(value, list):
+        for item in value:
+            nested = _find_nested_message(item)
+            if nested is not None:
+                return nested
+
+    return None

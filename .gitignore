@@ -86,3 +86,4 @@ cookbook/data/demo/text-medium/*
 cookbook/data/demo/text-full/*
 cookbook/data/demo/multimodal-basic/*
 outputs/
+artifacts/
