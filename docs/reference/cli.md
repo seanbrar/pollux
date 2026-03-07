@@ -1,8 +1,19 @@
 # CLI - Cookbook Runner
 
+Use cookbook recipes when you want a full runnable script you can execute,
+inspect, and modify. The docs pages teach Pollux concepts and boundaries; the
+cookbook gives you end-to-end starting points that apply those concepts in
+real workflows.
+
 Pollux currently ships one documented CLI surface:
 
 - `python -m cookbook`: run recipes under `cookbook/` without manual `PYTHONPATH` setup.
+
+## How Recipes Fit the Docs
+
+- Read the topical docs when you need to understand a concept, boundary, or API shape.
+- Run a cookbook recipe when you want a complete script with CLI flags, mock mode, and inspectable output.
+- Treat recipes as forkable starting points, not as the only place a concept is explained.
 
 ## Prerequisites
 
@@ -45,6 +56,9 @@ python -m cookbook
 
 # Run by cookbook-relative path
 python -m cookbook optimization/cache-warming-and-ttl --limit 2 --ttl 3600
+
+# Run a project recipe
+python -m cookbook projects/paper-to-workshop-kit --input path/to/paper.pdf
 
 # Run by dotted spec
 python -m cookbook production.resume_on_failure --limit 1
@@ -91,19 +105,20 @@ py -m cookbook production.resume_on_failure --limit 1
 
 All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-key` flags. Start in `--mock` to validate flow, switch to `--no-mock` when prompts are stable.
 
-| Recipe | Spec | Focus |
-|---|---|---|
-| Analyze Single Paper | `getting-started/analyze-single-paper` | Single-source baseline and output inspection |
-| Broadcast Process Files | `getting-started/broadcast-process-files` | Multi-file processing with shared prompts |
-| Structured Output Extraction | `getting-started/structured-output-extraction` | Schema-first typed extraction |
-| Extract Media Insights | `getting-started/extract-media-insights` | Image/audio/video analysis baseline |
-| Run vs RunMany | `optimization/run-vs-run-many` | Prompt batching and overhead comparison |
-| Cache Warming and TTL | `optimization/cache-warming-and-ttl` | Cache impact and TTL tuning |
-| Large-Scale Fan-Out | `optimization/large-scale-fan-out` | Bounded client-side concurrency |
-| Comparative Analysis | `research-workflows/comparative-analysis` | Structured source-to-source comparison |
-| Multi-Video Synthesis | `research-workflows/multi-video-synthesis` | Cross-video synthesis |
-| Rate Limits and Concurrency | `production/rate-limits-and-concurrency` | Throughput controls and concurrency tuning |
-| Resume on Failure | `production/resume-on-failure` | Durable manifest + retry/resume |
+| Recipe | Spec | Use it when you want to... | Learn the concept in docs |
+|---|---|---|---|
+| Analyze Single Paper | `getting-started/analyze-single-paper` | validate your install and inspect one result from one source | [Sending Content to Models](../sending-content.md) |
+| Broadcast Process Files | `getting-started/broadcast-process-files` | process a directory with the same analysis prompts per file | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Structured Output Extraction | `getting-started/structured-output-extraction` | return typed objects instead of parsing JSON by hand | [Extracting Structured Data](../structured-data.md) |
+| Extract Media Insights | `getting-started/extract-media-insights` | analyze one image, audio file, or video with the same entry point | [Sending Content to Models](../sending-content.md) |
+| Paper-to-Workshop Kit | `projects/paper-to-workshop-kit` | turn one paper into a discussion-ready packet with slides, questions, objections, and actions | [Reducing Costs with Context Caching](../caching.md) |
+| Run vs RunMany | `optimization/run-vs-run-many` | compare prompt loops against one `run_many()` call | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Cache Warming and TTL | `optimization/cache-warming-and-ttl` | measure cache reuse and choose a TTL for repeated prompts | [Reducing Costs with Context Caching](../caching.md) |
+| Large-Scale Fan-Out | `optimization/large-scale-fan-out` | fan out per-file work with bounded client-side concurrency | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Comparative Analysis | `research-workflows/comparative-analysis` | compare two sources and emit structured JSON output | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Multi-Video Synthesis | `research-workflows/multi-video-synthesis` | synthesize themes across multiple video sources | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Rate Limits and Concurrency | `production/rate-limits-and-concurrency` | tune concurrency without overrunning provider limits | [Configuring Pollux](../configuration.md) |
+| Resume on Failure | `production/resume-on-failure` | checkpoint long-running work and resume failed items | [Handling Errors and Recovery](../error-handling.md) |
 
 ### Learning Paths
 
@@ -111,6 +126,8 @@ All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-ke
 `structured-output-extraction` → `comparative-analysis`
 
 **Efficiency and scale:** `run-vs-run-many` → `cache-warming-and-ttl` → `large-scale-fan-out`
+
+**Build something useful:** `analyze-single-paper` → `projects/paper-to-workshop-kit`
 
 **Production hardening:** `rate-limits-and-concurrency` → `resume-on-failure`
 

@@ -28,6 +28,27 @@ def test_recipe_catalog_is_complete() -> None:
         )
 
 
+def test_no_stale_cookbook_doc_references() -> None:
+    """User-facing entry points should not reference the removed cookbook docs layer."""
+    stale_patterns = {
+        ROOT / "README.md": [
+            "https://polluxlib.dev/cookbook/",
+            "https://polluxlib.dev/quickstart/",
+            "https://polluxlib.dev/sources-and-patterns/",
+            "https://polluxlib.dev/caching-and-efficiency/",
+            "https://polluxlib.dev/troubleshooting/",
+        ],
+        ROOT / "cookbook" / "README.md": ["docs/cookbook/"],
+    }
+
+    for path, patterns in stale_patterns.items():
+        if not path.exists():
+            continue
+        text = path.read_text()
+        for pattern in patterns:
+            assert pattern not in text, f"stale reference {pattern!r} found in {path}"
+
+
 @pytest.mark.integration
 def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
     """Smoke test that each recipe runs successfully in mock mode.
@@ -66,6 +87,7 @@ def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
         f"python -m cookbook getting-started/extract-media-insights --input {image} --mock",
         f"python -m cookbook getting-started/extract-media-insights --input {video} --mock",
         f"python -m cookbook getting-started/extract-media-insights --input {audio} --mock",
+        f"python -m cookbook projects/paper-to-workshop-kit --input {input_txt} --mock",
         f"python -m cookbook optimization/cache-warming-and-ttl --input {text_dir} --limit 1 --ttl 300 --mock",
         f"python -m cookbook optimization/large-scale-fan-out --input {text_dir} --limit 1 --concurrency 1 --mock",
         f"python -m cookbook optimization/run-vs-run-many --input {input_txt} --mock",

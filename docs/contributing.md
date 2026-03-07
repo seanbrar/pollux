@@ -79,9 +79,13 @@ Recipes live in `cookbook/`, organized by scenario. Each recipe should:
 - Be self-contained (no ambient CWD assumptions)
 - Support `--mock` and `--no-mock` modes
 
-Structure flows from the scenario — there's no rigid section template. That
-said, most good recipes cover: what you'll run, what you'll see, how to tune
-it, and where to go next. Look at existing recipes for examples.
+Recipes complement the docs. They are runnable starting points, not a second
+teaching layer. If a recipe introduces or depends on a user-facing concept,
+the authoritative explanation belongs on the matching page under `docs/`.
+
+Structure flows from the scenario — there's no rigid section template. Most
+good recipes cover: what you'll run, what you'll see, how to tune it, and
+where to go next. Look at existing recipes for examples.
 
 **Running recipes:**
 
@@ -92,4 +96,6 @@ python -m cookbook getting-started/analyze-single-paper --mock
 
 **Adding a recipe:** create the Python script in `cookbook/<category>/` and
 reuse shared runtime args from `cookbook.utils.runtime`. The recipe catalog
-in [CLI](reference/cli.md#recipe-catalog) lists all available recipes.
+in [CLI](reference/cli.md#recipe-catalog) lists all available recipes. Update
+the authoritative topical docs in the same PR when the recipe adds a new
+concept or changes user-facing behavior.

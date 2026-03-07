@@ -5,8 +5,8 @@ Multimodal orchestration for LLM APIs.
 > You describe what to analyze. Pollux handles source patterns, context caching, and multimodal complexity—so you don't.
 
 [Documentation](https://polluxlib.dev/) ·
-[Quickstart](https://polluxlib.dev/quickstart/) ·
-[Cookbook](https://polluxlib.dev/cookbook/)
+[Getting Started](https://polluxlib.dev/getting-started/) ·
+[Recipe Catalog](https://polluxlib.dev/reference/cli/)
 
 [![PyPI](https://img.shields.io/pypi/v/pollux-ai)](https://pypi.org/project/pollux-ai/)
 [![CI](https://github.com/seanbrar/pollux/actions/workflows/ci.yml/badge.svg)](https://github.com/seanbrar/pollux/actions/workflows/ci.yml)
@@ -42,8 +42,8 @@ To use OpenAI instead: `Config(provider="openai", model="gpt-5-nano")`.
 For Anthropic: `Config(provider="anthropic", model="claude-haiku-4-5")`.
 For OpenRouter: `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.
 
-For a full 2-minute walkthrough (install, key setup, success checks), see the
-[Quickstart](https://polluxlib.dev/quickstart/).
+For a full 2-minute walkthrough (install, key setup, success checks), see
+[Getting Started](https://polluxlib.dev/getting-started/).
 
 ## Why Pollux?
 
@@ -158,14 +158,12 @@ See the capability matrix: [Provider Capabilities](https://polluxlib.dev/referen
 
 ## Documentation
 
-- [Quickstart](https://polluxlib.dev/quickstart/) — First result in 2 minutes
-- [Concepts](https://polluxlib.dev/concepts/) — Mental model for source patterns and caching
-- [Sources and Patterns](https://polluxlib.dev/sources-and-patterns/) — Source constructors, run/run_many, ResultEnvelope
-- [Configuration](https://polluxlib.dev/configuration/) — Providers, models, retries, caching
-- [Caching and Efficiency](https://polluxlib.dev/caching-and-efficiency/) — TTL management, cache warming, cost savings
-- [Troubleshooting](https://polluxlib.dev/troubleshooting/) — Common issues and solutions
+- [Getting Started](https://polluxlib.dev/getting-started/) — First result in 2 minutes
+- [Core Concepts](https://polluxlib.dev/concepts/) — Mental model and vocabulary
+- [Recipe Catalog](https://polluxlib.dev/reference/cli/) — Runnable cookbook scripts
 - [API Reference](https://polluxlib.dev/reference/api/) — Entry points and types
-- [Cookbook](https://polluxlib.dev/cookbook/) — Scenario-driven, ready-to-run recipes
+
+Full documentation at [polluxlib.dev](https://polluxlib.dev/).
 
 ## Contributing
 
