@@ -2610,6 +2610,141 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
 
 
 @pytest.mark.asyncio
+async def test_openrouter_generate_characterizes_tool_history_and_schema_shape() -> (
+    None
+):
+    """OpenRouter should replay tool turns and map structured outputs."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-4.1-mini",
+            parts=["Use the tool result to answer."],
+            history=[
+                Message(role="user", content="Need orbit code."),
+                Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="call_orbit",
+                            name="get_secret",
+                            arguments='{"topic":"orbit"}',
+                        )
+                    ],
+                ),
+                Message(
+                    role="tool",
+                    tool_call_id="call_orbit",
+                    content='{"code":"K9-ORBIT"}',
+                ),
+            ],
+            provider_state={
+                "history": [
+                    None,
+                    {
+                        "openrouter_reasoning_details": [
+                            {
+                                "type": "reasoning.text",
+                                "text": "Need the tool result before answering.",
+                            }
+                        ]
+                    },
+                    None,
+                ]
+            },
+            tools=[
+                {
+                    "name": "get_secret",
+                    "description": "Return a code for a topic.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"topic": {"type": "string"}},
+                        "required": ["topic"],
+                    },
+                }
+            ],
+            tool_choice={"name": "get_secret"},
+            response_schema={
+                "type": "object",
+                "properties": {"secret_code": {"type": "string"}},
+                "required": ["secret_code"],
+            },
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "openai/gpt-4.1-mini",
+        "messages": [
+            {"role": "user", "content": "Need orbit code."},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_orbit",
+                        "type": "function",
+                        "function": {
+                            "name": "get_secret",
+                            "arguments": '{"topic":"orbit"}',
+                        },
+                    }
+                ],
+                "reasoning_details": [
+                    {
+                        "type": "reasoning.text",
+                        "text": "Need the tool result before answering.",
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_orbit",
+                "content": '{"code":"K9-ORBIT"}',
+            },
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Use the tool result to answer."}],
+            },
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_secret",
+                    "description": "Return a code for a topic.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"topic": {"type": "string"}},
+                        "required": ["topic"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        ],
+        "tool_choice": {
+            "type": "function",
+            "function": {"name": "get_secret"},
+        },
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "pollux_structured_output",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {"secret_code": {"type": "string"}},
+                    "required": ["secret_code"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    }
+
+
+@pytest.mark.asyncio
 async def test_openrouter_generate_rejects_tools_when_model_lacks_support() -> None:
     """Metadata should distinguish unsupported-by-model tool calls."""
     fake_client = _FakeOpenRouterClient()
@@ -2627,20 +2762,149 @@ async def test_openrouter_generate_rejects_tools_when_model_lacks_support() -> N
 
 
 @pytest.mark.asyncio
-async def test_openrouter_generate_rejects_tools_when_pollux_support_is_deferred() -> (
+async def test_openrouter_generate_rejects_structured_outputs_when_model_lacks_support() -> (
     None
 ):
-    """Metadata should distinguish deferred Pollux support from model support."""
+    """Metadata should reject schema mode on models without support."""
     fake_client = _FakeOpenRouterClient()
     provider = OpenRouterProvider("test-key")
     provider._client = fake_client
 
-    with pytest.raises(ConfigurationError, match="tool calling is not supported yet"):
+    with pytest.raises(ConfigurationError, match="does not support structured outputs"):
         await provider.generate(
             ProviderRequest(
-                model="openai/gpt-4.1-mini",
+                model=OPENROUTER_MODEL,
                 parts=["Hello"],
-                tools=[{"name": "get_weather"}],
+                response_schema={
+                    "type": "object",
+                    "properties": {"answer": {"type": "string"}},
+                    "required": ["answer"],
+                },
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_parse_response_extracts_tool_calls_and_reasoning_state() -> (
+    None
+):
+    """Tool calls and reasoning_details should survive parsing for continuation."""
+    fake_client = _FakeOpenRouterClient(
+        payload={
+            "id": "gen_tool_123",
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call_orbit",
+                                "type": "function",
+                                "function": {
+                                    "name": "get_secret",
+                                    "arguments": '{"topic":"orbit"}',
+                                },
+                            }
+                        ],
+                        "reasoning_details": [
+                            {
+                                "type": "reasoning.text",
+                                "text": "Need the tool result before answering.",
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 11,
+                "completion_tokens": 4,
+                "total_tokens": 15,
+            },
+        }
+    )
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    result = await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-4.1-mini",
+            parts=["Need orbit code."],
+            tools=[{"name": "get_secret"}],
+        )
+    )
+
+    assert result.text == ""
+    assert result.finish_reason == "tool_calls"
+    assert result.tool_calls is not None
+    assert result.tool_calls[0].id == "call_orbit"
+    assert result.tool_calls[0].name == "get_secret"
+    assert result.tool_calls[0].arguments == '{"topic":"orbit"}'
+    assert result.provider_state == {
+        "openrouter_reasoning_details": [
+            {
+                "type": "reasoning.text",
+                "text": "Need the tool result before answering.",
+            }
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_openrouter_parse_response_extracts_structured_output() -> None:
+    """Structured responses should parse from JSON text when schema mode is enabled."""
+    fake_client = _FakeOpenRouterClient(
+        payload={
+            "id": "gen_schema_123",
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"secret_code":"K9-ORBIT"}',
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 12,
+                "completion_tokens": 5,
+                "total_tokens": 17,
+            },
+        }
+    )
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    result = await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-4.1-mini",
+            parts=["Need orbit code."],
+            response_schema={
+                "type": "object",
+                "properties": {"secret_code": {"type": "string"}},
+                "required": ["secret_code"],
+            },
+        )
+    )
+
+    assert result.text == '{"secret_code":"K9-ORBIT"}'
+    assert result.structured == {"secret_code": "K9-ORBIT"}
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_rejects_tool_choice_when_model_lacks_support() -> (
+    None
+):
+    """Metadata should validate tool_choice separately from tools."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(ConfigurationError, match="does not support tool choice"):
+        await provider.generate(
+            ProviderRequest(
+                model=OPENROUTER_MODEL,
+                parts=["Hello"],
+                tool_choice="required",
             )
         )
 

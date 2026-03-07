@@ -14,8 +14,9 @@ This page shows the patterns that make that work.
 Pollux is capability-transparent, not capability-equalizing. All providers
 support the core text pipeline, but some features are provider-specific. For
 example, Gemini uses explicit cache handles (`create_cache()`), Anthropic uses
-implicit caching (`Options(implicit_caching=True)`), and OpenRouter currently
-does not support Pollux tool calling or structured outputs.
+implicit caching (`Options(implicit_caching=True)`), and OpenRouter exposes
+tool calling and structured outputs only on models that advertise those
+features.
 When you use an unsupported feature for a provider, Pollux raises a
 `ConfigurationError` or `APIError`. No silent degradation.
 This keeps behavior legible in both development and production.
@@ -66,6 +67,7 @@ PROVIDERS = {
     "gemini": ProviderConfig("gemini", "gemini-2.5-flash-lite"),
     "openai": ProviderConfig("openai", "gpt-5-nano"),
     "anthropic": ProviderConfig("anthropic", "claude-haiku-4-5"),
+    "openrouter": ProviderConfig("openrouter", "openai/gpt-5-nano"),
 }
 
 
@@ -98,7 +100,7 @@ async def main() -> None:
     prompt = "Summarize this document with key points and a word count estimate."
 
     # Same function, different providers
-    for provider in ["gemini", "openai"]:
+    for provider in ["gemini", "openai", "anthropic", "openrouter"]:
         try:
             summary = await analyze_document(
                 "report.pdf", prompt, provider_name=provider,
@@ -255,10 +257,11 @@ async def test_analyze_document_mock(provider: str) -> None:
 ## What to Watch For
 
 - **Keep the portable subset in mind.** Text generation and conversation
-  continuity work on all providers. Structured output and tool calling exclude
-  OpenRouter in the current release. Context caching has different paradigms
-  (explicit for Gemini, implicit for Anthropic). YouTube URLs have limited
-  OpenAI and Anthropic support. Check
+  continuity work on all providers. Structured output and tool calling are
+  portable across Gemini, OpenAI, and Anthropic; OpenRouter supports them only
+  on models that advertise the required parameters. Context caching has
+  different paradigms (explicit for Gemini, implicit for Anthropic). YouTube
+  URLs have limited OpenAI and Anthropic support. Check
   [Provider Capabilities](reference/provider-capabilities.md).
 - **Config errors are your portability signal.** A `ConfigurationError` for
   an unsupported feature marks the boundary of portability. Handle it at

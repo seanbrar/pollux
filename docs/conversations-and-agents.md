@@ -218,8 +218,9 @@ round of `tool_calls` (if the model needs more data) or a final text answer.
   returns tool calls, Pollux builds conversation state automatically, even
   without explicit `history` or `continue_from`. This means `continue_tool()`
   works on any result that contains tool calls — no opt-in needed.
-- **Provider differences exist.** Gemini, OpenAI, and Anthropic all support
-  tool calling and tool messages in history. See
+- **Provider differences exist.** Gemini, OpenAI, and Anthropic support tool
+  calling and tool messages in history. OpenRouter supports them on models
+  that advertise tool support. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.
 
 ---
