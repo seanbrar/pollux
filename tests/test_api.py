@@ -194,8 +194,6 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
     model_fixture: str,
 ) -> None:
     """E2E: tool call + continuation preserves ordering and context."""
-    if provider == "openrouter":
-        pytest.skip("OpenRouter tool calling is not supported yet")
     config = _provider_config(
         request,
         provider=provider,

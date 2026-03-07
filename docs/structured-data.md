@@ -218,8 +218,9 @@ decisions.
 - **Raw text is always available.** Even with `response_schema`, the raw
   model response is in `result["answers"]`. Useful for debugging when the
   structured output doesn't match expectations.
-- **All providers support structured output.** Gemini, OpenAI, and Anthropic
-  all support `response_schema`. See
+- **Structured output is provider- and model-dependent.** Gemini, OpenAI, and
+  Anthropic support `response_schema`. OpenRouter supports it on models that
+  advertise `response_format` or `structured_outputs`. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.
 - **Pydantic v2 is required.** Pollux uses `model_json_schema()` for schema
   generation. Pydantic v2 is a dependency of Pollux.

@@ -16,16 +16,19 @@ import httpx
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
+from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderRequest,
     ProviderResponse,
+    ToolCall,
 )
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _OPENROUTER_METADATA_TTL_S = 300.0
+_OPENROUTER_REASONING_DETAILS_KEY = "openrouter_reasoning_details"
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -57,7 +60,7 @@ class OpenRouterProvider:
         return ProviderCapabilities(
             persistent_cache=False,
             uploads=True,
-            structured_outputs=False,
+            structured_outputs=True,
             reasoning=False,
             deferred_delivery=False,
             conversation=True,
@@ -90,6 +93,7 @@ class OpenRouterProvider:
         messages = _build_messages(
             request.parts,
             request.history,
+            request.provider_state,
             system_instruction=request.system_instruction,
         )
         payload: dict[str, Any] = {
@@ -102,6 +106,21 @@ class OpenRouterProvider:
             payload["top_p"] = request.top_p
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
+        if request.tools is not None:
+            payload["tools"] = self._normalize_tools(request.tools)
+            mapped_tool_choice = self._map_tool_choice(request.tool_choice)
+            if mapped_tool_choice is not None:
+                payload["tool_choice"] = mapped_tool_choice
+        if request.response_schema is not None:
+            strict_schema = to_strict_schema(request.response_schema)
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "pollux_structured_output",
+                    "strict": True,
+                    "schema": strict_schema,
+                },
+            }
 
         client = self._get_client()
         try:
@@ -130,35 +149,70 @@ class OpenRouterProvider:
                 phase="generate",
             )
 
-        return _parse_response(data)
+        return _parse_response(data, response_schema=request.response_schema)
+
+    @staticmethod
+    def _normalize_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Convert Pollux tool dicts to OpenRouter chat-completions format."""
+        result: list[dict[str, Any]] = []
+        for tool in tools:
+            name = tool.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+
+            function: dict[str, Any] = {"name": name}
+            description = tool.get("description")
+            if isinstance(description, str) and description:
+                function["description"] = description
+            parameters = tool.get("parameters")
+            if isinstance(parameters, dict):
+                function["parameters"] = to_strict_schema(parameters)
+
+            result.append({"type": "function", "function": function})
+        return result
+
+    @staticmethod
+    def _map_tool_choice(
+        tool_choice: str | dict[str, Any] | None,
+    ) -> str | dict[str, Any] | None:
+        """Map Pollux tool_choice to OpenRouter chat-completions shape."""
+        if tool_choice is None:
+            return None
+        if isinstance(tool_choice, str):
+            return tool_choice
+        if isinstance(tool_choice, dict) and isinstance(tool_choice.get("name"), str):
+            return {
+                "type": "function",
+                "function": {"name": tool_choice["name"]},
+            }
+        return None
 
     async def validate_request(self, request: ProviderRequest) -> None:
         """Validate model-dependent OpenRouter behavior before dispatch."""
         metadata = await self._get_model_metadata(request.model)
         _require_text_io(metadata, model=request.model)
 
-        if request.tools is not None or request.tool_choice is not None:
-            _validate_deferred_feature(
+        if request.tools is not None:
+            _require_supported_parameter(
                 metadata=metadata,
                 model=request.model,
                 feature_name="tool calling",
-                required_parameters={"tools", "tool_choice"},
-                planned_hint=(
-                    "Remove tools/tool_choice for now. OpenRouter tool support "
-                    "is planned for a later release."
-                ),
+                parameter="tools",
+            )
+        if request.tool_choice is not None:
+            _require_supported_parameter(
+                metadata=metadata,
+                model=request.model,
+                feature_name="tool choice",
+                parameter="tool_choice",
             )
 
         if request.response_schema is not None:
-            _validate_deferred_feature(
+            _require_supported_parameters_any(
                 metadata=metadata,
                 model=request.model,
                 feature_name="structured outputs",
-                required_parameters={"structured_outputs", "response_format"},
-                planned_hint=(
-                    "Remove response_schema for now. OpenRouter structured "
-                    "output support is planned for a later release."
-                ),
+                parameters={"structured_outputs", "response_format"},
             )
 
         if request.reasoning_effort is not None:
@@ -300,6 +354,7 @@ class OpenRouterProvider:
 def _build_messages(
     parts: list[Any],
     history: list[Message] | None,
+    provider_state: dict[str, Any] | None,
     *,
     system_instruction: str | None,
 ) -> list[dict[str, Any]]:
@@ -310,20 +365,11 @@ def _build_messages(
         messages.append({"role": "system", "content": system_instruction})
 
     if history is not None:
-        for item in history:
-            if item.role == "tool" or item.tool_calls:
-                raise ConfigurationError(
-                    "OpenRouter tool history is not supported yet",
-                    hint="Remove tool messages from history for now. OpenRouter tool support is planned for a later release.",
-                )
-            # Note: an empty Message.content sends `{"role": "assistant", "content": ""}`.
-            # This is correct for assistant messages that only include tool calls.
-            messages.append(
-                {
-                    "role": item.role,
-                    "content": item.content,
-                }
-            )
+        for idx, item in enumerate(history):
+            item_provider_state = _get_history_item_provider_state(provider_state, idx)
+            message = _history_message_to_openrouter(item, item_provider_state)
+            if message is not None:
+                messages.append(message)
 
     user_content: list[dict[str, Any]] = []
     for part in parts:
@@ -340,6 +386,40 @@ def _build_messages(
         )
 
     return messages
+
+
+def _history_message_to_openrouter(
+    item: Message,
+    item_provider_state: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Map a Pollux history message into OpenRouter chat-completions format."""
+    if item.role == "tool":
+        if not item.tool_call_id:
+            return None
+        return {
+            "role": "tool",
+            "tool_call_id": item.tool_call_id,
+            "content": item.content,
+        }
+
+    message: dict[str, Any] = {"role": item.role, "content": item.content}
+    tool_calls = _serialize_tool_calls(item.tool_calls)
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+
+    reasoning_details = _extract_reasoning_details(item_provider_state)
+    if reasoning_details:
+        message["reasoning_details"] = reasoning_details
+
+    if (
+        item.role == "assistant"
+        and not item.content
+        and not tool_calls
+        and not reasoning_details
+    ):
+        return None
+
+    return message
 
 
 def _normalize_input_part(part: Any) -> dict[str, Any] | None:
@@ -404,7 +484,7 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
 
     raise ConfigurationError(
         f"Unsupported OpenRouter input part: {type(part).__name__}",
-        hint="Use plain text sources for now. OpenRouter multimodal input support is planned for a later release.",
+        hint="OpenRouter currently supports text, images, and PDFs only.",
     )
 
 
@@ -475,6 +555,38 @@ def _validate_deferred_feature(
     raise ConfigurationError(
         f"OpenRouter {feature_name} is not supported yet",
         hint=planned_hint,
+    )
+
+
+def _require_supported_parameter(
+    *,
+    metadata: _OpenRouterModelMetadata,
+    model: str,
+    feature_name: str,
+    parameter: str,
+) -> None:
+    """Require a specific supported parameter for a model-gated feature."""
+    if parameter in metadata.supported_parameters:
+        return
+    raise ConfigurationError(
+        f"OpenRouter model {model!r} does not support {feature_name}",
+        hint=f"Choose an OpenRouter model that supports {feature_name}.",
+    )
+
+
+def _require_supported_parameters_any(
+    *,
+    metadata: _OpenRouterModelMetadata,
+    model: str,
+    feature_name: str,
+    parameters: set[str],
+) -> None:
+    """Require that metadata exposes at least one compatible parameter."""
+    if not metadata.supported_parameters.isdisjoint(parameters):
+        return
+    raise ConfigurationError(
+        f"OpenRouter model {model!r} does not support {feature_name}",
+        hint=f"Choose an OpenRouter model that supports {feature_name}.",
     )
 
 
@@ -565,7 +677,11 @@ def _pdf_filename(*, uri: str, file_name: str | None = None) -> str:
     return "document.pdf"
 
 
-def _parse_response(data: Mapping[str, Any]) -> ProviderResponse:
+def _parse_response(
+    data: Mapping[str, Any],
+    *,
+    response_schema: dict[str, Any] | None,
+) -> ProviderResponse:
     """Parse an OpenRouter chat-completions payload into ProviderResponse."""
     choices = data.get("choices")
     choice = choices[0] if isinstance(choices, list) and choices else {}
@@ -577,6 +693,15 @@ def _parse_response(data: Mapping[str, Any]) -> ProviderResponse:
         message = {}
 
     text = _extract_message_text(message.get("content"))
+    structured: dict[str, Any] | None = None
+    if response_schema is not None and text:
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            parsed = None
+        if isinstance(parsed, dict):
+            structured = parsed
+
     finish_reason = choice.get("finish_reason")
     if not isinstance(finish_reason, str):
         finish_reason = None
@@ -595,11 +720,20 @@ def _parse_response(data: Mapping[str, Any]) -> ProviderResponse:
             usage["total_tokens"] = total_tokens
 
     response_id = data.get("id")
+    tool_calls = _parse_tool_calls(message.get("tool_calls"))
+    reasoning_details = _normalize_reasoning_details(message.get("reasoning_details"))
     return ProviderResponse(
         text=text,
         usage=usage,
+        structured=structured,
+        tool_calls=tool_calls if tool_calls else None,
         response_id=response_id if isinstance(response_id, str) else None,
         finish_reason=finish_reason,
+        provider_state=(
+            {_OPENROUTER_REASONING_DETAILS_KEY: reasoning_details}
+            if reasoning_details
+            else None
+        ),
     )
 
 
@@ -618,6 +752,97 @@ def _extract_message_text(content: Any) -> str:
         if item.get("type") == "text" and isinstance(item.get("text"), str):
             text_parts.append(item["text"])
     return "\n\n".join(text_parts)
+
+
+def _parse_tool_calls(value: Any) -> list[ToolCall]:
+    """Extract tool calls from an OpenRouter chat-completions assistant message."""
+    if not isinstance(value, list):
+        return []
+
+    tool_calls: list[ToolCall] = []
+    for idx, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            continue
+        function = item.get("function")
+        if not isinstance(function, Mapping):
+            continue
+
+        name = function.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+
+        raw_arguments = function.get("arguments")
+        if isinstance(raw_arguments, str):
+            arguments = raw_arguments
+        else:
+            arguments = json.dumps(raw_arguments if raw_arguments is not None else {})
+
+        raw_id = item.get("id")
+        call_id = raw_id if isinstance(raw_id, str) and raw_id else f"call_{idx}"
+        tool_calls.append(ToolCall(id=call_id, name=name, arguments=arguments))
+
+    return tool_calls
+
+
+def _serialize_tool_calls(tool_calls: list[ToolCall] | None) -> list[dict[str, Any]]:
+    """Serialize Pollux tool calls into OpenRouter's OpenAI-compatible shape."""
+    if not tool_calls:
+        return []
+
+    serialized: list[dict[str, Any]] = []
+    for tool_call in tool_calls:
+        serialized.append(
+            {
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.name,
+                    "arguments": tool_call.arguments,
+                },
+            }
+        )
+    return serialized
+
+
+def _normalize_reasoning_details(value: Any) -> list[dict[str, Any]]:
+    """Return a JSON-serializable reasoning_details payload, if present."""
+    if not isinstance(value, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, Mapping):
+            normalized.append(dict(item))
+    return normalized
+
+
+def _extract_reasoning_details(
+    item_provider_state: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Return preserved OpenRouter reasoning details for a history item."""
+    if item_provider_state is None:
+        return []
+    return _normalize_reasoning_details(
+        item_provider_state.get(_OPENROUTER_REASONING_DETAILS_KEY)
+    )
+
+
+def _get_history_item_provider_state(
+    provider_state: dict[str, Any] | None, index: int
+) -> dict[str, Any] | None:
+    """Return provider_state for a specific history item."""
+    if provider_state is None:
+        return None
+
+    history_states = provider_state.get("history")
+    if not isinstance(history_states, list) or index >= len(history_states):
+        return None
+
+    item_provider_state = history_states[index]
+    if not isinstance(item_provider_state, dict):
+        return None
+
+    return item_provider_state
 
 
 def _extract_error_message(response: httpx.Response) -> str:
