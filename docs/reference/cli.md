@@ -60,6 +60,9 @@ python -m cookbook optimization/cache-warming-and-ttl --limit 2 --ttl 3600
 # Run a project recipe
 python -m cookbook projects/paper-to-workshop-kit --input path/to/paper.pdf
 
+# Run a project recipe with tool lookups
+python -m cookbook projects/pokedex-analyst pikachu gyarados ferrothorn
+
 # Run by dotted spec
 python -m cookbook production.resume_on_failure --limit 1
 
@@ -112,6 +115,7 @@ All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-ke
 | Structured Output Extraction | `getting-started/structured-output-extraction` | return typed objects instead of parsing JSON by hand | [Extracting Structured Data](../structured-data.md) |
 | Extract Media Insights | `getting-started/extract-media-insights` | analyze one image, audio file, or video with the same entry point | [Sending Content to Models](../sending-content.md) |
 | Paper-to-Workshop Kit | `projects/paper-to-workshop-kit` | turn one paper into a discussion-ready packet with slides, questions, objections, and actions | [Reducing Costs with Context Caching](../caching.md) |
+| PokeDex Analyst | `projects/pokedex-analyst` | fetch canonical Pokemon facts and turn a short roster into a scouting report | [Continuing Conversations Across Turns](../conversations-and-agents.md) |
 | Run vs RunMany | `optimization/run-vs-run-many` | compare prompt loops against one `run_many()` call | [Analyzing Collections with Source Patterns](../source-patterns.md) |
 | Cache Warming and TTL | `optimization/cache-warming-and-ttl` | measure cache reuse and choose a TTL for repeated prompts | [Reducing Costs with Context Caching](../caching.md) |
 | Large-Scale Fan-Out | `optimization/large-scale-fan-out` | fan out per-file work with bounded client-side concurrency | [Analyzing Collections with Source Patterns](../source-patterns.md) |
@@ -127,7 +131,7 @@ All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-ke
 
 **Efficiency and scale:** `run-vs-run-many` → `cache-warming-and-ttl` → `large-scale-fan-out`
 
-**Build something useful:** `analyze-single-paper` → `projects/paper-to-workshop-kit`
+**Build something useful:** `analyze-single-paper` → `projects/paper-to-workshop-kit` → `projects/pokedex-analyst`
 
 **Production hardening:** `rate-limits-and-concurrency` → `resume-on-failure`
 

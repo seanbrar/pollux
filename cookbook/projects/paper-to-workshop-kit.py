@@ -40,7 +40,7 @@ from cookbook.utils.presentation import (
     print_section,
     print_usage,
 )
-from cookbook.utils.runtime import add_runtime_args, build_config_or_exit
+from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
 from pollux import Config, Options, Source, create_cache, run_many
 
 if TYPE_CHECKING:
@@ -212,19 +212,6 @@ def mock_packet(*, source_label: str, audience: str) -> WorkshopKit:
             "Write down one question to revisit after the workshop.",
         ],
     )
-
-
-def merged_usage(*envelopes: ResultEnvelope) -> ResultEnvelope:
-    """Merge usage blocks so the printed token summary reflects the whole flow."""
-    usage: dict[str, int] = {}
-    for envelope in envelopes:
-        raw = envelope.get("usage")
-        if not isinstance(raw, dict):
-            continue
-        for key, value in raw.items():
-            if isinstance(value, int):
-                usage[key] = usage.get(key, 0) + value
-    return {"usage": usage}
 
 
 def print_items(title: str, items: list[str]) -> None:
