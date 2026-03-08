@@ -2633,6 +2633,79 @@ async def test_openrouter_generate_characterizes_tool_history_and_schema_shape()
 
 
 @pytest.mark.asyncio
+async def test_openrouter_generate_maps_reasoning_effort_and_extracts_reasoning_output() -> (
+    None
+):
+    """OpenRouter reasoning should use the documented request and response shape."""
+    fake_client = _FakeOpenRouterClient(
+        payload={
+            "id": "gen_reasoning_123",
+            "choices": [
+                {
+                    "message": {
+                        "content": "OK",
+                        "reasoning": "The model thought briefly.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 9,
+                "completion_tokens": 3,
+                "reasoning_tokens": 4,
+                "total_tokens": 16,
+            },
+        },
+        models_payload={
+            "data": [
+                {
+                    "id": "openai/gpt-5-nano",
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                    "supported_parameters": [
+                        "max_tokens",
+                        "reasoning",
+                        "temperature",
+                        "top_p",
+                    ],
+                }
+            ]
+        },
+    )
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    result = await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-5-nano",
+            parts=["Reply with exactly OK."],
+            reasoning_effort="medium",
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "openai/gpt-5-nano",
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Reply with exactly OK."}],
+            }
+        ],
+        "reasoning": {"effort": "medium"},
+    }
+    assert result.text == "OK"
+    assert result.reasoning == "The model thought briefly."
+    assert result.usage == {
+        "input_tokens": 9,
+        "output_tokens": 3,
+        "reasoning_tokens": 4,
+        "total_tokens": 16,
+    }
+
+
+@pytest.mark.asyncio
 async def test_openrouter_generate_rejects_tools_when_model_lacks_support() -> None:
     """Metadata should distinguish unsupported-by-model tool calls."""
     fake_client = _FakeOpenRouterClient()

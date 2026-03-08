@@ -61,7 +61,7 @@ class OpenRouterProvider:
             persistent_cache=False,
             uploads=True,
             structured_outputs=True,
-            reasoning=False,
+            reasoning=True,
             deferred_delivery=False,
             conversation=True,
             implicit_caching=False,
@@ -111,6 +111,8 @@ class OpenRouterProvider:
             mapped_tool_choice = self._map_tool_choice(request.tool_choice)
             if mapped_tool_choice is not None:
                 payload["tool_choice"] = mapped_tool_choice
+        if request.reasoning_effort is not None:
+            payload["reasoning"] = {"effort": request.reasoning_effort}
         if request.response_schema is not None:
             strict_schema = to_strict_schema(request.response_schema)
             payload["response_format"] = {
@@ -216,15 +218,11 @@ class OpenRouterProvider:
             )
 
         if request.reasoning_effort is not None:
-            _validate_deferred_feature(
+            _require_supported_parameters_any(
                 metadata=metadata,
                 model=request.model,
                 feature_name="reasoning controls",
-                required_parameters={"reasoning"},
-                planned_hint=(
-                    "Remove reasoning_effort for now. OpenRouter reasoning "
-                    "support is planned for a later release."
-                ),
+                parameters={"reasoning", "reasoning_effort"},
             )
 
         _validate_input_modalities(
@@ -712,19 +710,24 @@ def _parse_response(
         prompt_tokens = usage_raw.get("prompt_tokens")
         completion_tokens = usage_raw.get("completion_tokens")
         total_tokens = usage_raw.get("total_tokens")
+        reasoning_tokens = usage_raw.get("reasoning_tokens")
         if isinstance(prompt_tokens, int):
             usage["input_tokens"] = prompt_tokens
         if isinstance(completion_tokens, int):
             usage["output_tokens"] = completion_tokens
         if isinstance(total_tokens, int):
             usage["total_tokens"] = total_tokens
+        if isinstance(reasoning_tokens, int):
+            usage["reasoning_tokens"] = reasoning_tokens
 
     response_id = data.get("id")
     tool_calls = _parse_tool_calls(message.get("tool_calls"))
+    reasoning = message.get("reasoning")
     reasoning_details = _normalize_reasoning_details(message.get("reasoning_details"))
     return ProviderResponse(
         text=text,
         usage=usage,
+        reasoning=reasoning if isinstance(reasoning, str) and reasoning else None,
         structured=structured,
         tool_calls=tool_calls if tool_calls else None,
         response_id=response_id if isinstance(response_id, str) else None,
