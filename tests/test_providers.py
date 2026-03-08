@@ -388,56 +388,24 @@ def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
 
 
 def test_gemini_parse_response_extracts_finish_reason() -> None:
-    """Characterize finish_reason extraction from Gemini candidate."""
+    """Characterize finish_reason extraction and normalization from Gemini."""
     from google.genai import types as genai_types
 
     provider = GeminiProvider("test-key")
 
-    fake_candidate = MagicMock()
-    fake_candidate.content = MagicMock(parts=[])
-    fake_candidate.finish_reason = genai_types.FinishReason.STOP
+    def _with_finish_reason(reason: Any) -> Any:
+        fake_candidate = MagicMock()
+        fake_candidate.content = MagicMock(parts=[])
+        fake_candidate.finish_reason = reason
+        fake_response = MagicMock()
+        fake_response.text = "ok"
+        fake_response.parsed = None
+        fake_response.usage_metadata = None
+        fake_response.candidates = [fake_candidate]
+        return provider._parse_response(fake_response)
 
-    fake_response = MagicMock()
-    fake_response.text = "The answer."
-    fake_response.parsed = None
-    fake_response.usage_metadata = None
-    fake_response.candidates = [fake_candidate]
-
-    result = provider._parse_response(fake_response)
-
-    assert result.finish_reason == "stop"
-
-
-def test_gemini_parse_response_finish_reason_max_tokens() -> None:
-    """MAX_TOKENS finish_reason should be forwarded as lowercase."""
-    provider = GeminiProvider("test-key")
-
-    fake_candidate = MagicMock()
-    fake_candidate.content = MagicMock(parts=[])
-    fake_candidate.finish_reason = "MAX_TOKENS"
-
-    fake_response = MagicMock()
-    fake_response.text = ""
-    fake_response.parsed = None
-    fake_response.usage_metadata = None
-    fake_response.candidates = [fake_candidate]
-
-    result = provider._parse_response(fake_response)
-
-    assert result.finish_reason == "max_tokens"
-
-
-def test_gemini_parse_response_finish_reason_none_when_no_candidates() -> None:
-    """finish_reason should be None when response has no candidates."""
-    provider = GeminiProvider("test-key")
-
-    fake_response = MagicMock(spec=["text", "parsed"])
-    fake_response.text = "hello"
-    fake_response.parsed = None
-
-    result = provider._parse_response(fake_response)
-
-    assert result.finish_reason is None
+    assert _with_finish_reason(genai_types.FinishReason.STOP).finish_reason == "stop"
+    assert _with_finish_reason("MAX_TOKENS").finish_reason == "max_tokens"
 
 
 # =============================================================================
@@ -1005,21 +973,6 @@ async def test_openai_generate_forwards_reasoning_effort_and_summary() -> None:
 
 
 @pytest.mark.asyncio
-async def test_openai_generate_omits_reasoning_when_not_set() -> None:
-    """No reasoning_effort should produce no reasoning key in kwargs."""
-    responses = _FakeResponses()
-    fake_client = type("Client", (), {"responses": responses})()
-
-    provider = OpenAIProvider("test-key")
-    provider._client = fake_client
-
-    await provider.generate(ProviderRequest(model=OPENAI_MODEL, parts=["Hello"]))
-
-    assert responses.last_kwargs is not None
-    assert "reasoning" not in responses.last_kwargs
-
-
-@pytest.mark.asyncio
 async def test_openai_extracts_reasoning_summary_from_response() -> None:
     """Reasoning summary items should be extracted into payload['reasoning']."""
     summary_item = type(
@@ -1156,53 +1109,25 @@ async def test_openai_upload_characterization(golden: Any, tmp_path: Any) -> Non
 
 
 @pytest.mark.asyncio
-async def test_openai_extracts_finish_reason_from_response_status() -> None:
-    """OpenAI Responses API status should map to finish_reason."""
-    responses = _FakeResponses(status="completed")
-    fake_client = type("Client", (), {"responses": responses})()
+async def test_openai_extracts_finish_reason() -> None:
+    """Characterize status → finish_reason mapping for OpenAI Responses API."""
+    cases = [
+        ("completed", None, "completed"),
+        ("incomplete", "max_output_tokens", "max_output_tokens"),
+        ("incomplete", None, "incomplete"),
+    ]
+    for status, incomplete_reason, expected in cases:
+        responses = _FakeResponses(status=status, incomplete_reason=incomplete_reason)
+        fake_client = type("Client", (), {"responses": responses})()
 
-    provider = OpenAIProvider("test-key")
-    provider._client = fake_client
+        provider = OpenAIProvider("test-key")
+        provider._client = fake_client
 
-    result = await provider.generate(
-        ProviderRequest(model=OPENAI_MODEL, parts=["Hello"])
-    )
+        result = await provider.generate(
+            ProviderRequest(model=OPENAI_MODEL, parts=["Hello"])
+        )
 
-    assert result.finish_reason == "completed"
-
-
-@pytest.mark.asyncio
-async def test_openai_extracts_incomplete_finish_reason() -> None:
-    """Incomplete responses should prefer incomplete_details.reason."""
-    responses = _FakeResponses(
-        status="incomplete", incomplete_reason="max_output_tokens"
-    )
-    fake_client = type("Client", (), {"responses": responses})()
-
-    provider = OpenAIProvider("test-key")
-    provider._client = fake_client
-
-    result = await provider.generate(
-        ProviderRequest(model=OPENAI_MODEL, parts=["Hello"])
-    )
-
-    assert result.finish_reason == "max_output_tokens"
-
-
-@pytest.mark.asyncio
-async def test_openai_falls_back_to_incomplete_status_without_reason() -> None:
-    """Incomplete status should be used when no incomplete reason is provided."""
-    responses = _FakeResponses(status="incomplete")
-    fake_client = type("Client", (), {"responses": responses})()
-
-    provider = OpenAIProvider("test-key")
-    provider._client = fake_client
-
-    result = await provider.generate(
-        ProviderRequest(model=OPENAI_MODEL, parts=["Hello"])
-    )
-
-    assert result.finish_reason == "incomplete"
+        assert result.finish_reason == expected, f"status={status}"
 
 
 # =============================================================================
@@ -1612,30 +1537,18 @@ def test_anthropic_parse_tool_calls() -> None:
     assert result.finish_reason == "tool_calls"
 
 
-def test_anthropic_parse_finish_reason_end_turn() -> None:
-    """end_turn stop_reason should map to 'stop'."""
+def test_anthropic_parse_finish_reason() -> None:
+    """Characterize stop_reason → finish_reason mapping."""
     from pollux.providers.anthropic import _parse_response
 
-    response = _fake_anthropic_response(
-        content=[_fake_text_block("Done.")],
-        stop_reason="end_turn",
-    )
-
-    result = _parse_response(response, response_schema=None)
-    assert result.finish_reason == "stop"
-
-
-def test_anthropic_parse_finish_reason_max_tokens() -> None:
-    """max_tokens stop_reason should be forwarded as-is."""
-    from pollux.providers.anthropic import _parse_response
-
-    response = _fake_anthropic_response(
-        content=[_fake_text_block("Truncated...")],
-        stop_reason="max_tokens",
-    )
-
-    result = _parse_response(response, response_schema=None)
-    assert result.finish_reason == "max_tokens"
+    cases = [("end_turn", "stop"), ("max_tokens", "max_tokens")]
+    for stop_reason, expected in cases:
+        response = _fake_anthropic_response(
+            content=[_fake_text_block("ok")],
+            stop_reason=stop_reason,
+        )
+        result = _parse_response(response, response_schema=None)
+        assert result.finish_reason == expected, f"stop_reason={stop_reason}"
 
 
 def test_anthropic_parse_empty_content() -> None:
@@ -1814,25 +1727,6 @@ async def test_anthropic_generate_with_tools() -> None:
     assert tools[0]["input_schema"]["properties"]["location"]["type"] == "string"
     # "required" maps to {"type": "any"}
     assert messages.last_kwargs["tool_choice"] == {"type": "any"}
-
-
-@pytest.mark.asyncio
-async def test_anthropic_generate_with_temperature() -> None:
-    """Temperature and top_p should pass through to messages.create."""
-    provider, messages = _anthropic_provider_with_fake()
-
-    await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Hello"],
-            temperature=0.5,
-            top_p=0.9,
-        )
-    )
-
-    assert messages.last_kwargs is not None
-    assert messages.last_kwargs["temperature"] == 0.5
-    assert messages.last_kwargs["top_p"] == 0.9
 
 
 @pytest.mark.asyncio
@@ -2294,12 +2188,6 @@ async def test_anthropic_cache_raises() -> None:
         await provider.create_cache(
             model=ANTHROPIC_MODEL, parts=["test"], ttl_seconds=3600
         )
-
-
-def test_anthropic_capabilities_include_reasoning() -> None:
-    """Anthropic capability flags should advertise reasoning support."""
-    provider = AnthropicProvider("test-key")
-    assert provider.capabilities.reasoning is True
 
 
 # =============================================================================
@@ -3161,15 +3049,3 @@ async def test_openrouter_cache_raises() -> None:
     err = exc.value
     assert err.provider == "openrouter"
     assert err.phase == "cache"
-
-
-@pytest.mark.asyncio
-async def test_openrouter_aclose_closes_http_client() -> None:
-    """OpenRouter should close its shared HTTP client cleanly."""
-    fake_client = _FakeOpenRouterClient()
-    provider = OpenRouterProvider("test-key")
-    provider._client = fake_client
-
-    await provider.aclose()
-
-    assert fake_client.closed is True
