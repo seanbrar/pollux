@@ -8,8 +8,8 @@ Problem:
 
 When to use:
     - You have a short party roster and want tonight's rewards to feel specific.
-    - You want a bounded project recipe that combines tool calling, fan-out,
-      and structured output.
+    - You want a project recipe that picks rewards from the SRD, scores them
+      against a real party, and writes a DM-ready packet.
 
 When not to use:
     - You want a full campaign inventory manager or procedural loot generator.

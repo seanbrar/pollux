@@ -9,8 +9,8 @@ Problem:
 When to use:
     - You have a character sheet image/PDF or a short spell list and want a
       session-ready quick-reference packet.
-    - You want a bounded project recipe that combines multimodal extraction,
-      tool-grounded rules lookups, and fan-out synthesis.
+    - You want a project recipe that reads a character sheet, looks up spell
+      rules from an API, and writes spell cards in parallel.
 
 When not to use:
     - You want a full character builder or rules engine.

@@ -7,7 +7,8 @@ Problem:
 
 When to use:
     - You want a small meal plan from fridge photos and pantry notes.
-    - You want a bounded multimodal project recipe with structured output.
+    - You want a project recipe that reads fridge photos and turns them into
+      typed meal ideas with a shopping list.
 
 When not to use:
     - You need strict nutrition tracking or recipe-site precision.
@@ -352,7 +353,7 @@ async def main_async(
     print_usage(envelope)
     print_learning_hints(
         [
-            "Notice: pass 1's KitchenState becomes pass 2's Source via Source.from_json() — try adding a field to the schema and watch it flow through.",
+            "Notice: pass 1's KitchenState becomes pass 2's Source via Source.from_json(). Try adding a field to the schema and watch it flow through.",
             "Next: swap the style to something like 'pantry pasta' or 'lazy soup night' and compare how the plan changes.",
             "Next: tighten the pantry note if the ingredient list feels too vague.",
         ]
