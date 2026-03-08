@@ -364,6 +364,33 @@ async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> Non
 
 
 @pytest.mark.asyncio
+async def test_openrouter_reasoning_roundtrip(
+    openrouter_api_key: str,
+    openrouter_test_model: str,
+) -> None:
+    """E2E: OpenRouter reasoning_effort works on the stable reasoning route."""
+    config = Config(
+        provider="openrouter",
+        model=openrouter_test_model,
+        api_key=openrouter_api_key,
+    )
+
+    result = await pollux.run(
+        "Reply with exactly OK.",
+        config=config,
+        options=Options(reasoning_effort="medium"),
+    )
+
+    assert result["status"] == "ok"
+    assert "ok" in result["answers"][0].lower()
+    assert "reasoning" in result
+    assert isinstance(result["reasoning"], list)
+    assert len(result["reasoning"]) == 1
+    assert isinstance(result["reasoning"][0], str)
+    assert result["reasoning"][0].strip()
+
+
+@pytest.mark.asyncio
 async def test_openai_binary_upload_cleanup_roundtrip(
     monkeypatch: pytest.MonkeyPatch,
     openai_api_key: str,

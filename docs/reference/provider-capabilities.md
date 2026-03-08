@@ -29,7 +29,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that advertises `response_format` or `structured_outputs` |
-| Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ❌ | Passed through to provider where supported; see notes below |
+| Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Passed through to provider where supported; see notes below |
 | Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
 | Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that advertises `tools`; forced tool use may also require `tool_choice` |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
@@ -46,11 +46,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   carried entirely via `history`.
 - Tool parameter schemas are normalized at the provider boundary:
   `additionalProperties` is stripped because the Gemini API rejects it.
-- Reasoning: `reasoning_effort` maps to `ThinkingConfig(thinking_level=...)`.
-  Full thinking text is returned in `ResultEnvelope.reasoning`. This maps
-  cleanly on Gemini 3 models (for example `gemini-3-flash-preview`). Gemini
-  2.x models use a different control (`thinking_budget`) and will return a
-  provider error if `reasoning_effort` is set.
+- Reasoning: Gemini 3 models (for example `gemini-3-flash-preview`) return
+  full thinking text in `ResultEnvelope.reasoning`. Gemini 2.x models do not
+  support `reasoning_effort` and return a provider error if it is set.
 
 ### OpenAI
 
@@ -67,11 +65,10 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Tool parameter schemas are normalized for strict mode: `additionalProperties:
   false` and `required` are injected automatically. Callers who set `strict:
   false` on a tool definition bypass normalization.
-- Reasoning: `reasoning_effort` maps to `reasoning.effort` with automatic
-  `summary: "auto"` to request reasoning summaries. Summaries appear in
-  `ResultEnvelope.reasoning`; raw reasoning traces are not exposed by OpenAI.
-  Reasoning token counts may appear in `ResultEnvelope.usage["reasoning_tokens"]`
-  when OpenAI returns them. Some older models reject `reasoning.effort`.
+- Reasoning: OpenAI provides reasoning summaries (not raw traces) in
+  `ResultEnvelope.reasoning`. Token counts appear in
+  `ResultEnvelope.usage["reasoning_tokens"]` when the model returns them.
+  Some older models reject `reasoning_effort`.
 
 ### Anthropic
 
@@ -81,10 +78,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Implicit prompt caching is enabled with `Options(implicit_caching=True)`.
   Pollux defaults it on for single-call workloads and off for multi-call
   fan-out. Requesting it on unsupported providers raises `ConfigurationError`.
-- Reasoning: `reasoning_effort` maps to `output_config.effort`.
-  Pollux uses `thinking.type="adaptive"` on adaptive-capable models
-  (currently Opus 4.6 and Sonnet 4.6) and falls back to manual thinking budgets on older
-  models. The `"max"` effort is strictly limited to Opus 4.6.
+- Reasoning: thinking text appears in `ResultEnvelope.reasoning`. All
+  `claude-4.x` models support `reasoning_effort`; the `"max"` level is
+  Opus 4.6 only.
 - Thinking block replay: when Anthropic returns `thinking` or
   `redacted_thinking` blocks, Pollux preserves them in conversation state and
   replays them verbatim on continuation turns so tool loops remain valid.
@@ -132,8 +128,10 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   downloading the PDF locally and sending it with `Source.from_file()`.
 - Unsupported OpenRouter file types fail fast. For example, local CSV uploads
   raise `ConfigurationError`.
-- Persistent cache handles and reasoning controls remain unsupported on
-  OpenRouter in the current release.
+- Persistent cache handles remain unsupported on OpenRouter in the current release.
+- Reasoning: works on OpenRouter models that support reasoning. Thinking text
+  appears in `ResultEnvelope.reasoning`, and token counts in
+  `ResultEnvelope.usage["reasoning_tokens"]` when available.
 
 ## Error Semantics
 

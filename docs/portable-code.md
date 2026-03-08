@@ -179,6 +179,7 @@ if "reasoning" in result:
 | **Gemini** | `gemini-3` family | `"low"`, `"medium"`, `"high"`, `"minimal"` | Returns full thinking text |
 | **Gemini** | `gemini-2.5` family | *N/A (raises error)* | *N/A* |
 | **Anthropic** | `claude-4.x` family | `"low"`, `"medium"`, `"high"`, `"max"` (Opus 4.6 only) | Returns thinking text and preserves replay blocks for tool loops |
+| **OpenRouter** | reasoning-capable models | Model-dependent | Returns reasoning text |
 
 ## Variations
 
@@ -242,7 +243,7 @@ provider in CI with real credentials:
 ```python
 import pytest
 
-@pytest.mark.parametrize("provider", ["gemini", "openai", "anthropic"])
+@pytest.mark.parametrize("provider", ["gemini", "openai", "anthropic", "openrouter"])
 async def test_analyze_document_mock(provider: str) -> None:
     config = Config(provider=provider, model="any-model", use_mock=True)
     result = await run(
@@ -259,9 +260,10 @@ async def test_analyze_document_mock(provider: str) -> None:
 - **Keep the portable subset in mind.** Text generation and conversation
   continuity work on all providers. Structured output and tool calling are
   portable across Gemini, OpenAI, and Anthropic; OpenRouter supports them only
-  on models that advertise the required parameters. Context caching has
-  different paradigms (explicit for Gemini, implicit for Anthropic). YouTube
-  URLs have limited OpenAI and Anthropic support. Check
+  on models that advertise the required parameters. Reasoning controls are also
+  model-dependent on OpenRouter. Context caching has different paradigms
+  (explicit for Gemini, implicit for Anthropic). YouTube URLs have limited
+  OpenAI and Anthropic support. Check
   [Provider Capabilities](reference/provider-capabilities.md).
 - **Config errors are your portability signal.** A `ConfigurationError` for
   an unsupported feature marks the boundary of portability. Handle it at
