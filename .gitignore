@@ -86,5 +86,8 @@ cookbook/data/demo/*
 cookbook/data/demo/text-medium/*
 cookbook/data/demo/text-full/*
 cookbook/data/demo/multimodal-basic/*
+# External data repo (separate git repository)
+/pollux-cookbook-data/
+
 outputs/
 artifacts/

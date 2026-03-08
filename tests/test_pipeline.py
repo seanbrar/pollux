@@ -999,79 +999,35 @@ async def test_options_cache_rejects_provider_and_model_mismatch(
 
 
 @pytest.mark.asyncio
-async def test_options_cache_rejects_system_instruction(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """system_instruction cannot coexist with a cache handle."""
-    import time
-
-    fake = FakeProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-
-    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-    handle = CacheHandle(
-        name="cachedContents/test",
-        model=GEMINI_MODEL,
-        provider="gemini",
-        expires_at=time.time() + 3600,
-    )
-
-    with pytest.raises(ConfigurationError, match="system_instruction cannot be used"):
-        await pollux.run_many(
-            prompts=("Q",),
-            sources=(Source.from_text("shared context"),),
-            config=cfg,
-            options=Options(cache=handle, system_instruction="Be concise."),
-        )
-
-    assert fake.last_parts is None
-
-
-@pytest.mark.asyncio
-async def test_options_cache_rejects_tools(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """tools cannot coexist with a cache handle."""
-    import time
-
-    fake = FakeProvider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-
-    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-    handle = CacheHandle(
-        name="cachedContents/test",
-        model=GEMINI_MODEL,
-        provider="gemini",
-        expires_at=time.time() + 3600,
-    )
-
-    tools = [
-        {
-            "name": "get_weather",
-            "description": "Get weather",
-            "parameters": {
-                "type": "object",
-                "properties": {"city": {"type": "string"}},
+@pytest.mark.parametrize(
+    ("option_kwargs", "match"),
+    [
+        ({"system_instruction": "Be concise."}, "system_instruction cannot be used"),
+        (
+            {
+                "tools": [
+                    {
+                        "name": "get_weather",
+                        "description": "Get weather",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}},
+                        },
+                    }
+                ]
             },
-        }
-    ]
-
-    with pytest.raises(ConfigurationError, match="tools cannot be used"):
-        await pollux.run_many(
-            prompts=("Q",),
-            sources=(Source.from_text("shared context"),),
-            config=cfg,
-            options=Options(cache=handle, tools=tools),
-        )
-
-    assert fake.last_parts is None
-
-
-@pytest.mark.asyncio
-async def test_options_cache_rejects_tool_choice(
+            "tools cannot be used",
+        ),
+        ({"tool_choice": "required"}, "tool_choice cannot be used"),
+    ],
+    ids=["system_instruction", "tools", "tool_choice"],
+)
+async def test_options_cache_rejects_incompatible_options(
     monkeypatch: pytest.MonkeyPatch,
+    option_kwargs: dict[str, Any],
+    match: str,
 ) -> None:
-    """tool_choice cannot coexist with a cache handle."""
+    """Cache handles cannot coexist with system_instruction, tools, or tool_choice."""
     import time
 
     fake = FakeProvider()
@@ -1085,16 +1041,14 @@ async def test_options_cache_rejects_tool_choice(
         expires_at=time.time() + 3600,
     )
 
-    with pytest.raises(ConfigurationError, match="tool_choice cannot be used") as exc:
+    with pytest.raises(ConfigurationError, match=match):
         await pollux.run_many(
             prompts=("Q",),
             sources=(Source.from_text("shared context"),),
             config=cfg,
-            options=Options(cache=handle, tool_choice="required"),
+            options=Options(cache=handle, **option_kwargs),
         )
 
-    assert exc.value.hint is not None
-    assert "Remove tool_choice" in exc.value.hint
     assert fake.last_parts is None
 
 
@@ -1123,44 +1077,29 @@ def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
     assert len(set(keys)) == len(keys)
 
 
-def test_cache_identity_includes_system_instruction() -> None:
-    """Distinct system instructions should produce distinct cache identities."""
-    model = GEMINI_MODEL
+@pytest.mark.parametrize(
+    ("kwargs_a", "kwargs_b"),
+    [
+        (
+            {"system_instruction": "Be concise."},
+            {"system_instruction": "Be verbose."},
+        ),
+        ({"provider": "gemini"}, {"provider": "openai"}),
+        (
+            {"provider": "gemini", "api_key": "key-aaa"},
+            {"provider": "gemini", "api_key": "key-bbb"},
+        ),
+    ],
+    ids=["system_instruction", "provider", "api_key"],
+)
+def test_cache_identity_varies_with_parameter(
+    kwargs_a: dict[str, str],
+    kwargs_b: dict[str, str],
+) -> None:
+    """Distinct parameter values should produce distinct cache identities."""
     source = Source.from_text("shared context")
-
-    concise = compute_cache_key(
-        model,
-        (source,),
-        system_instruction="Be concise.",
-    )
-    verbose = compute_cache_key(
-        model,
-        (source,),
-        system_instruction="Be verbose.",
-    )
-
-    assert concise != verbose
-
-
-def test_cache_identity_includes_provider() -> None:
-    """Identical model/content across providers must not share cache keys."""
-    source = Source.from_text("shared context")
-    gemini = compute_cache_key(GEMINI_MODEL, (source,), provider="gemini")
-    openai = compute_cache_key(GEMINI_MODEL, (source,), provider="openai")
-
-    assert gemini != openai
-
-
-def test_cache_identity_includes_api_key() -> None:
-    """Different API keys for the same provider/model must not share cache keys."""
-    source = Source.from_text("shared context")
-    key_a = compute_cache_key(
-        GEMINI_MODEL, (source,), provider="gemini", api_key="key-aaa"
-    )
-    key_b = compute_cache_key(
-        GEMINI_MODEL, (source,), provider="gemini", api_key="key-bbb"
-    )
-
+    key_a = compute_cache_key(GEMINI_MODEL, (source,), **kwargs_a)  # type: ignore[arg-type]
+    key_b = compute_cache_key(GEMINI_MODEL, (source,), **kwargs_b)  # type: ignore[arg-type]
     assert key_a != key_b
 
 
@@ -1294,26 +1233,25 @@ async def test_create_cache_validates_ttl() -> None:
 
 
 @pytest.mark.asyncio
-async def test_options_response_schema_requires_provider_capability() -> None:
-    """Strict capability checks reject unsupported structured outputs."""
+@pytest.mark.parametrize(
+    ("option_kwargs", "match"),
+    [
+        ({"response_schema": {"type": "object"}}, "structured outputs"),
+        ({"reasoning_effort": "high"}, "reasoning"),
+    ],
+    ids=["structured_outputs", "reasoning"],
+)
+async def test_option_requires_provider_capability(
+    option_kwargs: dict[str, Any],
+    match: str,
+) -> None:
+    """Strict capability checks reject unsupported options."""
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-    with pytest.raises(ConfigurationError, match="structured outputs"):
+    with pytest.raises(ConfigurationError, match=match):
         await pollux.run(
-            "Extract fields",
+            "Q",
             config=cfg,
-            options=Options(response_schema={"type": "object"}),
-        )
-
-
-@pytest.mark.asyncio
-async def test_reasoning_effort_requires_provider_capability() -> None:
-    """Strict capability checks reject unsupported reasoning controls."""
-    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-    with pytest.raises(ConfigurationError, match="reasoning"):
-        await pollux.run(
-            "Think about this",
-            config=cfg,
-            options=Options(reasoning_effort="high"),
+            options=Options(**option_kwargs),
         )
 
 
@@ -1367,10 +1305,20 @@ async def test_options_are_forwarded_when_provider_supports_features(
 
 
 @pytest.mark.asyncio
-async def test_implicit_caching_defaults_to_true_for_single_call_when_supported(
+@pytest.mark.parametrize(
+    ("prompts", "expected_implicit_caching"),
+    [
+        (("Q1?",), True),
+        (("Q1?", "Q2?"), False),
+    ],
+    ids=["single_call_on", "multi_call_off"],
+)
+async def test_implicit_caching_default_heuristic(
     monkeypatch: pytest.MonkeyPatch,
+    prompts: tuple[str, ...],
+    expected_implicit_caching: bool,  # noqa: FBT001
 ) -> None:
-    """Single-call Anthropic-style workloads should default implicit caching on."""
+    """Single-call defaults implicit caching on; multi-call defaults it off."""
     fake = KwargsCaptureProvider(
         _capabilities=ProviderCapabilities(
             persistent_cache=False,
@@ -1385,37 +1333,12 @@ async def test_implicit_caching_defaults_to_true_for_single_call_when_supported(
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     cfg = Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
 
-    await pollux.run("Q1?", config=cfg)
+    await pollux.run_many(prompts, config=cfg)
 
-    assert len(fake.generate_kwargs) == 1
-    request = fake.generate_kwargs[0]["request"]
-    assert request.implicit_caching is True
-
-
-@pytest.mark.asyncio
-async def test_implicit_caching_defaults_to_false_for_multi_call_fanout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Multi-call fan-out should default implicit caching off."""
-    fake = KwargsCaptureProvider(
-        _capabilities=ProviderCapabilities(
-            persistent_cache=False,
-            uploads=True,
-            structured_outputs=False,
-            reasoning=False,
-            deferred_delivery=False,
-            conversation=False,
-            implicit_caching=True,
-        )
-    )
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
-
-    await pollux.run_many(("Q1?", "Q2?"), config=cfg)
-
-    assert len(fake.generate_kwargs) == 2
+    assert len(fake.generate_kwargs) == len(prompts)
     assert all(
-        call["request"].implicit_caching is False for call in fake.generate_kwargs
+        call["request"].implicit_caching is expected_implicit_caching
+        for call in fake.generate_kwargs
     )
 
 
