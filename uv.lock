@@ -1447,7 +1447,7 @@ dev = [
     { name = "ruff" },
     { name = "rumdl" },
     { name = "rust-just" },
-    { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "tomli" },
     { name = "vulture" },
 ]
 docs = [
@@ -1506,7 +1506,7 @@ dev = [
     { name = "ruff", specifier = ">=0.12.2" },
     { name = "rumdl", specifier = ">=0.1.20" },
     { name = "rust-just" },
-    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
+    { name = "tomli", specifier = ">=2.0.1" },
     { name = "vulture", specifier = ">=2.14" },
 ]
 docs = [
