@@ -31,7 +31,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from cookbook.utils.demo_inputs import DEFAULT_MEDIA_DEMO_DIR, pick_file_by_ext
+from cookbook.utils.demo_inputs import (
+    DEFAULT_FRIDGE_DEMO_FILE,
+    DEFAULT_MEDIA_DEMO_DIR,
+    pick_file_by_ext,
+)
 from cookbook.utils.presentation import (
     print_header,
     print_kv_rows,
@@ -94,7 +98,9 @@ def resolve_image_inputs(user_images: list[str]) -> list[Path]:
             raise SystemExit(f"Image not found: {missing[0]}")
         return paths
 
-    fallback = pick_file_by_ext(DEFAULT_MEDIA_DEMO_DIR, [".jpg", ".jpeg", ".png"])
+    fallback = DEFAULT_FRIDGE_DEMO_FILE or pick_file_by_ext(
+        DEFAULT_MEDIA_DEMO_DIR, [".jpg", ".jpeg", ".png"]
+    )
     if fallback is None:
         raise SystemExit(
             "No sample fridge image found. Run `just demo-data` or pass one or more image paths."

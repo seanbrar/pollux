@@ -29,6 +29,7 @@ Success check:
 
 import argparse
 import asyncio
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
@@ -38,6 +39,12 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, Field
 
+from cookbook.utils.data_packs import (
+    PackSpec,
+    find_pack_root,
+    install_hint,
+    load_pack_manifest,
+)
 from cookbook.utils.presentation import (
     print_header,
     print_kv_rows,
@@ -51,6 +58,9 @@ from pollux.result import ResultEnvelope
 
 API_BASE = "https://www.dnd5eapi.co/api/2014"
 MAX_SPELLS = 5
+SPELLBOOK_PACK = PackSpec(
+    namespace="projects", pack_id="spellbook-sidekick", version="1"
+)
 
 CLASS_ALIASES = {
     "artificer": "artificer",
@@ -121,6 +131,18 @@ class SpellPacketSummary(BaseModel):
     )
 
 
+@dataclass(frozen=True, slots=True)
+class SpellbookPackDefaults:
+    """Resolved defaults from an installed spellbook starter pack."""
+
+    pack_id: str
+    character_slug: str
+    scenario_slug: str
+    snapshot: SpellbookSnapshot
+    note: str
+    session_brief: str
+
+
 MOCK_SNAPSHOT = SpellbookSnapshot(
     character_name="Iri",
     character_class="wizard",
@@ -186,6 +208,146 @@ MOCK_FACTS = {
         ],
     },
 }
+
+
+def _collapse_markdown(text: str) -> str:
+    """Turn pack-authored markdown into a compact prompt-friendly paragraph."""
+    pieces: list[str] = []
+    for raw in text.splitlines():
+        cleaned = re.sub(r"^\s*#+\s*", "", raw).strip()
+        cleaned = re.sub(r"^\s*[-*]\s*", "", cleaned).strip()
+        if cleaned:
+            pieces.append(cleaned)
+    return " ".join(pieces)
+
+
+def should_try_default_pack(
+    *,
+    sheet: Path | None,
+    pack_id: str | None,
+    explicit_spells: list[str],
+    character_name: str | None,
+    character_class: str | None,
+    level: int | None,
+) -> bool:
+    """Return whether the recipe should auto-upgrade to the starter pack."""
+    return (
+        pack_id is None
+        and sheet is None
+        and not explicit_spells
+        and character_name is None
+        and character_class is None
+        and level is None
+    )
+
+
+def load_pack_defaults(
+    *,
+    pack_id: str | None,
+    character_slug: str | None,
+    scenario_slug: str | None,
+    sheet: Path | None,
+    explicit_spells: list[str],
+    character_name: str | None,
+    character_class: str | None,
+    level: int | None,
+) -> SpellbookPackDefaults | None:
+    """Load spellbook starter-pack defaults when requested or available."""
+    requested_pack = pack_id
+    explicit_request = any(
+        value is not None for value in (pack_id, character_slug, scenario_slug)
+    )
+    if should_try_default_pack(
+        sheet=sheet,
+        pack_id=pack_id,
+        explicit_spells=explicit_spells,
+        character_name=character_name,
+        character_class=character_class,
+        level=level,
+    ):
+        requested_pack = SPELLBOOK_PACK.pack_id
+    if requested_pack is None:
+        return None
+
+    spec = PackSpec(namespace="projects", pack_id=requested_pack, version="1")
+    pack_root = find_pack_root(spec)
+    if pack_root is None:
+        if not explicit_request:
+            return None
+        raise SystemExit(
+            f"Pack {requested_pack!r} is not installed. "
+            f"Run `{install_hint(project=requested_pack)}` first."
+        )
+
+    manifest = load_pack_manifest(spec) or {}
+    recipe_spec = manifest.get("recipe_spec")
+    if recipe_spec not in {None, "projects/spellbook-sidekick"}:
+        raise SystemExit(
+            f"Pack {requested_pack!r} targets {recipe_spec!r}, not spellbook-sidekick."
+        )
+
+    default_character = manifest.get("default_character")
+    default_scenario = manifest.get("default_scenario")
+    chosen_character = character_slug or (
+        str(default_character) if isinstance(default_character, str) else None
+    )
+    chosen_scenario = scenario_slug or (
+        str(default_scenario) if isinstance(default_scenario, str) else None
+    )
+    if not chosen_character or not chosen_scenario:
+        raise SystemExit(
+            f"Pack {requested_pack!r} is missing default character or scenario metadata."
+        )
+
+    character_path = pack_root / "characters" / chosen_character / "character.json"
+    scenario_path = pack_root / "scenarios" / f"{chosen_scenario}.md"
+    if not character_path.exists():
+        raise SystemExit(
+            f"Character {chosen_character!r} not found in pack {requested_pack!r}."
+        )
+    if not scenario_path.exists():
+        raise SystemExit(
+            f"Scenario {chosen_scenario!r} not found in pack {requested_pack!r}."
+        )
+
+    payload = json.loads(character_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise SystemExit(f"Character profile at {character_path} is not a JSON object.")
+
+    scenario_notes = payload.get("scenario_notes")
+    note = ""
+    if isinstance(scenario_notes, dict):
+        raw_note = scenario_notes.get(chosen_scenario)
+        if isinstance(raw_note, str):
+            note = raw_note.strip()
+
+    playstyle_notes = payload.get("playstyle_notes")
+    spells = payload.get("signature_spells")
+    snapshot = SpellbookSnapshot(
+        character_name=str(payload.get("name", chosen_character)).strip()
+        or chosen_character,
+        character_class=normalize_class_name(str(payload.get("class", ""))),
+        level=int(payload.get("level", 1) or 1),
+        spell_names=dedupe_spell_names(
+            [spell for spell in spells if isinstance(spell, str)]
+            if isinstance(spells, list)
+            else []
+        )[:MAX_SPELLS],
+        playstyle_notes=[
+            note
+            for note in (playstyle_notes if isinstance(playstyle_notes, list) else [])
+            if isinstance(note, str) and note.strip()
+        ][:3]
+        or ["Loaded from a cookbook starter pack."],
+    )
+    return SpellbookPackDefaults(
+        pack_id=requested_pack,
+        character_slug=chosen_character,
+        scenario_slug=chosen_scenario,
+        snapshot=snapshot,
+        note=note,
+        session_brief=_collapse_markdown(scenario_path.read_text(encoding="utf-8")),
+    )
 
 
 def normalize_class_name(raw: str) -> str:
@@ -543,20 +705,46 @@ async def extract_snapshot(
     character_name: str | None,
     character_class: str | None,
     level: int | None,
+    pack_defaults: SpellbookPackDefaults | None,
     config: Config,
 ) -> tuple[SpellbookSnapshot, ResultEnvelope]:
     """Extract or build the initial spellbook snapshot."""
     if sheet is None:
         if config.use_mock:
+            base_snapshot = (
+                pack_defaults.snapshot if pack_defaults is not None else MOCK_SNAPSHOT
+            )
+            base_text = (
+                pack_defaults.session_brief
+                if pack_defaults is not None
+                else (
+                    "Mock spellcaster snapshot: Iri the wizard keeps Shield, "
+                    "Misty Step, Web, and Counterspell ready."
+                )
+            )
             envelope = await run(
                 "Give one short sentence about a prepared wizard.",
                 source=Source.from_text(
-                    "Mock spellcaster snapshot: Iri the wizard keeps Shield, Misty Step, Web, and Counterspell ready.",
+                    base_text,
                     identifier="mock-spellcaster",
                 ),
                 config=config,
             )
-            snapshot = merge_snapshot_spells(MOCK_SNAPSHOT, explicit_spells)
+            snapshot = merge_snapshot_spells(base_snapshot, explicit_spells)
+            return snapshot, envelope
+        if pack_defaults is not None:
+            snapshot = merge_snapshot_spells(pack_defaults.snapshot, explicit_spells)
+            envelope = await run(
+                "Give one sentence about this spellcaster.",
+                source=Source.from_json(
+                    {
+                        "caster": snapshot.model_dump(),
+                        "session_brief": pack_defaults.session_brief,
+                    },
+                    identifier="pack-spellcaster",
+                ),
+                config=config,
+            )
             return snapshot, envelope
         snapshot = build_manual_snapshot(
             character_name=character_name,
@@ -573,6 +761,13 @@ async def extract_snapshot(
         return snapshot, envelope
 
     sources: list[Source] = [Source.from_file(sheet)]
+    if pack_defaults is not None and pack_defaults.session_brief:
+        sources.append(
+            Source.from_text(
+                pack_defaults.session_brief,
+                identifier="scenario-brief",
+            )
+        )
     if note.strip():
         sources.append(
             Source.from_text(f"Session note: {note.strip()}", identifier="session-note")
@@ -639,6 +834,7 @@ async def build_cards(
     snapshot: SpellbookSnapshot,
     *,
     spell_facts: list[dict[str, Any]],
+    session_brief: str,
     config: Config,
 ) -> tuple[list[SpellCard], ResultEnvelope]:
     """Fan out one prompt per spell to build quick-reference cards."""
@@ -646,7 +842,11 @@ async def build_cards(
         [spell_card_prompt(fact["name"]) for fact in spell_facts],
         sources=[
             Source.from_json(
-                {"caster": snapshot.model_dump(), "spells": spell_facts},
+                {
+                    "caster": snapshot.model_dump(),
+                    "session_brief": session_brief,
+                    "spells": spell_facts,
+                },
                 identifier="spell-facts",
             )
         ],
@@ -676,6 +876,7 @@ async def build_summary(
     note: str,
     spell_facts: list[dict[str, Any]],
     cards: list[SpellCard],
+    session_brief: str,
     config: Config,
 ) -> tuple[SpellPacketSummary, ResultEnvelope]:
     """Build the final packet summary from normalized spell facts and cards."""
@@ -685,6 +886,7 @@ async def build_summary(
             {
                 "caster": snapshot.model_dump(),
                 "session_note": note,
+                "session_brief": session_brief,
                 "spells": spell_facts,
                 "cards": [card.model_dump() for card in cards],
             },
@@ -717,6 +919,7 @@ async def main_async(
     character_name: str | None,
     character_class: str | None,
     level: int | None,
+    pack_defaults: SpellbookPackDefaults | None,
     config: Config,
 ) -> None:
     snapshot, extraction_env = await extract_snapshot(
@@ -726,17 +929,26 @@ async def main_async(
         character_name=character_name,
         character_class=character_class,
         level=level,
+        pack_defaults=pack_defaults,
         config=config,
     )
     spell_facts, lookup_env = await lookup_spell_facts(snapshot, config=config)
     cards, card_env = await build_cards(
-        snapshot, spell_facts=spell_facts, config=config
+        snapshot,
+        spell_facts=spell_facts,
+        session_brief=pack_defaults.session_brief
+        if pack_defaults is not None
+        else note,
+        config=config,
     )
     summary, summary_env = await build_summary(
         snapshot,
         note=note,
         spell_facts=spell_facts,
         cards=cards,
+        session_brief=pack_defaults.session_brief
+        if pack_defaults is not None
+        else note,
         config=config,
     )
 
@@ -752,6 +964,14 @@ async def main_async(
         [
             ("Status", summary_env.get("status", "ok")),
             ("Sheet provided", bool(sheet)),
+            (
+                "Starter pack",
+                (
+                    f"{pack_defaults.pack_id}:{pack_defaults.character_slug}/{pack_defaults.scenario_slug}"
+                    if pack_defaults is not None
+                    else "none"
+                ),
+            ),
             ("Cards", len(cards)),
             ("Tool lookups", envelope.get("metrics", {}).get("tool_calls_seen", 0)),
         ]
@@ -770,6 +990,21 @@ async def main_async(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Turn a spellcaster sheet or short spell list into a one-session spell packet.",
+    )
+    parser.add_argument(
+        "--pack",
+        default=None,
+        help="Optional installed cookbook starter pack id (for example: spellbook-sidekick).",
+    )
+    parser.add_argument(
+        "--character",
+        default=None,
+        help="Character slug inside the selected starter pack.",
+    )
+    parser.add_argument(
+        "--scenario",
+        default=None,
+        help="Scenario slug inside the selected starter pack.",
     )
     parser.add_argument(
         "--sheet",
@@ -812,17 +1047,52 @@ def main() -> None:
     if sheet is not None and not sheet.exists():
         raise SystemExit(f"File not found: {sheet}")
 
-    explicit_spells = dedupe_spell_names(list(args.spell))[:MAX_SPELLS]
+    pack_defaults = load_pack_defaults(
+        pack_id=args.pack,
+        character_slug=args.character,
+        scenario_slug=args.scenario,
+        sheet=sheet,
+        explicit_spells=list(args.spell),
+        character_name=args.character_name,
+        character_class=args.character_class,
+        level=args.level,
+    )
+    base_spells = (
+        pack_defaults.snapshot.spell_names
+        if pack_defaults is not None and sheet is None
+        else []
+    )
+    explicit_spells = dedupe_spell_names(base_spells + list(args.spell))[:MAX_SPELLS]
+    note = args.note.strip() or (
+        pack_defaults.note if pack_defaults is not None else ""
+    )
     config = build_config_or_exit(args)
     print_header("Spellbook Sidekick", config=config)
     asyncio.run(
         main_async(
             sheet=sheet,
-            note=args.note.strip(),
+            note=note,
             explicit_spells=explicit_spells,
-            character_name=args.character_name,
-            character_class=args.character_class,
-            level=args.level,
+            character_name=(
+                args.character_name
+                or (
+                    pack_defaults.snapshot.character_name
+                    if pack_defaults is not None
+                    else None
+                )
+            ),
+            character_class=(
+                args.character_class
+                or (
+                    pack_defaults.snapshot.character_class
+                    if pack_defaults is not None
+                    else None
+                )
+            ),
+            level=args.level
+            if args.level is not None
+            else (pack_defaults.snapshot.level if pack_defaults is not None else None),
+            pack_defaults=pack_defaults,
             config=config,
         )
     )

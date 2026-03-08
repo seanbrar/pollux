@@ -324,7 +324,7 @@ each item (not only at run end), so you never lose progress. See the
 
 ```bash
 python -m cookbook production/resume-on-failure \
-  --input cookbook/data/demo/text-medium --limit 4 \
+  --limit 4 \
   --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
 

@@ -62,6 +62,7 @@ dev = [
     { include-group = "release" },
     "pre-commit>=4.2.0",
     "rust-just",
+    "tomli>=2.0.1; python_version < '3.11'",
 ]
 
 # --- Tool Configurations ---

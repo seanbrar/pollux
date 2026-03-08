@@ -6,12 +6,21 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
+from cookbook.utils.data_packs import default_shared_role_path
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 _COOKBOOK_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TEXT_DEMO_DIR = _COOKBOOK_ROOT / "data" / "demo" / "text-medium"
-DEFAULT_MEDIA_DEMO_DIR = _COOKBOOK_ROOT / "data" / "demo" / "multimodal-basic"
+_LEGACY_DEMO_ROOT = _COOKBOOK_ROOT / "data" / "demo"
+DEFAULT_TEXT_DEMO_DIR = default_shared_role_path("text_dir") or (
+    _LEGACY_DEMO_ROOT / "text-medium"
+)
+DEFAULT_MEDIA_DEMO_DIR = default_shared_role_path("media_dir") or (
+    _LEGACY_DEMO_ROOT / "multimodal-basic"
+)
+DEFAULT_PAPER_DEMO_FILE = default_shared_role_path("media_paper")
+DEFAULT_FRIDGE_DEMO_FILE = default_shared_role_path("media_fridge_image")
 
 
 def resolve_dir_or_exit(user_path: Path | None, fallback: Path, *, hint: str) -> Path:
@@ -86,7 +95,9 @@ def pick_files_by_ext(root: Path, exts: Iterable[str], limit: int) -> list[Path]
 
 
 __all__ = [
+    "DEFAULT_FRIDGE_DEMO_FILE",
     "DEFAULT_MEDIA_DEMO_DIR",
+    "DEFAULT_PAPER_DEMO_FILE",
     "DEFAULT_TEXT_DEMO_DIR",
     "pick_file_by_ext",
     "pick_files_by_ext",

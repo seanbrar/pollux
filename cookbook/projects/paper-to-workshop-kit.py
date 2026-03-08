@@ -32,7 +32,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from cookbook.utils.demo_inputs import DEFAULT_MEDIA_DEMO_DIR, resolve_file_or_exit
+from cookbook.utils.demo_inputs import (
+    DEFAULT_MEDIA_DEMO_DIR,
+    DEFAULT_PAPER_DEMO_FILE,
+    resolve_file_or_exit,
+)
 from cookbook.utils.presentation import (
     print_header,
     print_kv_rows,
@@ -397,12 +401,22 @@ def main() -> None:
         source = Source.from_arxiv(args.arxiv)
         source_label = args.arxiv
     else:
-        path = resolve_file_or_exit(
-            args.input,
-            search_dir=DEFAULT_MEDIA_DEMO_DIR,
-            exts=[".pdf", ".txt", ".md"],
-            hint="No paper found. Run `just demo-data` or pass --input /path/to/paper.pdf.",
-        )
+        if args.input is not None:
+            path = resolve_file_or_exit(
+                args.input,
+                search_dir=DEFAULT_MEDIA_DEMO_DIR,
+                exts=[".pdf", ".txt", ".md"],
+                hint="No paper found. Run `just demo-data` or pass --input /path/to/paper.pdf.",
+            )
+        elif DEFAULT_PAPER_DEMO_FILE is not None:
+            path = DEFAULT_PAPER_DEMO_FILE
+        else:
+            path = resolve_file_or_exit(
+                None,
+                search_dir=DEFAULT_MEDIA_DEMO_DIR,
+                exts=[".pdf", ".txt", ".md"],
+                hint="No paper found. Run `just demo-data` or pass --input /path/to/paper.pdf.",
+            )
         if path.suffix.lower() in {".txt", ".md"}:
             source = Source.from_text(
                 path.read_text(encoding="utf-8"), identifier=path.name
