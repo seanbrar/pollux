@@ -28,6 +28,7 @@ from pollux.providers.models import (
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _OPENROUTER_METADATA_TTL_S = 300.0
+_OPENROUTER_REASONING_KEY = "openrouter_reasoning"
 _OPENROUTER_REASONING_DETAILS_KEY = "openrouter_reasoning_details"
 
 if TYPE_CHECKING:
@@ -405,6 +406,10 @@ def _history_message_to_openrouter(
     if tool_calls:
         message["tool_calls"] = tool_calls
 
+    reasoning = _extract_reasoning(item_provider_state)
+    if reasoning is not None:
+        message["reasoning"] = reasoning
+
     reasoning_details = _extract_reasoning_details(item_provider_state)
     if reasoning_details:
         message["reasoning_details"] = reasoning_details
@@ -413,6 +418,7 @@ def _history_message_to_openrouter(
         item.role == "assistant"
         and not item.content
         and not tool_calls
+        and reasoning is None
         and not reasoning_details
     ):
         return None
@@ -724,6 +730,13 @@ def _parse_response(
     tool_calls = _parse_tool_calls(message.get("tool_calls"))
     reasoning = message.get("reasoning")
     reasoning_details = _normalize_reasoning_details(message.get("reasoning_details"))
+    provider_state: dict[str, Any] | None = None
+    if isinstance(reasoning, str) and reasoning:
+        provider_state = {_OPENROUTER_REASONING_KEY: reasoning}
+    if reasoning_details:
+        if provider_state is None:
+            provider_state = {}
+        provider_state[_OPENROUTER_REASONING_DETAILS_KEY] = reasoning_details
     return ProviderResponse(
         text=text,
         usage=usage,
@@ -732,11 +745,7 @@ def _parse_response(
         tool_calls=tool_calls if tool_calls else None,
         response_id=response_id if isinstance(response_id, str) else None,
         finish_reason=finish_reason,
-        provider_state=(
-            {_OPENROUTER_REASONING_DETAILS_KEY: reasoning_details}
-            if reasoning_details
-            else None
-        ),
+        provider_state=provider_state,
     )
 
 
@@ -805,6 +814,16 @@ def _serialize_tool_calls(tool_calls: list[ToolCall] | None) -> list[dict[str, A
             }
         )
     return serialized
+
+
+def _extract_reasoning(item_provider_state: dict[str, Any] | None) -> str | None:
+    """Return preserved OpenRouter reasoning text for a history item."""
+    if item_provider_state is None:
+        return None
+    reasoning = item_provider_state.get(_OPENROUTER_REASONING_KEY)
+    if isinstance(reasoning, str) and reasoning:
+        return reasoning
+    return None
 
 
 def _normalize_reasoning_details(value: Any) -> list[dict[str, Any]]:

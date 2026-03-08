@@ -78,9 +78,9 @@ clean:
 [private]
 _check-api-keys:
     #!/usr/bin/env bash
-    if [ -z "$GEMINI_API_KEY" ] && [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then \
+    if [ -z "$GEMINI_API_KEY" ] && [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then \
         echo "ERROR: no provider API key is set."; \
-        echo "Set GEMINI_API_KEY, OPENAI_API_KEY, and/or ANTHROPIC_API_KEY, then rerun."; \
+        echo "Set GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, and/or OPENROUTER_API_KEY, then rerun."; \
         exit 1; \
     fi
     if [ -z "$GEMINI_API_KEY" ]; then \
@@ -91,4 +91,7 @@ _check-api-keys:
     fi
     if [ -z "$ANTHROPIC_API_KEY" ]; then \
         echo "NOTE: ANTHROPIC_API_KEY is not set; Anthropic API tests will be skipped."; \
+    fi
+    if [ -z "$OPENROUTER_API_KEY" ]; then \
+        echo "NOTE: OPENROUTER_API_KEY is not set; OpenRouter API tests will be skipped."; \
     fi

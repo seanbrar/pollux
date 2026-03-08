@@ -30,7 +30,11 @@ from pollux.providers.models import (
     ToolCall,
 )
 from pollux.providers.openai import OpenAIProvider
-from pollux.providers.openrouter import OpenRouterProvider, _extract_error_message
+from pollux.providers.openrouter import (
+    OpenRouterProvider,
+    _extract_error_message,
+    _parse_response,
+)
 from tests.conftest import ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENROUTER_MODEL
 
 pytestmark = pytest.mark.contract
@@ -2697,11 +2701,55 @@ async def test_openrouter_generate_maps_reasoning_effort_and_extracts_reasoning_
     }
     assert result.text == "OK"
     assert result.reasoning == "The model thought briefly."
+    assert result.provider_state == {
+        "openrouter_reasoning": "The model thought briefly."
+    }
     assert result.usage == {
         "input_tokens": 9,
         "output_tokens": 3,
         "reasoning_tokens": 4,
         "total_tokens": 16,
+    }
+
+
+@pytest.mark.asyncio
+async def test_openrouter_generate_replays_reasoning_only_history() -> None:
+    """Reasoning-only assistant turns should survive replay without details."""
+    fake_client = _FakeOpenRouterClient()
+    provider = OpenRouterProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model="openai/gpt-4.1-mini",
+            parts=["Continue."],
+            history=[
+                Message(role="user", content="Think first."),
+                Message(role="assistant", content=""),
+            ],
+            provider_state={
+                "history": [
+                    None,
+                    {"openrouter_reasoning": "The model thought briefly."},
+                ]
+            },
+        )
+    )
+
+    assert fake_client.last_json == {
+        "model": "openai/gpt-4.1-mini",
+        "messages": [
+            {"role": "user", "content": "Think first."},
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning": "The model thought briefly.",
+            },
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Continue."}],
+            },
+        ],
     }
 
 
@@ -2808,6 +2856,43 @@ async def test_openrouter_parse_response_extracts_tool_calls_and_reasoning_state
                 "text": "Need the tool result before answering.",
             }
         ]
+    }
+
+
+def test_openrouter_parse_response_preserves_reasoning_and_details_for_replay() -> None:
+    """Reasoning replay should keep both plaintext and structured details."""
+    result = _parse_response(
+        {
+            "id": "gen_reasoning_456",
+            "choices": [
+                {
+                    "message": {
+                        "content": "OK",
+                        "reasoning": "The model thought briefly.",
+                        "reasoning_details": [
+                            {
+                                "type": "reasoning.text",
+                                "text": "The model thought briefly.",
+                            }
+                        ],
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"total_tokens": 5},
+        },
+        response_schema=None,
+    )
+
+    assert result.reasoning == "The model thought briefly."
+    assert result.provider_state == {
+        "openrouter_reasoning": "The model thought briefly.",
+        "openrouter_reasoning_details": [
+            {
+                "type": "reasoning.text",
+                "text": "The model thought briefly.",
+            }
+        ],
     }
 
 
