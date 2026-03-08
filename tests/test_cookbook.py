@@ -150,3 +150,11 @@ def test_verify_checksum_supports_algorithm_prefixed_specs(tmp_path: Path) -> No
         target,
         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     )
+
+
+def test_install_hint_matches_just_positional_argument_style() -> None:
+    """Project install hints should use Just's positional recipe arguments."""
+    assert data_packs.install_hint() == "just demo-data"
+    assert data_packs.install_hint(project="spellbook-sidekick") == (
+        "just demo-data spellbook-sidekick"
+    )

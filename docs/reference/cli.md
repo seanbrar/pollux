@@ -88,7 +88,7 @@ python -m cookbook projects/spellbook-sidekick \
   --level 5
 
 # Install and run the authored spellbook starter pack
-just demo-data project=spellbook-sidekick
+just demo-data spellbook-sidekick
 python -m cookbook projects/spellbook-sidekick --pack spellbook-sidekick
 
 # Run by dotted spec
@@ -179,6 +179,6 @@ just demo-data                # install the shared starter data pack
 - `could not import pollux`: run `uv sync --all-extras`.
 - `Recipe not found`: verify the spec with `python -m cookbook --list`.
 - Unexpected relative-path behavior: use `--no-cwd-repo-root` only when you need CWD-local paths.
-- **No demo files:** run `just demo-data` for shared starter data, or `just demo-data project=spellbook-sidekick` for the authored spellbook pack.
+- **No demo files:** run `just demo-data` for shared starter data, or `just demo-data spellbook-sidekick` for the authored spellbook pack.
 - **API auth errors:** set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY`, then use `--no-mock`.
 - **Rate limits:** lower concurrency and stage workload size with `--limit`.

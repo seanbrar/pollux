@@ -83,7 +83,7 @@ def cookbook_data_dir() -> Path:
 def install_hint(*, project: str | None = None) -> str:
     """Return the canonical install command for cookbook demo data."""
     if project:
-        return f"just demo-data project={project}"
+        return f"just demo-data {project}"
     return "just demo-data"
 
 
