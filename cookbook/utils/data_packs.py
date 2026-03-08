@@ -112,15 +112,26 @@ def _local_repo_candidates() -> list[Path]:
 
 def find_pack_root(spec: PackSpec) -> Path | None:
     """Return the first available pack root across dev and installed locations."""
-    for root in _local_repo_candidates():
-        pack_root = _pack_root_from_candidate(root, spec)
-        if pack_root is not None:
-            return pack_root
-
-    installed = _pack_root_from_candidate(cookbook_data_dir(), spec)
-    if installed is not None:
-        return installed
+    for pack_root in iter_pack_roots(spec):
+        return pack_root
     return None
+
+
+def iter_pack_roots(spec: PackSpec) -> list[Path]:
+    """Return all available pack roots in precedence order."""
+    roots = [*_local_repo_candidates(), cookbook_data_dir()]
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        pack_root = _pack_root_from_candidate(root, spec)
+        if pack_root is None:
+            continue
+        resolved = pack_root.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        out.append(pack_root)
+    return out
 
 
 def load_pack_manifest(spec: PackSpec) -> dict[str, Any] | None:
@@ -133,18 +144,18 @@ def load_pack_manifest(spec: PackSpec) -> dict[str, Any] | None:
 
 def pack_role_path(spec: PackSpec, role: str) -> Path | None:
     """Resolve one semantic asset role from a pack manifest."""
-    pack_root = find_pack_root(spec)
-    if pack_root is None:
-        return None
-    manifest = _load_toml(pack_root / "pack.toml")
-    raw_roles = manifest.get("roles")
-    if not isinstance(raw_roles, dict):
-        return None
-    relative = raw_roles.get(role)
-    if not isinstance(relative, str):
-        return None
-    candidate = pack_root / relative
-    return candidate if candidate.exists() else None
+    for pack_root in iter_pack_roots(spec):
+        manifest = _load_toml(pack_root / "pack.toml")
+        raw_roles = manifest.get("roles")
+        if not isinstance(raw_roles, dict):
+            continue
+        relative = raw_roles.get(role)
+        if not isinstance(relative, str):
+            continue
+        candidate = pack_root / relative
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def default_shared_role_path(role: str) -> Path | None:

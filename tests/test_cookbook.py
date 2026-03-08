@@ -116,6 +116,24 @@ def test_pack_role_path_reads_semantic_roles(
     assert resolved == tmp_path / "shared" / "v1" / "multimodal-basic" / "sample.pdf"
 
 
+def test_pack_role_path_falls_back_to_installed_assets_when_source_is_incomplete(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Role resolution should continue to installed data when source roots lack assets."""
+    source_root = tmp_path / "source"
+    install_root = tmp_path / "installed"
+    _write_shared_pack(source_root)
+    _write_shared_pack(install_root)
+    (source_root / "shared" / "v1" / "text-medium" / "input.txt").unlink()
+    monkeypatch.setattr(data_packs, "_REPO_ROOT", tmp_path / "missing-repo-root")
+    monkeypatch.setenv(data_packs.ENV_DATA_SOURCE, str(source_root))
+    monkeypatch.setenv(data_packs.ENV_DATA_DIR, str(install_root))
+
+    resolved = data_packs.pack_role_path(data_packs.SHARED_PACK, "text_primary")
+
+    assert resolved == install_root / "shared" / "v1" / "text-medium" / "input.txt"
+
+
 def test_install_pack_copies_into_user_data_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -165,6 +166,64 @@ def test_load_spellbook_pack_defaults_reads_profile_and_scenario(
     assert defaults.snapshot.character_name == "Iri Vale"
     assert defaults.snapshot.spell_names == ["Shield", "Web", "Counterspell"]
     assert "Tight rooms reward careful first-round play." in defaults.session_brief
+
+
+def test_spellbook_pack_cli_overrides_take_precedence(tmp_path: Path) -> None:
+    """Explicit CLI fields should override starter-pack identity defaults."""
+    pack_root = tmp_path / "projects" / "spellbook-sidekick" / "v1"
+    (pack_root / "characters" / "iri-vale").mkdir(parents=True)
+    (pack_root / "scenarios").mkdir(parents=True)
+    (pack_root / "pack.toml").write_text(
+        "\n".join(
+            [
+                'id = "spellbook-sidekick"',
+                'version = "1"',
+                'recipe_spec = "projects/spellbook-sidekick"',
+                'default_character = "iri-vale"',
+                'default_scenario = "tactical-corridor-crawl"',
+            ]
+        )
+    )
+    (pack_root / "characters" / "iri-vale" / "character.json").write_text(
+        """{
+  "name": "Iri Vale",
+  "class": "wizard",
+  "level": 5,
+  "signature_spells": ["Shield", "Web"]
+}
+"""
+    )
+    (pack_root / "scenarios" / "tactical-corridor-crawl.md").write_text(
+        "# Tactical Corridor Crawl\n\nTight rooms reward careful first-round play.\n"
+    )
+
+    result = subprocess.run(  # noqa: S603 - fixed local command list in test
+        [
+            sys.executable,
+            "-m",
+            "cookbook",
+            "projects/spellbook-sidekick",
+            "--pack",
+            "spellbook-sidekick",
+            "--character-name",
+            "Override Name",
+            "--class",
+            "sorcerer",
+            "--level",
+            "9",
+            "--mock",
+        ],
+        cwd=ROOT,
+        env={**os.environ, "POLLUX_COOKBOOK_DATA_SOURCE": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "- Character: Override Name" in result.stdout
+    assert "- Class: Sorcerer" in result.stdout
+    assert "- Level: 9" in result.stdout
 
 
 @pytest.mark.integration

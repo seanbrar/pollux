@@ -595,6 +595,32 @@ def merge_snapshot_spells(
     )
 
 
+def apply_snapshot_overrides(
+    snapshot: SpellbookSnapshot,
+    *,
+    character_name: str | None,
+    character_class: str | None,
+    level: int | None,
+) -> SpellbookSnapshot:
+    """Apply explicit CLI overrides on top of a resolved snapshot."""
+    return SpellbookSnapshot(
+        character_name=(
+            character_name.strip()
+            if character_name is not None
+            else snapshot.character_name
+        )
+        or snapshot.character_name,
+        character_class=(
+            normalize_class_name(character_class)
+            if character_class is not None
+            else snapshot.character_class
+        ),
+        level=int(level) if level is not None else snapshot.level,
+        spell_names=snapshot.spell_names,
+        playstyle_notes=snapshot.playstyle_notes,
+    )
+
+
 def fallback_card(snapshot: SpellbookSnapshot, fact: dict[str, Any]) -> SpellCard:
     """Build a stable spell card when structured output fails."""
     caution = f"Range: {fact['range']} | cast time: {fact['casting_time']}."
@@ -714,6 +740,12 @@ async def extract_snapshot(
             base_snapshot = (
                 pack_defaults.snapshot if pack_defaults is not None else MOCK_SNAPSHOT
             )
+            base_snapshot = apply_snapshot_overrides(
+                base_snapshot,
+                character_name=character_name,
+                character_class=character_class,
+                level=level,
+            )
             base_text = (
                 pack_defaults.session_brief
                 if pack_defaults is not None
@@ -733,7 +765,15 @@ async def extract_snapshot(
             snapshot = merge_snapshot_spells(base_snapshot, explicit_spells)
             return snapshot, envelope
         if pack_defaults is not None:
-            snapshot = merge_snapshot_spells(pack_defaults.snapshot, explicit_spells)
+            snapshot = merge_snapshot_spells(
+                apply_snapshot_overrides(
+                    pack_defaults.snapshot,
+                    character_name=character_name,
+                    character_class=character_class,
+                    level=level,
+                ),
+                explicit_spells,
+            )
             envelope = await run(
                 "Give one sentence about this spellcaster.",
                 source=Source.from_json(
@@ -1073,25 +1113,9 @@ def main() -> None:
             sheet=sheet,
             note=note,
             explicit_spells=explicit_spells,
-            character_name=(
-                args.character_name
-                or (
-                    pack_defaults.snapshot.character_name
-                    if pack_defaults is not None
-                    else None
-                )
-            ),
-            character_class=(
-                args.character_class
-                or (
-                    pack_defaults.snapshot.character_class
-                    if pack_defaults is not None
-                    else None
-                )
-            ),
-            level=args.level
-            if args.level is not None
-            else (pack_defaults.snapshot.level if pack_defaults is not None else None),
+            character_name=args.character_name,
+            character_class=args.character_class,
+            level=args.level,
             pack_defaults=pack_defaults,
             config=config,
         )
