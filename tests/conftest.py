@@ -115,7 +115,15 @@ def isolate_provider_env(request, monkeypatch):
         return
 
     for key in list(os.environ.keys()):
-        if key.startswith(("GEMINI_", "OPENAI_", "ANTHROPIC_", "OPENROUTER_")):
+        if key.startswith(
+            (
+                "GEMINI_",
+                "OPENAI_",
+                "ANTHROPIC_",
+                "OPENROUTER_",
+                "POLLUX_COOKBOOK_DATA_",
+            )
+        ):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.delenv("DEBUG", raising=False)
     monkeypatch.delenv("POLLUX_DEBUG_CONFIG", raising=False)

@@ -56,14 +56,18 @@ docs-build:
 docs-serve:
     uv run mkdocs serve -a 127.0.0.1:8000
 
-# Fetch demo data into cookbook/data/demo/
-demo-data text="medium" media="basic":
-    uv run python scripts/demo_data.py --text "{{ text }}" --media "{{ media }}"
+# Install shared cookbook demo data, optionally plus a project pack.
+demo-data project="":
+    #!/usr/bin/env bash
+    if [ -n "{{ project }}" ]; then
+        uv run python scripts/demo_data.py --project "{{ project }}"
+    else
+        uv run python scripts/demo_data.py
+    fi
 
-# Remove all demo data packs
+# Remove installed cookbook data packs
 clean-demo-data:
-    rm -rf cookbook/data/demo/text-medium cookbook/data/demo/text-full cookbook/data/demo/multimodal-basic cookbook/data/demo/.cache
-    @if [ -d cookbook/data/demo ] && [ -z "$$(ls -A cookbook/data/demo 2>/dev/null)" ]; then rmdir cookbook/data/demo; fi || true
+    uv run python scripts/demo_data.py --clean
 
 # Clean up all test and build artifacts
 clean:

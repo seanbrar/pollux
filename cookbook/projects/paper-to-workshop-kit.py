@@ -32,7 +32,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from cookbook.utils.demo_inputs import DEFAULT_MEDIA_DEMO_DIR, resolve_file_or_exit
+from cookbook.utils.demo_inputs import (
+    DEFAULT_MEDIA_DEMO_DIR,
+    DEFAULT_PAPER_DEMO_FILE,
+    resolve_file_or_exit,
+)
 from cookbook.utils.presentation import (
     print_header,
     print_kv_rows,
@@ -40,7 +44,7 @@ from cookbook.utils.presentation import (
     print_section,
     print_usage,
 )
-from cookbook.utils.runtime import add_runtime_args, build_config_or_exit
+from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
 from pollux import Config, Options, Source, create_cache, run_many
 
 if TYPE_CHECKING:
@@ -212,19 +216,6 @@ def mock_packet(*, source_label: str, audience: str) -> WorkshopKit:
             "Write down one question to revisit after the workshop.",
         ],
     )
-
-
-def merged_usage(*envelopes: ResultEnvelope) -> ResultEnvelope:
-    """Merge usage blocks so the printed token summary reflects the whole flow."""
-    usage: dict[str, int] = {}
-    for envelope in envelopes:
-        raw = envelope.get("usage")
-        if not isinstance(raw, dict):
-            continue
-        for key, value in raw.items():
-            if isinstance(value, int):
-                usage[key] = usage.get(key, 0) + value
-    return {"usage": usage}
 
 
 def print_items(title: str, items: list[str]) -> None:
@@ -410,12 +401,22 @@ def main() -> None:
         source = Source.from_arxiv(args.arxiv)
         source_label = args.arxiv
     else:
-        path = resolve_file_or_exit(
-            args.input,
-            search_dir=DEFAULT_MEDIA_DEMO_DIR,
-            exts=[".pdf", ".txt", ".md"],
-            hint="No paper found. Run `just demo-data` or pass --input /path/to/paper.pdf.",
-        )
+        if args.input is not None:
+            path = resolve_file_or_exit(
+                args.input,
+                search_dir=DEFAULT_MEDIA_DEMO_DIR,
+                exts=[".pdf", ".txt", ".md"],
+                hint="No paper found. Run `just demo-data` or pass --input /path/to/paper.pdf.",
+            )
+        elif DEFAULT_PAPER_DEMO_FILE is not None:
+            path = DEFAULT_PAPER_DEMO_FILE
+        else:
+            path = resolve_file_or_exit(
+                None,
+                search_dir=DEFAULT_MEDIA_DEMO_DIR,
+                exts=[".pdf", ".txt", ".md"],
+                hint="No paper found. Run `just demo-data` or pass --input /path/to/paper.pdf.",
+            )
         if path.suffix.lower() in {".txt", ".md"}:
             source = Source.from_text(
                 path.read_text(encoding="utf-8"), identifier=path.name

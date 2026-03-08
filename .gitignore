@@ -75,6 +75,7 @@ Thumbs.db
 /*.flac
 /*.wav
 /*.m4a
+/*.pdf
 
 # Demo Data
 cookbook/data/demo/*

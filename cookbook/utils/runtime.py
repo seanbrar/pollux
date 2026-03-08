@@ -75,3 +75,16 @@ def usage_tokens(envelope: ResultEnvelope) -> int | None:
         if isinstance(raw, int):
             return raw
     return None
+
+
+def merged_usage(*envelopes: ResultEnvelope) -> ResultEnvelope:
+    """Merge usage blocks from multiple Pollux calls."""
+    usage: dict[str, int] = {}
+    for envelope in envelopes:
+        raw = envelope.get("usage")
+        if not isinstance(raw, dict):
+            continue
+        for key, value in raw.items():
+            if isinstance(value, int):
+                usage[key] = usage.get(key, 0) + value
+    return {"usage": usage}

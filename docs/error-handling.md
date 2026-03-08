@@ -61,7 +61,7 @@ strings.
 Use this order when debugging. Most failures resolve by step 2.
 
 1. **Auth and mode check.** Is `use_mock` what you expect? For real mode,
-   ensure the matching key exists (`GEMINI_API_KEY`, `OPENAI_API_KEY`, or
+   ensure the matching key exists (`GEMINI_API_KEY`, `OPENAI_API_KEY`,
    `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY`).
 
 2. **Provider/model pairing.** Verify the model belongs to the selected
@@ -324,7 +324,7 @@ each item (not only at run end), so you never lose progress. See the
 
 ```bash
 python -m cookbook production/resume-on-failure \
-  --input cookbook/data/demo/text-medium --limit 4 \
+  --limit 4 \
   --manifest outputs/manifest.json --output-dir outputs/items --mock
 ```
 
