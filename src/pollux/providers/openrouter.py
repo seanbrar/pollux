@@ -542,26 +542,6 @@ def _require_text_io(metadata: _OpenRouterModelMetadata, *, model: str) -> None:
         )
 
 
-def _validate_deferred_feature(
-    *,
-    metadata: _OpenRouterModelMetadata,
-    model: str,
-    feature_name: str,
-    required_parameters: set[str],
-    planned_hint: str,
-) -> None:
-    """Differentiate unsupported-by-model vs unsupported-by-Pollux."""
-    if metadata.supported_parameters.isdisjoint(required_parameters):
-        raise ConfigurationError(
-            f"OpenRouter model {model!r} does not support {feature_name}",
-            hint=f"Choose an OpenRouter model that supports {feature_name}.",
-        )
-    raise ConfigurationError(
-        f"OpenRouter {feature_name} is not supported yet",
-        hint=planned_hint,
-    )
-
-
 def _require_supported_parameter(
     *,
     metadata: _OpenRouterModelMetadata,
