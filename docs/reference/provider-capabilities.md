@@ -28,10 +28,10 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
 | Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
-| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that advertises `response_format` or `structured_outputs` |
+| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `response_format` or `structured_outputs` |
 | Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Passed through to provider where supported; see notes below |
 | Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
-| Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that advertises `tools`; forced tool use may also require `tool_choice` |
+| Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
@@ -39,9 +39,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 ### Gemini
 
-- Context caching uses the Gemini Files API and `cachedContents`.
-- Conversation history is translated to `Content` objects with
-  `Part.from_function_call` / `Part.from_function_response` for tool turns.
+- Context caching uses the Gemini Files API.
 - Gemini does not support `previous_response_id`; conversation state is
   carried entirely via `history`.
 - Tool parameter schemas are normalized at the provider boundary:
@@ -52,8 +50,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 ### OpenAI
 
-- File uploads use `purpose="user_data"` with finite `expires_after` metadata.
-  Pollux performs best-effort cleanup of uploaded files after execution.
+- File uploads are configured to automatically expire on the OpenAI side.
+  Pollux also performs best-effort cleanup of uploaded files after execution.
 - Remote URL support is intentionally narrow: PDFs and images only.
 - Conversation can use either explicit `history` or `previous_response_id`
   (via `continue_from`). When `previous_response_id` is set, only tool
@@ -84,16 +82,15 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Thinking block replay: when Anthropic returns `thinking` or
   `redacted_thinking` blocks, Pollux preserves them in conversation state and
   replays them verbatim on continuation turns so tool loops remain valid.
-- `Options.max_tokens`: limits the output length. Default is `16384` for Anthropic
-  (which reserves enough room for all supported manual thinking budgets). Other providers
+- `Options.max_tokens`: limits the output length. Default is `16384` for Anthropic,
+  which leaves room for thinking output at all effort levels. Other providers
   currently ignore this option.
 
 ### OpenRouter
 
 - OpenRouter is a routed provider: Pollux sends requests to OpenRouter, and the
   selected model slug determines the upstream model family.
-- Pollux validates OpenRouter model availability and model-level capabilities
-  against the OpenRouter models API metadata.
+- Pollux validates OpenRouter model availability and capabilities.
 - The current Pollux OpenRouter support includes text generation, conversation
   continuity, model-gated structured outputs, model-gated tool calling, and
   verified image/PDF inputs.
@@ -104,19 +101,17 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
   assistant tool calls and tool-result messages forward through history when
   the selected OpenRouter model supports tool calling.
 - Structured outputs and tool calling are model-dependent on OpenRouter.
-  Pollux checks the OpenRouter models API metadata before dispatch and raises
-  `ConfigurationError` when a selected model does not advertise the required
-  parameters.
+  Pollux raises `ConfigurationError` when a selected model does not support
+  the required capabilities.
 - OpenRouter multimodal input currently supports:
   local image files, image URLs, local PDFs, and PDF URLs.
 - Image input is model-driven. If the selected OpenRouter model does not accept
   images, Pollux fails early with `ConfigurationError`.
-- Image routes can still fail at execution time even when the model metadata
-  advertises image input. OpenRouter may choose an upstream route that rejects
-  the image payload or cannot fetch the remote URL.
-- PDF input uses OpenRouter's provider-side PDF parser rather than the model's
-  native `input_modalities` metadata. Pollux therefore allows PDFs even when a
-  model does not advertise native `file` input.
+- Image routes can still fail at execution time even when the model supports
+  image input. OpenRouter may choose an upstream route that rejects the image
+  payload or cannot fetch the remote URL.
+- PDF input uses OpenRouter's provider-side PDF parser. Pollux allows PDFs
+  even when a model does not natively support file input.
 - Local PDFs are the most reliable OpenRouter document path in the current
   release.
 - PDF URLs are best-effort. Some routes parse them correctly, some return
