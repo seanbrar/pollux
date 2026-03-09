@@ -176,3 +176,26 @@ def test_install_hint_matches_just_positional_argument_style() -> None:
     assert data_packs.install_hint(project="spellbook-sidekick") == (
         "just demo-data spellbook-sidekick"
     )
+
+
+def test_install_pack_rejects_missing_explicit_source_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An explicit source_root should bypass fallback search and fail fast if the pack is absent."""
+    env_source = tmp_path / "env_source"
+    explicit_source = tmp_path / "explicit_source"
+    install_root = tmp_path / "installed"
+
+    _write_shared_pack(env_source)
+    explicit_source.mkdir(parents=True)
+
+    monkeypatch.setenv(data_packs.ENV_DATA_SOURCE, str(env_source))
+    monkeypatch.setattr(data_packs, "_REPO_ROOT", tmp_path / "missing-repo-root")
+
+    with pytest.raises(FileNotFoundError, match="not found in explicit source root"):
+        data_packs.install_pack(
+            data_packs.SHARED_PACK,
+            dest_base=install_root,
+            source_root=explicit_source,
+            fetch_assets=False,
+        )
