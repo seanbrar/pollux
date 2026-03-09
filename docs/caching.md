@@ -164,7 +164,9 @@ asyncio.run(main())
 ### Step-by-Step Walkthrough
 
 1. **Call `create_cache()`.** Pass your sources, config, and a TTL. Pollux
-   uploads the content to the provider and returns a `CacheHandle`.
+   uploads the content to the provider and returns a `CacheHandle`. If you
+   bake in `system_instruction` or `tools`, those become part of the cached
+   bundle too.
 
 2. **Set `ttl_seconds`.** The TTL controls how long the cached content lives on
    the provider. Match it to your reuse window. 3600s (1 hour) is a
@@ -178,8 +180,8 @@ asyncio.run(main())
    `result["metrics"]["cache_used"]` on subsequent calls. `True` confirms
    the provider served content from cache rather than re-uploading.
 
-Pollux computes cache identity from model + source content hash. Calls with
-the same handle reuse the cached context automatically.
+Pollux computes cache identity deterministically. Calls with the same handle
+reuse the cached context automatically.
 
 !!! warning "Options restricted when using a cache handle"
     When `Options(cache=handle)` is set, the following fields **cannot** be
@@ -199,14 +201,20 @@ the same handle reuse the cached context automatically.
 
 ## Cache Identity
 
-For explicit caches, keys are deterministic: `hash(model + provider + content hashes of sources)`.
+For explicit caches, keys are deterministic:
+`hash(model + provider + api_key + system_instruction + tools + content hashes of sources)`.
 
 This means:
 
 - **Same content, different file paths** → same cache key. Renaming or moving
   a file doesn't invalidate the cache.
-- **Different models** → different cache keys. A cache created for
-  `gemini-2.5-flash-lite` won't be reused for `gemini-2.5-pro`.
+- **Different models or providers** → different cache keys. A cache created
+  for `gemini-2.5-flash-lite` won't be reused for `gemini-2.5-pro`, and a
+  Gemini cache key won't collide with one from another provider.
+- **Different API keys** → different cache keys in the same Python process.
+  Pollux scopes explicit cache reuse to the provider account that created it.
+- **Different baked-in `system_instruction` or `tools`** → different cache
+  keys. Changing the cached behavior contract creates a fresh cache entry.
 - **Content changes** → new cache key. Editing a source file produces a fresh
   cache entry.
 

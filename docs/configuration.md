@@ -136,6 +136,7 @@ options = Options(
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Controls model thinking depth
     delivery_mode="realtime",         # Only "realtime" is supported
+    max_tokens=4096,                  # Provider-specific output cap
     implicit_caching=True,            # Auto-cache prefix (Anthropic only)
 )
 ```
@@ -150,6 +151,7 @@ options = Options(
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
 | `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
 | `delivery_mode` | `str` | `"realtime"` | Only `"realtime"` is supported; `"deferred"` raises an error |
+| `max_tokens` | `int \| None` | `None` | Output-token cap with provider-specific semantics. Anthropic applies provider defaults when omitted; other providers may ignore it. See [Provider Capabilities](reference/provider-capabilities.md) |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `cache` | `CacheHandle \| None` | `None` | Persistent explicit cache (Gemini). See [Reducing Costs with Context Caching](caching.md) |
@@ -161,6 +163,12 @@ options = Options(
     Older OpenAI models (for example `gpt-4.1-nano`) still accept them.
     See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints)
     for the full constraints mapping.
+
+!!! note
+    `max_tokens` is not a portable "length knob" with identical behavior
+    everywhere. Anthropic uses it as the total output budget and applies a
+    provider default when you omit it. OpenRouter forwards it to the routed
+    model. Other providers may ignore it in the current release.
 
 !!! warning "Cache handle restrictions"
     When `cache` is set, `system_instruction`, `tools`, and `tool_choice`
