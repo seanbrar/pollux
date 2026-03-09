@@ -1,3 +1,9 @@
+<!-- Intent: Contributor-facing workflow reference. Cover setup, PR and issue
+     expectations, docs standards, and cookbook rules. Do NOT duplicate the
+     full contributor guide from repo-root docs or explain Pollux concepts for
+     end users. Assumes the reader is contributing to this repository.
+     Register: reference. -->
+
 # Contributing
 
 Thanks for considering a contribution to Pollux. Whether it's a bug fix, a

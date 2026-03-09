@@ -1,3 +1,9 @@
+<!-- Intent: Reference page for the cookbook runner. Explain how to invoke
+     recipes, how specs resolve, and how the cookbook complements the prose
+     docs. Do NOT duplicate the teaching content from topical guides or from
+     the recipes themselves. Assumes the reader is working from the repo.
+     Register: reference. -->
+
 # CLI - Cookbook Runner
 
 Use cookbook recipes when you want a full runnable script you can execute,

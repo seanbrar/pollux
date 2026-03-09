@@ -84,10 +84,13 @@ thousands of tokens. Without caching, a fan-out workload with 10 prompts on a
 1-hour video pays for the video's tokens 10 times. With caching, it pays once
 for the upload and a smaller reference cost per subsequent call.
 
-At the API level, caching replaces raw content with a provider-assigned
-identifier that points to previously uploaded data. Cache identity is keyed
-on the content hash. Rename the file, change the prompt: the cache survives.
-Only changing the content itself invalidates it.
+At the API level, caching takes different shapes depending on the provider.
+Pollux distinguishes three paths: explicit caching (you upload content once
+and reference a handle later), implicit caching (Pollux toggles provider-side
+prefix caching per request), and automatic prompt caching (the provider
+discounts repeated prefixes with no Pollux API surface). When you use explicit
+cache handles, cache identity is keyed to the content bundle rather than the
+file path.
 
 ### Source Patterns
 

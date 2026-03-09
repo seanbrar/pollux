@@ -7,6 +7,11 @@ hide:
   - path
 ---
 
+<!-- Intent: Search-visible landing copy for the docs home page. State what
+     Pollux is, what problems it solves, and where a new reader should start.
+     Do NOT duplicate the full getting-started flow or topical guides.
+     Assumes no prior familiarity with the project. Register: landing copy. -->
+
 <!-- SEO fallback: this Markdown body is not rendered visually (the content
      block is suppressed by home.html) but crawlers will index the text. -->
 
