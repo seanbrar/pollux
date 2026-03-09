@@ -1,22 +1,26 @@
 <!-- Intent: Teach context caching mechanics: the redundant-context problem,
-     creating a cache, cache identity, TTL tuning, and when caching pays off.
-     Do NOT cover source patterns or structured output in depth — link to those
-     pages. Assumes the reader understands run_many() and fan-out workflows.
-     Register: conceptual opening → guided applied. -->
+     creating a cache, cache identity, TTL tuning, when caching pays off, and
+     the distinction between Pollux-controlled caching and provider-side
+     automatic prompt caching. Do NOT cover source patterns or structured output
+     in depth — link to those pages. Assumes the reader understands run_many()
+     and fan-out workflows. Register: conceptual opening → guided applied. -->
 
 # Reducing Costs with Context Caching
 
 Pollux's context caching uploads content once and reuses it across prompts,
-turning redundant re-uploads into cheap cache references.
+turning redundant re-uploads into cheap cache references. Providers implement
+caching differently, and Pollux gives you different levels of control
+depending on the provider.
 
 !!! info "Boundary"
-    **Pollux owns:** computing cache identity from content hashes, creating
-    and reusing cached context on the provider, single-flight deduplication,
-    and TTL management.
+    **Pollux owns:** creating and reusing cached context via `create_cache()`
+    (Gemini), toggling Anthropic prompt caching via
+    `Options(implicit_caching=...)`, cache identity from content hashes,
+    single-flight deduplication, and the `metrics.cache_used` signal.
 
     **You own:** deciding when caching is worth the overhead, tuning TTL to
-    match your reuse window, and keeping prompts and sources stable between
-    runs when comparing warm vs reuse behavior.
+    match your reuse window, and checking provider-native usage or billing
+    when you need cache-hit accounting for automatic prompt caching.
 
 ## The Redundant-Context Problem
 
@@ -73,21 +77,28 @@ compare_efficiency(946_800, 10)
 
 More questions on the same content = greater savings.
 
-## Two Approaches to Caching
+## Three Caching Paths
 
-Context caching implementations vary significantly across providers:
+Pollux gives you two caching controls, and a third path exists at the
+provider level:
 
-- **Implicit caching (Anthropic):** Anthropic caches prompt prefixes during
-  generation. Pollux toggles this with `Options(implicit_caching=...)`.
-- **Explicit caching (Gemini):** You upload context once with
+- **Explicit caching (Gemini):** You upload content once with
   `create_cache()`, get a handle back, and pass that handle to later calls.
+- **Implicit caching (Anthropic):** Pollux maps
+  `Options(implicit_caching=...)` to Anthropic's prompt caching behavior.
+- **Automatic prompt caching (OpenAI, Gemini, OpenRouter):** These providers
+  can discount repeated long prefixes on their own. Pollux does not control
+  or configure this, but you can benefit from it without doing anything.
+
+`metrics.cache_used` only reflects explicit cache handles. If you need to
+verify automatic prompt caching, check provider-native usage or billing.
 
 ## Implicit Caching (Anthropic)
 
 Anthropic caches shared prefixes from the top of the request downward:
 system instruction, tools, conversation history, and repeated prompt context.
-You do not create a cache object yourself. Pollux decides whether to ask for
-implicit caching on each provider call.
+You do not create a cache object yourself. Pollux toggles this with
+`Options(implicit_caching=...)`.
 
 ### Cost Mechanics
 
@@ -128,6 +139,12 @@ options = Options(implicit_caching=False)
 
 Setting `implicit_caching=True` on a provider that does not support it raises
 `ConfigurationError`. Pollux does not silently ignore the request.
+
+### Current Pollux Scope
+
+Pollux currently exposes Anthropic's default ephemeral caching behavior. It
+does not expose Anthropic's 1-hour TTL or manual block-level cache
+breakpoints in the public API.
 
 ## Explicit Caching (Gemini)
 
@@ -229,11 +246,12 @@ without requiring caller-side coordination.
 
 Check `metrics.cache_used` on subsequent calls:
 
-- `True` — provider confirmed cache hit
-- `False` — full upload (first call, or cache expired)
+- `True` — provider confirmed cache hit (explicit cache handles only)
+- `False` — full upload, or cache expired
 
 Keep prompts and sources stable between runs when comparing warm vs reuse
-behavior. Usage counters are provider-dependent.
+behavior. Automatic prompt caching at the provider level can still reduce
+costs even when `cache_used` is `False`.
 
 ## Tuning Explicit Cache TTL
 
@@ -259,15 +277,18 @@ Caching is most effective when:
   using explicit caching
 - **Conversations are deep:** multi-turn dialogues with large system prompts
   using implicit caching
+- **Prompt prefixes repeat across calls:** automatic prompt caching at the
+  provider level can help even without a Pollux cache handle
 
 Caching adds overhead for single-prompt, small-source calls. Start without
 caching and enable it when you see repeated context in your workload.
 
 ## Provider Dependency
 
-Calling `create_cache()` with a provider that lacks `persistent_cache`
-support raises an actionable error. `Options(implicit_caching=True)` raises in
-the same way on providers that lack implicit caching support. See
+Calling `create_cache()` with a provider that lacks explicit cache support
+raises an actionable error. `Options(implicit_caching=True)` raises in the
+same way on providers without implicit caching support. Automatic prompt
+caching at the provider level is separate and not gated by Pollux. See
 [Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.
 

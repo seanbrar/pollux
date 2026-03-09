@@ -13,7 +13,7 @@ This page shows the patterns that make that work.
 
 Pollux is capability-transparent, not capability-equalizing. All providers
 support the core text pipeline, but some features are provider-specific. For
-example, Gemini uses explicit cache handles (`create_cache()`), Anthropic uses
+example, Gemini uses explicit caching (`create_cache()`), Anthropic uses
 implicit caching (`Options(implicit_caching=True)`), and OpenRouter exposes
 tool calling and structured outputs only on models that advertise those
 features.
@@ -120,7 +120,11 @@ asyncio.run(main())
    models directly.
 
 2. **Handle features conditionally.** Explicit caching (`create_cache()`) is
-   Gemini-specific, while implicit caching (`implicit_caching=True`) is Anthropic-specific. Handle conditional optimizations near the edge, or wrap them dynamically if needed.
+   Gemini-specific, while implicit caching (`implicit_caching=True`) is
+   Anthropic-specific. Some providers also cache repeated prefixes
+   automatically. Gate these conditional optimizations on the provider name
+   or handle them near the call site; see
+   [Reducing Costs with Context Caching](caching.md#three-caching-paths).
 
 3. **Write provider-agnostic functions.** `analyze_document` accepts a
    provider name and builds the config internally. The prompt, source, and

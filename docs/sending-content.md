@@ -184,7 +184,7 @@ a stable shape that works the same regardless of provider.
 | `confidence` | `float` | Yes | Heuristic: `0.9` for ok, `0.5` otherwise |
 | `extraction_method` | `str` | Yes | Always `"text"` |
 | `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`) |
-| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used`, `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`) |
+| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` ([explicit caching](caching.md#explicit-caching-gemini) only), `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`) |
 
 Example of a complete envelope:
 

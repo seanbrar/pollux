@@ -49,7 +49,7 @@ For a full 2-minute walkthrough (install, key setup, success checks), see
 
 - **Multimodal-first**: PDFs, images, video, YouTube URLs, and arXiv papers—same API
 - **Source patterns**: Fan-out (one source, many prompts), fan-in (many sources, one prompt), and broadcast (many-to-many)
-- **Context caching**: Upload once, reuse across prompts—save tokens and money
+- **Context caching**: Upload once, reuse across prompts: save tokens and money
 - **Structured output**: Get typed responses via `Options(response_schema=YourModel)`
 - **Built for reliability**: Async execution, automatic retries, concurrency control, and clear error messages with actionable hints
 

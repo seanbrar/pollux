@@ -26,8 +26,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | Prefer local PDFs when reliability matters |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | Remote fetch behavior can vary by route |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
-| Explicit context caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
-| Implicit prompt caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only request-level optimization |
+| Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
+| Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
+| Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `response_format` or `structured_outputs` |
 | Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Passed through to provider where supported; see notes below |
 | Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
@@ -39,7 +40,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 ### Gemini
 
-- Context caching uses the Gemini Files API.
+- Explicit caching uses the Gemini Files API.
+- Gemini also caches repeated long prefixes automatically. Pollux does not
+  expose a toggle for that path.
 - Gemini does not support `previous_response_id`; conversation state is
   carried entirely via `history`.
 - Tool parameter schemas are normalized at the provider boundary:
@@ -52,6 +55,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 - File uploads are configured to automatically expire on the OpenAI side.
   Pollux also performs best-effort cleanup of uploaded files after execution.
+- OpenAI caches repeated long prefixes automatically. Pollux does not expose
+  OpenAI-specific cache controls.
 - Remote URL support is intentionally narrow: PDFs and images only.
 - Conversation can use either explicit `history` or `previous_response_id`
   (via `continue_from`). When `previous_response_id` is set, only tool
@@ -73,9 +78,11 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Local file uploads use the Anthropic Files API (beta). Supported types:
   images, PDFs, and text files.
 - Remote URL support is intentionally narrow: images and PDFs only.
-- Implicit prompt caching is enabled with `Options(implicit_caching=True)`.
+- Implicit caching is enabled with `Options(implicit_caching=True)`.
   Pollux defaults it on for single-call workloads and off for multi-call
   fan-out. Requesting it on unsupported providers raises `ConfigurationError`.
+- See [current caching scope](../caching.md#current-pollux-scope) for what
+  Pollux exposes from Anthropic's caching surface.
 - Reasoning: thinking text appears in `ResultEnvelope.reasoning`. All
   `claude-4.x` models support `reasoning_effort`; the `"max"` level is
   Opus 4.6 only.
@@ -124,13 +131,17 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 - Unsupported OpenRouter file types fail fast. For example, local CSV uploads
   raise `ConfigurationError`.
 - Persistent cache handles remain unsupported on OpenRouter in the current release.
+- OpenRouter supports automatic prompt caching on many routed providers.
+  Pollux does not expose OpenRouter-specific cache controls.
 - Reasoning: works on OpenRouter models that support reasoning. Thinking text
   appears in `ResultEnvelope.reasoning`, and token counts in
   `ResultEnvelope.usage["reasoning_tokens"]` when available.
 
 ## Error Semantics
 
-When a requested feature is unsupported for the selected provider or release scope, Pollux raises `ConfigurationError` or `APIError` with a concrete hint, instead of degrading silently.
+When a requested feature is unsupported for the selected provider or release
+scope, Pollux raises `ConfigurationError` or `APIError` with a concrete hint,
+instead of degrading silently.
 
 For example, creating a persistent cache with OpenAI:
 
