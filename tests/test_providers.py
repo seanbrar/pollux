@@ -3209,12 +3209,16 @@ async def test_openrouter_cache_raises() -> None:
     assert err.phase == "cache"
 
 
-def test_openrouter_provider_configures_timeout(openrouter_api_key: str) -> None:
-    """The OpenRouter provider HTTP client must configure an explicit timeout to prevent truncations."""
-    provider = OpenRouterProvider(openrouter_api_key)
+@pytest.mark.asyncio
+async def test_openrouter_provider_configures_timeout() -> None:
+    """The OpenRouter provider HTTP client must configure an explicit timeout."""
+    provider = OpenRouterProvider("test-key")
     client = provider._get_client()
-    assert (
-        getattr(client.timeout, "read", None) == 300.0
-        or getattr(client.timeout, "connect", None) == 300.0
-        or isinstance(client.timeout, httpx.Timeout)
-    )
+
+    assert isinstance(client.timeout, httpx.Timeout)
+    assert client.timeout.connect == 300.0
+    assert client.timeout.read == 300.0
+    assert client.timeout.write == 300.0
+    assert client.timeout.pool == 300.0
+
+    await provider.aclose()
