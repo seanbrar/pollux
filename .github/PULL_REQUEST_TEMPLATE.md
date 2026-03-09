@@ -17,6 +17,6 @@
 ---
 
 - [ ] PR title follows [conventional commits](https://polluxlib.dev/contributing/)
-- [ ] `make check` passes
+- [ ] `just check` passes
 - [ ] Tests cover the meaningful cases, not just the happy path
 - [ ] Docs updated (if this changes public API or user-facing behavior)
