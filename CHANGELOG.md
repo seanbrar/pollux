@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.4.0] - 2026-03-09
+
+### Added
+
+- Add project recipes and starter data packs ([`22c3401`](https://github.com/seanbrar/pollux/commit/22c3401e3672daa59268293f3a68f19a83181a7b))
+- Add projects tier and streamline README ([`d8d3668`](https://github.com/seanbrar/pollux/commit/d8d3668f7fadbaa384157111839a125d7f9ebdb6))
+- Add reasoning controls and refine provider reasoning docs ([`98788e5`](https://github.com/seanbrar/pollux/commit/98788e54637ed1a43e04de7e1e92708abec59a1c))
+- Add tools and structured outputs ([`7170a2b`](https://github.com/seanbrar/pollux/commit/7170a2b24a14dda5f1755447bf630dd8a892d722))
+- Add OpenRouter support for image and PDF inputs ([`840699c`](https://github.com/seanbrar/pollux/commit/840699cfb19a551dfb657ecd26fe32a3fed872c0))
+- Validate model capabilities from OpenRouter metadata ([`28ba2d4`](https://github.com/seanbrar/pollux/commit/28ba2d480e7630619a0560f8e1fba8e1e334259f))
+- Add OpenRouter provider for text generation ([`725bc0e`](https://github.com/seanbrar/pollux/commit/725bc0e5a5e48e2ba56778fadd749ddd8a3fe1d8))
+
+### Fixed
+
+- Remove pack fallback when source_root is explicitly provided ([`8607de1`](https://github.com/seanbrar/pollux/commit/8607de10d4efb4e80829dd3b7d7375dbedca9c23))
+- Configure explicit provider timeout to prevent truncation ([`7deaf82`](https://github.com/seanbrar/pollux/commit/7deaf82bd00a70c7760068d8e1ccd658a0ef4e01))
+- Anthropic model-specific max_tokens behavior ([`daa80fa`](https://github.com/seanbrar/pollux/commit/daa80fa39800c30287ebe9f758634d57e157cdb8))
+
+### Changed
+
+- Improve vocabulary, caching docs, and README style ([`3b17574`](https://github.com/seanbrar/pollux/commit/3b17574c9ae9a5a9988c3d5f0cbab3ed21be4fed))
+
 ## [1.3.0] - 2026-03-06
 
 ### Added
@@ -146,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.4.0]: https://github.com/seanbrar/pollux/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/seanbrar/pollux/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/seanbrar/pollux/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/seanbrar/pollux/compare/v1.2.0...v1.2.1
