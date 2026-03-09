@@ -323,8 +323,15 @@ def install_pack(
     destination_root = (dest_base or cookbook_data_dir()) / spec.relative_root
     destination_root.parent.mkdir(parents=True, exist_ok=True)
 
-    source_pack = _pack_root_from_candidate(source_root, spec) if source_root else None
-    if source_pack is None:
+    if source_root:
+        source_pack = _pack_root_from_candidate(source_root, spec)
+        if source_pack is None:
+            raise FileNotFoundError(
+                f"Requested pack {spec.namespace}:{spec.pack_id}@v{spec.version} "
+                f"not found in explicit source root {source_root}."
+            )
+    else:
+        source_pack = None
         for candidate in _local_repo_candidates():
             source_pack = _pack_root_from_candidate(candidate, spec)
             if source_pack is not None:
