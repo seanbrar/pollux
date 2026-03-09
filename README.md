@@ -2,11 +2,10 @@
 
 Multimodal orchestration for LLM APIs.
 
-> You describe what to analyze. Pollux handles source patterns, context caching, and multimodal complexity—so you don't.
+> You describe what to analyze. Pollux handles source patterns, context caching, and multimodal content, so you don't.
 
 [Documentation](https://polluxlib.dev/) ·
-[Getting Started](https://polluxlib.dev/getting-started/) ·
-[Recipe Catalog](https://polluxlib.dev/reference/cli/)
+[Getting Started](https://polluxlib.dev/getting-started/)
 
 [![PyPI](https://img.shields.io/pypi/v/pollux-ai)](https://pypi.org/project/pollux-ai/)
 [![CI](https://github.com/seanbrar/pollux/actions/workflows/ci.yml/badge.svg)](https://github.com/seanbrar/pollux/actions/workflows/ci.yml)
@@ -23,35 +22,58 @@ from pollux import Config, Source, run
 
 result = asyncio.run(
     run(
-        "What are the key findings?",
-        source=Source.from_text(
-            "Pollux supports fan-out, fan-in, and broadcast source patterns. "
-            "It also supports context caching for repeated prompts."
-        ),
+        "What are the key findings and their implications?",
+        source=Source.from_file("earnings-report.pdf"),
         config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
     )
 )
 print(result["answers"][0])
-# "The key findings are: (1) three source patterns (fan-out, fan-in,
-#  broadcast) and (2) context caching for token and cost savings."
+# Revenue grew 18% YoY to $4.2B, driven by cloud services. Operating
+# margins improved from 29% to 34%. Management's $2B buyback and raised
+# guidance signal confidence in sustained growth.
 ```
 
-`run()` returns a `ResultEnvelope` dict — `answers` is a list with one entry per prompt.
+`run()` returns a `ResultEnvelope`: `answers` holds one entry per prompt.
 
 To use OpenAI instead: `Config(provider="openai", model="gpt-5-nano")`.
 For Anthropic: `Config(provider="anthropic", model="claude-haiku-4-5")`.
 For OpenRouter: `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.
 
-For a full 2-minute walkthrough (install, key setup, success checks), see
+For a full walkthrough (install, key setup, first result), see
 [Getting Started](https://polluxlib.dev/getting-started/).
 
-## Why Pollux?
+## What Problems Does Pollux Solve?
 
-- **Multimodal-first**: PDFs, images, video, YouTube URLs, and arXiv papers—same API
-- **Source patterns**: Fan-out (one source, many prompts), fan-in (many sources, one prompt), and broadcast (many-to-many)
-- **Context caching**: Upload once, reuse across prompts: save tokens and money
-- **Structured output**: Get typed responses via `Options(response_schema=YourModel)`
-- **Built for reliability**: Async execution, automatic retries, concurrency control, and clear error messages with actionable hints
+Say you have a document and ten questions about it. Each API call re-uploads the file, and you're left managing caching, retries, and concurrency yourself. Pollux uploads once, caches the content, fans out your prompts concurrently, and hands back results.
+
+The same `Source` interface handles PDFs, images, video, YouTube URLs, and arXiv papers. No per-format upload code.
+
+Need structured output? Pass a Pydantic model as `response_schema` and get a validated instance alongside the raw text. Switching providers is a one-line change: `provider="gemini"` to `provider="openai"`.
+
+## One Upload, Many Prompts
+
+Got three questions about the same paper? `run_many()` fans them out concurrently:
+
+```python
+import asyncio
+from pollux import Config, Source, run_many
+
+envelope = asyncio.run(
+    run_many(
+        ["Summarize the methodology.", "List key findings.", "Identify limitations."],
+        sources=[Source.from_file("paper.pdf")],
+        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
+    )
+)
+for answer in envelope["answers"]:
+    print(answer)
+```
+
+Add more sources and Pollux broadcasts every prompt across every source, uploading each once regardless of how many prompts reference it.
+
+## Where Pollux Ends
+
+Pollux owns content delivery, context caching, and provider translation. Prompt design, workflow orchestration, and what you do with results are yours. See [Core Concepts](https://polluxlib.dev/concepts/) for the full boundary model.
 
 ## Installation
 
@@ -59,111 +81,25 @@ For a full 2-minute walkthrough (install, key setup, success checks), see
 pip install pollux-ai
 ```
 
-### API Keys
-
-Get a key from [Google AI Studio](https://ai.dev/), [OpenAI Platform](https://platform.openai.com/api-keys), the [Anthropic Console](https://console.anthropic.com/settings/keys), or [OpenRouter](https://openrouter.ai/keys), then:
+Set your provider's API key:
 
 ```bash
-# Gemini
-export GEMINI_API_KEY="your-key-here"
-
-# OpenAI
-export OPENAI_API_KEY="your-key-here"
-
-# Anthropic
-export ANTHROPIC_API_KEY="your-key-here"
-
-# OpenRouter
+export GEMINI_API_KEY="your-key-here"     # or
+export OPENAI_API_KEY="your-key-here"     # or
+export ANTHROPIC_API_KEY="your-key-here"  # or
 export OPENROUTER_API_KEY="your-key-here"
 ```
 
-## Usage
-
-### Multi-Source Analysis
-
-```python
-import asyncio
-
-from pollux import Config, Source, run_many
-
-async def main() -> None:
-    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
-    sources = [
-        Source.from_file("paper1.pdf"),
-        Source.from_file("paper2.pdf"),
-    ]
-    prompts = ["Summarize the main argument.", "List key findings."]
-
-    envelope = await run_many(prompts, sources=sources, config=config)
-    for answer in envelope["answers"]:
-        print(answer)
-
-asyncio.run(main())
-```
-
-### YouTube and arXiv Sources
-
-```python
-from pollux import Source
-
-lecture = Source.from_youtube("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-paper = Source.from_arxiv("2301.07041")
-```
-
-Pass these to `run()` or `run_many()` like any other source — Pollux handles the rest.
-
-### Structured Output
-
-```python
-import asyncio
-
-from pydantic import BaseModel
-
-from pollux import Config, Options, Source, run
-
-class Summary(BaseModel):
-    title: str
-    key_points: list[str]
-    sentiment: str
-
-result = asyncio.run(
-    run(
-        "Summarize this document.",
-        source=Source.from_file("report.pdf"),
-        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
-        options=Options(response_schema=Summary),
-    )
-)
-parsed = result["structured"]  # Summary instance
-print(parsed.key_points)
-```
-
-### Configuration
-
-```python
-from pollux import Config
-
-config = Config(
-    provider="gemini",
-    model="gemini-2.5-flash-lite",
-)
-```
-
-See the [Configuration Guide](https://polluxlib.dev/configuration/) for details.
-
-### Provider Differences
-
-Pollux does not force strict feature parity across providers in v1.0.
-See the capability matrix: [Provider Capabilities](https://polluxlib.dev/reference/provider-capabilities/).
+Keys from: [Google AI Studio](https://ai.dev/) · [OpenAI](https://platform.openai.com/api-keys) · [Anthropic](https://console.anthropic.com/settings/keys) · [OpenRouter](https://openrouter.ai/keys)
 
 ## Documentation
 
-- [Getting Started](https://polluxlib.dev/getting-started/) — First result in 2 minutes
-- [Core Concepts](https://polluxlib.dev/concepts/) — Mental model and vocabulary
-- [Recipe Catalog](https://polluxlib.dev/reference/cli/) — Runnable cookbook scripts
-- [API Reference](https://polluxlib.dev/reference/api/) — Entry points and types
+- [Getting Started](https://polluxlib.dev/getting-started/): first result in 2 minutes
+- [Core Concepts](https://polluxlib.dev/concepts/): mental model and vocabulary
+- [API Reference](https://polluxlib.dev/reference/api/): entry points and types
+- [Cookbook](https://polluxlib.dev/reference/cli/): runnable end-to-end recipes
 
-Full documentation at [polluxlib.dev](https://polluxlib.dev/).
+Full docs at [polluxlib.dev](https://polluxlib.dev/).
 
 ## Contributing
 
