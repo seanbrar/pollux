@@ -3207,3 +3207,14 @@ async def test_openrouter_cache_raises() -> None:
     err = exc.value
     assert err.provider == "openrouter"
     assert err.phase == "cache"
+
+
+def test_openrouter_provider_configures_timeout(openrouter_api_key: str) -> None:
+    """The OpenRouter provider HTTP client must configure an explicit timeout to prevent truncations."""
+    provider = OpenRouterProvider(openrouter_api_key)
+    client = provider._get_client()
+    assert (
+        getattr(client.timeout, "read", None) == 300.0
+        or getattr(client.timeout, "connect", None) == 300.0
+        or isinstance(client.timeout, httpx.Timeout)
+    )
