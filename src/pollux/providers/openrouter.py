@@ -77,6 +77,7 @@ class OpenRouterProvider:
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
+                timeout=300.0,
             )
         return cast("httpx.AsyncClient", self._client)
 
