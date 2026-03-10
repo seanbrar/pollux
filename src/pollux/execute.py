@@ -88,10 +88,9 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
 
     # TODO: implement deferred delivery via provider batch APIs.
     if options.delivery_mode == "deferred":
-        provider_name = type(provider).__name__
         raise ConfigurationError(
-            f"delivery_mode='deferred' is not implemented yet for provider {provider_name}",
-            hint="Use delivery_mode='realtime' for now.",
+            "delivery_mode='deferred' is not supported on run() or run_many()",
+            hint="Use pollux.defer() or pollux.defer_many() for deferred delivery.",
         )
     if options.response_schema is not None and not caps.structured_outputs:
         raise ConfigurationError(

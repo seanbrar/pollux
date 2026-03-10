@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -66,6 +66,17 @@ class CacheError(APIError):
 
 class RateLimitError(APIError):
     """Rate limit exceeded (HTTP 429)."""
+
+
+class DeferredNotReadyError(PolluxError):
+    """Deferred job is not yet in a terminal state."""
+
+    def __init__(self, snapshot: Any) -> None:
+        super().__init__(
+            "Deferred job is not ready to collect",
+            hint="Inspect the attached snapshot and retry after the job reaches a terminal state.",
+        )
+        self.snapshot = snapshot
 
 
 def _walk_exception_chain(exc: BaseException) -> Iterator[BaseException]:

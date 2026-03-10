@@ -1,9 +1,9 @@
-"""Provider protocol: minimal interface for API providers."""
+"""Provider protocols for realtime and deferred execution."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -13,6 +13,8 @@ if TYPE_CHECKING:
         ProviderRequest,
         ProviderResponse,
     )
+
+DeferredItemStatus = Literal["succeeded", "failed", "cancelled", "expired"]
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,41 @@ class ProviderCapabilities:
     deferred_delivery: bool = False
     conversation: bool = False
     implicit_caching: bool = False
+
+
+@dataclass(frozen=True)
+class ProviderDeferredHandle:
+    """Provider-owned handle returned at deferred submission time."""
+
+    job_id: str
+    submitted_at: float | None = None
+
+
+@dataclass(frozen=True)
+class ProviderDeferredSnapshot:
+    """Provider snapshot normalized to Pollux lifecycle semantics."""
+
+    status: str
+    provider_status: str
+    request_count: int
+    succeeded: int
+    failed: int
+    pending: int
+    submitted_at: float | None = None
+    completed_at: float | None = None
+    expires_at: float | None = None
+
+
+@dataclass(frozen=True)
+class ProviderDeferredItem:
+    """One collected deferred item keyed by the submitted request id."""
+
+    request_id: str
+    status: DeferredItemStatus
+    response: dict[str, Any] | None = None
+    error: str | None = None
+    provider_status: str | None = None
+    finish_reason: str | None = None
 
 
 @runtime_checkable
@@ -58,4 +95,30 @@ class Provider(Protocol):
     @property
     def capabilities(self) -> ProviderCapabilities:
         """Feature capabilities for strict option validation."""
+        ...
+
+
+@runtime_checkable
+class DeferredProvider(Protocol):
+    """Lifecycle operations for provider-backed deferred delivery."""
+
+    async def submit_deferred(
+        self,
+        requests: list[ProviderRequest],
+        *,
+        request_ids: list[str],
+    ) -> ProviderDeferredHandle:
+        """Submit deferred work and return a provider-owned handle."""
+        ...
+
+    async def inspect_deferred(self, job_id: str) -> ProviderDeferredSnapshot:
+        """Inspect deferred job state."""
+        ...
+
+    async def collect_deferred(self, job_id: str) -> list[ProviderDeferredItem]:
+        """Collect terminal deferred results."""
+        ...
+
+    async def cancel_deferred(self, job_id: str) -> None:
+        """Request provider-side cancellation."""
         ...

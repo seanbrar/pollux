@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import BaseModel
 
+from pollux.options import ResponseSchemaInput, response_schema_model
+
 if TYPE_CHECKING:
     from pollux.execute import ExecutionTrace
     from pollux.plan import Plan
@@ -38,17 +40,25 @@ class ResultEnvelope(TypedDict, total=False):
     tool_calls: list[list[dict[str, Any]]]
 
 
-def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
-    """Build ResultEnvelope from execution trace.
+def build_result_from_responses(
+    responses: list[dict[str, Any]],
+    *,
+    schema: ResponseSchemaInput | None = None,
+    duration_s: float,
+    usage: dict[str, int],
+    n_calls: int,
+    cache_used: bool = False,
+) -> ResultEnvelope:
+    """Build a ResultEnvelope from provider responses.
 
-    Extracts answers from responses with simple, predictable logic.
+    Core extraction logic shared by realtime and deferred paths.
     """
     answers: list[str] = []
     structured_values: list[Any] = []
-    schema_model = plan.request.options.response_schema_model()
-    wants_structured = plan.request.options.response_schema is not None
+    schema_model = response_schema_model(schema)
+    wants_structured = schema is not None
 
-    for response in trace.responses:
+    for response in responses:
         text = _extract_text(response)
         answers.append(text)
         if wants_structured:
@@ -69,7 +79,7 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
 
     reasoning_texts: list[str | None] = []
     has_reasoning = False
-    for response in trace.responses:
+    for response in responses:
         if "reasoning" in response:
             reasoning_texts.append(response["reasoning"])
             has_reasoning = True
@@ -86,7 +96,7 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
 
     # Extract finish reasons forwarded from providers.
     finish_reasons: list[str | None] = [
-        response.get("finish_reason") for response in trace.responses
+        response.get("finish_reason") for response in responses
     ]
 
     envelope = ResultEnvelope(
@@ -94,21 +104,39 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
         answers=answers,
         confidence=0.9 if status == "ok" else 0.5,
         extraction_method="text",
-        usage=trace.usage,
+        usage=usage,
         metrics={
-            "duration_s": trace.duration_s,
-            "n_calls": plan.n_calls,
-            "cache_used": trace.cache_name is not None,
+            "duration_s": duration_s,
+            "n_calls": n_calls,
+            "cache_used": cache_used,
             "finish_reasons": finish_reasons,
         },
         diagnostics={
-            "raw_responses": trace.responses,
+            "raw_responses": responses,
         },
     )
     if wants_structured:
         envelope["structured"] = structured_values
     if has_reasoning:
         envelope["reasoning"] = reasoning_texts
+
+    return envelope
+
+
+def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
+    """Build ResultEnvelope from execution trace.
+
+    Extracts answers from responses with simple, predictable logic.
+    """
+    envelope = build_result_from_responses(
+        trace.responses,
+        schema=plan.request.options.response_schema,
+        duration_s=trace.duration_s,
+        usage=trace.usage,
+        n_calls=plan.n_calls,
+        cache_used=trace.cache_name is not None,
+    )
+
     if trace.conversation_state is not None:
         envelope["_conversation_state"] = trace.conversation_state
 

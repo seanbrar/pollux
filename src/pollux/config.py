@@ -22,6 +22,16 @@ _API_KEY_ENV_VARS: dict[ProviderName, str] = {
 }
 
 
+def resolve_api_key(provider: ProviderName) -> str | None:
+    """Resolve an API key for *provider* using env vars and lazy dotenv loading."""
+    env_var = _API_KEY_ENV_VARS[provider]
+    resolved_key = os.environ.get(env_var)
+    if not resolved_key:
+        dotenv.load_dotenv()
+        resolved_key = os.environ.get(env_var)
+    return resolved_key
+
+
 @dataclass(frozen=True)
 class Config:
     """Immutable configuration for Pollux execution.
@@ -67,13 +77,7 @@ class Config:
 
         # Auto-resolve API key from environment if not provided
         if self.api_key is None and not self.use_mock:
-            env_var = _API_KEY_ENV_VARS[self.provider]
-            resolved_key = os.environ.get(env_var)
-            # Load .env lazily when the key is not already exported.
-            if not resolved_key:
-                dotenv.load_dotenv()
-                resolved_key = os.environ.get(env_var)
-            object.__setattr__(self, "api_key", resolved_key)
+            object.__setattr__(self, "api_key", resolve_api_key(self.provider))
 
         # Validate: real API calls need a key
         if not self.use_mock and not self.api_key:

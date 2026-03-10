@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
@@ -16,6 +18,40 @@ if TYPE_CHECKING:
 ReasoningEffort = str
 DeliveryMode = Literal["realtime", "deferred"]
 ResponseSchemaInput = type[BaseModel] | dict[str, Any]
+
+
+def response_schema_json(
+    schema: ResponseSchemaInput | None,
+) -> dict[str, Any] | None:
+    """Return JSON Schema for provider APIs."""
+    if schema is None:
+        return None
+    if isinstance(schema, dict):
+        return schema
+    return schema.model_json_schema()
+
+
+def response_schema_model(
+    schema: ResponseSchemaInput | None,
+) -> type[BaseModel] | None:
+    """Return a Pydantic model class when one was provided."""
+    if isinstance(schema, type) and issubclass(schema, BaseModel):
+        return schema
+    return None
+
+
+def response_schema_hash(schema: ResponseSchemaInput | None) -> str | None:
+    """Return a stable hash of the JSON Schema."""
+    normalized = response_schema_json(schema)
+    if normalized is None:
+        return None
+    payload = json.dumps(
+        normalized,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -118,16 +154,12 @@ class Options:
 
     def response_schema_json(self) -> dict[str, Any] | None:
         """Return JSON Schema for provider APIs."""
-        schema = self.response_schema
-        if schema is None:
-            return None
-        if isinstance(schema, dict):
-            return schema
-        return schema.model_json_schema()
+        return response_schema_json(self.response_schema)
 
     def response_schema_model(self) -> type[BaseModel] | None:
         """Return Pydantic schema class when one was provided."""
-        schema = self.response_schema
-        if isinstance(schema, type) and issubclass(schema, BaseModel):
-            return schema
-        return None
+        return response_schema_model(self.response_schema)
+
+    def response_schema_hash(self) -> str | None:
+        """Return a stable hash of the JSON Schema."""
+        return response_schema_hash(self.response_schema)
