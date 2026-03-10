@@ -1849,6 +1849,93 @@ async def test_openai_deferred_backend_integrates_with_public_api(
 
 
 @pytest.mark.asyncio
+async def test_openai_deferred_collection_does_not_invent_structured_without_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deferred collection should match realtime extraction when no schema was submitted."""
+
+    class _Files:
+        def __init__(self) -> None:
+            self.contents = {
+                "file_out": json.dumps(
+                    {
+                        "custom_id": "pollux-000000",
+                        "response": {
+                            "status_code": 200,
+                            "body": {
+                                "status": "completed",
+                                "output": [
+                                    {
+                                        "type": "message",
+                                        "content": [
+                                            {
+                                                "type": "output_text",
+                                                "text": '{"plain":true}',
+                                            }
+                                        ],
+                                    }
+                                ],
+                                "usage": {"total_tokens": 1},
+                            },
+                        },
+                        "error": None,
+                    }
+                )
+            }
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("File", (), {"id": "file_batch_input"})()
+
+        async def retrieve_content(self, file_id: str) -> str:
+            return self.contents[file_id]
+
+        async def delete(self, file_id: str) -> None:
+            _ = file_id
+
+    class _Batches:
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"id": "batch_123", "created_at": 100.0})()
+
+        async def retrieve(self, job_id: str) -> Any:
+            _ = job_id
+            return {
+                "status": "completed",
+                "request_counts": {"total": 1, "completed": 1, "failed": 0},
+                "created_at": 100,
+                "completed_at": 125,
+                "output_file_id": "file_out",
+                "metadata": {"pollux_has_response_schema": "0"},
+            }
+
+        async def cancel(self, job_id: str) -> Any:
+            return {"id": job_id}
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> OpenAIProvider:
+        class _Client:
+            def __init__(self) -> None:
+                self.files = _Files()
+                self.batches = _Batches()
+
+            async def close(self) -> None:
+                return None
+
+        provider = OpenAIProvider("test-key")
+        provider._client = _Client()
+        return provider
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    job = await pollux.defer('Return {"plain":true}', config=cfg)
+    result = await pollux.collect_deferred(job)
+
+    assert result["answers"] == ['{"plain":true}']
+    assert "structured" not in result
+
+
+@pytest.mark.asyncio
 async def test_structured_output_returns_pydantic_instances(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

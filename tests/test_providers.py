@@ -1247,8 +1247,56 @@ async def test_openai_submit_deferred_characterizes_batch_request(
         "input_file_id": "file_batch_input",
         "endpoint": "/v1/responses",
         "completion_window": "24h",
-        "metadata": {"pollux_request_count": "2"},
+        "metadata": {
+            "pollux_request_count": "2",
+            "pollux_has_response_schema": "1",
+        },
     }
+
+
+@pytest.mark.asyncio
+async def test_openai_submit_deferred_reuses_shared_file_uploads(
+    tmp_path: Path,
+) -> None:
+    """Deferred fan-out should upload a shared local file once per batch."""
+    pdf_path = tmp_path / "shared.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    await provider.submit_deferred(
+        [
+            ProviderRequest(
+                model=OPENAI_MODEL,
+                parts=[
+                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                    "Question 1",
+                ],
+            ),
+            ProviderRequest(
+                model=OPENAI_MODEL,
+                parts=[
+                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                    "Question 2",
+                ],
+            ),
+        ],
+        request_ids=["pollux-000000", "pollux-000001"],
+    )
+
+    assert len(files.create_calls) == 2
+    assert [call["purpose"] for call in files.create_calls] == ["user_data", "batch"]
+
+    batch_upload = files.create_calls[1]["file"]
+    lines = [json.loads(line) for line in batch_upload.getvalue().decode().splitlines()]
+
+    first_file = lines[0]["body"]["input"][0]["content"][0]["file_id"]
+    second_file = lines[1]["body"]["input"][0]["content"][0]["file_id"]
+    assert first_file == "file_uploaded_pdf"
+    assert second_file == first_file
 
 
 @pytest.mark.asyncio
@@ -1365,6 +1413,7 @@ async def test_openai_collect_deferred_parses_output_and_error_files() -> None:
     batches.retrieve_result = {
         "output_file_id": "file_out",
         "error_file_id": "file_err",
+        "metadata": {"pollux_has_response_schema": "1"},
     }
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
@@ -1386,6 +1435,49 @@ async def test_openai_collect_deferred_parses_output_and_error_files() -> None:
     assert success.response["reasoning"] == "Reasoned"
     assert success.response["usage"]["total_tokens"] == 3
     assert success.finish_reason == "completed"
+
+
+@pytest.mark.asyncio
+async def test_openai_collect_deferred_leaves_plain_json_text_unstructured() -> None:
+    """Deferred collection should only surface structured payloads for schema-backed jobs."""
+    files = _FakeBatchFilesClient()
+    files.contents["file_out"] = json.dumps(
+        {
+            "custom_id": "pollux-000000",
+            "response": {
+                "status_code": 200,
+                "body": {
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": '{"plain":true}',
+                                }
+                            ],
+                        }
+                    ],
+                    "usage": {"total_tokens": 1},
+                },
+            },
+            "error": None,
+        }
+    )
+
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {"output_file_id": "file_out", "metadata": {}}
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    items = await provider.collect_deferred("batch_123")
+
+    assert items[0].response == {
+        "text": '{"plain":true}',
+        "usage": {"total_tokens": 1},
+        "finish_reason": "completed",
+    }
 
 
 @pytest.mark.asyncio

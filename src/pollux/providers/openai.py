@@ -254,8 +254,12 @@ class OpenAIProvider:
 
         try:
             lines: list[str] = []
+            upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
             for request_id, request in zip(request_ids, requests, strict=True):
-                body = await self._build_batch_request_body(request)
+                body = await self._build_batch_request_body(
+                    request,
+                    upload_cache=upload_cache,
+                )
                 lines.append(
                     json.dumps(
                         {
@@ -280,7 +284,10 @@ class OpenAIProvider:
                 input_file_id=batch_file.id,
                 endpoint="/v1/responses",
                 completion_window="24h",
-                metadata={"pollux_request_count": str(len(requests))},
+                metadata={
+                    "pollux_request_count": str(len(requests)),
+                    "pollux_has_response_schema": _batch_has_response_schema(requests),
+                },
             )
             return ProviderDeferredHandle(
                 job_id=batch.id,
@@ -345,10 +352,19 @@ class OpenAIProvider:
         try:
             batch = await client.batches.retrieve(job_id)
             items: list[ProviderDeferredItem] = []
+            parse_structured_json = _batch_metadata_flag(
+                _field(batch, "metadata"),
+                key="pollux_has_response_schema",
+            )
             output_file_id = _field(batch, "output_file_id")
             if isinstance(output_file_id, str) and output_file_id:
                 content = await client.files.retrieve_content(output_file_id)
-                items.extend(self._parse_batch_output_file(content))
+                items.extend(
+                    self._parse_batch_output_file(
+                        content,
+                        parse_structured_json=parse_structured_json,
+                    )
+                )
 
             error_file_id = _field(batch, "error_file_id")
             if isinstance(error_file_id, str) and error_file_id:
@@ -514,7 +530,10 @@ class OpenAIProvider:
         return create_kwargs
 
     async def _build_batch_request_body(
-        self, request: ProviderRequest
+        self,
+        request: ProviderRequest,
+        *,
+        upload_cache: dict[tuple[str, str], ProviderFileAsset],
     ) -> dict[str, Any]:
         """Build one OpenAI Batch API line body for `/v1/responses`."""
         resolved_parts: list[Any] = []
@@ -524,9 +543,14 @@ class OpenAIProvider:
                 and isinstance(part.get("file_path"), str)
                 and isinstance(part.get("mime_type"), str)
             ):
-                resolved_parts.append(
-                    await self.upload_file(Path(part["file_path"]), part["mime_type"])
-                )
+                file_path = part["file_path"]
+                mime_type = part["mime_type"]
+                cache_key = (file_path, mime_type)
+                asset = upload_cache.get(cache_key)
+                if asset is None:
+                    asset = await self.upload_file(Path(file_path), mime_type)
+                    upload_cache[cache_key] = asset
+                resolved_parts.append(asset)
             else:
                 resolved_parts.append(part)
 
@@ -549,7 +573,12 @@ class OpenAIProvider:
         )
         return self._build_responses_create_kwargs(resolved_request)
 
-    def _parse_batch_output_file(self, content: str) -> list[ProviderDeferredItem]:
+    def _parse_batch_output_file(
+        self,
+        content: str,
+        *,
+        parse_structured_json: bool,
+    ) -> list[ProviderDeferredItem]:
         """Parse a batch output JSONL file into succeeded/failed items."""
         items: list[ProviderDeferredItem] = []
         for line in content.splitlines():
@@ -585,7 +614,7 @@ class OpenAIProvider:
             parsed = self._parse_response(
                 body,
                 response_schema=None,
-                parse_structured_json=True,
+                parse_structured_json=parse_structured_json,
             )
             items.append(
                 ProviderDeferredItem(
@@ -699,6 +728,19 @@ def _batch_failed_requests(batch: Any) -> int:
     counts = _field(batch, "request_counts")
     value = _field(counts, "failed") if counts is not None else None
     return value if isinstance(value, int) else 0
+
+
+def _batch_has_response_schema(requests: list[ProviderRequest]) -> str:
+    """Persist whether this batch was submitted with structured outputs enabled."""
+    return (
+        "1" if any(request.response_schema is not None for request in requests) else "0"
+    )
+
+
+def _batch_metadata_flag(metadata: Any, *, key: str) -> bool:
+    """Return True when a Pollux-owned batch metadata flag is enabled."""
+    value = _field(metadata, key) if metadata is not None else None
+    return value == "1"
 
 
 def _normalize_batch_status(status: Any, *, completed: int, failed: int) -> str:
