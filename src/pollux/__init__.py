@@ -3,6 +3,11 @@
 Public API:
     - run(): Single prompt execution
     - run_many(): Multi-prompt source-pattern execution
+    - defer(): Single deferred request submission
+    - defer_many(): Multi-prompt deferred submission
+    - inspect_deferred(): Inspect a deferred job
+    - collect_deferred(): Collect terminal deferred results
+    - cancel_deferred(): Cancel a deferred job
     - create_cache(): Create a persistent context cache
     - Source: Explicit input types
     - Config: Configuration dataclass
@@ -12,14 +17,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pollux.cache import CacheHandle
-from pollux.config import Config
+from pollux.config import Config, ProviderName, resolve_api_key
+from pollux.deferred import (
+    DeferredHandle,
+    DeferredSnapshot,
+    cancel_deferred_handle,
+    collect_deferred_handle,
+    inspect_deferred_handle,
+    submit_deferred,
+)
 from pollux.errors import (
     APIError,
     CacheError,
     ConfigurationError,
+    DeferredNotReadyError,
     InternalError,
     PlanningError,
     PolluxError,
@@ -80,6 +94,18 @@ async def run(
     return await run_many(prompt, sources=sources, config=config, options=options)
 
 
+async def defer(
+    prompt: str | None = None,
+    *,
+    source: Source | None = None,
+    config: Config,
+    options: Options | None = None,
+) -> DeferredHandle:
+    """Submit a single deferred request and return a serializable handle."""
+    sources = (source,) if source else ()
+    return await defer_many(prompt, sources=sources, config=config, options=options)
+
+
 async def run_many(
     prompts: str | Sequence[str | None] | None = None,
     *,
@@ -118,6 +144,64 @@ async def run_many(
         await _close_provider(provider)
 
     return build_result(plan, trace)
+
+
+async def defer_many(
+    prompts: str | Sequence[str | None] | None = None,
+    *,
+    sources: Sequence[Source] = (),
+    config: Config,
+    options: Options | None = None,
+) -> DeferredHandle:
+    """Submit deferred work and return a handle for later inspection/collection."""
+    request = normalize_request(prompts, sources, config, options=options)
+    if not request.prompts:
+        raise ConfigurationError(
+            "defer_many() requires at least one prompt",
+            hint="Pass one or more prompts, or use run_many(prompts=[]) for a realtime no-op.",
+        )
+    plan = build_plan(request)
+    provider = _get_provider(request.config)
+
+    try:
+        return await submit_deferred(plan, provider)
+    finally:
+        await _close_provider(provider)
+
+
+async def inspect_deferred(handle: DeferredHandle) -> DeferredSnapshot:
+    """Inspect the current state of a deferred job."""
+    provider = _get_deferred_provider_from_handle(handle)
+    try:
+        return await inspect_deferred_handle(handle, provider)
+    finally:
+        await _close_provider(provider)
+
+
+async def collect_deferred(
+    handle: DeferredHandle,
+    *,
+    response_schema: type[Any] | dict[str, Any] | None = None,
+) -> ResultEnvelope:
+    """Collect a terminal deferred job into the standard ResultEnvelope."""
+    provider = _get_deferred_provider_from_handle(handle)
+    try:
+        return await collect_deferred_handle(
+            handle,
+            provider,
+            response_schema=response_schema,
+        )
+    finally:
+        await _close_provider(provider)
+
+
+async def cancel_deferred(handle: DeferredHandle) -> None:
+    """Request provider-side cancellation for a deferred job."""
+    provider = _get_deferred_provider_from_handle(handle)
+    try:
+        await cancel_deferred_handle(handle, provider)
+    finally:
+        await _close_provider(provider)
 
 
 async def continue_tool(
@@ -222,51 +306,69 @@ async def _close_provider(provider: Provider) -> None:
             logger.warning("Provider cleanup failed: %s", exc)
 
 
-def _get_provider(config: Config) -> Provider:
-    """Get the appropriate provider based on configuration."""
-    if config.use_mock:
+def _create_provider(
+    provider: str, api_key: str | None, *, use_mock: bool = False
+) -> Provider:
+    """Instantiate a provider client from explicit parameters."""
+    if use_mock:
         from pollux.providers.mock import MockProvider
 
         return MockProvider()
 
-    if config.provider == "openai":
+    if provider == "openai":
         from pollux.providers.openai import OpenAIProvider
 
-        if not config.api_key:
+        if not api_key:
             raise ConfigurationError(
                 "api_key required for real API",
                 hint="Set OPENAI_API_KEY or pass Config(api_key=...).",
             )
-        return OpenAIProvider(config.api_key)
+        return OpenAIProvider(api_key)
 
-    if config.provider == "anthropic":
+    if provider == "anthropic":
         from pollux.providers.anthropic import AnthropicProvider
 
-        if not config.api_key:
+        if not api_key:
             raise ConfigurationError(
                 "api_key required for real API",
                 hint="Set ANTHROPIC_API_KEY or pass Config(api_key=...).",
             )
-        return AnthropicProvider(config.api_key)
+        return AnthropicProvider(api_key)
 
-    if config.provider == "openrouter":
+    if provider == "openrouter":
         from pollux.providers.openrouter import OpenRouterProvider
 
-        if not config.api_key:
+        if not api_key:
             raise ConfigurationError(
                 "api_key required for real API",
                 hint="Set OPENROUTER_API_KEY or pass Config(api_key=...).",
             )
-        return OpenRouterProvider(config.api_key)
+        return OpenRouterProvider(api_key)
 
     from pollux.providers.gemini import GeminiProvider
 
-    if not config.api_key:
+    if not api_key:
         raise ConfigurationError(
             "api_key required for real API",
             hint="Set GEMINI_API_KEY or pass Config(api_key=...).",
         )
-    return GeminiProvider(config.api_key)
+    return GeminiProvider(api_key)
+
+
+def _get_provider(config: Config) -> Provider:
+    """Get the appropriate provider based on configuration."""
+    return _create_provider(config.provider, config.api_key, use_mock=config.use_mock)
+
+
+def _get_deferred_provider_from_handle(handle: DeferredHandle) -> Provider:
+    """Resolve a provider client for deferred lifecycle calls from the handle."""
+    if handle.provider not in {"gemini", "openai", "anthropic", "openrouter"}:
+        raise ConfigurationError(
+            f"Unknown provider on deferred handle: {handle.provider!r}",
+            hint="Persist Pollux DeferredHandle values without modifying their provider field.",
+        )
+    api_key = resolve_api_key(cast("ProviderName", handle.provider))
+    return _create_provider(handle.provider, api_key)
 
 
 # Re-export for convenience
@@ -276,6 +378,9 @@ __all__ = [
     "CacheHandle",
     "Config",
     "ConfigurationError",
+    "DeferredHandle",
+    "DeferredNotReadyError",
+    "DeferredSnapshot",
     "InternalError",
     "Options",
     "PlanningError",
@@ -285,8 +390,13 @@ __all__ = [
     "RetryPolicy",
     "Source",
     "SourceError",
+    "cancel_deferred",
+    "collect_deferred",
     "continue_tool",
     "create_cache",
+    "defer",
+    "defer_many",
+    "inspect_deferred",
     "run",
     "run_many",
 ]
