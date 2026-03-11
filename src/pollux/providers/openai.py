@@ -6,6 +6,7 @@ import asyncio
 import base64
 import io
 import json
+import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -26,6 +27,8 @@ from pollux.providers.models import (
     ProviderResponse,
     ToolCall,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIProvider:
@@ -320,6 +323,7 @@ class OpenAIProvider:
         """Inspect an OpenAI batch and normalize status/counts."""
         client = self._get_client()
         job_id = handle.job_id
+        status: str | None = None
 
         try:
             batch = await client.batches.retrieve(job_id)
@@ -361,6 +365,9 @@ class OpenAIProvider:
                 allow_network_errors=True,
                 message="OpenAI batch inspect failed",
             ) from e
+        finally:
+            if status in {"completed", "partial", "failed", "cancelled", "expired"}:
+                await self._cleanup_deferred_owned_files(handle)
 
     async def collect_deferred(
         self, handle: ProviderDeferredHandle
@@ -394,10 +401,12 @@ class OpenAIProvider:
             synthesized = self._synthesize_terminal_batch_failure_items(
                 batch,
                 handle=handle,
+                existing_request_ids={item.request_id for item in items},
             )
             if synthesized is not None:
                 items.extend(synthesized)
 
+            await self._cleanup_deferred_owned_files(handle)
             return items
         except asyncio.CancelledError:
             raise
@@ -417,7 +426,14 @@ class OpenAIProvider:
         client = self._get_client()
         job_id = handle.job_id
         try:
-            await client.batches.cancel(job_id)
+            batch = await client.batches.cancel(job_id)
+            status = _normalize_batch_status(
+                _field(batch, "status"),
+                completed=0,
+                failed=0,
+            )
+            if status in {"completed", "partial", "failed", "cancelled", "expired"}:
+                await self._cleanup_deferred_owned_files(handle)
         except asyncio.CancelledError:
             raise
         except APIError:
@@ -509,6 +525,18 @@ class OpenAIProvider:
             return
         self._client = None
         await client.close()
+
+    async def _cleanup_deferred_owned_files(
+        self, handle: ProviderDeferredHandle
+    ) -> None:
+        """Best-effort cleanup for provider-owned input files after terminal batches."""
+        for file_id in _provider_handle_owned_file_ids(handle):
+            try:
+                await self.delete_file(file_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.debug("OpenAI deferred cleanup failed for file_id=%s", file_id)
 
     def _build_responses_create_kwargs(
         self, request: ProviderRequest
@@ -681,17 +709,22 @@ class OpenAIProvider:
         batch: Any,
         *,
         handle: ProviderDeferredHandle,
+        existing_request_ids: set[str],
     ) -> list[ProviderDeferredItem] | None:
-        """Expand batch-level terminal failures into per-request deferred items."""
-        if _field(batch, "output_file_id") or _field(batch, "error_file_id"):
-            return None
-
+        """Expand missing terminal items into per-request deferred diagnostics."""
         item_status = _batch_level_item_status(_field(batch, "status"))
         if item_status is None:
             return None
 
         request_ids = _provider_handle_request_ids(handle) or _batch_request_ids(batch)
         if not request_ids:
+            return None
+        missing_request_ids = [
+            request_id
+            for request_id in request_ids
+            if request_id not in existing_request_ids
+        ]
+        if not missing_request_ids:
             return None
 
         error_message = _batch_error_message(batch)
@@ -703,7 +736,7 @@ class OpenAIProvider:
                 error=error_message,
                 provider_status=provider_status or None,
             )
-            for request_id in request_ids
+            for request_id in missing_request_ids
         ]
 
 
@@ -842,6 +875,22 @@ def _provider_handle_request_ids(handle: ProviderDeferredHandle) -> list[str] | 
     return request_ids
 
 
+def _provider_handle_owned_file_ids(handle: ProviderDeferredHandle) -> list[str]:
+    """Return provider-owned file ids stored on the deferred handle."""
+    provider_state = handle.provider_state
+    if not isinstance(provider_state, dict):
+        return []
+    raw_ids = provider_state.get("owned_file_ids")
+    if not isinstance(raw_ids, list):
+        return []
+
+    file_ids: list[str] = []
+    for value in raw_ids:
+        if isinstance(value, str) and value:
+            file_ids.append(value)
+    return file_ids
+
+
 def _batch_has_response_schema(requests: list[ProviderRequest]) -> str:
     """Persist whether this batch was submitted with structured outputs enabled."""
     return (
@@ -871,9 +920,9 @@ def _normalize_batch_status(status: Any, *, completed: int, failed: int) -> str:
             return "completed"
         return "failed"
     if raw == "cancelled":
-        return "partial" if completed > 0 else "cancelled"
+        return "partial" if completed > 0 or failed > 0 else "cancelled"
     if raw == "expired":
-        return "partial" if completed > 0 else "expired"
+        return "partial" if completed > 0 or failed > 0 else "expired"
     if raw == "failed":
         return "failed"
     return "running"

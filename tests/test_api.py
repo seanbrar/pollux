@@ -497,7 +497,9 @@ async def test_openai_live_batch_validation_failure_shape_characterization(
         assert batch.errors.data
         assert batch.errors.data[0].code == "model_not_found"
         assert batch.errors.data[0].param == "body.model"
-        assert "not supported by the Batch API" in batch.errors.data[0].message
+        message = batch.errors.data[0].message
+        assert message is not None
+        assert "not supported by the Batch API" in message
     finally:
         if batch_id is not None and final_status not in {
             "failed",

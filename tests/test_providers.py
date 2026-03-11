@@ -1170,6 +1170,7 @@ class _FakeBatchesClient:
         self.create_kwargs: dict[str, Any] | None = None
         self.retrieve_result: Any = None
         self.cancelled_job_id: str | None = None
+        self.cancel_result: Any = None
 
     async def create(self, **kwargs: Any) -> Any:
         self.create_kwargs = kwargs
@@ -1185,7 +1186,9 @@ class _FakeBatchesClient:
 
     async def cancel(self, job_id: str) -> Any:
         self.cancelled_job_id = job_id
-        return type("Batch", (), {"id": job_id})()
+        if self.cancel_result is not None:
+            return self.cancel_result
+        return type("Batch", (), {"id": job_id, "status": "cancelling"})()
 
 
 @pytest.mark.asyncio
@@ -1431,6 +1434,55 @@ async def test_openai_inspect_deferred_terminal_failure_zeroes_pending() -> None
 
 
 @pytest.mark.asyncio
+async def test_openai_inspect_deferred_marks_cancelled_failed_mix_as_partial() -> None:
+    """Cancelled batches with failed rows should preserve the mixed terminal status."""
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {
+        "status": "cancelled",
+        "request_counts": {"total": 3, "completed": 0, "failed": 1},
+        "cancelled_at": 1_700_000_600,
+    }
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    snapshot = await provider.inspect_deferred(
+        ProviderDeferredHandle(job_id="batch_123")
+    )
+
+    assert snapshot.status == "partial"
+    assert snapshot.request_count == 3
+    assert snapshot.succeeded == 0
+    assert snapshot.failed == 3
+    assert snapshot.pending == 0
+
+
+@pytest.mark.asyncio
+async def test_openai_inspect_deferred_cleans_up_owned_files_when_terminal() -> None:
+    """Terminal inspection should cleanup provider-owned input files."""
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {
+        "status": "completed",
+        "request_counts": {"total": 1, "completed": 1, "failed": 0},
+        "completed_at": 1_700_000_600,
+    }
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    await provider.inspect_deferred(
+        ProviderDeferredHandle(
+            job_id="batch_123",
+            provider_state={
+                "owned_file_ids": ["file_batch_input", "file_uploaded_pdf"]
+            },
+        )
+    )
+
+    assert files.deleted_file_ids == ["file_batch_input", "file_uploaded_pdf"]
+
+
+@pytest.mark.asyncio
 async def test_openai_collect_deferred_parses_output_and_error_files() -> None:
     """Batch collection should merge output and error JSONL files by request id."""
     files = _FakeBatchFilesClient()
@@ -1557,6 +1609,56 @@ async def test_openai_collect_deferred_leaves_plain_json_text_unstructured() -> 
 
 
 @pytest.mark.asyncio
+async def test_openai_collect_deferred_cleans_up_owned_files() -> None:
+    """Direct collection should cleanup provider-owned input files after success."""
+    files = _FakeBatchFilesClient()
+    files.contents["file_out"] = json.dumps(
+        {
+            "custom_id": "pollux-000000",
+            "response": {
+                "status_code": 200,
+                "body": {
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "Answer 1",
+                                }
+                            ],
+                        }
+                    ],
+                    "usage": {"total_tokens": 1},
+                },
+            },
+            "error": None,
+        }
+    )
+
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {
+        "status": "completed",
+        "output_file_id": "file_out",
+        "metadata": {},
+    }
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    await provider.collect_deferred(
+        ProviderDeferredHandle(
+            job_id="batch_123",
+            provider_state={
+                "owned_file_ids": ["file_batch_input", "file_uploaded_pdf"]
+            },
+        )
+    )
+
+    assert files.deleted_file_ids == ["file_batch_input", "file_uploaded_pdf"]
+
+
+@pytest.mark.asyncio
 async def test_openai_collect_deferred_synthesizes_batch_level_failure_items() -> None:
     """Batch-level terminal failures should expand into per-request diagnostics."""
     files = _FakeBatchFilesClient()
@@ -1597,6 +1699,72 @@ async def test_openai_collect_deferred_synthesizes_batch_level_failure_items() -
             status="failed",
             error="The provided model is not supported by the Batch API.",
             provider_status="model_not_found",
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_collect_deferred_synthesizes_missing_cancelled_items() -> None:
+    """Partial cancelled batches should fill in missing request ids."""
+    files = _FakeBatchFilesClient()
+    files.contents["file_out"] = json.dumps(
+        {
+            "custom_id": "pollux-000000",
+            "response": {
+                "status_code": 200,
+                "body": {
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "Answer 1",
+                                }
+                            ],
+                        }
+                    ],
+                    "usage": {"total_tokens": 1},
+                },
+            },
+            "error": None,
+        }
+    )
+
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {
+        "status": "cancelled",
+        "output_file_id": "file_out",
+        "metadata": {"pollux_request_count": "2"},
+    }
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    items = await provider.collect_deferred(
+        ProviderDeferredHandle(
+            job_id="batch_123",
+            provider_state={"request_ids": ["pollux-000000", "pollux-000001"]},
+        )
+    )
+
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="succeeded",
+            response={
+                "text": "Answer 1",
+                "usage": {"total_tokens": 1},
+                "finish_reason": "completed",
+            },
+            provider_status="completed",
+            finish_reason="completed",
+        ),
+        ProviderDeferredItem(
+            request_id="pollux-000001",
+            status="cancelled",
+            error=None,
+            provider_status="cancelled",
         ),
     ]
 
@@ -1700,6 +1868,29 @@ async def test_openai_cancel_deferred_calls_batches_cancel() -> None:
     await provider.cancel_deferred(ProviderDeferredHandle(job_id="batch_123"))
 
     assert batches.cancelled_job_id == "batch_123"
+
+
+@pytest.mark.asyncio
+async def test_openai_cancel_deferred_cleans_up_when_batch_is_terminal() -> None:
+    """Terminal cancel responses should cleanup owned input files."""
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    batches.cancel_result = type(
+        "Batch", (), {"id": "batch_123", "status": "cancelled"}
+    )()
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    await provider.cancel_deferred(
+        ProviderDeferredHandle(
+            job_id="batch_123",
+            provider_state={
+                "owned_file_ids": ["file_batch_input", "file_uploaded_pdf"]
+            },
+        )
+    )
+
+    assert files.deleted_file_ids == ["file_batch_input", "file_uploaded_pdf"]
 
 
 # =============================================================================
