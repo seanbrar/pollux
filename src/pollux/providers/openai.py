@@ -280,6 +280,7 @@ class OpenAIProvider:
                 file=upload,
                 purpose="batch",
             )
+            batch_file_id = _field(batch_file, "id")
             batch = await client.batches.create(
                 input_file_id=batch_file.id,
                 endpoint="/v1/responses",
@@ -292,6 +293,13 @@ class OpenAIProvider:
             return ProviderDeferredHandle(
                 job_id=batch.id,
                 submitted_at=float(batch.created_at),
+                provider_state={
+                    "request_ids": list(request_ids),
+                    "owned_file_ids": _owned_batch_file_ids(
+                        upload_cache,
+                        batch_file_id=batch_file_id,
+                    ),
+                },
             )
         except asyncio.CancelledError:
             raise
@@ -306,18 +314,27 @@ class OpenAIProvider:
                 message="OpenAI batch submit failed",
             ) from e
 
-    async def inspect_deferred(self, job_id: str) -> ProviderDeferredSnapshot:
+    async def inspect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> ProviderDeferredSnapshot:
         """Inspect an OpenAI batch and normalize status/counts."""
         client = self._get_client()
+        job_id = handle.job_id
 
         try:
             batch = await client.batches.retrieve(job_id)
+            raw_status = _field(batch, "status")
             total = _batch_total_requests(batch)
             completed = _batch_completed_requests(batch)
             failed = _batch_failed_requests(batch)
-            pending = max(total - completed - failed, 0)
             status = _normalize_batch_status(
-                _field(batch, "status"),
+                raw_status,
+                completed=completed,
+                failed=failed,
+            )
+            failed, pending = _normalize_terminal_batch_counts(
+                raw_status,
+                total=total,
                 completed=completed,
                 failed=failed,
             )
@@ -345,9 +362,12 @@ class OpenAIProvider:
                 message="OpenAI batch inspect failed",
             ) from e
 
-    async def collect_deferred(self, job_id: str) -> list[ProviderDeferredItem]:
+    async def collect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> list[ProviderDeferredItem]:
         """Collect OpenAI batch output and error files into deferred items."""
         client = self._get_client()
+        job_id = handle.job_id
 
         try:
             batch = await client.batches.retrieve(job_id)
@@ -371,6 +391,13 @@ class OpenAIProvider:
                 content = await client.files.retrieve_content(error_file_id)
                 items.extend(self._parse_batch_error_file(content))
 
+            synthesized = self._synthesize_terminal_batch_failure_items(
+                batch,
+                handle=handle,
+            )
+            if synthesized is not None:
+                items.extend(synthesized)
+
             return items
         except asyncio.CancelledError:
             raise
@@ -385,9 +412,10 @@ class OpenAIProvider:
                 message="OpenAI batch collect failed",
             ) from e
 
-    async def cancel_deferred(self, job_id: str) -> None:
+    async def cancel_deferred(self, handle: ProviderDeferredHandle) -> None:
         """Cancel an OpenAI batch."""
         client = self._get_client()
+        job_id = handle.job_id
         try:
             await client.batches.cancel(job_id)
         except asyncio.CancelledError:
@@ -621,7 +649,7 @@ class OpenAIProvider:
                     request_id=request_id,
                     status="succeeded",
                     response=_provider_response_to_dict(parsed),
-                    provider_status="completed",
+                    provider_status=_field(body, "status"),
                     finish_reason=parsed.finish_reason,
                 )
             )
@@ -647,6 +675,36 @@ class OpenAIProvider:
                 )
             )
         return items
+
+    def _synthesize_terminal_batch_failure_items(
+        self,
+        batch: Any,
+        *,
+        handle: ProviderDeferredHandle,
+    ) -> list[ProviderDeferredItem] | None:
+        """Expand batch-level terminal failures into per-request deferred items."""
+        if _field(batch, "output_file_id") or _field(batch, "error_file_id"):
+            return None
+
+        item_status = _batch_level_item_status(_field(batch, "status"))
+        if item_status is None:
+            return None
+
+        request_ids = _provider_handle_request_ids(handle) or _batch_request_ids(batch)
+        if not request_ids:
+            return None
+
+        error_message = _batch_error_message(batch)
+        provider_status = _batch_error_code(batch) or str(_field(batch, "status", ""))
+        return [
+            ProviderDeferredItem(
+                request_id=request_id,
+                status=item_status,
+                error=error_message,
+                provider_status=provider_status or None,
+            )
+            for request_id in request_ids
+        ]
 
 
 def _extract_finish_reason(response: Any) -> str | None:
@@ -730,6 +788,60 @@ def _batch_failed_requests(batch: Any) -> int:
     return value if isinstance(value, int) else 0
 
 
+def _normalize_terminal_batch_counts(
+    status: Any,
+    *,
+    total: int,
+    completed: int,
+    failed: int,
+) -> tuple[int, int]:
+    """Normalize terminal counts when OpenAI omits per-request failure totals."""
+    pending = max(total - completed - failed, 0)
+    if not isinstance(status, str):
+        return failed, pending
+    if status.lower() not in {"failed", "cancelled", "expired"}:
+        return failed, pending
+    return failed + pending, 0
+
+
+def _batch_request_ids(batch: Any) -> list[str]:
+    """Rebuild Pollux request ids from stored batch metadata."""
+    total = _batch_total_requests(batch)
+    return [f"pollux-{idx:06d}" for idx in range(total)]
+
+
+def _owned_batch_file_ids(
+    upload_cache: dict[tuple[str, str], ProviderFileAsset],
+    *,
+    batch_file_id: Any,
+) -> list[str]:
+    """Return provider-owned remote file ids created during batch submission."""
+    file_ids = {
+        asset.file_id
+        for asset in upload_cache.values()
+        if asset.file_id and not asset.is_inline_fallback
+    }
+    if isinstance(batch_file_id, str) and batch_file_id:
+        file_ids.add(batch_file_id)
+    return sorted(file_ids)
+
+
+def _provider_handle_request_ids(handle: ProviderDeferredHandle) -> list[str] | None:
+    """Return the authoritative submitted request ids stored in the handle."""
+    provider_state = handle.provider_state
+    if not isinstance(provider_state, dict):
+        return None
+    raw_ids = provider_state.get("request_ids")
+    if not isinstance(raw_ids, list):
+        return None
+    request_ids: list[str] = []
+    for value in raw_ids:
+        if not isinstance(value, str) or not value:
+            return None
+        request_ids.append(value)
+    return request_ids
+
+
 def _batch_has_response_schema(requests: list[ProviderRequest]) -> str:
     """Persist whether this batch was submitted with structured outputs enabled."""
     return (
@@ -795,9 +907,42 @@ def _provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
     return payload
 
 
+def _batch_error_entries(batch: Any) -> list[Any]:
+    """Return batch-level validation/runtime errors when present."""
+    errors = _field(batch, "errors")
+    data = _field(errors, "data") if errors is not None else None
+    return data if isinstance(data, list) else []
+
+
+def _batch_error_message(batch: Any) -> str | None:
+    """Return a readable message for batch-level failures without item files."""
+    messages: list[str] = []
+    for entry in _batch_error_entries(batch):
+        message = _field(entry, "message")
+        if isinstance(message, str) and message and message not in messages:
+            messages.append(message)
+    if messages:
+        return "; ".join(messages)
+    return None
+
+
+def _batch_error_code(batch: Any) -> str | None:
+    """Return the first batch-level error code when present."""
+    for entry in _batch_error_entries(batch):
+        code = _field(entry, "code")
+        if isinstance(code, str) and code:
+            return code
+    return None
+
+
 def _error_message(error: Any) -> str | None:
     """Best-effort message extraction from OpenAI batch error payloads."""
     if isinstance(error, dict):
+        nested = error.get("error")
+        if isinstance(nested, dict):
+            nested_message = _error_message(nested)
+            if nested_message is not None:
+                return nested_message
         message = error.get("message")
         if isinstance(message, str) and message:
             return message
@@ -816,6 +961,19 @@ def _deferred_status_from_error_code(code: Any) -> DeferredItemStatus:
     if code in {"batch_cancelled", "batch_canceled"}:
         return "cancelled"
     return "failed"
+
+
+def _batch_level_item_status(status: Any) -> DeferredItemStatus | None:
+    """Map batch terminal status into a per-item fallback status."""
+    if not isinstance(status, str):
+        return None
+    if status == "failed":
+        return "failed"
+    if status == "cancelled":
+        return "cancelled"
+    if status == "expired":
+        return "expired"
+    return None
 
 
 def _normalize_input_part(part: Any) -> dict[str, str] | None:

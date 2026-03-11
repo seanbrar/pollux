@@ -23,6 +23,7 @@ from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.anthropic import AnthropicProvider
+from pollux.providers.base import ProviderDeferredHandle, ProviderDeferredItem
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.models import (
     Message,
@@ -1146,6 +1147,7 @@ class _FakeBatchFilesClient:
     def __init__(self) -> None:
         self.create_calls: list[dict[str, Any]] = []
         self.contents: dict[str, str] = {}
+        self.deleted_file_ids: list[str] = []
 
     async def create(self, **kwargs: Any) -> Any:
         self.create_calls.append(kwargs)
@@ -1156,6 +1158,9 @@ class _FakeBatchFilesClient:
 
     async def retrieve_content(self, file_id: str) -> str:
         return self.contents[file_id]
+
+    async def delete(self, file_id: str) -> None:
+        self.deleted_file_ids.append(file_id)
 
 
 class _FakeBatchesClient:
@@ -1220,6 +1225,10 @@ async def test_openai_submit_deferred_characterizes_batch_request(
 
     assert handle.job_id == "batch_123"
     assert handle.submitted_at == 1_700_000_000
+    assert handle.provider_state == {
+        "request_ids": ["pollux-000000", "pollux-000001"],
+        "owned_file_ids": ["file_batch_input", "file_uploaded_pdf"],
+    }
 
     assert len(files.create_calls) == 2
     assert files.create_calls[0]["purpose"] == "user_data"
@@ -1300,6 +1309,45 @@ async def test_openai_submit_deferred_reuses_shared_file_uploads(
 
 
 @pytest.mark.asyncio
+async def test_openai_submit_deferred_preserves_remote_artifacts_on_failure(
+    tmp_path: Path,
+) -> None:
+    """Submit failures should not assume rollback safety after remote side effects."""
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+
+    async def _fail_create(**kwargs: Any) -> Any:
+        batches.create_kwargs = kwargs
+        raise RuntimeError("batch create failed")
+
+    batches.create = _fail_create  # type: ignore[method-assign]
+
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    with pytest.raises(
+        APIError, match="OpenAI batch submit failed: batch create failed"
+    ):
+        await provider.submit_deferred(
+            [
+                ProviderRequest(
+                    model=OPENAI_MODEL,
+                    parts=[
+                        {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                        "Question",
+                    ],
+                )
+            ],
+            request_ids=["pollux-000000"],
+        )
+
+    assert files.deleted_file_ids == []
+
+
+@pytest.mark.asyncio
 async def test_openai_inspect_deferred_normalizes_status_and_counts() -> None:
     """OpenAI batch status should map into Pollux deferred snapshot semantics."""
     files = _FakeBatchFilesClient()
@@ -1320,7 +1368,9 @@ async def test_openai_inspect_deferred_normalizes_status_and_counts() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
-    snapshot = await provider.inspect_deferred("batch_123")
+    snapshot = await provider.inspect_deferred(
+        ProviderDeferredHandle(job_id="batch_123")
+    )
 
     assert snapshot.status == "partial"
     assert snapshot.provider_status == "completed"
@@ -1347,11 +1397,37 @@ async def test_openai_inspect_deferred_falls_back_to_metadata_for_total() -> Non
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
-    snapshot = await provider.inspect_deferred("batch_123")
+    snapshot = await provider.inspect_deferred(
+        ProviderDeferredHandle(job_id="batch_123")
+    )
 
     assert snapshot.status == "queued"
     assert snapshot.request_count == 4
     assert snapshot.pending == 4
+
+
+@pytest.mark.asyncio
+async def test_openai_inspect_deferred_terminal_failure_zeroes_pending() -> None:
+    """Terminal batch failures should not leave requests counted as pending."""
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {
+        "status": "failed",
+        "request_counts": None,
+        "metadata": {"pollux_request_count": "2"},
+        "failed_at": 1_700_000_600,
+    }
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    snapshot = await provider.inspect_deferred(
+        ProviderDeferredHandle(job_id="batch_123")
+    )
+
+    assert snapshot.status == "failed"
+    assert snapshot.request_count == 2
+    assert snapshot.failed == 2
+    assert snapshot.pending == 0
 
 
 @pytest.mark.asyncio
@@ -1418,7 +1494,7 @@ async def test_openai_collect_deferred_parses_output_and_error_files() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
-    items = await provider.collect_deferred("batch_123")
+    items = await provider.collect_deferred(ProviderDeferredHandle(job_id="batch_123"))
 
     assert {item.request_id for item in items} == {"pollux-000000", "pollux-000001"}
     expired = next(item for item in items if item.request_id == "pollux-000000")
@@ -1471,13 +1547,146 @@ async def test_openai_collect_deferred_leaves_plain_json_text_unstructured() -> 
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
-    items = await provider.collect_deferred("batch_123")
+    items = await provider.collect_deferred(ProviderDeferredHandle(job_id="batch_123"))
 
     assert items[0].response == {
         "text": '{"plain":true}',
         "usage": {"total_tokens": 1},
         "finish_reason": "completed",
     }
+
+
+@pytest.mark.asyncio
+async def test_openai_collect_deferred_synthesizes_batch_level_failure_items() -> None:
+    """Batch-level terminal failures should expand into per-request diagnostics."""
+    files = _FakeBatchFilesClient()
+
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {
+        "status": "failed",
+        "metadata": {"pollux_request_count": "2"},
+        "errors": {
+            "data": [
+                {
+                    "code": "model_not_found",
+                    "message": "The provided model is not supported by the Batch API.",
+                    "param": "body.model",
+                }
+            ]
+        },
+    }
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    items = await provider.collect_deferred(
+        ProviderDeferredHandle(
+            job_id="batch_123",
+            provider_state={"request_ids": ["custom-a", "custom-b"]},
+        )
+    )
+
+    assert items == [
+        ProviderDeferredItem(
+            request_id="custom-a",
+            status="failed",
+            error="The provided model is not supported by the Batch API.",
+            provider_status="model_not_found",
+        ),
+        ProviderDeferredItem(
+            request_id="custom-b",
+            status="failed",
+            error="The provided model is not supported by the Batch API.",
+            provider_status="model_not_found",
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_collect_deferred_reads_nested_http_error_body() -> None:
+    """Batch HTTP failures should surface the nested OpenAI API error message."""
+    files = _FakeBatchFilesClient()
+    files.contents["file_out"] = json.dumps(
+        {
+            "custom_id": "pollux-000000",
+            "response": {
+                "status_code": 400,
+                "body": {
+                    "error": {
+                        "code": "invalid_request_error",
+                        "message": "schema invalid",
+                    }
+                },
+            },
+            "error": None,
+        }
+    )
+
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {"output_file_id": "file_out", "metadata": {}}
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    items = await provider.collect_deferred(ProviderDeferredHandle(job_id="batch_123"))
+
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="failed",
+            error="schema invalid",
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_collect_deferred_preserves_incomplete_provider_status() -> None:
+    """Batch success items should report the actual Responses API body status."""
+    files = _FakeBatchFilesClient()
+    files.contents["file_out"] = json.dumps(
+        {
+            "custom_id": "pollux-000000",
+            "response": {
+                "status_code": 200,
+                "body": {
+                    "status": "incomplete",
+                    "incomplete_details": {"reason": "max_output_tokens"},
+                    "output": [
+                        {
+                            "type": "message",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "truncated",
+                                }
+                            ],
+                        }
+                    ],
+                    "usage": {"total_tokens": 1},
+                },
+            },
+            "error": None,
+        }
+    )
+
+    batches = _FakeBatchesClient()
+    batches.retrieve_result = {"output_file_id": "file_out", "metadata": {}}
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    items = await provider.collect_deferred(ProviderDeferredHandle(job_id="batch_123"))
+
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="succeeded",
+            response={
+                "text": "truncated",
+                "usage": {"total_tokens": 1},
+                "finish_reason": "max_output_tokens",
+            },
+            provider_status="incomplete",
+            finish_reason="max_output_tokens",
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -1488,7 +1697,7 @@ async def test_openai_cancel_deferred_calls_batches_cancel() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
-    await provider.cancel_deferred("batch_123")
+    await provider.cancel_deferred(ProviderDeferredHandle(job_id="batch_123"))
 
     assert batches.cancelled_job_id == "batch_123"
 
