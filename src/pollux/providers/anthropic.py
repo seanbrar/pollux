@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import json
+import logging
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import to_strict_schema
-from pollux.providers.base import ProviderCapabilities
+from pollux.providers.base import (
+    DeferredItemStatus,
+    ProviderCapabilities,
+    ProviderDeferredHandle,
+    ProviderDeferredItem,
+    ProviderDeferredSnapshot,
+)
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
@@ -22,6 +30,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _ANTHROPIC_DEFAULT_MAX_TOKENS = 16384
+logger = logging.getLogger(__name__)
 _INTERLEAVED_THINKING_BETA_HEADER = "interleaved-thinking-2025-05-14"
 _ANTHROPIC_THINKING_BLOCKS_KEY = "anthropic_thinking_blocks"
 _ALLOWED_REASONING_EFFORTS = {"low", "medium", "high", "max"}
@@ -65,7 +74,7 @@ class AnthropicProvider:
             uploads=True,
             structured_outputs=True,
             reasoning=True,
-            deferred_delivery=False,
+            deferred_delivery=True,
             conversation=True,
             implicit_caching=True,
         )
@@ -204,13 +213,8 @@ class AnthropicProvider:
 
         return messages
 
-    async def generate(
-        self,
-        request: ProviderRequest,
-    ) -> ProviderResponse:
-        """Generate a response using Anthropic's Messages API."""
-        client = self._get_client()
-
+    def _build_messages_create_kwargs(self, request: ProviderRequest) -> dict[str, Any]:
+        """Build the raw Anthropic Messages API request body."""
         # No Anthropic equivalents or deferred features.
         _ = request.cache_name
         _ = request.previous_response_id
@@ -221,7 +225,6 @@ class AnthropicProvider:
             request.provider_state,
         )
 
-        # Build create kwargs.
         default_max_tokens = _ANTHROPIC_DEFAULT_MAX_TOKENS
         if "claude-3-" in request.model:
             # claude-3-haiku, claude-3-sonnet, claude-3-opus only support 4096
@@ -250,7 +253,6 @@ class AnthropicProvider:
         if request.top_p is not None:
             create_kwargs["top_p"] = request.top_p
 
-        # Tool definitions.
         if request.tools is not None:
             anthropic_tools = self._normalize_tools(request.tools)
             if anthropic_tools:
@@ -262,7 +264,6 @@ class AnthropicProvider:
 
         output_config: dict[str, Any] = {}
 
-        # Structured output via output_config.format.
         if request.response_schema is not None:
             strict_schema = to_strict_schema(request.response_schema)
             output_config["format"] = {
@@ -282,8 +283,6 @@ class AnthropicProvider:
                     "type": "enabled",
                     "budget_tokens": _MANUAL_THINKING_BUDGETS[effort],
                 }
-                # Older models only support interleaved thinking via beta header manually.
-                # Adaptive models do this automatically.
                 if request.tools:
                     create_kwargs["extra_headers"] = {
                         "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
@@ -292,15 +291,199 @@ class AnthropicProvider:
         if output_config:
             create_kwargs["output_config"] = output_config
 
-        # The Files API requires this beta header.
         beta_headers = ["files-api-2025-04-14"]
-        if (
-            "extra_headers" in create_kwargs
-            and "anthropic-beta" in create_kwargs["extra_headers"]
-        ):
-            beta_headers.append(create_kwargs["extra_headers"]["anthropic-beta"])
-
+        extra_headers = create_kwargs.get("extra_headers")
+        if isinstance(extra_headers, dict):
+            existing_beta = extra_headers.get("anthropic-beta")
+            if isinstance(existing_beta, str) and existing_beta:
+                beta_headers.append(existing_beta)
         create_kwargs["extra_headers"] = {"anthropic-beta": ",".join(beta_headers)}
+
+        return create_kwargs
+
+    async def submit_deferred(
+        self,
+        requests: list[ProviderRequest],
+        *,
+        request_ids: list[str],
+    ) -> ProviderDeferredHandle:
+        """Submit deferred work through the Anthropic Message Batches API."""
+        client = self._get_client()
+
+        try:
+            upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
+            batch_requests: list[dict[str, Any]] = []
+            for request_id, request in zip(request_ids, requests, strict=True):
+                resolved_request = await self._resolve_deferred_request(
+                    request,
+                    upload_cache=upload_cache,
+                )
+                create_kwargs = self._build_messages_create_kwargs(resolved_request)
+                create_kwargs.pop("extra_headers", None)
+                batch_requests.append(
+                    {
+                        "custom_id": request_id,
+                        "params": create_kwargs,
+                    }
+                )
+
+            batch = await client.messages.batches.create(
+                requests=batch_requests,
+                extra_headers={"anthropic-beta": "files-api-2025-04-14"},
+            )
+            return ProviderDeferredHandle(
+                job_id=batch.id,
+                submitted_at=_timestamp_or_none(batch.created_at),
+                provider_state={
+                    "request_ids": list(request_ids),
+                    "owned_file_ids": _owned_deferred_file_ids(upload_cache),
+                    "has_response_schema": _requests_have_response_schema(requests),
+                },
+            )
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="anthropic",
+                phase="batch_submit",
+                allow_network_errors=False,
+                message="Anthropic batch submit failed",
+            ) from e
+
+    async def inspect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> ProviderDeferredSnapshot:
+        """Inspect an Anthropic message batch and normalize status/counts."""
+        client = self._get_client()
+        status: str | None = None
+
+        try:
+            batch = await client.messages.batches.retrieve(handle.job_id)
+            total = _batch_request_count(batch, handle=handle)
+            succeeded = int(getattr(batch.request_counts, "succeeded", 0))
+            failed = int(
+                getattr(batch.request_counts, "errored", 0)
+                + getattr(batch.request_counts, "canceled", 0)
+                + getattr(batch.request_counts, "expired", 0)
+            )
+            pending = int(getattr(batch.request_counts, "processing", 0))
+            status = _normalize_batch_status(
+                batch.processing_status,
+                succeeded=succeeded,
+                errored=int(getattr(batch.request_counts, "errored", 0)),
+                canceled=int(getattr(batch.request_counts, "canceled", 0)),
+                expired=int(getattr(batch.request_counts, "expired", 0)),
+                total=total,
+            )
+            return ProviderDeferredSnapshot(
+                status=status,
+                provider_status=str(batch.processing_status),
+                request_count=total,
+                succeeded=succeeded,
+                failed=failed,
+                pending=pending,
+                submitted_at=_timestamp_or_none(batch.created_at),
+                completed_at=_timestamp_or_none(batch.ended_at),
+                expires_at=_timestamp_or_none(batch.expires_at),
+            )
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="anthropic",
+                phase="batch_inspect",
+                allow_network_errors=True,
+                message="Anthropic batch inspect failed",
+            ) from e
+        finally:
+            if status in {"completed", "partial", "failed", "cancelled", "expired"}:
+                await self._cleanup_deferred_owned_files(handle)
+
+    async def collect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> list[ProviderDeferredItem]:
+        """Collect Anthropic batch results into deferred items."""
+        client = self._get_client()
+
+        try:
+            batch = await client.messages.batches.retrieve(handle.job_id)
+            items: list[ProviderDeferredItem] = []
+            if batch.results_url is not None:
+                async for row in client.messages.batches.results(handle.job_id):
+                    items.append(
+                        _parse_batch_result(
+                            row,
+                            parse_structured_json=_provider_handle_has_response_schema(
+                                handle
+                            ),
+                        )
+                    )
+
+            synthesized = _synthesize_terminal_batch_items(
+                batch,
+                handle=handle,
+                existing_request_ids={item.request_id for item in items},
+            )
+            if synthesized is not None:
+                items.extend(synthesized)
+
+            await self._cleanup_deferred_owned_files(handle)
+            return items
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="anthropic",
+                phase="batch_collect",
+                allow_network_errors=True,
+                message="Anthropic batch collect failed",
+            ) from e
+
+    async def cancel_deferred(self, handle: ProviderDeferredHandle) -> None:
+        """Cancel an Anthropic message batch."""
+        client = self._get_client()
+
+        try:
+            batch = await client.messages.batches.cancel(handle.job_id)
+            status = _normalize_batch_status(
+                batch.processing_status,
+                succeeded=int(getattr(batch.request_counts, "succeeded", 0)),
+                errored=int(getattr(batch.request_counts, "errored", 0)),
+                canceled=int(getattr(batch.request_counts, "canceled", 0)),
+                expired=int(getattr(batch.request_counts, "expired", 0)),
+                total=_batch_request_count(batch, handle=handle),
+            )
+            if status in {"completed", "partial", "failed", "cancelled", "expired"}:
+                await self._cleanup_deferred_owned_files(handle)
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="anthropic",
+                phase="batch_cancel",
+                allow_network_errors=True,
+                message="Anthropic batch cancel failed",
+            ) from e
+
+    async def generate(
+        self,
+        request: ProviderRequest,
+    ) -> ProviderResponse:
+        """Generate a response using Anthropic's Messages API."""
+        client = self._get_client()
+        create_kwargs = self._build_messages_create_kwargs(request)
 
         try:
             response = await client.messages.create(**create_kwargs)
@@ -318,6 +501,51 @@ class AnthropicProvider:
                 message="Anthropic generate failed",
             ) from e
 
+    async def _resolve_deferred_request(
+        self,
+        request: ProviderRequest,
+        *,
+        upload_cache: dict[tuple[str, str], ProviderFileAsset],
+    ) -> ProviderRequest:
+        """Resolve local file parts into provider assets for deferred submission."""
+        resolved_parts: list[Any] = []
+        for part in request.parts:
+            if (
+                isinstance(part, dict)
+                and isinstance(part.get("file_path"), str)
+                and isinstance(part.get("mime_type"), str)
+            ):
+                file_path = part["file_path"]
+                mime_type = part["mime_type"]
+                cache_key = (file_path, mime_type)
+                asset = upload_cache.get(cache_key)
+                if asset is None:
+                    from pathlib import Path
+
+                    asset = await self.upload_file(Path(file_path), mime_type)
+                    upload_cache[cache_key] = asset
+                resolved_parts.append(asset)
+            else:
+                resolved_parts.append(part)
+
+        return ProviderRequest(
+            model=request.model,
+            parts=resolved_parts,
+            system_instruction=request.system_instruction,
+            cache_name=request.cache_name,
+            response_schema=request.response_schema,
+            temperature=request.temperature,
+            top_p=request.top_p,
+            tools=request.tools,
+            tool_choice=request.tool_choice,
+            reasoning_effort=request.reasoning_effort,
+            history=request.history,
+            previous_response_id=request.previous_response_id,
+            provider_state=request.provider_state,
+            max_tokens=request.max_tokens,
+            implicit_caching=request.implicit_caching,
+        )
+
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a local file using the Anthropic Files API."""
         client = self._get_client()
@@ -330,7 +558,10 @@ class AnthropicProvider:
                 )
 
             return ProviderFileAsset(
-                file_id=result.id, provider="anthropic", mime_type=mime_type
+                file_id=result.id,
+                provider="anthropic",
+                mime_type=mime_type,
+                file_name=result.id,
             )
         except asyncio.CancelledError:
             raise
@@ -358,6 +589,28 @@ class AnthropicProvider:
         _ = model, parts, system_instruction, tools, ttl_seconds
         raise APIError("Anthropic provider does not support context caching")
 
+    async def delete_file(self, file_id: str) -> None:
+        """Delete a previously uploaded file from Anthropic storage."""
+        client = self._get_client()
+        await client.beta.files.delete(
+            file_id,
+            extra_headers={"anthropic-beta": "files-api-2025-04-14"},
+        )
+
+    async def _cleanup_deferred_owned_files(
+        self, handle: ProviderDeferredHandle
+    ) -> None:
+        """Best-effort cleanup for provider-owned deferred input files."""
+        for file_id in _provider_handle_owned_file_ids(handle):
+            try:
+                await self.delete_file(file_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.debug(
+                    "Anthropic deferred cleanup failed for file_id=%s", file_id
+                )
+
     async def aclose(self) -> None:
         """Close underlying async client resources."""
         client = self._client
@@ -368,7 +621,10 @@ class AnthropicProvider:
 
 
 def _parse_response(
-    response: Any, *, response_schema: dict[str, Any] | None
+    response: Any,
+    *,
+    response_schema: dict[str, Any] | None,
+    parse_structured_json: bool = False,
 ) -> ProviderResponse:
     """Parse an Anthropic Message response into ProviderResponse."""
     text_parts: list[str] = []
@@ -429,7 +685,7 @@ def _parse_response(
 
     # Structured output extraction.
     structured: Any = None
-    if response_schema is not None and text:
+    if (response_schema is not None or parse_structured_json) and text:
         try:
             structured = json.loads(text)
         except Exception:
@@ -449,6 +705,266 @@ def _parse_response(
             else None
         ),
     )
+
+
+def _timestamp_or_none(value: Any) -> float | None:
+    """Convert datetimes or unix timestamps to floats when present."""
+    if isinstance(value, datetime):
+        return value.timestamp()
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _provider_handle_request_ids(handle: ProviderDeferredHandle) -> list[str] | None:
+    """Return the submitted Pollux request ids stored in the provider handle."""
+    provider_state = handle.provider_state
+    if not isinstance(provider_state, dict):
+        return None
+    raw_ids = provider_state.get("request_ids")
+    if not isinstance(raw_ids, list):
+        return None
+
+    request_ids: list[str] = []
+    for value in raw_ids:
+        if not isinstance(value, str) or not value:
+            return None
+        request_ids.append(value)
+    return request_ids
+
+
+def _provider_handle_owned_file_ids(handle: ProviderDeferredHandle) -> list[str]:
+    """Return provider-owned file ids stored on the deferred handle."""
+    provider_state = handle.provider_state
+    if not isinstance(provider_state, dict):
+        return []
+    raw_ids = provider_state.get("owned_file_ids")
+    if not isinstance(raw_ids, list):
+        return []
+    return [value for value in raw_ids if isinstance(value, str) and value]
+
+
+def _provider_handle_has_response_schema(handle: ProviderDeferredHandle) -> bool:
+    """Return True when structured outputs were enabled at submission time."""
+    provider_state = handle.provider_state
+    if not isinstance(provider_state, dict):
+        return False
+    return bool(provider_state.get("has_response_schema"))
+
+
+def _owned_deferred_file_ids(
+    upload_cache: dict[tuple[str, str], ProviderFileAsset],
+) -> list[str]:
+    """Return provider-owned remote file ids created during deferred submission."""
+    file_ids = {
+        asset.file_name or asset.file_id
+        for asset in upload_cache.values()
+        if asset.file_id
+    }
+    return sorted(file_ids)
+
+
+def _requests_have_response_schema(requests: list[ProviderRequest]) -> bool:
+    """Persist whether structured outputs were enabled at submission time."""
+    return any(request.response_schema is not None for request in requests)
+
+
+def _provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
+    """Convert ProviderResponse into the normalized deferred response shape."""
+    payload: dict[str, Any] = {"text": response.text, "usage": response.usage}
+    if response.reasoning is not None:
+        payload["reasoning"] = response.reasoning
+    if response.structured is not None:
+        payload["structured"] = response.structured
+    if response.tool_calls is not None:
+        payload["tool_calls"] = [
+            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+            for tc in response.tool_calls
+        ]
+    if response.response_id is not None:
+        payload["response_id"] = response.response_id
+    if response.finish_reason is not None:
+        payload["finish_reason"] = response.finish_reason
+    return payload
+
+
+def _batch_request_count(batch: Any, *, handle: ProviderDeferredHandle) -> int:
+    """Return the total request count for an Anthropic message batch."""
+    request_counts = getattr(batch, "request_counts", None)
+    if request_counts is not None:
+        return int(
+            getattr(request_counts, "succeeded", 0)
+            + getattr(request_counts, "errored", 0)
+            + getattr(request_counts, "canceled", 0)
+            + getattr(request_counts, "expired", 0)
+            + getattr(request_counts, "processing", 0)
+        )
+    request_ids = _provider_handle_request_ids(handle)
+    return len(request_ids) if request_ids is not None else 0
+
+
+def _normalize_batch_status(
+    processing_status: str,
+    *,
+    succeeded: int,
+    errored: int,
+    canceled: int,
+    expired: int,
+    total: int,
+) -> str:
+    """Map Anthropic message batch state into Pollux deferred statuses."""
+    if processing_status == "in_progress":
+        return "running"
+    if processing_status == "canceling":
+        return "cancelling"
+
+    if succeeded == total and total > 0:
+        return "completed"
+    if succeeded > 0:
+        return "partial"
+    if errored == total and total > 0:
+        return "failed"
+    if canceled == total and total > 0:
+        return "cancelled"
+    if expired == total and total > 0:
+        return "expired"
+    if errored > 0 and canceled == 0 and expired == 0:
+        return "failed"
+    if canceled > 0 and errored == 0 and expired == 0:
+        return "cancelled"
+    if expired > 0 and errored == 0 and canceled == 0:
+        return "expired"
+    if errored > 0 or canceled > 0 or expired > 0:
+        return "partial"
+    return "failed"
+
+
+def _parse_batch_result(
+    row: Any,
+    *,
+    parse_structured_json: bool,
+) -> ProviderDeferredItem:
+    """Parse one Anthropic batch result row into a deferred item."""
+    request_id = str(row.custom_id)
+    result = row.result
+    result_type = str(getattr(result, "type", ""))
+
+    if result_type == "succeeded":
+        parsed = _parse_response(
+            result.message,
+            response_schema=None,
+            parse_structured_json=parse_structured_json,
+        )
+        return ProviderDeferredItem(
+            request_id=request_id,
+            status="succeeded",
+            response=_provider_response_to_dict(parsed),
+            provider_status="succeeded",
+            finish_reason=parsed.finish_reason,
+        )
+
+    if result_type == "errored":
+        error = getattr(result, "error", None)
+        return ProviderDeferredItem(
+            request_id=request_id,
+            status="failed",
+            error=_anthropic_error_message(error),
+            provider_status=_anthropic_error_type(error),
+        )
+
+    if result_type == "canceled":
+        return ProviderDeferredItem(
+            request_id=request_id,
+            status="cancelled",
+            provider_status="canceled",
+        )
+
+    if result_type == "expired":
+        return ProviderDeferredItem(
+            request_id=request_id,
+            status="expired",
+            provider_status="expired",
+        )
+
+    raise APIError(f"Unsupported Anthropic batch result type: {result_type}")
+
+
+def _anthropic_error_message(error: Any) -> str | None:
+    """Return a readable message for Anthropic error payloads."""
+    message = getattr(error, "message", None)
+    return message if isinstance(message, str) and message else None
+
+
+def _anthropic_error_type(error: Any) -> str | None:
+    """Return the Anthropic error type when present."""
+    error_type = getattr(error, "type", None)
+    return error_type if isinstance(error_type, str) and error_type else None
+
+
+def _batch_level_item_status(batch: Any) -> DeferredItemStatus | None:
+    """Return a synthesized item status for missing terminal Anthropic rows."""
+    if str(getattr(batch, "processing_status", "")) != "ended":
+        return None
+
+    request_counts = getattr(batch, "request_counts", None)
+    if request_counts is None:
+        return None
+
+    succeeded = int(getattr(request_counts, "succeeded", 0))
+    errored = int(getattr(request_counts, "errored", 0))
+    canceled = int(getattr(request_counts, "canceled", 0))
+    expired = int(getattr(request_counts, "expired", 0))
+
+    if succeeded > 0:
+        if errored > 0 and canceled == 0 and expired == 0:
+            return "failed"
+        if canceled > 0 and errored == 0 and expired == 0:
+            return "cancelled"
+        if expired > 0 and errored == 0 and canceled == 0:
+            return "expired"
+        return None
+    if errored > 0 and canceled == 0 and expired == 0:
+        return "failed"
+    if canceled > 0 and errored == 0 and expired == 0:
+        return "cancelled"
+    if expired > 0 and errored == 0 and canceled == 0:
+        return "expired"
+    if errored > 0 or canceled > 0 or expired > 0:
+        return "failed"
+    return None
+
+
+def _synthesize_terminal_batch_items(
+    batch: Any,
+    *,
+    handle: ProviderDeferredHandle,
+    existing_request_ids: set[str],
+) -> list[ProviderDeferredItem] | None:
+    """Expand missing terminal Anthropic rows into per-request diagnostics."""
+    item_status = _batch_level_item_status(batch)
+    if item_status is None:
+        return None
+
+    request_ids = _provider_handle_request_ids(handle)
+    if request_ids is None:
+        return None
+    missing_request_ids = [
+        request_id
+        for request_id in request_ids
+        if request_id not in existing_request_ids
+    ]
+    if not missing_request_ids:
+        return None
+
+    provider_status = str(getattr(batch, "processing_status", "ended"))
+    return [
+        ProviderDeferredItem(
+            request_id=request_id,
+            status=item_status,
+            provider_status=provider_status,
+        )
+        for request_id in missing_request_ids
+    ]
 
 
 def _normalize_stop_reason(stop_reason: Any) -> str | None:
@@ -636,6 +1152,6 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
         }
 
     raise APIError(
-        f"Unsupported mime type for Anthropic provider: {mime_type}",
+        f"Unsupported mime type for Anthropic provider: {dict_mime_type}",
         hint="Anthropic supports images and PDFs via URL.",
     )
