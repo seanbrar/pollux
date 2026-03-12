@@ -22,6 +22,7 @@ import pytest
 import pollux
 from pollux.config import Config
 from pollux.options import Options
+from pollux.providers import gemini as gemini_module
 from pollux.source import Source
 
 if TYPE_CHECKING:
@@ -365,6 +366,112 @@ async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> Non
     assert len(result["reasoning"]) == 1
     assert isinstance(result["reasoning"][0], str)
     assert result["reasoning"][0].strip()
+
+
+@pytest.mark.asyncio
+async def test_gemini_live_deferred_inline_submit_and_inspect(
+    gemini_api_key: str,
+    gemini_test_model: str,
+) -> None:
+    """E2E: Gemini inline deferred submission returns a live inspectable handle."""
+    config = Config(
+        provider="gemini",
+        model=gemini_test_model,
+        api_key=gemini_api_key,
+    )
+    job: pollux.DeferredHandle | None = None
+    try:
+        job = await pollux.defer(
+            "Reply with exactly LIVE_DEFERRED_INLINE_OK.",
+            config=config,
+        )
+        snapshot = await pollux.inspect_deferred(job)
+
+        assert snapshot.job_id == job.job_id
+        assert snapshot.request_count == 1
+        assert snapshot.succeeded + snapshot.failed + snapshot.pending == 1
+        assert snapshot.provider_status
+
+        if snapshot.is_terminal:
+            result = await pollux.collect_deferred(job)
+            assert result["metrics"]["deferred"] is True
+            assert result["diagnostics"]["deferred"]["job_id"] == job.job_id
+    finally:
+        if job is not None:
+            with suppress(Exception):
+                await pollux.cancel_deferred(job)
+
+
+@pytest.mark.asyncio
+async def test_gemini_live_deferred_file_submit_and_inspect(
+    monkeypatch: pytest.MonkeyPatch,
+    gemini_api_key: str,
+    gemini_test_model: str,
+) -> None:
+    """E2E: Gemini file-backed deferred submission supports bounded cancellation."""
+    monkeypatch.setattr(gemini_module, "_GEMINI_BATCH_INLINE_LIMIT_BYTES", 1)
+
+    config = Config(
+        provider="gemini",
+        model=gemini_test_model,
+        api_key=gemini_api_key,
+    )
+    job: pollux.DeferredHandle | None = None
+    cancelled = False
+    try:
+        job = await pollux.defer_many(
+            (
+                "Reply with exactly LIVE_DEFERRED_FILE_ONE.",
+                "Reply with exactly LIVE_DEFERRED_FILE_TWO.",
+            ),
+            config=config,
+        )
+        await pollux.cancel_deferred(job)
+        cancelled = True
+        snapshot = await pollux.inspect_deferred(job)
+
+        assert snapshot.job_id == job.job_id
+        assert snapshot.request_count == 2
+        assert snapshot.succeeded + snapshot.failed + snapshot.pending == 2
+        assert snapshot.provider_status
+        assert job.provider_state is not None
+        assert job.provider_state["owned_file_ids"]
+    finally:
+        if job is not None and not cancelled:
+            with suppress(Exception):
+                await pollux.cancel_deferred(job)
+
+
+@pytest.mark.asyncio
+async def test_anthropic_live_deferred_submit_inspect_and_cancel(
+    anthropic_api_key: str,
+    anthropic_test_model: str,
+) -> None:
+    """E2E: Anthropic deferred submission supports bounded cancellation."""
+    config = Config(
+        provider="anthropic",
+        model=anthropic_test_model,
+        api_key=anthropic_api_key,
+    )
+    job: pollux.DeferredHandle | None = None
+    cancelled = False
+    try:
+        job = await pollux.defer(
+            "Reply with exactly LIVE_ANTHROPIC_DEFERRED_CANCEL_OK.",
+            config=config,
+        )
+        await pollux.cancel_deferred(job)
+        cancelled = True
+        snapshot = await pollux.inspect_deferred(job)
+
+        assert snapshot.job_id == job.job_id
+        assert snapshot.request_count == 1
+        assert snapshot.succeeded + snapshot.failed + snapshot.pending == 1
+        assert snapshot.provider_status
+    finally:
+        if job is not None and not cancelled:
+            with suppress(Exception):
+                await pollux.cancel_deferred(job)
 
 
 @pytest.mark.asyncio

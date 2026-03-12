@@ -23,12 +23,14 @@ from pollux.errors import (
     SourceError,
 )
 from pollux.options import Options
+from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.base import (
     ProviderCapabilities,
     ProviderDeferredHandle,
     ProviderDeferredItem,
     ProviderDeferredSnapshot,
 )
+from pollux.providers.gemini import GeminiProvider
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
@@ -2143,6 +2145,280 @@ async def test_openai_deferred_batch_level_failure_returns_error_envelope(
             "finish_reason": None,
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_gemini_deferred_backend_integrates_with_public_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gemini deferred provider should integrate cleanly through Pollux's public API."""
+
+    class _Files:
+        def __init__(self) -> None:
+            self.deleted_file_ids: list[str] = []
+
+        async def delete(self, *, name: str) -> None:
+            self.deleted_file_ids.append(name)
+
+    class _Batches:
+        def __init__(self) -> None:
+            self.cancelled: str | None = None
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"name": "batches/123", "create_time": 100.0})()
+
+        async def get(self, *, name: str) -> Any:
+            _ = name
+            return type(
+                "Batch",
+                (),
+                {
+                    "state": "JOB_STATE_PARTIALLY_SUCCEEDED",
+                    "create_time": 100.0,
+                    "end_time": 125.0,
+                    "error": None,
+                    "dest": type(
+                        "Dest",
+                        (),
+                        {
+                            "inlined_responses": [
+                                {
+                                    "metadata": {"pollux_request_id": "pollux-000001"},
+                                    "response": {
+                                        "candidates": [
+                                            {
+                                                "finish_reason": "STOP",
+                                                "content": {
+                                                    "parts": [{"text": "Answer 2"}]
+                                                },
+                                            }
+                                        ],
+                                        "usage_metadata": {"total_token_count": 1},
+                                    },
+                                },
+                                {
+                                    "metadata": {"pollux_request_id": "pollux-000000"},
+                                    "error": {
+                                        "code": 400,
+                                        "message": "request failed",
+                                    },
+                                },
+                            ]
+                        },
+                    )(),
+                },
+            )()
+
+        async def cancel(self, *, name: str) -> None:
+            self.cancelled = name
+
+    batches = _Batches()
+    files = _Files()
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> GeminiProvider:
+        provider = GeminiProvider("test-key")
+        provider._client = type(
+            "Client",
+            (),
+            {"aio": type("Aio", (), {"files": files, "batches": batches})()},
+        )()
+        return provider
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    snapshot = await pollux.inspect_deferred(job)
+    result = await pollux.collect_deferred(job)
+    await pollux.cancel_deferred(job)
+
+    assert snapshot.status == "partial"
+    assert result["status"] == "partial"
+    assert result["answers"] == ["", "Answer 2"]
+    assert result["diagnostics"]["deferred"]["items"] == [
+        {
+            "request_id": "pollux-000000",
+            "status": "failed",
+            "error": "request failed",
+            "provider_status": "400",
+            "finish_reason": None,
+        },
+        {
+            "request_id": "pollux-000001",
+            "status": "succeeded",
+            "error": None,
+            "provider_status": "succeeded",
+            "finish_reason": "stop",
+        },
+    ]
+    assert batches.cancelled == "batches/123"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_deferred_backend_integrates_with_public_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Anthropic deferred provider should integrate cleanly through Pollux's public API."""
+
+    class _Files:
+        def __init__(self) -> None:
+            self.deleted_file_ids: list[str] = []
+
+        async def delete(self, file_id: str, **kwargs: Any) -> None:
+            _ = kwargs
+            self.deleted_file_ids.append(file_id)
+
+    class _AsyncResults:
+        def __init__(self, rows: list[Any]) -> None:
+            self._rows = rows
+            self._index = 0
+
+        def __aiter__(self) -> _AsyncResults:
+            self._index = 0
+            return self
+
+        async def __anext__(self) -> Any:
+            if self._index >= len(self._rows):
+                raise StopAsyncIteration
+            row = self._rows[self._index]
+            self._index += 1
+            return row
+
+    class _Batches:
+        def __init__(self) -> None:
+            self.cancelled: str | None = None
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"id": "msgbatch_123", "created_at": 100.0})()
+
+        async def retrieve(self, message_batch_id: str) -> Any:
+            _ = message_batch_id
+            return type(
+                "Batch",
+                (),
+                {
+                    "id": "msgbatch_123",
+                    "processing_status": "ended",
+                    "created_at": 100.0,
+                    "ended_at": 125.0,
+                    "expires_at": 200.0,
+                    "results_url": "https://example.test/results.jsonl",
+                    "request_counts": type(
+                        "Counts",
+                        (),
+                        {
+                            "processing": 0,
+                            "succeeded": 1,
+                            "errored": 0,
+                            "canceled": 1,
+                            "expired": 0,
+                        },
+                    )(),
+                },
+            )()
+
+        def results(self, message_batch_id: str) -> _AsyncResults:
+            _ = message_batch_id
+            return _AsyncResults(
+                [
+                    type(
+                        "Row",
+                        (),
+                        {
+                            "custom_id": "pollux-000001",
+                            "result": type(
+                                "Succeeded",
+                                (),
+                                {
+                                    "type": "succeeded",
+                                    "message": type(
+                                        "Message",
+                                        (),
+                                        {
+                                            "id": "msg_123",
+                                            "content": [
+                                                type(
+                                                    "Block",
+                                                    (),
+                                                    {
+                                                        "type": "text",
+                                                        "text": "Answer 2",
+                                                    },
+                                                )()
+                                            ],
+                                            "usage": type(
+                                                "Usage",
+                                                (),
+                                                {"input_tokens": 1, "output_tokens": 2},
+                                            )(),
+                                            "stop_reason": "end_turn",
+                                        },
+                                    )(),
+                                },
+                            )(),
+                        },
+                    )(),
+                    type(
+                        "Row",
+                        (),
+                        {
+                            "custom_id": "pollux-000000",
+                            "result": type("Canceled", (), {"type": "canceled"})(),
+                        },
+                    )(),
+                ]
+            )
+
+        async def cancel(self, message_batch_id: str) -> Any:
+            self.cancelled = message_batch_id
+            return await self.retrieve(message_batch_id)
+
+    batches = _Batches()
+    files = _Files()
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> AnthropicProvider:
+        class _Client:
+            def __init__(self) -> None:
+                self.messages = type("Messages", (), {"batches": batches})()
+                self.beta = type("Beta", (), {"files": files})()
+
+            async def close(self) -> None:
+                return None
+
+        provider = AnthropicProvider("test-key")
+        provider._client = _Client()
+        return provider
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
+
+    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    snapshot = await pollux.inspect_deferred(job)
+    result = await pollux.collect_deferred(job)
+    await pollux.cancel_deferred(job)
+
+    assert snapshot.status == "partial"
+    assert result["status"] == "partial"
+    assert result["answers"] == ["", "Answer 2"]
+    assert result["diagnostics"]["deferred"]["items"] == [
+        {
+            "request_id": "pollux-000000",
+            "status": "cancelled",
+            "error": None,
+            "provider_status": "canceled",
+            "finish_reason": None,
+        },
+        {
+            "request_id": "pollux-000001",
+            "status": "succeeded",
+            "error": None,
+            "provider_status": "succeeded",
+            "finish_reason": "stop",
+        },
+    ]
+    assert batches.cancelled == "msgbatch_123"
 
 
 @pytest.mark.asyncio

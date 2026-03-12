@@ -11,6 +11,7 @@ and drift is hard to detect.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.providers import gemini as gemini_module
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.anthropic import AnthropicProvider
@@ -1891,6 +1893,634 @@ async def test_openai_cancel_deferred_cleans_up_when_batch_is_terminal() -> None
     )
 
     assert files.deleted_file_ids == ["file_batch_input", "file_uploaded_pdf"]
+
+
+# =============================================================================
+# Gemini Deferred Delivery (Characterization)
+# =============================================================================
+
+
+class _FakeGeminiFilesClient:
+    """Captures Gemini Files API interactions for batch tests."""
+
+    def __init__(self) -> None:
+        self.upload_calls: list[dict[str, Any]] = []
+        self.deleted_file_ids: list[str] = []
+        self.download_contents: dict[str, bytes] = {}
+
+    async def upload(self, **kwargs: Any) -> Any:
+        self.upload_calls.append(kwargs)
+        config = kwargs.get("config")
+        mime_type = (
+            config.get("mime_type")
+            if isinstance(config, dict)
+            else getattr(config, "mime_type", None)
+        )
+        if mime_type == "application/jsonl":
+            return type(
+                "File",
+                (),
+                {
+                    "name": "files/batch_input",
+                    "uri": "https://example.test/files/batch_input",
+                    "state": "ACTIVE",
+                },
+            )()
+        return type(
+            "File",
+            (),
+            {
+                "name": "files/uploaded_pdf",
+                "uri": "https://example.test/files/uploaded_pdf",
+                "state": "ACTIVE",
+            },
+        )()
+
+    async def delete(self, *, name: str) -> None:
+        self.deleted_file_ids.append(name)
+
+    async def download(self, *, file: str) -> bytes:
+        return self.download_contents[file]
+
+
+class _FakeGeminiBatchesClient:
+    """Captures Gemini Batch API interactions for characterization tests."""
+
+    def __init__(self) -> None:
+        self.create_kwargs: dict[str, Any] | None = None
+        self.get_result: Any = None
+        self.cancelled_name: str | None = None
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.create_kwargs = kwargs
+        return type(
+            "Batch",
+            (),
+            {
+                "name": "batches/123",
+                "create_time": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            },
+        )()
+
+    async def get(self, *, name: str) -> Any:
+        _ = name
+        return self.get_result
+
+    async def cancel(self, *, name: str) -> None:
+        self.cancelled_name = name
+
+
+def _make_gemini_client(
+    *,
+    files: _FakeGeminiFilesClient,
+    batches: _FakeGeminiBatchesClient,
+) -> Any:
+    return type(
+        "Client",
+        (),
+        {
+            "aio": type("Aio", (), {"files": files, "batches": batches})(),
+        },
+    )()
+
+
+@pytest.mark.asyncio
+async def test_gemini_submit_deferred_characterizes_inlined_batch_request(
+    tmp_path: Path,
+) -> None:
+    """Deferred submission should reuse Gemini generate-content payloads."""
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    files = _FakeGeminiFilesClient()
+    batches = _FakeGeminiBatchesClient()
+    provider = GeminiProvider("test-key")
+    provider._client = _make_gemini_client(files=files, batches=batches)
+
+    handle = await provider.submit_deferred(
+        [
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=["Summarize this"],
+                response_schema={
+                    "type": "object",
+                    "properties": {"summary": {"type": "string"}},
+                },
+            ),
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=[
+                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                    "Answer the question",
+                ],
+            ),
+        ],
+        request_ids=["pollux-000000", "pollux-000001"],
+    )
+
+    assert handle.job_id == "batches/123"
+    assert handle.provider_state == {
+        "request_ids": ["pollux-000000", "pollux-000001"],
+        "owned_file_ids": ["files/uploaded_pdf"],
+        "has_response_schema": True,
+    }
+
+    assert len(files.upload_calls) == 1
+    assert batches.create_kwargs is not None
+    assert batches.create_kwargs["model"] == GEMINI_MODEL
+
+    src = batches.create_kwargs["src"]
+    assert len(src) == 2
+    assert src[0].metadata == {"pollux_request_id": "pollux-000000"}
+    assert src[0].config.response_mime_type == "application/json"
+    assert src[1].metadata == {"pollux_request_id": "pollux-000001"}
+    assert (
+        src[1].contents[0].file_data.file_uri
+        == "https://example.test/files/uploaded_pdf"
+    )
+
+
+@pytest.mark.asyncio
+async def test_gemini_submit_deferred_switches_to_file_input_when_inline_too_large(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Oversized Gemini deferred payloads should upload a JSONL batch file."""
+    monkeypatch.setattr(gemini_module, "_GEMINI_BATCH_INLINE_LIMIT_BYTES", 1)
+
+    files = _FakeGeminiFilesClient()
+    batches = _FakeGeminiBatchesClient()
+    provider = GeminiProvider("test-key")
+    provider._client = _make_gemini_client(files=files, batches=batches)
+
+    handle = await provider.submit_deferred(
+        [
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=["Summarize this"],
+            ),
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=["Answer the question"],
+            ),
+        ],
+        request_ids=["pollux-000000", "pollux-000001"],
+    )
+
+    assert handle.job_id == "batches/123"
+    assert handle.provider_state == {
+        "request_ids": ["pollux-000000", "pollux-000001"],
+        "owned_file_ids": ["files/batch_input"],
+        "has_response_schema": False,
+    }
+
+    assert len(files.upload_calls) == 1
+    assert files.upload_calls[0]["config"] == {"mime_type": "application/jsonl"}
+    assert batches.create_kwargs is not None
+    assert batches.create_kwargs["model"] == GEMINI_MODEL
+    assert batches.create_kwargs["src"].file_name == "files/batch_input"
+
+
+@pytest.mark.asyncio
+async def test_gemini_collect_deferred_parses_inlined_responses_and_cleans_up() -> None:
+    """Gemini collection should use inlined batch responses and metadata ids."""
+    files = _FakeGeminiFilesClient()
+    batches = _FakeGeminiBatchesClient()
+    batches.get_result = type(
+        "Batch",
+        (),
+        {
+            "state": "JOB_STATE_PARTIALLY_SUCCEEDED",
+            "create_time": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            "end_time": datetime(2026, 3, 1, 0, 5, tzinfo=timezone.utc),
+            "error": None,
+            "dest": type(
+                "Dest",
+                (),
+                {
+                    "inlined_responses": [
+                        {
+                            "metadata": {"pollux_request_id": "pollux-000001"},
+                            "response": {
+                                "candidates": [
+                                    {
+                                        "finish_reason": "STOP",
+                                        "content": {"parts": [{"text": "Answer 2"}]},
+                                    }
+                                ],
+                                "usage_metadata": {
+                                    "prompt_token_count": 1,
+                                    "candidates_token_count": 2,
+                                    "total_token_count": 3,
+                                },
+                            },
+                        },
+                        {
+                            "metadata": {"pollux_request_id": "pollux-000000"},
+                            "error": {"code": 400, "message": "bad input"},
+                        },
+                    ]
+                },
+            )(),
+        },
+    )()
+    provider = GeminiProvider("test-key")
+    provider._client = _make_gemini_client(files=files, batches=batches)
+
+    handle = ProviderDeferredHandle(
+        job_id="batches/123",
+        provider_state={
+            "request_ids": ["pollux-000000", "pollux-000001"],
+            "owned_file_ids": ["files/uploaded_pdf"],
+        },
+    )
+    snapshot = await provider.inspect_deferred(handle)
+    items = await provider.collect_deferred(handle)
+
+    assert snapshot.status == "partial"
+    assert snapshot.request_count == 2
+    assert snapshot.succeeded == 1
+    assert snapshot.failed == 1
+    assert snapshot.pending == 0
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000001",
+            status="succeeded",
+            response={
+                "text": "Answer 2",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 2,
+                    "total_tokens": 3,
+                },
+                "finish_reason": "stop",
+            },
+            provider_status="succeeded",
+            finish_reason="stop",
+        ),
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="failed",
+            error="bad input",
+            provider_status="400",
+        ),
+    ]
+    assert files.deleted_file_ids == ["files/uploaded_pdf", "files/uploaded_pdf"]
+
+
+@pytest.mark.asyncio
+async def test_gemini_collect_deferred_parses_file_output_and_cleans_up() -> None:
+    """Gemini file-backed collection should recover request ids from metadata."""
+    files = _FakeGeminiFilesClient()
+    files.download_contents["files/output"] = (
+        json.dumps(
+            {
+                "metadata": {"pollux_request_id": "pollux-000001"},
+                "response": {
+                    "candidates": [
+                        {
+                            "finish_reason": "STOP",
+                            "content": {"parts": [{"text": "Answer 2"}]},
+                        }
+                    ],
+                    "usage_metadata": {
+                        "prompt_token_count": 1,
+                        "candidates_token_count": 2,
+                        "total_token_count": 3,
+                    },
+                },
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "metadata": {"pollux_request_id": "pollux-000000"},
+                "error": {"code": 400, "message": "bad input"},
+            }
+        )
+    ).encode("utf-8")
+
+    batches = _FakeGeminiBatchesClient()
+    batches.get_result = type(
+        "Batch",
+        (),
+        {
+            "state": "JOB_STATE_PARTIALLY_SUCCEEDED",
+            "create_time": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            "end_time": datetime(2026, 3, 1, 0, 5, tzinfo=timezone.utc),
+            "error": None,
+            "dest": type("Dest", (), {"file_name": "files/output"})(),
+            "completion_stats": type(
+                "CompletionStats",
+                (),
+                {
+                    "successful_count": 1,
+                    "failed_count": 1,
+                    "incomplete_count": 0,
+                },
+            )(),
+        },
+    )()
+    provider = GeminiProvider("test-key")
+    provider._client = _make_gemini_client(files=files, batches=batches)
+
+    handle = ProviderDeferredHandle(
+        job_id="batches/123",
+        provider_state={
+            "request_ids": ["pollux-000000", "pollux-000001"],
+            "owned_file_ids": ["files/batch_input"],
+        },
+    )
+    snapshot = await provider.inspect_deferred(handle)
+    items = await provider.collect_deferred(handle)
+
+    assert snapshot.status == "partial"
+    assert snapshot.request_count == 2
+    assert snapshot.succeeded == 1
+    assert snapshot.failed == 1
+    assert snapshot.pending == 0
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000001",
+            status="succeeded",
+            response={
+                "text": "Answer 2",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 2,
+                    "total_tokens": 3,
+                },
+                "finish_reason": "stop",
+            },
+            provider_status="succeeded",
+            finish_reason="stop",
+        ),
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="failed",
+            error="bad input",
+            provider_status="400",
+        ),
+    ]
+    assert files.deleted_file_ids == ["files/batch_input", "files/batch_input"]
+
+
+# =============================================================================
+# Anthropic Deferred Delivery (Characterization)
+# =============================================================================
+
+
+class _FakeAnthropicBatchFilesClient:
+    """Captures Anthropic Files API interactions for batch tests."""
+
+    def __init__(self) -> None:
+        self.deleted_file_ids: list[str] = []
+        self.upload_calls: list[dict[str, Any]] = []
+
+    async def upload(self, **kwargs: Any) -> Any:
+        self.upload_calls.append(kwargs)
+        return type("FileMetadata", (), {"id": "file_uploaded_pdf"})()
+
+    async def delete(self, file_id: str, **kwargs: Any) -> None:
+        _ = kwargs
+        self.deleted_file_ids.append(file_id)
+
+
+class _AsyncAnthropicResults:
+    """Simple async iterator wrapper for fake batch result rows."""
+
+    def __init__(self, rows: list[Any]) -> None:
+        self._rows = rows
+        self._index = 0
+
+    def __aiter__(self) -> _AsyncAnthropicResults:
+        self._index = 0
+        return self
+
+    async def __anext__(self) -> Any:
+        if self._index >= len(self._rows):
+            raise StopAsyncIteration
+        row = self._rows[self._index]
+        self._index += 1
+        return row
+
+
+class _FakeAnthropicBatchesClient:
+    """Captures Anthropic Message Batches API interactions."""
+
+    def __init__(self) -> None:
+        self.create_kwargs: dict[str, Any] | None = None
+        self.retrieve_result: Any = None
+        self.results_rows: list[Any] = []
+        self.cancelled_batch_id: str | None = None
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.create_kwargs = kwargs
+        return type(
+            "MessageBatch",
+            (),
+            {
+                "id": "msgbatch_123",
+                "created_at": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            },
+        )()
+
+    async def retrieve(self, message_batch_id: str) -> Any:
+        _ = message_batch_id
+        return self.retrieve_result
+
+    def results(self, message_batch_id: str) -> _AsyncAnthropicResults:
+        _ = message_batch_id
+        return _AsyncAnthropicResults(self.results_rows)
+
+    async def cancel(self, message_batch_id: str) -> Any:
+        self.cancelled_batch_id = message_batch_id
+        return self.retrieve_result
+
+
+def _make_anthropic_client(
+    *,
+    files: _FakeAnthropicBatchFilesClient,
+    batches: _FakeAnthropicBatchesClient,
+) -> Any:
+    return type(
+        "Client",
+        (),
+        {
+            "messages": type("Messages", (), {"batches": batches})(),
+            "beta": type("Beta", (), {"files": files})(),
+        },
+    )()
+
+
+@pytest.mark.asyncio
+async def test_anthropic_submit_deferred_characterizes_message_batch_request(
+    tmp_path: Path,
+) -> None:
+    """Deferred submission should build Anthropic message-batch requests."""
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    files = _FakeAnthropicBatchFilesClient()
+    batches = _FakeAnthropicBatchesClient()
+    provider = AnthropicProvider("test-key")
+    provider._client = _make_anthropic_client(files=files, batches=batches)
+
+    handle = await provider.submit_deferred(
+        [
+            ProviderRequest(
+                model=ANTHROPIC_MODEL,
+                parts=["Summarize this"],
+                response_schema={
+                    "type": "object",
+                    "properties": {"summary": {"type": "string"}},
+                },
+            ),
+            ProviderRequest(
+                model=ANTHROPIC_MODEL,
+                parts=[
+                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                    "Answer the question",
+                ],
+            ),
+        ],
+        request_ids=["pollux-000000", "pollux-000001"],
+    )
+
+    assert handle.job_id == "msgbatch_123"
+    assert handle.provider_state == {
+        "request_ids": ["pollux-000000", "pollux-000001"],
+        "owned_file_ids": ["file_uploaded_pdf"],
+        "has_response_schema": True,
+    }
+
+    assert len(files.upload_calls) == 1
+    assert batches.create_kwargs is not None
+    assert batches.create_kwargs["extra_headers"] == {
+        "anthropic-beta": "files-api-2025-04-14"
+    }
+    requests = list(batches.create_kwargs["requests"])
+    assert [item["custom_id"] for item in requests] == [
+        "pollux-000000",
+        "pollux-000001",
+    ]
+    assert requests[0]["params"]["output_config"]["format"]["type"] == "json_schema"
+    assert requests[1]["params"]["messages"][0]["content"][0]["source"]["file_id"] == (
+        "file_uploaded_pdf"
+    )
+
+
+@pytest.mark.asyncio
+async def test_anthropic_collect_deferred_parses_result_stream_and_cleans_up() -> None:
+    """Anthropic collection should parse async JSONL results by custom_id."""
+    files = _FakeAnthropicBatchFilesClient()
+    batches = _FakeAnthropicBatchesClient()
+    batches.retrieve_result = type(
+        "MessageBatch",
+        (),
+        {
+            "id": "msgbatch_123",
+            "processing_status": "ended",
+            "created_at": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            "ended_at": datetime(2026, 3, 1, 0, 5, tzinfo=timezone.utc),
+            "expires_at": datetime(2026, 3, 2, tzinfo=timezone.utc),
+            "results_url": "https://example.test/results.jsonl",
+            "request_counts": type(
+                "Counts",
+                (),
+                {
+                    "processing": 0,
+                    "succeeded": 1,
+                    "errored": 0,
+                    "canceled": 1,
+                    "expired": 0,
+                },
+            )(),
+        },
+    )()
+    batches.results_rows = [
+        type(
+            "Row",
+            (),
+            {
+                "custom_id": "pollux-000001",
+                "result": type(
+                    "Succeeded",
+                    (),
+                    {
+                        "type": "succeeded",
+                        "message": type(
+                            "Message",
+                            (),
+                            {
+                                "id": "msg_123",
+                                "content": [
+                                    type(
+                                        "Block",
+                                        (),
+                                        {"type": "text", "text": "Answer 2"},
+                                    )()
+                                ],
+                                "usage": type(
+                                    "Usage", (), {"input_tokens": 1, "output_tokens": 2}
+                                )(),
+                                "stop_reason": "end_turn",
+                            },
+                        )(),
+                    },
+                )(),
+            },
+        )(),
+        type(
+            "Row",
+            (),
+            {
+                "custom_id": "pollux-000000",
+                "result": type("Canceled", (), {"type": "canceled"})(),
+            },
+        )(),
+    ]
+    provider = AnthropicProvider("test-key")
+    provider._client = _make_anthropic_client(files=files, batches=batches)
+
+    handle = ProviderDeferredHandle(
+        job_id="msgbatch_123",
+        provider_state={
+            "request_ids": ["pollux-000000", "pollux-000001"],
+            "owned_file_ids": ["file_uploaded_pdf"],
+        },
+    )
+    snapshot = await provider.inspect_deferred(handle)
+    items = await provider.collect_deferred(handle)
+
+    assert snapshot.status == "partial"
+    assert snapshot.request_count == 2
+    assert snapshot.succeeded == 1
+    assert snapshot.failed == 1
+    assert snapshot.pending == 0
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000001",
+            status="succeeded",
+            response={
+                "text": "Answer 2",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 2,
+                    "total_tokens": 3,
+                },
+                "response_id": "msg_123",
+                "finish_reason": "stop",
+            },
+            provider_status="succeeded",
+            finish_reason="stop",
+        ),
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="cancelled",
+            provider_status="canceled",
+        ),
+    ]
+    assert files.deleted_file_ids == ["file_uploaded_pdf", "file_uploaded_pdf"]
 
 
 # =============================================================================
