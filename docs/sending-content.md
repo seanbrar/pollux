@@ -204,7 +204,9 @@ Example of a complete envelope:
 - Conversation continuity (`history`, `continue_from`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
-- `delivery_mode="deferred"` is not supported and raises an error.
+- `delivery_mode="deferred"` is not supported on `run()` / `run_many()`.
+  Use the sibling deferred API instead: `defer()`, `defer_many()`,
+  `inspect_deferred()`, `collect_deferred()`, and `cancel_deferred()`.
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).
 

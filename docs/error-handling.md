@@ -69,8 +69,9 @@ Use this order when debugging. Most failures resolve by step 2.
 
 3. **Unsupported feature.** Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
-   `delivery_mode="deferred"` is not supported. Conversation continuity
-   and tool calling are provider-dependent.
+   `delivery_mode="deferred"` is not supported on `run()` / `run_many()`;
+   use the sibling deferred API instead. Conversation continuity and tool
+   calling are provider-dependent.
 
 4. **Source and payload.** Reduce to one source + one prompt and retry.
    For OpenAI remote URLs, only PDF and image URLs are supported.
