@@ -36,6 +36,7 @@ class ProviderDeferredHandle:
 
     job_id: str
     submitted_at: float | None = None
+    provider_state: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -111,14 +112,18 @@ class DeferredProvider(Protocol):
         """Submit deferred work and return a provider-owned handle."""
         ...
 
-    async def inspect_deferred(self, job_id: str) -> ProviderDeferredSnapshot:
+    async def inspect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> ProviderDeferredSnapshot:
         """Inspect deferred job state."""
         ...
 
-    async def collect_deferred(self, job_id: str) -> list[ProviderDeferredItem]:
+    async def collect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> list[ProviderDeferredItem]:
         """Collect terminal deferred results."""
         ...
 
-    async def cancel_deferred(self, job_id: str) -> None:
+    async def cancel_deferred(self, handle: ProviderDeferredHandle) -> None:
         """Request provider-side cancellation."""
         ...

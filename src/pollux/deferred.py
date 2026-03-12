@@ -14,6 +14,7 @@ from pollux.options import (
 from pollux.providers.base import (
     DeferredProvider,
     Provider,
+    ProviderDeferredHandle,
     ProviderDeferredItem,
     ProviderDeferredSnapshot,
 )
@@ -50,6 +51,7 @@ class DeferredHandle:
     request_count: int
     submitted_at: float
     schema_hash: str | None = None
+    provider_state: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the handle for persistence."""
@@ -68,6 +70,11 @@ class DeferredHandle:
                 None
                 if data.get("schema_hash") is None
                 else str(data.get("schema_hash"))
+            ),
+            provider_state=(
+                dict(data["provider_state"])
+                if isinstance(data.get("provider_state"), dict)
+                else None
             ),
         )
 
@@ -111,6 +118,19 @@ def _get_deferred_provider(provider: Provider) -> DeferredProvider:
 
 def _request_ids(count: int) -> list[str]:
     return [f"pollux-{idx:06d}" for idx in range(count)]
+
+
+def _provider_handle_from_handle(handle: DeferredHandle) -> ProviderDeferredHandle:
+    """Rebuild the provider-facing deferred handle from the public Pollux handle."""
+    return ProviderDeferredHandle(
+        job_id=handle.job_id,
+        submitted_at=handle.submitted_at,
+        provider_state=(
+            dict(handle.provider_state)
+            if isinstance(handle.provider_state, dict)
+            else None
+        ),
+    )
 
 
 def _validate_deferred_plan(plan: Plan, provider: Provider) -> None:
@@ -210,6 +230,11 @@ async def submit_deferred(plan: Plan, provider: Provider) -> DeferredHandle:
         request_count=len(plan.request.prompts),
         submitted_at=submitted_at,
         schema_hash=plan.request.options.response_schema_hash(),
+        provider_state=(
+            dict(provider_handle.provider_state)
+            if isinstance(provider_handle.provider_state, dict)
+            else None
+        ),
     )
 
 
@@ -247,7 +272,7 @@ async def inspect_deferred_handle(
     deferred_provider = _get_deferred_provider(provider)
     return _snapshot_from_provider(
         handle,
-        await deferred_provider.inspect_deferred(handle.job_id),
+        await deferred_provider.inspect_deferred(_provider_handle_from_handle(handle)),
     )
 
 
@@ -317,7 +342,9 @@ async def collect_deferred_handle(
     if not snapshot.is_terminal:
         raise DeferredNotReadyError(snapshot)
 
-    items = await deferred_provider.collect_deferred(handle.job_id)
+    items = await deferred_provider.collect_deferred(
+        _provider_handle_from_handle(handle)
+    )
     items_by_id: dict[str, ProviderDeferredItem] = {}
     for item in items:
         if item.request_id in items_by_id:
@@ -384,4 +411,4 @@ async def collect_deferred_handle(
 async def cancel_deferred_handle(handle: DeferredHandle, provider: Provider) -> None:
     """Request provider-side cancellation for a deferred job."""
     deferred_provider = _get_deferred_provider(provider)
-    await deferred_provider.cancel_deferred(handle.job_id)
+    await deferred_provider.cancel_deferred(_provider_handle_from_handle(handle))

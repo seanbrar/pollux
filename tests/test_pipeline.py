@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import json
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -35,6 +36,7 @@ from pollux.providers.models import (
     ProviderResponse,
     ToolCall,
 )
+from pollux.providers.openai import OpenAIProvider
 from pollux.request import normalize_request
 from pollux.retry import RetryPolicy
 from pollux.source import Source
@@ -86,9 +88,16 @@ class InMemoryDeferredProvider(FakeProvider):
         job_id = f"job-{len(self.submitted_requests)}"
         self.submitted_requests[job_id] = list(requests)
         self.submitted_ids[job_id] = list(request_ids)
-        return ProviderDeferredHandle(job_id=job_id, submitted_at=self.submitted_at)
+        return ProviderDeferredHandle(
+            job_id=job_id,
+            submitted_at=self.submitted_at,
+            provider_state={"request_ids": list(request_ids)},
+        )
 
-    async def inspect_deferred(self, job_id: str) -> ProviderDeferredSnapshot:
+    async def inspect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> ProviderDeferredSnapshot:
+        job_id = handle.job_id
         request_ids = self.submitted_ids[job_id]
         items = self._collected_items(job_id)
         if self.inspect_status in {"queued", "running", "cancelling"}:
@@ -110,11 +119,13 @@ class InMemoryDeferredProvider(FakeProvider):
             completed_at=self.completed_at if pending == 0 else None,
         )
 
-    async def collect_deferred(self, job_id: str) -> list[ProviderDeferredItem]:
-        return self._collected_items(job_id)
+    async def collect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> list[ProviderDeferredItem]:
+        return self._collected_items(handle.job_id)
 
-    async def cancel_deferred(self, job_id: str) -> None:
-        self.cancelled_jobs.append(job_id)
+    async def cancel_deferred(self, handle: ProviderDeferredHandle) -> None:
+        self.cancelled_jobs.append(handle.job_id)
 
     def _collected_items(self, job_id: str) -> list[ProviderDeferredItem]:
         requests = self.submitted_requests[job_id]
@@ -1499,6 +1510,7 @@ def test_deferred_handle_round_trip_serialization() -> None:
         request_count=2,
         submitted_at=123.0,
         schema_hash="abc",
+        provider_state={"request_ids": ["pollux-000000", "pollux-000001"]},
     )
 
     assert DeferredHandle.from_dict(handle.to_dict()) == handle
@@ -1531,6 +1543,9 @@ async def test_defer_collect_smoke_without_lifecycle_config(
         sources=(Source.from_text("shared"),),
         config=cfg,
     )
+
+    assert job.provider_state == {"request_ids": ["pollux-000000", "pollux-000001"]}
+
     snapshot = await pollux.inspect_deferred(job)
     result = await pollux.collect_deferred(job)
 
@@ -1708,6 +1723,426 @@ async def test_defer_rejects_out_of_scope_options(
 
     with pytest.raises(ConfigurationError, match=match):
         await pollux.defer("Q1?", config=cfg, options=options)
+
+
+@pytest.mark.asyncio
+async def test_openai_deferred_backend_integrates_with_public_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OpenAI deferred provider should integrate cleanly through Pollux's public API."""
+
+    class _Files:
+        def __init__(self) -> None:
+            self.deleted_file_ids: list[str] = []
+            self.contents = {
+                "file_out": "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "custom_id": "pollux-000001",
+                                "response": {
+                                    "status_code": 200,
+                                    "body": {
+                                        "status": "completed",
+                                        "output": [
+                                            {
+                                                "type": "message",
+                                                "content": [
+                                                    {
+                                                        "type": "output_text",
+                                                        "text": "Answer 2",
+                                                    }
+                                                ],
+                                            }
+                                        ],
+                                        "usage": {"total_tokens": 1},
+                                    },
+                                },
+                                "error": None,
+                            }
+                        )
+                    ]
+                ),
+                "file_err": "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "custom_id": "pollux-000000",
+                                "error": {
+                                    "code": "server_error",
+                                    "message": "request failed",
+                                },
+                            }
+                        )
+                    ]
+                ),
+            }
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("File", (), {"id": "file_batch_input"})()
+
+        async def retrieve_content(self, file_id: str) -> str:
+            return self.contents[file_id]
+
+        async def delete(self, file_id: str) -> None:
+            self.deleted_file_ids.append(file_id)
+
+        async def close(self) -> None:
+            return None
+
+    class _Batches:
+        def __init__(self) -> None:
+            self.cancelled: str | None = None
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"id": "batch_123", "created_at": 100.0})()
+
+        async def retrieve(self, job_id: str) -> Any:
+            _ = job_id
+            return {
+                "status": "completed",
+                "request_counts": {"total": 2, "completed": 1, "failed": 1},
+                "created_at": 100,
+                "completed_at": 125,
+                "output_file_id": "file_out",
+                "error_file_id": "file_err",
+            }
+
+        async def cancel(self, job_id: str) -> Any:
+            self.cancelled = job_id
+            return {"id": job_id}
+
+    batches = _Batches()
+    files = _Files()
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> OpenAIProvider:
+        class _Client:
+            def __init__(self) -> None:
+                self.files = files
+                self.batches = batches
+
+            async def close(self) -> None:
+                await _async_noop()
+
+        provider = OpenAIProvider("test-key")
+        provider._client = _Client()
+        return provider
+
+    async def _async_noop() -> None:
+        return None
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    snapshot = await pollux.inspect_deferred(job)
+    result = await pollux.collect_deferred(job)
+    await pollux.cancel_deferred(job)
+
+    assert snapshot.status == "partial"
+    assert result["status"] == "partial"
+    assert result["answers"] == ["", "Answer 2"]
+    assert result["diagnostics"]["deferred"]["items"] == [
+        {
+            "request_id": "pollux-000000",
+            "status": "failed",
+            "error": "request failed",
+            "provider_status": "server_error",
+            "finish_reason": None,
+        },
+        {
+            "request_id": "pollux-000001",
+            "status": "succeeded",
+            "error": None,
+            "provider_status": "completed",
+            "finish_reason": "completed",
+        },
+    ]
+    assert batches.cancelled == "batch_123"
+    assert "file_batch_input" in files.deleted_file_ids
+
+
+@pytest.mark.asyncio
+async def test_openai_deferred_partial_cancel_returns_partial_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Partial cancelled batches should collect without missing-item errors."""
+
+    class _Files:
+        def __init__(self) -> None:
+            self.contents = {
+                "file_out": json.dumps(
+                    {
+                        "custom_id": "pollux-000000",
+                        "response": {
+                            "status_code": 200,
+                            "body": {
+                                "status": "completed",
+                                "output": [
+                                    {
+                                        "type": "message",
+                                        "content": [
+                                            {
+                                                "type": "output_text",
+                                                "text": "Answer 1",
+                                            }
+                                        ],
+                                    }
+                                ],
+                                "usage": {"total_tokens": 1},
+                            },
+                        },
+                        "error": None,
+                    }
+                )
+            }
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("File", (), {"id": "file_batch_input"})()
+
+        async def retrieve_content(self, file_id: str) -> str:
+            return self.contents[file_id]
+
+        async def delete(self, file_id: str) -> None:
+            _ = file_id
+
+    class _Batches:
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"id": "batch_123", "created_at": 100.0})()
+
+        async def retrieve(self, job_id: str) -> Any:
+            _ = job_id
+            return {
+                "status": "cancelled",
+                "request_counts": {"total": 2, "completed": 1, "failed": 0},
+                "created_at": 100,
+                "cancelled_at": 125,
+                "output_file_id": "file_out",
+            }
+
+        async def cancel(self, job_id: str) -> Any:
+            return {"id": job_id}
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> OpenAIProvider:
+        class _Client:
+            def __init__(self) -> None:
+                self.files = _Files()
+                self.batches = _Batches()
+
+            async def close(self) -> None:
+                return None
+
+        provider = OpenAIProvider("test-key")
+        provider._client = _Client()
+        return provider
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    snapshot = await pollux.inspect_deferred(job)
+    result = await pollux.collect_deferred(job)
+
+    assert snapshot.status == "partial"
+    assert snapshot.request_count == 2
+    assert snapshot.succeeded == 1
+    assert snapshot.failed == 1
+    assert snapshot.pending == 0
+    assert result["status"] == "partial"
+    assert result["answers"] == ["Answer 1", ""]
+    assert result["diagnostics"]["deferred"]["items"] == [
+        {
+            "request_id": "pollux-000000",
+            "status": "succeeded",
+            "error": None,
+            "provider_status": "completed",
+            "finish_reason": "completed",
+        },
+        {
+            "request_id": "pollux-000001",
+            "status": "cancelled",
+            "error": None,
+            "provider_status": "cancelled",
+            "finish_reason": None,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_deferred_collection_does_not_invent_structured_without_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deferred collection should match realtime extraction when no schema was submitted."""
+
+    class _Files:
+        def __init__(self) -> None:
+            self.contents = {
+                "file_out": json.dumps(
+                    {
+                        "custom_id": "pollux-000000",
+                        "response": {
+                            "status_code": 200,
+                            "body": {
+                                "status": "completed",
+                                "output": [
+                                    {
+                                        "type": "message",
+                                        "content": [
+                                            {
+                                                "type": "output_text",
+                                                "text": '{"plain":true}',
+                                            }
+                                        ],
+                                    }
+                                ],
+                                "usage": {"total_tokens": 1},
+                            },
+                        },
+                        "error": None,
+                    }
+                )
+            }
+
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("File", (), {"id": "file_batch_input"})()
+
+        async def retrieve_content(self, file_id: str) -> str:
+            return self.contents[file_id]
+
+        async def delete(self, file_id: str) -> None:
+            _ = file_id
+
+    class _Batches:
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"id": "batch_123", "created_at": 100.0})()
+
+        async def retrieve(self, job_id: str) -> Any:
+            _ = job_id
+            return {
+                "status": "completed",
+                "request_counts": {"total": 1, "completed": 1, "failed": 0},
+                "created_at": 100,
+                "completed_at": 125,
+                "output_file_id": "file_out",
+                "metadata": {"pollux_has_response_schema": "0"},
+            }
+
+        async def cancel(self, job_id: str) -> Any:
+            return {"id": job_id}
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> OpenAIProvider:
+        class _Client:
+            def __init__(self) -> None:
+                self.files = _Files()
+                self.batches = _Batches()
+
+            async def close(self) -> None:
+                return None
+
+        provider = OpenAIProvider("test-key")
+        provider._client = _Client()
+        return provider
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    job = await pollux.defer('Return {"plain":true}', config=cfg)
+    result = await pollux.collect_deferred(job)
+
+    assert result["answers"] == ['{"plain":true}']
+    assert "structured" not in result
+
+
+@pytest.mark.asyncio
+async def test_openai_deferred_batch_level_failure_returns_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Batch-level validation failures should collect as a normal deferred error result."""
+
+    class _Files:
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("File", (), {"id": "file_batch_input"})()
+
+        async def retrieve_content(self, file_id: str) -> str:
+            raise AssertionError(f"unexpected retrieve_content({file_id})")
+
+        async def delete(self, file_id: str) -> None:
+            _ = file_id
+
+    class _Batches:
+        async def create(self, **kwargs: Any) -> Any:
+            _ = kwargs
+            return type("Batch", (), {"id": "batch_123", "created_at": 100.0})()
+
+        async def retrieve(self, job_id: str) -> Any:
+            _ = job_id
+            return {
+                "status": "failed",
+                "metadata": {"pollux_request_count": "2"},
+                "created_at": 100,
+                "failed_at": 125,
+                "errors": {
+                    "data": [
+                        {
+                            "code": "model_not_found",
+                            "message": "The provided model is not supported by the Batch API.",
+                        }
+                    ]
+                },
+            }
+
+        async def cancel(self, job_id: str) -> Any:
+            return {"id": job_id}
+
+    def _make_provider(*_args: Any, **_kwargs: Any) -> OpenAIProvider:
+        class _Client:
+            def __init__(self) -> None:
+                self.files = _Files()
+                self.batches = _Batches()
+
+            async def close(self) -> None:
+                return None
+
+        provider = OpenAIProvider("test-key")
+        provider._client = _Client()
+        return provider
+
+    monkeypatch.setattr(pollux, "_create_provider", _make_provider)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    snapshot = await pollux.inspect_deferred(job)
+    result = await pollux.collect_deferred(job)
+
+    assert snapshot.status == "failed"
+    assert snapshot.request_count == 2
+    assert snapshot.failed == 2
+    assert snapshot.pending == 0
+    assert result["status"] == "error"
+    assert result["answers"] == ["", ""]
+    assert result["diagnostics"]["deferred"]["items"] == [
+        {
+            "request_id": "pollux-000000",
+            "status": "failed",
+            "error": "The provided model is not supported by the Batch API.",
+            "provider_status": "model_not_found",
+            "finish_reason": None,
+        },
+        {
+            "request_id": "pollux-000001",
+            "status": "failed",
+            "error": "The provided model is not supported by the Batch API.",
+            "provider_status": "model_not_found",
+            "finish_reason": None,
+        },
+    ]
 
 
 @pytest.mark.asyncio

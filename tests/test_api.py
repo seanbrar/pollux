@@ -10,7 +10,11 @@ The suite prioritizes high-signal end-to-end coverage with a small call budget.
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
+import io
 import json
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -423,6 +427,122 @@ async def test_openai_binary_upload_cleanup_roundtrip(
     assert "pdf_ok" in result["answers"][0].lower()
     assert deleted_file_ids
     assert all(isinstance(file_id, str) and file_id for file_id in deleted_file_ids)
+
+
+@pytest.mark.asyncio
+async def test_openai_live_batch_validation_failure_shape_characterization(
+    openai_api_key: str,
+    openai_test_model: str,
+) -> None:
+    """E2E: Batch validation failures surface on the batch object, not per-row output files."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=openai_api_key)
+    batch_id: str | None = None
+    final_status: str | None = None
+    file_ids_to_delete: set[str] = set()
+
+    try:
+        lines = [
+            {
+                "custom_id": "pollux-live-success",
+                "method": "POST",
+                "url": "/v1/responses",
+                "body": {
+                    "model": openai_test_model,
+                    "input": "Reply with exactly LIVE_BATCH_OK",
+                },
+            },
+            {
+                "custom_id": "pollux-live-invalid-model",
+                "method": "POST",
+                "url": "/v1/responses",
+                "body": {
+                    "model": "not-a-real-openai-model",
+                    "input": "Reply with exactly SHOULD_NOT_RUN",
+                },
+            },
+        ]
+
+        payload = (
+            "\n".join(json.dumps(line, separators=(",", ":")) for line in lines) + "\n"
+        ).encode("utf-8")
+        upload = io.BytesIO(payload)
+        upload.name = "pollux-live-batch.jsonl"
+
+        batch_file = await client.files.create(file=upload, purpose="batch")
+        file_ids_to_delete.add(batch_file.id)
+
+        batch = await client.batches.create(
+            input_file_id=batch_file.id,
+            endpoint="/v1/responses",
+            completion_window="24h",
+        )
+        batch_id = batch.id
+
+        deadline = time.monotonic() + 180
+        while True:
+            batch = await client.batches.retrieve(batch.id)
+            if batch.status in {"completed", "failed", "cancelled", "expired"}:
+                break
+            if time.monotonic() >= deadline:
+                pytest.fail(f"Timed out waiting for OpenAI batch {batch.id} to finish")
+            await asyncio.sleep(5)
+
+        final_status = batch.status
+        assert batch.status == "failed"
+        assert batch.output_file_id is None
+        assert batch.error_file_id is None
+        assert batch.errors is not None
+        assert batch.errors.data
+        assert batch.errors.data[0].code == "model_not_found"
+        assert batch.errors.data[0].param == "body.model"
+        message = batch.errors.data[0].message
+        assert message is not None
+        assert "not supported by the Batch API" in message
+    finally:
+        if batch_id is not None and final_status not in {
+            "failed",
+            "cancelled",
+            "expired",
+            "completed",
+        }:
+            with suppress(Exception):
+                await client.batches.cancel(batch_id)
+        for file_id in file_ids_to_delete:
+            with suppress(Exception):
+                await client.files.delete(file_id)
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_openai_live_response_incomplete_shape_characterization(
+    openai_api_key: str,
+    openai_test_model: str,
+) -> None:
+    """E2E: A live Responses API call exposes `status=incomplete` with reason details."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=openai_api_key)
+
+    try:
+        response = await client.responses.create(
+            model=openai_test_model,
+            input=(
+                "Reply with exactly the following 40 words, preserving order: "
+                "alpha bravo charlie delta echo foxtrot golf hotel india juliet "
+                "kilo lima mike november oscar papa quebec romeo sierra tango "
+                "uniform victor whiskey xray yankee zulu alpha bravo charlie "
+                "delta echo foxtrot golf hotel india juliet kilo lima mike."
+            ),
+            max_output_tokens=16,
+        )
+
+        assert response.status == "incomplete"
+        assert response.incomplete_details is not None
+        assert response.incomplete_details.reason == "max_output_tokens"
+    finally:
+        await client.close()
 
 
 @pytest.mark.asyncio
