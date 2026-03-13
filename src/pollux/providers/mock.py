@@ -11,6 +11,14 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+def _echo_text(parts: list[Any]) -> str:
+    """Pick the first non-empty string part, falling back to the last string part."""
+    string_parts = [p for p in parts if isinstance(p, str) and p.strip()]
+    if string_parts:
+        return string_parts[0]
+    return next((p for p in reversed(parts) if isinstance(p, str)), "")
+
+
 class MockProvider:
     """Mock provider for testing without API calls.
 
@@ -37,13 +45,8 @@ class MockProvider:
         part (typically the prompt). This keeps file-based recipes informative
         in mock mode.
         """
-        string_parts = [p for p in request.parts if isinstance(p, str) and p.strip()]
-        if string_parts:
-            text = string_parts[0]
-        else:
-            text = next((p for p in reversed(request.parts) if isinstance(p, str)), "")
         return ProviderResponse(
-            text=f"echo: {text[:100]}",
+            text=f"echo: {_echo_text(request.parts)[:100]}",
             usage={"input_tokens": 10, "total_tokens": 20},
         )
 

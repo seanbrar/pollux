@@ -70,7 +70,7 @@ The public API is exposed through `src/pollux/__init__.py`:
 |--------|---------|
 | `config.py` | Immutable `Config` dataclass with API key resolution |
 | `source.py` | `Source` factory with `from_text()`, `from_file()`, `from_youtube()`, `from_arxiv()` |
-| `options.py` | Execution options: `response_schema`, `reasoning_effort`, `delivery_mode` (and reserved conversation inputs) |
+| `options.py` | Execution options: `response_schema`, `reasoning_effort`, legacy `delivery_mode` compatibility, and conversation inputs |
 | `cache.py` | `CacheRegistry` for TTL-based context cache management |
 | `errors.py` | Exception hierarchy with `.hint` attribute for actionable messages |
 | `retry.py` | `RetryPolicy` + bounded async retry used by execution and providers |

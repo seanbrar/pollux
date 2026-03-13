@@ -209,9 +209,8 @@ Example of a complete envelope:
 - Conversation continuity (`history`, `continue_from`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
-- `delivery_mode="deferred"` is not supported on `run()` / `run_many()`.
-  Use the deferred API instead: `defer()`, `defer_many()`,
-  `inspect_deferred()`, `collect_deferred()`, and `cancel_deferred()`.
+- Deferred work uses `defer()`, `defer_many()`, `inspect_deferred()`,
+  `collect_deferred()`, and `cancel_deferred()`.
 - Deferred lifecycle calls take a `DeferredHandle`, not `Config`. Persist the
   handle and restore it later. See
   [Submitting Work for Later Collection](submitting-work-for-later-collection.md).

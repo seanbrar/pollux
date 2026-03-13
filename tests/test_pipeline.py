@@ -1481,7 +1481,7 @@ async def test_implicit_caching_requires_provider_capability_when_enabled(
 async def test_delivery_mode_deferred_is_explicitly_not_implemented(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """run_many() should point callers at the sibling deferred API."""
+    """Legacy deferred mode should fail fast and point callers at the sibling API."""
     fake = FakeProvider(
         _capabilities=ProviderCapabilities(
             persistent_cache=True,
@@ -1495,12 +1495,32 @@ async def test_delivery_mode_deferred_is_explicitly_not_implemented(
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
-    with pytest.raises(ConfigurationError, match="not supported on run"):
+    with pytest.raises(ConfigurationError, match="legacy compatibility shim"):
         await pollux.run_many(
             ("Q1?",),
             config=cfg,
             options=Options(delivery_mode="deferred"),
         )
+
+
+def test_delivery_mode_realtime_is_accepted_as_legacy_compatibility_shim() -> None:
+    """Explicit realtime mode should remain valid for existing callers."""
+    options = Options(delivery_mode="realtime")
+
+    assert options.delivery_mode == "realtime"
+
+
+def test_delivery_mode_deferred_is_accepted_as_legacy_compatibility_shim() -> None:
+    """Deferred remains constructible so Pollux can raise migration guidance."""
+    options = Options(delivery_mode="deferred")
+
+    assert options.delivery_mode == "deferred"
+
+
+def test_delivery_mode_rejects_invalid_values() -> None:
+    """Invalid delivery_mode values should fail fast with a clear error."""
+    with pytest.raises(ConfigurationError, match="must be 'realtime' or 'deferred'"):
+        Options(delivery_mode="bogus")
 
 
 def test_deferred_handle_round_trip_serialization() -> None:
@@ -1532,6 +1552,32 @@ async def test_defer_many_requires_at_least_one_prompt(
 
 
 @pytest.mark.asyncio
+async def test_defer_rejects_global_mock_provider() -> None:
+    """Deferred delivery should not be available through the global mock provider."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    with pytest.raises(ConfigurationError, match="does not support deferred delivery"):
+        await pollux.defer_many(
+            ("Summarize this text", "List two risks"),
+            sources=(Source.from_text("shared context"),),
+            config=cfg,
+        )
+
+
+@pytest.mark.asyncio
+async def test_defer_rejects_redundant_legacy_delivery_mode() -> None:
+    """Deferred entry points should tell legacy callers to drop delivery_mode."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    with pytest.raises(ConfigurationError, match="not needed with defer"):
+        await pollux.defer_many(
+            ("Summarize this text",),
+            config=cfg,
+            options=Options(delivery_mode="deferred"),
+        )
+
+
+@pytest.mark.asyncio
 async def test_defer_collect_smoke_without_lifecycle_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1546,10 +1592,12 @@ async def test_defer_collect_smoke_without_lifecycle_config(
         config=cfg,
     )
 
-    assert job.provider_state == {"request_ids": ["pollux-000000", "pollux-000001"]}
+    assert job.provider_state is not None
+    assert job.provider_state["request_ids"] == ["pollux-000000", "pollux-000001"]
+    restored = DeferredHandle.from_dict(job.to_dict())
 
-    snapshot = await pollux.inspect_deferred(job)
-    result = await pollux.collect_deferred(job)
+    snapshot = await pollux.inspect_deferred(restored)
+    result = await pollux.collect_deferred(restored)
 
     assert snapshot.is_terminal is True
     assert snapshot.status == "completed"

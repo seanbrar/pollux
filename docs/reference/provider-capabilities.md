@@ -31,7 +31,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `response_format` or `structured_outputs` |
 | Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Passed through to provider where supported; see notes below |
-| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | Use the deferred API; `delivery_mode="deferred"` remains unsupported |
+| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | Use the deferred API directly. |
 | Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | Single prompt per call |

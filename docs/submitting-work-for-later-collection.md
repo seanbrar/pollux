@@ -90,10 +90,9 @@ turns `True`, `collect_deferred()` returns the same `ResultEnvelope` shape that
 
 - The handle is the lifecycle record. Persist the full `handle.to_dict()`
   payload, including `provider_state`.
-- `inspect_deferred()` takes only the handle. You do not pass `Config` back in.
-- Lifecycle calls resolve auth from `handle.provider` and the usual provider
-  environment variable. If collection runs in another process, export that key
-  there too.
+- Lifecycle calls take only the handle. Auth is resolved from
+  `handle.provider` and the usual provider environment variable. If collection
+  runs in another process, export that key there too.
 - `DeferredSnapshot.is_terminal` is the stable readiness check. Do not branch on
   one provider's raw status strings.
 - `collect_deferred()` is not a polling helper. If the job is still active, it
@@ -119,8 +118,7 @@ returned structured payloads.
 
 - Deferred delivery uses dedicated entry points: `defer()`, `defer_many()`,
   `inspect_deferred()`, `collect_deferred()`, and `cancel_deferred()`.
-- `run()` and `run_many()` remain realtime entry points. Setting
-  `Options(delivery_mode="deferred")` raises `ConfigurationError`.
+- `run()` and `run_many()` remain realtime entry points.
 - Deferred delivery does not support conversation continuity, tool calling,
   persistent cache handles, or implicit caching.
 - `cancel_deferred(handle)` requests provider-side cancellation. Final status is
