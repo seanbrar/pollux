@@ -16,6 +16,8 @@ For provider-level feature differences, see [Provider Capabilities](provider-cap
 |---|---|---|
 | Ask one prompt about one source (or no source) | `run()` | [Sending Content to Models](../sending-content.md) |
 | Ask many prompts against shared sources | `run_many()` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Submit non-urgent work and collect it later | `defer()` / `defer_many()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
+| Check deferred job status or collect terminal results | `inspect_deferred()` / `collect_deferred()` / `cancel_deferred()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
 | Feed tool results back into a conversation turn | `continue_tool()` | [Building an Agent Loop](../agent-loop.md) |
 | Reuse Gemini context across later calls | `create_cache()` | [Reducing Costs with Context Caching](../caching.md) |
 
@@ -26,6 +28,16 @@ The primary execution functions are exported from `pollux`:
 ::: pollux.run
 
 ::: pollux.run_many
+
+::: pollux.defer
+
+::: pollux.defer_many
+
+::: pollux.inspect_deferred
+
+::: pollux.collect_deferred
+
+::: pollux.cancel_deferred
 
 ::: pollux.continue_tool
 
@@ -38,6 +50,10 @@ The primary execution functions are exported from `pollux`:
 ::: pollux.CacheHandle
 
 ::: pollux.Config
+
+::: pollux.DeferredHandle
+
+::: pollux.DeferredSnapshot
 
 ::: pollux.Options
 
@@ -62,3 +78,5 @@ The primary execution functions are exported from `pollux`:
 ::: pollux.RateLimitError
 
 ::: pollux.CacheError
+
+::: pollux.DeferredNotReadyError

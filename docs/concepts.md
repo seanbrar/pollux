@@ -3,7 +3,7 @@
      tool calling, multi-turn, caching, source patterns, reasoning) BEFORE
      showing any Pollux API. Then introduce Pollux's four-phase pipeline and
      the ownership boundary table. Do NOT include runnable code examples or
-     hands-on tutorials — those belong in subsequent pages. Assumes no prior
+     hands-on tutorials, those belong in subsequent pages. Assumes no prior
      LLM API experience. Register: conceptual/declarative. -->
 
 # Core Concepts
@@ -92,6 +92,14 @@ discounts repeated prefixes with no Pollux API surface). When you use explicit
 cache handles, cache identity is keyed to the content bundle rather than the
 file path.
 
+### Deferred Delivery
+
+Not all work needs an immediate answer. **Deferred delivery** submits requests
+to a provider's batch system, often at lower cost when batch pricing is
+available, and returns a serializable handle. Your code persists the handle and
+collects the `ResultEnvelope` later. See
+[Submitting Work for Later Collection](submitting-work-for-later-collection.md).
+
 ### Source Patterns
 
 When analysis scales beyond a single prompt and source, three structural
@@ -129,16 +137,16 @@ graph LR
     E --> X[Extract]
 ```
 
-**Request** — Validates and normalizes prompts, sources, config, and options
+**Request:** Validates and normalizes prompts, sources, config, and options
 into a canonical representation.
 
-**Plan** — Converts the request into deterministic API calls and computes
+**Plan:** Converts the request into deterministic API calls and computes
 cache keys from content hashes.
 
-**Execute** — Uploads content, reuses cached context where possible, and runs
+**Execute:** Uploads content, reuses cached context where possible, and runs
 provider calls concurrently.
 
-**Extract** — Transforms API responses into a stable
+**Extract:** Transforms API responses into a stable
 [`ResultEnvelope`](sending-content.md#resultenvelope-reference) with
 `answers`, optional `structured` data, and `usage` metadata.
 
@@ -203,6 +211,7 @@ leaves domain-level decisions and workflow orchestration to your code.
 | **Models** | Selecting the provider and model | Provider-specific API translation |
 | **Tool execution** | Implementing and calling tools | Surfacing tool-call requests and passing results back |
 | **Multi-turn loops** | Loop control, exit conditions, state | Single-turn request/response with conversation continuity |
+| **Deferred lifecycle** | Persistence, polling cadence, scheduling, cross-job orchestration | Provider submission, lifecycle normalization, ordered collection |
 | **Result aggregation** | Collecting, comparing, and storing answers | Normalizing each response into `ResultEnvelope` |
 | **Error recovery** | Deciding what to retry or skip at the workflow level | Retrying transient API failures within a single call |
 | **Concurrency** | Parallelizing across files or workflows | Concurrent API calls within a single `run_many()` |
@@ -216,5 +225,6 @@ in a library.
 ---
 
 Now that you have the mental model, see
-[Sending Content to Models](sending-content.md) to start using the API: create
-sources, call `run()`, and read results.
+[Sending Content to Models](sending-content.md) to start using the realtime
+API, then [Submitting Work for Later Collection](submitting-work-for-later-collection.md)
+when the job can run in the background.

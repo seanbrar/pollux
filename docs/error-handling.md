@@ -27,6 +27,7 @@ PolluxError
 ├── SourceError          # File not found, invalid arXiv reference
 ├── PlanningError        # Execution plan could not be built
 ├── InternalError        # Bug or invariant violation inside Pollux
+├── DeferredNotReadyError # Deferred job is still active
 └── APIError             # Provider call failed
     ├── RateLimitError   # HTTP 429 (always retryable)
     └── CacheError       # Cache operation failed
@@ -70,11 +71,33 @@ Use this order when debugging. Most failures resolve by step 2.
 3. **Unsupported feature.** Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
    `delivery_mode="deferred"` is not supported on `run()` / `run_many()`;
-   use the sibling deferred API instead. Conversation continuity and tool
+   use the deferred API instead. Conversation continuity and tool
    calling are provider-dependent.
 
 4. **Source and payload.** Reduce to one source + one prompt and retry.
    For OpenAI remote URLs, only PDF and image URLs are supported.
+
+## Deferred Collection State
+
+`collect_deferred()` is not a polling helper. If the job is still active, it
+raises `DeferredNotReadyError` and attaches the latest `DeferredSnapshot` on
+`exc.snapshot`.
+
+```python
+from pollux import DeferredNotReadyError, collect_deferred
+
+try:
+    result = await collect_deferred(handle)
+except DeferredNotReadyError as exc:
+    snapshot = exc.snapshot
+    print(snapshot.status)       # queued, running, or cancelling
+    print(snapshot.pending)      # Requests still in flight
+    print(snapshot.is_terminal)  # False
+```
+
+Use `snapshot.status` and `snapshot.is_terminal` to decide what your application
+does next. Pollux normalizes lifecycle state. Your code still owns polling
+cadence, backoff, scheduling, and any cross-job retry policy.
 
 ## Complete Production Example
 
@@ -207,7 +230,7 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 | `ConfigurationError` at startup | Missing API key | `export GEMINI_API_KEY="your-key"` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY`) or pass `api_key` in `Config(...)` |
 | Outputs look like `echo: ...` | `use_mock=True` is set | Set `use_mock=False` (default) and ensure the API key is present |
 | `ConfigurationError` at request time | Provider/model mismatch | Verify the model belongs to the selected provider |
-| `ConfigurationError` mentioning `delivery_mode` | `"deferred"` is not supported | Use `delivery_mode="realtime"` (default) |
+| `ConfigurationError` mentioning `delivery_mode` | `"deferred"` was passed to a realtime call, or passed redundantly to deferred entry points | Use the default realtime mode for `run()` / `run_many()`, or switch to `defer()` / `defer_many()` |
 | `status: "partial"` | Some prompts returned empty answers | Check individual entries in `answers` to identify which prompts failed |
 | Remote source rejected | Unsupported MIME type on OpenAI | OpenAI remote URL support is limited to PDFs and images |
 | Keys show as `***redacted***` | Intentional redaction | Your key is still being used. `Config` hides it from string representations |

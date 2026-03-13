@@ -29,6 +29,9 @@ content. No boilerplate.
 **Context caching.** Upload once, reuse across prompts. Automatic TTL
 management saves tokens and money.
 
+**Deferred delivery.** Submit non-urgent work once, persist a handle, and
+collect later in the same `ResultEnvelope` format.
+
 **Built for reliability.** Async pipeline, retries with backoff, structured
 output, usage tracking.
 
@@ -44,6 +47,7 @@ pip install pollux-ai
 - [Core Concepts](concepts.md)
 - [Sending Content to Models](sending-content.md)
 - [Source Patterns](source-patterns.md)
+- [Submitting Work for Later Collection](submitting-work-for-later-collection.md)
 - [Structured Data](structured-data.md)
 - [Conversations and Agents](conversations-and-agents.md)
 - [Agent Loop](agent-loop.md)
