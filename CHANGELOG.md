@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.5.0] - 2026-03-17
+
+### Added
+
+- Add deferred delivery backends and lifecycle docs ([`384e189`](https://github.com/seanbrar/pollux/commit/384e18903cc98c6d827804c40b6b2c9bc4b7c7d2))
+- Add deferred delivery public API ([`52bc1a8`](https://github.com/seanbrar/pollux/commit/52bc1a8f6d78d9652567b4e03fd0b1e6d6aa302b))
+- Add deferred delivery backend ([`894d690`](https://github.com/seanbrar/pollux/commit/894d690e638fd8e513b146debd5ea87892d4831a))
+
+### Changed
+
+- Refresh README and roadmap for v1.5 ([`5acfeb4`](https://github.com/seanbrar/pollux/commit/5acfeb44517cbae8ef2a590a068f59ff7856a75f))
+
 ## [1.4.0] - 2026-03-09
 
 ### Added
@@ -168,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.5.0]: https://github.com/seanbrar/pollux/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/seanbrar/pollux/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/seanbrar/pollux/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/seanbrar/pollux/compare/v1.2.1...v1.2.2
