@@ -98,7 +98,10 @@ Not all work needs an immediate answer. **Deferred delivery** submits requests
 to a provider's batch system, often at lower cost when batch pricing is
 available, and returns a serializable handle. Your code persists the handle and
 collects the `ResultEnvelope` later. See
-[Submitting Work for Later Collection](submitting-work-for-later-collection.md).
+[Building With Deferred Delivery](building-with-deferred-delivery.md) for the
+operating model, then
+[Submitting Work for Later Collection](submitting-work-for-later-collection.md)
+for the lifecycle API.
 
 ### Source Patterns
 

@@ -81,6 +81,7 @@ nav:
   - Sending Content to Models: sending-content.md
   - Analyzing Collections with Source Patterns: source-patterns.md
   - Submitting Work for Later Collection: submitting-work-for-later-collection.md
+  - Building With Deferred Delivery: building-with-deferred-delivery.md
   - Extracting Structured Data: structured-data.md
   - Continuing Conversations Across Turns: conversations-and-agents.md
   - Building an Agent Loop: agent-loop.md

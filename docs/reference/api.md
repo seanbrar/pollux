@@ -16,7 +16,7 @@ For provider-level feature differences, see [Provider Capabilities](provider-cap
 |---|---|---|
 | Ask one prompt about one source (or no source) | `run()` | [Sending Content to Models](../sending-content.md) |
 | Ask many prompts against shared sources | `run_many()` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
-| Submit non-urgent work and collect it later | `defer()` / `defer_many()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
+| Submit non-urgent work and collect it later | `defer()` / `defer_many()` | [Building With Deferred Delivery](../building-with-deferred-delivery.md) |
 | Check deferred job status or collect terminal results | `inspect_deferred()` / `collect_deferred()` / `cancel_deferred()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
 | Feed tool results back into a conversation turn | `continue_tool()` | [Building an Agent Loop](../agent-loop.md) |
 | Reuse Gemini context across later calls | `create_cache()` | [Reducing Costs with Context Caching](../caching.md) |

@@ -99,6 +99,10 @@ Use `snapshot.status` and `snapshot.is_terminal` to decide what your application
 does next. Pollux normalizes lifecycle state. Your code still owns polling
 cadence, backoff, scheduling, and any cross-job retry policy.
 
+Deferred timelines are provider-driven. A valid job can stay queued or running
+for minutes or hours. Treat your polling timeout as an application decision,
+not as proof that deferred submission failed.
+
 ## Complete Production Example
 
 A production wrapper that processes files with category-specific error

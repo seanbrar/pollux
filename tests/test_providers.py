@@ -2328,13 +2328,21 @@ class _FakeAnthropicBatchesClient:
         _ = message_batch_id
         return self.retrieve_result
 
-    def results(self, message_batch_id: str) -> _AsyncAnthropicResults:
+    def results(self, message_batch_id: str) -> Any:
         _ = message_batch_id
         return _AsyncAnthropicResults(self.results_rows)
 
     async def cancel(self, message_batch_id: str) -> Any:
         self.cancelled_batch_id = message_batch_id
         return self.retrieve_result
+
+
+class _FakeAnthropicAwaitableResultsBatchesClient(_FakeAnthropicBatchesClient):
+    """Variant whose results() method must be awaited before iteration."""
+
+    async def results(self, message_batch_id: str) -> Any:
+        _ = message_batch_id
+        return _AsyncAnthropicResults(self.results_rows)
 
 
 def _make_anthropic_client(
@@ -2521,6 +2529,100 @@ async def test_anthropic_collect_deferred_parses_result_stream_and_cleans_up() -
         ),
     ]
     assert files.deleted_file_ids == ["file_uploaded_pdf", "file_uploaded_pdf"]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_collect_deferred_awaits_results_coroutine() -> None:
+    """Anthropic collection should handle SDK results() methods that are awaitable."""
+    files = _FakeAnthropicBatchFilesClient()
+    batches = _FakeAnthropicAwaitableResultsBatchesClient()
+    batches.retrieve_result = type(
+        "MessageBatch",
+        (),
+        {
+            "id": "msgbatch_123",
+            "processing_status": "ended",
+            "created_at": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            "ended_at": datetime(2026, 3, 1, 0, 5, tzinfo=timezone.utc),
+            "expires_at": datetime(2026, 3, 2, tzinfo=timezone.utc),
+            "results_url": "https://example.test/results.jsonl",
+            "request_counts": type(
+                "Counts",
+                (),
+                {
+                    "processing": 0,
+                    "succeeded": 1,
+                    "errored": 0,
+                    "canceled": 0,
+                    "expired": 0,
+                },
+            )(),
+        },
+    )()
+    batches.results_rows = [
+        type(
+            "Row",
+            (),
+            {
+                "custom_id": "pollux-000000",
+                "result": type(
+                    "Succeeded",
+                    (),
+                    {
+                        "type": "succeeded",
+                        "message": type(
+                            "Message",
+                            (),
+                            {
+                                "id": "msg_awaitable",
+                                "content": [
+                                    type(
+                                        "Block",
+                                        (),
+                                        {"type": "text", "text": "Answer 1"},
+                                    )()
+                                ],
+                                "usage": type(
+                                    "Usage", (), {"input_tokens": 2, "output_tokens": 3}
+                                )(),
+                                "stop_reason": "end_turn",
+                            },
+                        )(),
+                    },
+                )(),
+            },
+        )(),
+    ]
+    provider = AnthropicProvider("test-key")
+    provider._client = _make_anthropic_client(files=files, batches=batches)
+
+    handle = ProviderDeferredHandle(
+        job_id="msgbatch_123",
+        provider_state={
+            "request_ids": ["pollux-000000"],
+            "owned_file_ids": ["file_uploaded_pdf"],
+        },
+    )
+    items = await provider.collect_deferred(handle)
+
+    assert items == [
+        ProviderDeferredItem(
+            request_id="pollux-000000",
+            status="succeeded",
+            response={
+                "text": "Answer 1",
+                "usage": {
+                    "input_tokens": 2,
+                    "output_tokens": 3,
+                    "total_tokens": 5,
+                },
+                "response_id": "msg_awaitable",
+                "finish_reason": "stop",
+            },
+            provider_status="succeeded",
+            finish_reason="stop",
+        )
+    ]
 
 
 # =============================================================================

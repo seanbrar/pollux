@@ -14,6 +14,11 @@ pricing when it is available.
 Pollux handles the provider-facing deferred lifecycle. Your application stores
 the handle, decides when to poll, and decides what to do with the result.
 
+If you are deciding whether deferred is the right shape for a workload, or how
+to structure code around long-running provider jobs, read
+[Building With Deferred Delivery](building-with-deferred-delivery.md) alongside
+this page. This page stays focused on the lifecycle API itself.
+
 !!! info "Boundary"
     **Pollux owns:** request normalization, provider submission, stable request
     ids, normalized status snapshots, ordered collection, and extraction into a
@@ -142,6 +147,8 @@ realtime and deferred results the same way.
 
 ---
 
-Next, read [Handling Errors and Recovery](error-handling.md) for retry policy
-and error types, or check [Provider Capabilities](reference/provider-capabilities.md)
-to see which providers support deferred delivery in the current release.
+Next, read [Building With Deferred Delivery](building-with-deferred-delivery.md)
+for the operating model and where deferred pays off. Then read
+[Handling Errors and Recovery](error-handling.md) for retry policy and error
+types, or check [Provider Capabilities](reference/provider-capabilities.md) to
+see which providers support deferred delivery in the current release.

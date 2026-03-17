@@ -48,6 +48,7 @@ pip install pollux-ai
 - [Sending Content to Models](sending-content.md)
 - [Source Patterns](source-patterns.md)
 - [Submitting Work for Later Collection](submitting-work-for-later-collection.md)
+- [Building With Deferred Delivery](building-with-deferred-delivery.md)
 - [Structured Data](structured-data.md)
 - [Conversations and Agents](conversations-and-agents.md)
 - [Agent Loop](agent-loop.md)

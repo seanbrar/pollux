@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import inspect
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -415,7 +416,10 @@ class AnthropicProvider:
             batch = await client.messages.batches.retrieve(handle.job_id)
             items: list[ProviderDeferredItem] = []
             if batch.results_url is not None:
-                async for row in client.messages.batches.results(handle.job_id):
+                results_stream = client.messages.batches.results(handle.job_id)
+                if inspect.isawaitable(results_stream):
+                    results_stream = await results_stream
+                async for row in results_stream:
                     items.append(
                         _parse_batch_result(
                             row,

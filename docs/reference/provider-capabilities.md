@@ -36,6 +36,9 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
+For when deferred delivery is a fit and how to structure code around provider
+jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.md).
+
 ## Provider-Specific Notes
 
 ### Gemini
