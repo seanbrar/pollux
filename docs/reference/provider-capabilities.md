@@ -31,16 +31,21 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `response_format` or `structured_outputs` |
 | Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Passed through to provider where supported; see notes below |
-| Deferred delivery (`delivery_mode="deferred"`) | ❌ | ❌ | ❌ | ❌ | Not supported; raises `ConfigurationError` |
+| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | Use the deferred API directly. |
 | Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
+
+For when deferred delivery is a fit and how to structure code around provider
+jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.md).
 
 ## Provider-Specific Notes
 
 ### Gemini
 
 - Explicit caching uses the Gemini Files API.
+- Deferred delivery uses the Gemini Batch API through Pollux's deferred entry
+  points.
 - Gemini also caches repeated long prefixes automatically. Pollux does not
   expose a toggle for that path.
 - Gemini does not support `previous_response_id`; conversation state is
@@ -55,6 +60,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 - File uploads are configured to automatically expire on the OpenAI side.
   Pollux also performs best-effort cleanup of uploaded files after execution.
+- Deferred delivery uses the OpenAI Batch API through Pollux's deferred entry
+  points.
 - OpenAI caches repeated long prefixes automatically. Pollux does not expose
   OpenAI-specific cache controls.
 - Remote URL support is intentionally narrow: PDFs and images only.
@@ -77,6 +84,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 - Local file uploads use the Anthropic Files API (beta). Supported types:
   images, PDFs, and text files.
+- Deferred delivery uses the Anthropic Message Batches API through Pollux's
+  deferred entry points.
 - Remote URL support is intentionally narrow: images and PDFs only.
 - Implicit caching is enabled with `Options(implicit_caching=True)`.
   Pollux defaults it on for single-call workloads and off for multi-call
@@ -159,3 +168,6 @@ handle = await create_cache(
 
 The error is raised at `create_cache()` call time because persistent caching
 is a provider capability checked before the upload attempt.
+
+For the deferred lifecycle contract and out-of-scope options, see
+[Submitting Work for Later Collection](../submitting-work-for-later-collection.md).

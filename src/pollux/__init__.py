@@ -79,7 +79,7 @@ async def run(
         prompt: The prompt to run.
         source: Optional source for context (file, text, URL).
         config: Configuration specifying provider and model.
-        options: Optional additive features (schema, reasoning, delivery mode).
+        options: Optional additive features such as schema or reasoning controls.
 
     Returns:
         ResultEnvelope with answers and metrics.
@@ -119,7 +119,7 @@ async def run_many(
         prompts: One or more prompts to run.
         sources: Optional sources for shared context.
         config: Configuration specifying provider and model.
-        options: Optional additive features (schema, reasoning, delivery mode).
+        options: Optional additive features such as schema or reasoning controls.
 
     Returns:
         ResultEnvelope with answers (one per prompt) and metrics.
@@ -169,9 +169,11 @@ async def defer_many(
         await _close_provider(provider)
 
 
-async def inspect_deferred(handle: DeferredHandle) -> DeferredSnapshot:
+async def inspect_deferred(
+    handle: DeferredHandle,
+) -> DeferredSnapshot:
     """Inspect the current state of a deferred job."""
-    provider = _get_deferred_provider_from_handle(handle)
+    provider = _resolve_deferred_provider(handle)
     try:
         return await inspect_deferred_handle(handle, provider)
     finally:
@@ -183,8 +185,14 @@ async def collect_deferred(
     *,
     response_schema: type[Any] | dict[str, Any] | None = None,
 ) -> ResultEnvelope:
-    """Collect a terminal deferred job into the standard ResultEnvelope."""
-    provider = _get_deferred_provider_from_handle(handle)
+    """Collect a terminal deferred job into the standard ResultEnvelope.
+
+    Args:
+        handle: The deferred handle returned by ``defer()`` / ``defer_many()``.
+        response_schema: Optional Pydantic model or JSON Schema for structured
+            output rehydration. Must match the schema used at submission time.
+    """
+    provider = _resolve_deferred_provider(handle)
     try:
         return await collect_deferred_handle(
             handle,
@@ -195,9 +203,11 @@ async def collect_deferred(
         await _close_provider(provider)
 
 
-async def cancel_deferred(handle: DeferredHandle) -> None:
+async def cancel_deferred(
+    handle: DeferredHandle,
+) -> None:
     """Request provider-side cancellation for a deferred job."""
-    provider = _get_deferred_provider_from_handle(handle)
+    provider = _resolve_deferred_provider(handle)
     try:
         await cancel_deferred_handle(handle, provider)
     finally:
@@ -360,7 +370,7 @@ def _get_provider(config: Config) -> Provider:
     return _create_provider(config.provider, config.api_key, use_mock=config.use_mock)
 
 
-def _get_deferred_provider_from_handle(handle: DeferredHandle) -> Provider:
+def _resolve_deferred_provider(handle: DeferredHandle) -> Provider:
     """Resolve a provider client for deferred lifecycle calls from the handle."""
     if handle.provider not in {"gemini", "openai", "anthropic", "openrouter"}:
         raise ConfigurationError(

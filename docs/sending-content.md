@@ -44,7 +44,7 @@ remote  = Source.from_uri("https://example.com/data.csv", mime_type="text/csv")
 metrics = {"revenue_q1": 4_200_000, "growth_pct": 12.5, "region": "EMEA"}
 context = Source.from_json(metrics)
 
-# Pydantic models work directly — model_dump() is called automatically
+# Pydantic models work directly, model_dump() is called automatically
 class UserProfile(BaseModel):
     name: str
     preferences: list[str]
@@ -147,7 +147,7 @@ Q1: Paper 1 argues that multimodal orchestration layers reduce boilerplate by...
 Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 ```
 
-## Choosing `run()` vs `run_many()`
+## Choosing the Entry Point
 
 | Situation | Use | Why |
 |---|---|---|
@@ -155,9 +155,11 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 | Multiple questions on shared source(s) | `run_many()` | Fan-out efficiency |
 | Same question across many sources | `run_many()` | Fan-in analysis |
 | Many questions across many sources | `run_many()` | Broadcast pattern |
+| Non-urgent work you will collect later | `defer()` / `defer_many()` | Background provider execution with a serializable handle |
 | Returning tool results to the model | `continue_tool()` | Feeds tool outputs back into the conversation |
 
-Rule of thumb: if prompts or sources are plural, reach for `run_many()`.
+Rule of thumb: if prompts or sources are plural and you want answers now, reach
+for `run_many()`. If the workload can wait, reach for `defer_many()`.
 
 `continue_tool()` is a specialized entry point for agent loops. It takes a
 previous `ResultEnvelope` containing tool calls and your tool results, and
@@ -171,8 +173,9 @@ workloads because it shares uploads and runs prompts concurrently.
 
 ## ResultEnvelope Reference
 
-Every `run()` and `run_many()` call returns a `ResultEnvelope`: a dict with
-a stable shape that works the same regardless of provider.
+Every `run()`, `run_many()`, and `collect_deferred()` call returns a
+`ResultEnvelope`: a dict with a stable shape that works the same regardless of
+provider.
 
 | Field | Type | Always present | Description |
 |---|---|---|---|
@@ -183,8 +186,9 @@ a stable shape that works the same regardless of provider.
 | `tool_calls` | `list[list[dict]]` | Only with tool calling | Per-prompt list of tool-call requests. See [Conversations](conversations-and-agents.md) |
 | `confidence` | `float` | Yes | Heuristic: `0.9` for ok, `0.5` otherwise |
 | `extraction_method` | `str` | Yes | Always `"text"` |
-| `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`) |
-| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` ([explicit caching](caching.md#explicit-caching-gemini) only), `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`) |
+| `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`, and optional `reasoning_tokens`) |
+| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` ([explicit caching](caching.md#explicit-caching-gemini) only), `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`). Deferred results also add `metrics["deferred"] = True`. |
+| `diagnostics` | `dict[str, Any]` | Yes | Low-level diagnostics. All calls include `raw_responses`. Deferred results also add `diagnostics["deferred"]` with `job_id`, timing, and per-request lifecycle items. |
 
 Example of a complete envelope:
 
@@ -196,6 +200,7 @@ Example of a complete envelope:
     "extraction_method": "text",
     "usage": {"input_tokens": 1250, "output_tokens": 89, "total_tokens": 1339},
     "metrics": {"duration_s": 1.42, "n_calls": 1, "cache_used": False, "finish_reasons": ["stop"]},
+    "diagnostics": {"raw_responses": [...]},
 }
 ```
 
@@ -204,7 +209,11 @@ Example of a complete envelope:
 - Conversation continuity (`history`, `continue_from`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
-- `delivery_mode="deferred"` is not supported and raises an error.
+- Deferred work uses `defer()`, `defer_many()`, `inspect_deferred()`,
+  `collect_deferred()`, and `cancel_deferred()`.
+- Deferred lifecycle calls take a `DeferredHandle`, not `Config`. Persist the
+  handle and restore it later. See
+  [Submitting Work for Later Collection](submitting-work-for-later-collection.md).
 - Provider feature support varies. See
   [Provider Capabilities](reference/provider-capabilities.md).
 
@@ -212,6 +221,8 @@ Example of a complete envelope:
 
 Once you're comfortable with single calls, see
 [Analyzing Collections with Source Patterns](source-patterns.md) for fan-out,
-fan-in, and broadcast workflows, or
+fan-in, and broadcast workflows,
+[Submitting Work for Later Collection](submitting-work-for-later-collection.md)
+when the job can run in the background, or
 [Extracting Structured Data](structured-data.md) to get typed objects instead
 of free-form text.

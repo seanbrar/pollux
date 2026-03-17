@@ -1,7 +1,7 @@
 <!-- Intent: Reference page for Config and Options fields. Cover API key
      resolution, mock mode, performance/cost controls, RetryPolicy, and Options
-     per-prompt overrides. Do NOT include tutorials or extended examples — link
-     to the relevant guide pages. Register: reference. -->
+     per-prompt overrides. Do NOT include tutorials or extended examples,
+     link to the relevant guide pages. Register: reference. -->
 
 # Configuring Pollux
 
@@ -135,7 +135,6 @@ options = Options(
     tool_choice="auto",               # Tool calling mode ('auto', 'required', 'none', or dict)
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Controls model thinking depth
-    delivery_mode="realtime",         # Only "realtime" is supported
     max_tokens=4096,                  # Provider-specific output cap
     implicit_caching=True,            # Auto-cache prefix (Anthropic only)
 )
@@ -150,7 +149,6 @@ options = Options(
 | `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
 | `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
-| `delivery_mode` | `str` | `"realtime"` | Only `"realtime"` is supported; `"deferred"` raises an error |
 | `max_tokens` | `int \| None` | `None` | Output-token cap with provider-specific semantics. Anthropic applies provider defaults when omitted; other providers may ignore it. See [Provider Capabilities](reference/provider-capabilities.md) |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
@@ -169,6 +167,13 @@ options = Options(
     everywhere. Anthropic uses it as the total output budget and applies a
     provider default when you omit it. OpenRouter forwards it to the routed
     model. Other providers may ignore it in the current release.
+
+!!! note
+    `Options.delivery_mode` remains available only as a compatibility shim for
+    older code. New code should omit it.
+    Deferred work uses `defer()` / `defer_many()`. Legacy
+    `delivery_mode="deferred"` values still raise `ConfigurationError`, with
+    guidance that depends on which entry point you called.
 
 !!! warning "Cache handle restrictions"
     When `cache` is set, `system_instruction`, `tools`, and `tool_choice`
@@ -194,4 +199,5 @@ See [Contributing](contributing.md) for full development setup instructions.
 
 For the full provider feature matrix and model-specific constraints, see
 [Provider Capabilities](reference/provider-capabilities.md) and
-[Writing Portable Code Across Providers](portable-code.md).
+[Writing Portable Code Across Providers](portable-code.md). For the deferred
+workflow, see [Submitting Work for Later Collection](submitting-work-for-later-collection.md).

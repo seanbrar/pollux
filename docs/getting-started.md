@@ -1,6 +1,6 @@
 <!-- Intent: First contact with Pollux. Get the user to a working result as
      fast as possible. Do NOT teach concepts, source patterns, or advanced
-     features — those are linked at the end. Assume the reader knows what an
+     features, those are linked at the end. Assume the reader knows what an
      LLM API is but has never seen Pollux. Register: warm tutorial. -->
 
 # Getting Started
@@ -98,7 +98,7 @@ That's your first Pollux result. The `status` is `ok` and the answer
 references details from the source text. When this works, swap to your real
 input: `Source.from_file("document.pdf")`.
 
-!!! info "What just happened?"
+!!! info "What happened?"
     **Pollux owned:** normalizing your prompt and source into a request,
     planning the API call, executing it, and extracting the answer into a
     standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
@@ -110,4 +110,6 @@ input: `Source.from_file("document.pdf")`.
     on each page of the docs.
 
 **What's next?** Read [Core Concepts](concepts.md) for the full mental model,
-then [Sending Content to Models](sending-content.md) to explore the API.
+then [Sending Content to Models](sending-content.md) for realtime calls or
+[Submitting Work for Later Collection](submitting-work-for-later-collection.md)
+if your workload can run in the background.

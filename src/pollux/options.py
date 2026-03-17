@@ -16,7 +16,11 @@ if TYPE_CHECKING:
     from pollux.result import ResultEnvelope
 
 ReasoningEffort = str
-DeliveryMode = Literal["realtime", "deferred"]
+# Intentionally kept as plain ``str`` instead of ``Literal[...]`` so IDEs do
+# not advertise the legacy ``"deferred"`` value in completions while older
+# callers can still pass it during migration. Runtime validation below keeps
+# the accepted set narrow and provides upgrade guidance.
+DeliveryMode = str
 ResponseSchemaInput = type[BaseModel] | dict[str, Any]
 
 
@@ -73,7 +77,7 @@ class Options:
 
     #: Controls model thinking depth; passed through to the provider.
     reasoning_effort: ReasoningEffort | None = None
-    # TODO: implement deferred delivery via provider batch APIs.
+    #: Legacy compatibility shim. Realtime remains the only supported value.
     delivery_mode: DeliveryMode = "realtime"
     #: Mutually exclusive with *continue_from*.
     history: list[dict[str, Any]] | None = None
@@ -115,6 +119,18 @@ class Options:
             raise ConfigurationError(
                 "max_tokens must be a positive integer",
                 hint="Pass max_tokens=16384 or greater for thinking models.",
+            )
+
+        # Keep this runtime guard even though ``delivery_mode`` is typed as
+        # ``str`` on purpose; the loose annotation is a UX choice for editor
+        # autocomplete, not a widening of the supported values.
+        if self.delivery_mode not in {"realtime", "deferred"}:
+            raise ConfigurationError(
+                "delivery_mode must be 'realtime' or 'deferred'",
+                hint=(
+                    "Remove delivery_mode, keep the default realtime mode, "
+                    "or use delivery_mode='deferred' only as a migration shim."
+                ),
             )
 
         if self.history is not None and self.continue_from is not None:

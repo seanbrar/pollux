@@ -24,7 +24,7 @@ This roadmap is intentionally scope-constrained: ship a stable, high-quality cor
 
 - Feature-parity layers that mask provider differences (example: automatic YouTube download/re-upload for OpenAI).
 - Conversation continuity (`history`, `continue_from`).
-- Deferred delivery (`delivery_mode="deferred"`).
+- Deferred delivery via dedicated entry points (`defer()` / `defer_many()`).
 
 ## Post-1.0 Candidates
 
