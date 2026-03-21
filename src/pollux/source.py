@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable  # noqa: TC003 - used at runtime in dataclass
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import mimetypes
@@ -23,6 +23,19 @@ _ARXIV_ID_RE = re.compile(
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderHint:
+    """Immutable provider-scoped source extension."""
+
+    provider: str
+    name: str
+    payload: tuple[tuple[str, str | float], ...]
+
+    def payload_dict(self) -> dict[str, str | float]:
+        """Convert the immutable payload back to a dictionary."""
+        return dict(self.payload)
+
+
+@dataclass(frozen=True, slots=True)
 class Source:
     """A structured representation of a single input source."""
 
@@ -31,6 +44,7 @@ class Source:
     mime_type: str
     size_bytes: int
     content_loader: Callable[[], bytes]
+    provider_hints: tuple[ProviderHint, ...] = ()
 
     @classmethod
     def from_text(cls, text: str, *, identifier: str | None = None) -> Source:
@@ -185,7 +199,144 @@ class Source:
 
         return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
 
-    def content_hash(self) -> str:
-        """Compute SHA256 hash of content for cache identity."""
+    def _content_hash(self) -> str:
+        """Compute SHA256 hash of raw content bytes."""
         content = self.content_loader()
         return hashlib.sha256(content).hexdigest()
+
+    def gemini_video_settings_for(
+        self, provider: str | None
+    ) -> dict[str, str | float] | None:
+        """Return Gemini video settings when the active provider can use them."""
+        provider_hints = self.provider_hints_for(provider)
+        if provider_hints is None:
+            return None
+        return provider_hints.get("video_metadata")
+
+    def provider_hints_for(
+        self, provider: str | None
+    ) -> dict[str, dict[str, str | float]] | None:
+        """Return immutable provider hints as plain dictionaries for transport."""
+        if provider is None:
+            return None
+
+        hints = {
+            hint.name: hint.payload_dict()
+            for hint in self.provider_hints
+            if hint.provider == provider
+        }
+        return hints or None
+
+    def cache_identity_hash(self, *, provider: str | None = None) -> str:
+        """Compute SHA256 hash for cache identity.
+
+        Includes provider-visible source semantics such as Gemini video settings.
+        Falls back to raw content hash when no provider-specific settings apply,
+        preserving backward-compatible cache keys.
+        """
+        provider_hints = self.provider_hints_for(provider)
+        if provider_hints is None:
+            return self._content_hash()
+        combined = (
+            self._content_hash()
+            + "|"
+            + json.dumps(
+                provider_hints,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+    def with_gemini_video_settings(
+        self,
+        *,
+        start_offset: str | None = None,
+        end_offset: str | None = None,
+        fps: float | None = None,
+    ) -> Source:
+        """Return a copy with validated Gemini video controls attached.
+
+        Pollux keeps this API provider-specific and stable even if Google's
+        underlying wire fields evolve. The Gemini adapter maps these settings
+        to the current SDK request shape. These settings only affect Gemini
+        requests and Gemini explicit-cache identity.
+        """
+        if not self._is_video_source():
+            raise SourceError(
+                "Gemini video settings require a video source "
+                "(local video file, video URI, or YouTube URL)"
+            )
+
+        validated_start_offset: str | None = None
+        validated_end_offset: str | None = None
+        validated_fps: float | None = None
+
+        if start_offset is not None:
+            if not isinstance(start_offset, str) or not start_offset.strip():
+                raise SourceError("start_offset must be a non-empty string")
+            validated_start_offset = start_offset
+
+        if end_offset is not None:
+            if not isinstance(end_offset, str) or not end_offset.strip():
+                raise SourceError("end_offset must be a non-empty string")
+            validated_end_offset = end_offset
+
+        if fps is not None:
+            if isinstance(fps, bool) or not isinstance(fps, (int, float)):
+                raise SourceError("fps must be a number")
+            fps_value = float(fps)
+            if fps_value <= 0 or fps_value > 24:
+                raise SourceError("fps must be > 0 and <= 24")
+            validated_fps = fps_value
+
+        if (
+            validated_start_offset is None
+            and validated_end_offset is None
+            and validated_fps is None
+        ):
+            raise SourceError(
+                "Provide at least one Gemini video setting: "
+                "start_offset, end_offset, or fps"
+            )
+
+        return replace(
+            self,
+            provider_hints=self._with_provider_hint(
+                provider="gemini",
+                name="video_metadata",
+                payload={
+                    k: v
+                    for k, v in (
+                        ("start_offset", validated_start_offset),
+                        ("end_offset", validated_end_offset),
+                        ("fps", validated_fps),
+                    )
+                    if v is not None
+                },
+            ),
+        )
+
+    def _is_video_source(self) -> bool:
+        """Return True when Gemini video controls can apply to this source."""
+        return self.source_type == "youtube" or self.mime_type.startswith("video/")
+
+    def _with_provider_hint(
+        self,
+        *,
+        provider: str,
+        name: str,
+        payload: dict[str, str | float],
+    ) -> tuple[ProviderHint, ...]:
+        """Return provider hints with one named hint replaced or added."""
+        hint = ProviderHint(
+            provider=provider,
+            name=name,
+            payload=tuple(sorted(payload.items())),
+        )
+        existing = tuple(
+            item
+            for item in self.provider_hints
+            if not (item.provider == provider and item.name == name)
+        )
+        return (*existing, hint)
