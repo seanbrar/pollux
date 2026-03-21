@@ -513,6 +513,50 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
 
 
 @pytest.mark.asyncio
+async def test_gemini_generate_attaches_video_metadata_from_source_settings() -> None:
+    """Gemini adapter should interpret Pollux's explicit Gemini video settings."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(**kwargs: Any) -> Any:
+        captured["contents"] = kwargs.get("contents")
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=[
+                {
+                    "uri": "https://example.test/files/uploaded_video",
+                    "mime_type": "video/mp4",
+                    "provider_hints": {
+                        "video_metadata": {
+                            "start_offset": "40s",
+                            "end_offset": "80s",
+                            "fps": 1.0,
+                        },
+                    },
+                },
+                "Describe this clip.",
+            ],
+        )
+    )
+
+    contents = captured["contents"]
+    assert contents[0].file_data.file_uri == "https://example.test/files/uploaded_video"
+    assert contents[0].video_metadata.start_offset == "40s"
+    assert contents[0].video_metadata.end_offset == "80s"
+    assert contents[0].video_metadata.fps == 1.0
+
+
+@pytest.mark.asyncio
 async def test_gemini_strips_additional_properties_from_tool_schemas() -> None:
     """Gemini rejects additionalProperties; Pollux should strip it."""
     captured: dict[str, Any] = {}
@@ -690,6 +734,54 @@ async def test_gemini_upload_raises_on_failed_processing(tmp_path: Any) -> None:
 
     assert files.upload_calls == 1
     assert files.get_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_gemini_create_cache_attaches_video_metadata_from_source_settings() -> (
+    None
+):
+    """Gemini cache creation should interpret explicit Gemini video settings."""
+    captured: dict[str, Any] = {}
+
+    async def fake_create(*, model: str, config: Any) -> Any:
+        captured["model"] = model
+        captured["config"] = config
+        return type("CacheResult", (), {"name": "cachedContents/video"})()
+
+    provider = GeminiProvider("test-key")
+    fake_caches = MagicMock()
+    fake_caches.create = fake_create
+    fake_aio = MagicMock()
+    fake_aio.caches = fake_caches
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.create_cache(
+        model=GEMINI_MODEL,
+        parts=[
+            {
+                "uri": "https://www.youtube.com/watch?v=9hE5-98ZeCg",
+                "mime_type": "video/mp4",
+                "provider_hints": {
+                    "video_metadata": {
+                        "start_offset": "40s",
+                        "end_offset": "80s",
+                        "fps": 1.0,
+                    },
+                },
+            }
+        ],
+    )
+
+    assert captured["model"] == GEMINI_MODEL
+    contents = captured["config"].contents
+    assert len(contents) == 1
+    assert (
+        contents[0].file_data.file_uri == "https://www.youtube.com/watch?v=9hE5-98ZeCg"
+    )
+    assert contents[0].video_metadata.start_offset == "40s"
+    assert contents[0].video_metadata.end_offset == "80s"
+    assert contents[0].video_metadata.fps == 1.0
 
 
 # =============================================================================
@@ -2038,6 +2130,55 @@ async def test_gemini_submit_deferred_characterizes_inlined_batch_request(
         src[1].contents[0].file_data.file_uri
         == "https://example.test/files/uploaded_pdf"
     )
+
+
+@pytest.mark.asyncio
+async def test_gemini_submit_deferred_preserves_video_settings(
+    tmp_path: Path,
+) -> None:
+    """Deferred Gemini requests should preserve video settings through upload."""
+    video_path = tmp_path / "lecture.mp4"
+    video_path.write_bytes(b"fake-mp4")
+
+    files = _FakeGeminiFilesClient()
+    batches = _FakeGeminiBatchesClient()
+    provider = GeminiProvider("test-key")
+    provider._client = _make_gemini_client(files=files, batches=batches)
+
+    await provider.submit_deferred(
+        [
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=[
+                    {
+                        "file_path": str(video_path),
+                        "mime_type": "video/mp4",
+                        "provider_hints": {
+                            "video_metadata": {
+                                "start_offset": "40s",
+                                "end_offset": "80s",
+                                "fps": 1.0,
+                            },
+                        },
+                    },
+                    "Describe this clip",
+                ],
+            ),
+        ],
+        request_ids=["pollux-000000"],
+    )
+
+    assert batches.create_kwargs is not None
+    src = batches.create_kwargs["src"]
+    assert len(src) == 1
+    # URI comes from the fake files client's fixed fixture value.
+    assert (
+        src[0].contents[0].file_data.file_uri
+        == "https://example.test/files/uploaded_pdf"
+    )
+    assert src[0].contents[0].video_metadata.start_offset == "40s"
+    assert src[0].contents[0].video_metadata.end_offset == "80s"
+    assert src[0].contents[0].video_metadata.fps == 1.0
 
 
 @pytest.mark.asyncio
