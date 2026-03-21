@@ -125,6 +125,9 @@ asyncio.run(main())
    automatically. Gate these conditional optimizations on the provider name
    or handle them near the call site; see
    [Reducing Costs with Context Caching](caching.md#three-caching-paths).
+   The same rule applies to source helpers like
+   `Source.with_gemini_video_settings(...)`: keep them behind a Gemini branch
+   instead of trying to invent a fake cross-provider equivalent.
 
 3. **Write provider-agnostic functions.** `analyze_document` accepts a
    provider name and builds the config internally. The prompt, source, and

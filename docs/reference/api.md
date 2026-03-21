@@ -45,6 +45,9 @@ The primary execution functions are exported from `pollux`:
 
 ## Core Types
 
+`Source` includes both the generic source constructors and narrow
+provider-specific helpers such as `Source.with_gemini_video_settings(...)`.
+
 ::: pollux.Source
 
 ::: pollux.CacheHandle

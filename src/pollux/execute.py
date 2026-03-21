@@ -450,6 +450,7 @@ async def _substitute_upload_parts(
         ):
             file_path = part["file_path"]
             mime_type = part["mime_type"]
+            provider_hints = part.get("provider_hints")
             cache_key = (file_path, mime_type)
 
             async def _work(
@@ -473,7 +474,7 @@ async def _substitute_upload_parts(
                     ) from e
 
             try:
-                uri = await singleflight_cached(
+                asset = await singleflight_cached(
                     cache_key,
                     lock=upload_lock,
                     inflight=upload_inflight,
@@ -484,9 +485,17 @@ async def _substitute_upload_parts(
             except APIError as e:
                 raise _with_call_idx(e, call_idx) from e
 
-            # Instead of appending a {"uri": ...} dict, we append the object itself
-            # The provider's _normalize_input_parts logic will reconstruct the SDK payload.
-            resolved.append(uri)
+            # The provider adapter reconstructs the SDK payload from the uploaded asset.
+            if provider_hints is not None:
+                resolved.append(
+                    {
+                        "uri": asset.file_id,
+                        "mime_type": mime_type,
+                        "provider_hints": provider_hints,
+                    }
+                )
+            else:
+                resolved.append(asset)
             continue
 
         resolved.append(part)

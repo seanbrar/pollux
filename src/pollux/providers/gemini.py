@@ -35,6 +35,58 @@ logger = logging.getLogger(__name__)
 _GEMINI_BATCH_INLINE_LIMIT_BYTES = 20_000_000
 
 
+def _provider_hint_payload(
+    part: dict[str, Any], *, name: str
+) -> dict[str, str | float] | None:
+    """Extract one provider hint payload from a transport part."""
+    provider_hints = part.get("provider_hints")
+    if provider_hints is None:
+        return None
+    if not isinstance(provider_hints, dict):
+        raise APIError("Provider hints must be a dictionary")
+    payload = provider_hints.get(name)
+    if payload is None:
+        return None
+    if not isinstance(payload, dict) or not payload:
+        raise APIError(f"Provider hint {name!r} must be a non-empty dictionary")
+    return payload
+
+
+def _build_video_metadata(part: dict[str, Any], *, mime_type: str | None) -> Any:
+    """Build Gemini SDK video metadata from Pollux's validated source settings.
+
+    Values are already validated by ``Source.with_gemini_video_settings``.
+    This function only translates them to the SDK type; the ``try/except``
+    catches any SDK-level rejection as a safety net.
+    """
+    from google.genai import types
+
+    settings = _provider_hint_payload(part, name="video_metadata")
+    if settings is None:
+        return None
+    if not isinstance(mime_type, str) or not mime_type.startswith("video/"):
+        raise APIError("Gemini video settings can only be attached to video parts")
+
+    # Extract with type narrowing — values are pre-validated by Source.
+    start = settings.get("start_offset")
+    end = settings.get("end_offset")
+    fps = settings.get("fps")
+    try:
+        return types.VideoMetadata(
+            start_offset=start if isinstance(start, str) else None,
+            end_offset=end if isinstance(end, str) else None,
+            fps=float(fps) if isinstance(fps, (int, float)) else None,
+        )
+    except Exception as e:
+        raise APIError(
+            "Invalid Gemini video settings",
+            hint=(
+                "Use Source.with_gemini_video_settings("
+                "start_offset=..., end_offset=..., fps=...)"
+            ),
+        ) from e
+
+
 class GeminiProvider:
     """Google Gemini API provider."""
 
@@ -91,20 +143,31 @@ class GeminiProvider:
                     )
                 )
             elif isinstance(p, dict):
-                # Handle URI-based parts (after upload)
+                # Handle URI-based parts (including uploaded assets with video settings)
                 if "uri" in p and "mime_type" in p:
                     converted.append(
                         types.Part(
                             file_data=types.FileData(
                                 file_uri=p["uri"], mime_type=p["mime_type"]
-                            )
+                            ),
+                            video_metadata=_build_video_metadata(
+                                p, mime_type=p["mime_type"]
+                            ),
                         )
                     )
                 # Handle text parts in dict
                 elif "text" in p:
+                    if _provider_hint_payload(p, name="video_metadata") is not None:
+                        raise APIError(
+                            "Gemini video settings require a video file or URI part"
+                        )
                     converted.append(p["text"])
                 else:
                     # Fallback for other dicts, though we should likely validate
+                    if _provider_hint_payload(p, name="video_metadata") is not None:
+                        raise APIError(
+                            "Gemini video settings require a video file or URI part"
+                        )
                     converted.append(p)
             else:
                 converted.append(p)
@@ -581,6 +644,7 @@ class GeminiProvider:
             ):
                 file_path = part["file_path"]
                 mime_type = part["mime_type"]
+                provider_hints = part.get("provider_hints")
                 cache_key = (file_path, mime_type)
                 asset = upload_cache.get(cache_key)
                 if asset is None:
@@ -588,7 +652,16 @@ class GeminiProvider:
 
                     asset = await self.upload_file(Path(file_path), mime_type)
                     upload_cache[cache_key] = asset
-                resolved_parts.append(asset)
+                if provider_hints is not None:
+                    resolved_parts.append(
+                        {
+                            "uri": asset.file_id,
+                            "mime_type": mime_type,
+                            "provider_hints": provider_hints,
+                        }
+                    )
+                else:
+                    resolved_parts.append(asset)
             else:
                 resolved_parts.append(part)
 

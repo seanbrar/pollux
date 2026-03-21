@@ -62,6 +62,49 @@ you do not need to specify format-specific options. For media sources (images,
 video, audio), keep prompts concrete: ask for objects, attributes, timestamps,
 or quoted text rather than open-ended descriptions.
 
+### Gemini Video Controls
+
+Gemini supports clip windows and custom frame sampling for video inputs. Pollux
+exposes these as an explicit Gemini-only source helper instead of a generic
+provider passthrough, so the public API stays stable even if Google's wire
+format changes.
+
+**Example: Gemini video clipping**
+
+```python
+import asyncio
+from pollux import Config, Source, run
+
+async def main() -> None:
+    config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+    source = Source.from_file(
+        "lecture.mp4", mime_type="video/mp4"
+    ).with_gemini_video_settings(
+        start_offset="33m0s",
+        end_offset="34m10s",
+        fps=1.0,
+    )
+
+    result = await run(
+        "What claim does the lecturer make in this segment?",
+        source=source,
+        config=config,
+    )
+    print(result["answers"][0])
+
+asyncio.run(main())
+```
+
+Pollux validates these settings up front and maps them onto Gemini's current
+video-processing request shape internally. See the
+[Gemini video guide](https://ai.google.dev/gemini-api/docs/video-understanding)
+for the current provider behavior.
+
+Use this helper only when you have consciously chosen Gemini as the provider.
+On non-Gemini providers, the source still works as a normal video source, but
+the Gemini-specific controls are ignored rather than translated to another
+provider-specific feature.
+
 ## Single Prompt: `run()`
 
 Start with the simplest case: one prompt, one source, one answer.

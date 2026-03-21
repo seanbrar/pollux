@@ -35,7 +35,7 @@ def build_plan(request: Request) -> Plan:
     before any network I/O.
     """
     sources = request.sources
-    shared_parts = build_shared_parts(sources)
+    shared_parts = build_shared_parts(sources, provider=request.config.provider)
 
     cache_name: str | None = None
     if request.options.cache is not None:
@@ -102,11 +102,17 @@ def build_plan(request: Request) -> Plan:
     )
 
 
-def build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
+def build_shared_parts(
+    sources: tuple[Source, ...],
+    *,
+    provider: str | None = None,
+) -> list[Any]:
     """Convert sources to API parts."""
     parts: list[Any] = []
 
     for source in sources:
+        provider_hints = source.provider_hints_for(provider)
+
         if source.source_type in {"text", "json"}:
             # Load text content
             try:
@@ -122,11 +128,18 @@ def build_shared_parts(sources: tuple[Source, ...]) -> list[Any]:
                 ) from e
         elif source.source_type == "file":
             # File placeholder - will be uploaded during execution
-            parts.append(
-                {"file_path": source.identifier, "mime_type": source.mime_type}
-            )
+            part: dict[str, Any] = {
+                "file_path": source.identifier,
+                "mime_type": source.mime_type,
+            }
+            if provider_hints is not None:
+                part["provider_hints"] = provider_hints
+            parts.append(part)
         else:
             # URI-based sources
-            parts.append({"uri": source.identifier, "mime_type": source.mime_type})
+            part = {"uri": source.identifier, "mime_type": source.mime_type}
+            if provider_hints is not None:
+                part["provider_hints"] = provider_hints
+            parts.append(part)
 
     return parts
