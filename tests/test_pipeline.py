@@ -714,6 +714,37 @@ async def test_file_placeholders_are_uploaded_before_generate(
 
 
 @pytest.mark.asyncio
+async def test_gemini_video_settings_survive_upload_substitution(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Gemini video settings should survive the file upload substitution step."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    video_path = tmp_path / "lecture.mp4"
+    video_path.write_bytes(b"fake-mp4")
+    source = Source.from_file(
+        video_path, mime_type="video/mp4"
+    ).with_gemini_video_settings(start_offset="10s", end_offset="20s", fps=1.0)
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    await pollux.run_many(("Describe the clip",), sources=(source,), config=cfg)
+
+    assert fake.last_parts is not None
+    part = fake.last_parts[0]
+    assert isinstance(part, dict)
+    assert "uri" in part
+    assert part["mime_type"] == "video/mp4"
+    assert part["provider_hints"] == {
+        "video_metadata": {
+            "start_offset": "10s",
+            "end_offset": "20s",
+            "fps": 1.0,
+        }
+    }
+
+
+@pytest.mark.asyncio
 async def test_upload_single_flight_propagates_failure_and_can_recover(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
@@ -1191,6 +1222,37 @@ def test_cache_identity_uses_content_digest_not_identifier_only() -> None:
         compute_cache_key(model, (uri_b,)),
     ]
     assert len(set(keys)) == len(keys)
+
+
+def test_cache_identity_varies_with_gemini_video_settings() -> None:
+    """Different Gemini video settings should produce distinct cache keys."""
+    base = Source.from_youtube("https://www.youtube.com/watch?v=video-a")
+    clip_a = base.with_gemini_video_settings(
+        start_offset="10s", end_offset="20s", fps=1.0
+    )
+    clip_b = base.with_gemini_video_settings(
+        start_offset="30s", end_offset="40s", fps=1.0
+    )
+
+    key_a = compute_cache_key(GEMINI_MODEL, (clip_a,), provider="gemini")
+    key_b = compute_cache_key(GEMINI_MODEL, (clip_b,), provider="gemini")
+
+    assert key_a != key_b
+
+
+def test_cache_identity_ignores_gemini_video_settings_for_other_providers() -> None:
+    """Gemini-only video settings should not fragment non-Gemini cache identities."""
+    base = Source.from_youtube("https://www.youtube.com/watch?v=video-a")
+    gemini_only = base.with_gemini_video_settings(fps=1.0)
+    plain = Source.from_youtube("https://www.youtube.com/watch?v=video-a")
+
+    gemini_key = compute_cache_key(GEMINI_MODEL, (gemini_only,), provider="gemini")
+    plain_gemini_key = compute_cache_key(GEMINI_MODEL, (plain,), provider="gemini")
+    openai_key = compute_cache_key(OPENAI_MODEL, (gemini_only,), provider="openai")
+    plain_openai_key = compute_cache_key(OPENAI_MODEL, (plain,), provider="openai")
+
+    assert gemini_key != plain_gemini_key
+    assert openai_key == plain_openai_key
 
 
 @pytest.mark.parametrize(

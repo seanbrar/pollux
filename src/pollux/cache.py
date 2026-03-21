@@ -73,11 +73,11 @@ def compute_cache_key(
     system_instruction: str | None = None,
     tools: list[dict[str, Any]] | list[Any] | None = None,
 ) -> str:
-    """Compute deterministic cache key using content hashes.
+    """Compute deterministic cache key using source identity hashes.
 
-    Key = hash(model + provider + api_key + system + content digests of sources).
-    Including ``api_key`` prevents cross-account handle reuse when multiple
-    keys for the same provider/model coexist in one process.
+    Key = hash(model + provider + api_key + system + source identity digests).
+    Including ``api_key`` prevents cross-account handle reuse when multiple keys
+    for the same provider/model coexist in one process.
     """
     parts = [model]
     if provider:
@@ -99,8 +99,7 @@ def compute_cache_key(
             ) from e
 
     for source in sources:
-        # Use content hash, not identifier
-        parts.append(source.content_hash())
+        parts.append(source.cache_identity_hash(provider=provider))
 
     combined = "|".join(parts)
     return hashlib.sha256(combined.encode()).hexdigest()[:32]
@@ -187,24 +186,34 @@ async def _resolve_file_parts(
             and isinstance(part.get("mime_type"), str)
         ):
             fp, mt = part["file_path"], part["mime_type"]
+            provider_hints = part.get("provider_hints")
             key = (fp, mt)
             if key in seen:
-                resolved.append(seen[key])
-                continue
-            if retry_policy.max_attempts <= 1:
-                asset = await provider.upload_file(Path(fp), mt)
+                asset = seen[key]
             else:
+                if retry_policy.max_attempts <= 1:
+                    asset = await provider.upload_file(Path(fp), mt)
+                else:
 
-                async def _upload(_fp: str = fp, _mt: str = mt) -> Any:
-                    return await provider.upload_file(Path(_fp), _mt)
+                    async def _upload(_fp: str = fp, _mt: str = mt) -> Any:
+                        return await provider.upload_file(Path(_fp), _mt)
 
-                asset = await retry_async(
-                    _upload,
-                    policy=retry_policy,
-                    should_retry=should_retry_side_effect,
+                    asset = await retry_async(
+                        _upload,
+                        policy=retry_policy,
+                        should_retry=should_retry_side_effect,
+                    )
+                seen[key] = asset
+            if provider_hints is not None:
+                resolved.append(
+                    {
+                        "uri": asset.file_id,
+                        "mime_type": mt,
+                        "provider_hints": provider_hints,
+                    }
                 )
-            seen[key] = asset
-            resolved.append(asset)
+            else:
+                resolved.append(asset)
         else:
             resolved.append(part)
     return resolved
@@ -285,7 +294,7 @@ async def create_cache_impl(
             expires_at=expires_at,
         )
 
-    raw_parts = build_shared_parts(src_tuple)
+    raw_parts = build_shared_parts(src_tuple, provider=config.provider)
 
     result = await get_or_create_cache(
         provider,
