@@ -68,6 +68,9 @@ can wait, submit it once, persist the handle, and collect the same
 Say you have a document and ten questions about it. Each API call re-uploads the file, and you're left managing caching, retries, and concurrency yourself. Pollux uploads once, caches the content, fans out your prompts concurrently, and hands back results.
 
 The same `Source` interface handles PDFs, images, video, YouTube URLs, and arXiv papers. No per-format upload code.
+Gemini-specific video clipping and FPS controls are available via
+`Source.with_gemini_video_settings(...)`; see the sending-content docs for the
+intended scope.
 
 Need structured output? Pass a Pydantic model as `response_schema` and get a validated instance alongside the raw text. Switching providers is a one-line change: `provider="gemini"` to `provider="openai"`.
 

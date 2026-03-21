@@ -46,6 +46,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - Explicit caching uses the Gemini Files API.
 - Deferred delivery uses the Gemini Batch API through Pollux's deferred entry
   points.
+- Video sources can carry Gemini-specific clipping and FPS controls via
+  `Source.with_gemini_video_settings(...)`.
+- Those controls are intentionally not normalized across providers. Pollux
+  keeps them explicit so portability decisions stay in caller code.
 - Gemini also caches repeated long prefixes automatically. Pollux does not
   expose a toggle for that path.
 - Gemini does not support `previous_response_id`; conversation state is

@@ -219,7 +219,7 @@ reuse the cached context automatically.
 ## Cache Identity
 
 For explicit caches, keys are deterministic:
-`hash(model + provider + api_key + system_instruction + tools + content hashes of sources)`.
+`hash(model + provider + api_key + system_instruction + tools + source identity hashes)`.
 
 This means:
 
@@ -232,6 +232,10 @@ This means:
   Pollux scopes explicit cache reuse to the provider account that created it.
 - **Different baked-in `system_instruction` or `tools`** → different cache
   keys. Changing the cached behavior contract creates a fresh cache entry.
+- **Different Gemini video settings** → different cache keys. Two sources with
+  the same content but different clip windows or FPS do not collapse to the
+  same cache entry. This applies only to Gemini, where those settings change
+  the provider-visible meaning of the source.
 - **Content changes** → new cache key. Editing a source file produces a fresh
   cache entry.
 
