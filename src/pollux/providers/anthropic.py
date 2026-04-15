@@ -75,6 +75,7 @@ class AnthropicProvider:
             uploads=True,
             structured_outputs=True,
             reasoning=True,
+            reasoning_budget_tokens=True,
             deferred_delivery=True,
             conversation=True,
             implicit_caching=True,
@@ -288,6 +289,15 @@ class AnthropicProvider:
                     create_kwargs["extra_headers"] = {
                         "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
                     }
+        elif request.reasoning_budget_tokens is not None:
+            create_kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": request.reasoning_budget_tokens,
+            }
+            if request.tools:
+                create_kwargs["extra_headers"] = {
+                    "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
+                }
 
         if output_config:
             create_kwargs["output_config"] = output_config
@@ -543,6 +553,7 @@ class AnthropicProvider:
             tools=request.tools,
             tool_choice=request.tool_choice,
             reasoning_effort=request.reasoning_effort,
+            reasoning_budget_tokens=request.reasoning_budget_tokens,
             history=request.history,
             previous_response_id=request.previous_response_id,
             provider_state=request.provider_state,

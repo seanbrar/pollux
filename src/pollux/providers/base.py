@@ -25,6 +25,7 @@ class ProviderCapabilities:
     uploads: bool
     structured_outputs: bool = False
     reasoning: bool = False
+    reasoning_budget_tokens: bool = False
     deferred_delivery: bool = False
     conversation: bool = False
     implicit_caching: bool = False

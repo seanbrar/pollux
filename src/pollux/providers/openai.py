@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from pollux.errors import APIError
+from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import (
@@ -542,6 +542,15 @@ class OpenAIProvider:
         self, request: ProviderRequest
     ) -> dict[str, Any]:
         """Build the raw `/v1/responses` request body."""
+        if request.reasoning_budget_tokens is not None:
+            raise ConfigurationError(
+                "Provider does not support reasoning_budget_tokens",
+                hint=(
+                    "Use reasoning_effort, or choose a provider that accepts "
+                    "an explicit reasoning token budget."
+                ),
+            )
+
         input_messages = self._build_input(
             request.parts, request.history, request.previous_response_id
         )
@@ -621,6 +630,7 @@ class OpenAIProvider:
             tools=request.tools,
             tool_choice=request.tool_choice,
             reasoning_effort=request.reasoning_effort,
+            reasoning_budget_tokens=request.reasoning_budget_tokens,
             history=request.history,
             previous_response_id=request.previous_response_id,
             provider_state=request.provider_state,

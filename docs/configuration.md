@@ -135,6 +135,7 @@ options = Options(
     tool_choice="auto",               # Tool calling mode ('auto', 'required', 'none', or dict)
     response_schema=MyPydanticModel,  # Structured output extraction
     reasoning_effort="medium",        # Controls model thinking depth
+    # reasoning_budget_tokens=0,      # Explicit reasoning token budget where supported
     max_tokens=4096,                  # Provider-specific output cap
     implicit_caching=True,            # Auto-cache prefix (Anthropic only)
 )
@@ -149,6 +150,7 @@ options = Options(
 | `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
 | `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
+| `reasoning_budget_tokens` | `int \| None` | `None` | Explicit reasoning token budget where supported. Mutually exclusive with `reasoning_effort`. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
 | `max_tokens` | `int \| None` | `None` | Output-token cap with provider-specific semantics. Anthropic applies provider defaults when omitted; other providers may ignore it. See [Provider Capabilities](reference/provider-capabilities.md) |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
@@ -161,6 +163,14 @@ options = Options(
     Older OpenAI models (for example `gpt-4.1-nano`) still accept them.
     See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints)
     for the full constraints mapping.
+
+!!! note
+    `reasoning_effort` and `reasoning_budget_tokens` are mutually exclusive.
+    Use `reasoning_effort` when the provider exposes named levels
+    (`"low"`, `"medium"`, `"high"`). Use `reasoning_budget_tokens` when you
+    need an exact token ceiling, for example `reasoning_budget_tokens=0` to
+    disable thinking on Gemini 2.5 Flash. Not every provider accepts both;
+    see [Reasoning Control Mapping](portable-code.md#reasoning-control-mapping).
 
 !!! note
     `max_tokens` is not a portable "length knob" with identical behavior

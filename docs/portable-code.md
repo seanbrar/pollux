@@ -157,19 +157,32 @@ options = Options(temperature=0.8, top_p=0.9)
 options = Options(reasoning_effort="medium")
 ```
 
-### Gemini 2.5 and Reasoning Controls
+### Choosing a Reasoning Control
 
-Gemini 2.x models use dynamic reasoning internally but do not accept the
-`reasoning_effort` option directly. Setting it on a `gemini-2.5` model
-results in a provider error. Gemini 3 models (`gemini-3-flash-preview`)
-do accept reasoning controls.
+Pollux exposes two reasoning knobs, and they are mutually exclusive:
+
+- `reasoning_effort` takes named levels (`"low"`, `"medium"`, `"high"`, and
+  provider-specific extras).
+- `reasoning_budget_tokens` takes an explicit integer ceiling.
+
+Pick `reasoning_effort` on providers that expose named levels (OpenAI GPT-5,
+Gemini 3.x, Claude 4.x). Pick `reasoning_budget_tokens` on providers that only
+accept a budget (Gemini 2.5), or when you need exact control such as
+disabling thinking entirely on a model that allows it.
 
 ```python
-# Works with Gemini 3 models
+# Name an effort level on a provider that accepts one.
 result = await run(
     "Solve this step by step...",
     config=Config(provider="gemini", model="gemini-3-flash-preview"),
     options=Options(reasoning_effort="high"),
+)
+
+# Disable thinking on Gemini 2.5 Flash with an explicit budget of zero.
+result = await run(
+    "Reply with exactly OK.",
+    config=Config(provider="gemini", model="gemini-2.5-flash"),
+    options=Options(reasoning_budget_tokens=0),
 )
 
 if "reasoning" in result:
@@ -178,15 +191,19 @@ if "reasoning" in result:
             print("Thinking:", text)
 ```
 
+Provider minimums vary: Anthropic requires at least 1024 tokens and Gemini 2.5
+Pro requires at least 128. A budget that sits below a provider's floor surfaces
+as a provider error at call time.
+
 ### Reasoning Control Mapping
 
-| Provider | Model Family | Valid `reasoning_effort` values | Provider Behavior |
-| --- | --- | --- | --- |
-| **OpenAI** | `gpt-5` family | `"low"`, `"medium"`, `"high"` | Returns a reasoning summary |
-| **Gemini** | `gemini-3` family | `"low"`, `"medium"`, `"high"`, `"minimal"` | Returns full thinking text |
-| **Gemini** | `gemini-2.5` family | *N/A (raises error)* | *N/A* |
-| **Anthropic** | `claude-4.x` family | `"low"`, `"medium"`, `"high"`, `"max"` (Opus 4.6 only) | Returns thinking text and preserves replay blocks for tool loops |
-| **OpenRouter** | reasoning-capable models | Model-dependent | Returns reasoning text |
+| Provider | Model Family | `reasoning_effort` | `reasoning_budget_tokens` | Provider Behavior |
+| --- | --- | --- | --- | --- |
+| **OpenAI** | `gpt-5` family | `"low"`, `"medium"`, `"high"` | ❌ | Returns a reasoning summary |
+| **Gemini** | `gemini-3` family | `"low"`, `"medium"`, `"high"`, `"minimal"` | ✅ | Returns full thinking text |
+| **Gemini** | `gemini-2.5` family | ❌ | ✅ | Uses provider-native thinking budgets |
+| **Anthropic** | `claude-4.x` family | `"low"`, `"medium"`, `"high"`, `"max"` (Opus 4.6 only) | ✅ | Returns thinking text and preserves replay blocks for tool loops |
+| **OpenRouter** | reasoning-capable models | Model-dependent | ❌ | Returns reasoning text |
 
 ## Variations
 

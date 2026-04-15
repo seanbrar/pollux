@@ -174,6 +174,14 @@ def _validate_deferred_plan(plan: Plan, provider: Provider) -> None:
             "Provider does not support reasoning controls",
             hint="Remove reasoning_effort or choose a provider with reasoning support.",
         )
+    if options.reasoning_budget_tokens is not None and not caps.reasoning_budget_tokens:
+        raise ConfigurationError(
+            "Provider does not support reasoning_budget_tokens",
+            hint=(
+                "Use reasoning_effort, or choose a provider that accepts "
+                "an explicit reasoning token budget."
+            ),
+        )
     if (not caps.uploads) and any(
         isinstance(part, dict)
         and isinstance(part.get("file_path"), str)
@@ -203,6 +211,7 @@ def _build_provider_requests(plan: Plan) -> list[ProviderRequest]:
                 temperature=options.temperature,
                 top_p=options.top_p,
                 reasoning_effort=options.reasoning_effort,
+                reasoning_budget_tokens=options.reasoning_budget_tokens,
                 max_tokens=options.max_tokens,
             )
         )

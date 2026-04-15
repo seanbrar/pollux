@@ -56,6 +56,7 @@ class FakeProvider:
             "tools": request.tools,
             "tool_choice": request.tool_choice,
             "reasoning_effort": request.reasoning_effort,
+            "reasoning_budget_tokens": request.reasoning_budget_tokens,
             "history": request.history,
             "previous_response_id": request.previous_response_id,
             "provider_state": request.provider_state,

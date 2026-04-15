@@ -103,6 +103,14 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             "Provider does not support reasoning controls",
             hint="Remove reasoning_effort or choose a provider with reasoning support.",
         )
+    if options.reasoning_budget_tokens is not None and not caps.reasoning_budget_tokens:
+        raise ConfigurationError(
+            "Provider does not support reasoning_budget_tokens",
+            hint=(
+                "Use reasoning_effort, or choose a provider that accepts "
+                "an explicit reasoning token budget."
+            ),
+        )
     if options.implicit_caching is True and not caps.implicit_caching:
         raise ConfigurationError(
             "Provider does not support implicit caching",
@@ -294,6 +302,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         tools=options.tools,
                         tool_choice=options.tool_choice,
                         reasoning_effort=options.reasoning_effort,
+                        reasoning_budget_tokens=options.reasoning_budget_tokens,
                         history=history_msgs,
                         previous_response_id=previous_response_id,
                         provider_state=request_provider_state,
