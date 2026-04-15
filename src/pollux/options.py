@@ -77,6 +77,8 @@ class Options:
 
     #: Controls model thinking depth; passed through to the provider.
     reasoning_effort: ReasoningEffort | None = None
+    #: Controls provider reasoning token budget where supported.
+    reasoning_budget_tokens: int | None = None
     #: Legacy compatibility shim. Realtime remains the only supported value.
     delivery_mode: DeliveryMode = "realtime"
     #: Mutually exclusive with *continue_from*.
@@ -119,6 +121,27 @@ class Options:
             raise ConfigurationError(
                 "max_tokens must be a positive integer",
                 hint="Pass max_tokens=16384 or greater for thinking models.",
+            )
+        if self.reasoning_budget_tokens is not None and (
+            isinstance(self.reasoning_budget_tokens, bool)
+            or not isinstance(self.reasoning_budget_tokens, int)
+            or self.reasoning_budget_tokens < 0
+        ):
+            raise ConfigurationError(
+                "reasoning_budget_tokens must be a non-negative integer",
+                hint=(
+                    "Pass reasoning_budget_tokens=0 or a larger integer. "
+                    "Provider- and model-specific limits are enforced by the "
+                    "provider API."
+                ),
+            )
+        if (
+            self.reasoning_effort is not None
+            and self.reasoning_budget_tokens is not None
+        ):
+            raise ConfigurationError(
+                "reasoning_effort and reasoning_budget_tokens are mutually exclusive",
+                hint="Choose either qualitative effort or an explicit token budget.",
             )
 
         # Keep this runtime guard even though ``delivery_mode`` is typed as

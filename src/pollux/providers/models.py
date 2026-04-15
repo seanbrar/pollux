@@ -50,6 +50,7 @@ class ProviderRequest:
     tools: list[dict[str, Any]] | None = None
     tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None
     reasoning_effort: str | None = None
+    reasoning_budget_tokens: int | None = None
     history: list[Message] | None = None
     previous_response_id: str | None = None
     provider_state: dict[str, Any] | None = None

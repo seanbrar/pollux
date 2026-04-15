@@ -501,7 +501,9 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
 
     await provider.generate(
         ProviderRequest(
-            model=GEMINI_MODEL, parts=["Think hard."], reasoning_effort="low"
+            model="models/gemini-3-flash-preview",
+            parts=["Think hard."],
+            reasoning_effort="low",
         )
     )
 
@@ -510,6 +512,72 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
     tc = config.thinking_config
     assert tc.include_thoughts is True
     assert tc.thinking_level.value == "LOW"
+
+
+@pytest.mark.asyncio
+async def test_gemini_generate_passes_thinking_budget_from_reasoning_budget_tokens() -> (
+    None
+):
+    """reasoning_budget_tokens should map to ThinkingConfig with thinking_budget."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(**kwargs: Any) -> Any:
+        captured["config"] = kwargs.get("config")
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        ProviderRequest(
+            model="models/gemini-2.5-flash",
+            parts=["Think less."],
+            reasoning_budget_tokens=0,
+        )
+    )
+
+    config = captured["config"]
+    assert config is not None
+    tc = config.thinking_config
+    assert tc.include_thoughts is False
+    assert tc.thinking_budget == 0
+
+
+@pytest.mark.asyncio
+async def test_gemini_generate_includes_thoughts_for_non_zero_budget() -> None:
+    """A positive reasoning_budget_tokens should still request thought text."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(**kwargs: Any) -> Any:
+        captured["config"] = kwargs.get("config")
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        ProviderRequest(
+            model="models/gemini-2.5-flash",
+            parts=["Think a little."],
+            reasoning_budget_tokens=512,
+        )
+    )
+
+    config = captured["config"]
+    assert config is not None
+    tc = config.thinking_config
+    assert tc.include_thoughts is True
+    assert tc.thinking_budget == 512
 
 
 @pytest.mark.asyncio
@@ -1073,6 +1141,29 @@ async def test_openai_generate_forwards_reasoning_effort_and_summary() -> None:
 
 
 @pytest.mark.asyncio
+async def test_openai_generate_rejects_reasoning_budget_tokens() -> None:
+    """OpenAI adapter should fail fast on unsupported budget-based reasoning."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    with pytest.raises(
+        ConfigurationError, match="Provider does not support reasoning_budget_tokens"
+    ):
+        await provider.generate(
+            ProviderRequest(
+                model=OPENAI_MODEL,
+                parts=["Think about this."],
+                reasoning_budget_tokens=0,
+            )
+        )
+
+    assert responses.last_kwargs is None
+
+
+@pytest.mark.asyncio
 async def test_openai_extracts_reasoning_summary_from_response() -> None:
     """Reasoning summary items should be extracted into payload['reasoning']."""
     summary_item = type(
@@ -1403,6 +1494,40 @@ async def test_openai_submit_deferred_reuses_shared_file_uploads(
     second_file = lines[1]["body"]["input"][0]["content"][0]["file_id"]
     assert first_file == "file_uploaded_pdf"
     assert second_file == first_file
+
+
+@pytest.mark.asyncio
+async def test_openai_submit_deferred_rejects_reasoning_budget_tokens_before_upload(
+    tmp_path: Path,
+) -> None:
+    """Unsupported reasoning budgets should fail before deferred uploads begin."""
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    with pytest.raises(
+        ConfigurationError, match="Provider does not support reasoning_budget_tokens"
+    ):
+        await provider.submit_deferred(
+            [
+                ProviderRequest(
+                    model=OPENAI_MODEL,
+                    parts=[
+                        {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                        "Question",
+                    ],
+                    reasoning_budget_tokens=0,
+                )
+            ],
+            request_ids=["pollux-000000"],
+        )
+
+    assert files.create_calls == []
+    assert batches.create_kwargs is None
 
 
 @pytest.mark.asyncio
@@ -3437,6 +3562,29 @@ async def test_anthropic_generate_maps_reasoning_to_adaptive_for_opus_and_sonnet
 
 
 @pytest.mark.asyncio
+async def test_anthropic_generate_maps_reasoning_budget_tokens_to_thinking_budget() -> (
+    None
+):
+    """Budget-based reasoning should pass through Anthropic's budget_tokens knob."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model="claude-haiku-4-5",
+            parts=["Think."],
+            reasoning_budget_tokens=1024,
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert "output_config" not in messages.last_kwargs
+    assert messages.last_kwargs["thinking"] == {
+        "type": "enabled",
+        "budget_tokens": 1024,
+    }
+
+
+@pytest.mark.asyncio
 async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header_for_manual() -> (
     None
 ):
@@ -4698,6 +4846,30 @@ async def test_openrouter_validate_request_rejects_unknown_model() -> None:
     with pytest.raises(ConfigurationError, match="model not found"):
         await provider.validate_request(
             ProviderRequest(model="missing/model", parts=["Hello"])
+        )
+
+
+@pytest.mark.asyncio
+async def test_openrouter_validate_request_rejects_reasoning_budget_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unsupported reasoning budgets should fail before metadata lookup."""
+    provider = OpenRouterProvider("test-key")
+
+    async def fail_metadata_lookup(_model: str) -> Any:
+        raise AssertionError("metadata lookup should not run")
+
+    monkeypatch.setattr(provider, "_get_model_metadata", fail_metadata_lookup)
+
+    with pytest.raises(
+        ConfigurationError, match="Provider does not support reasoning_budget_tokens"
+    ):
+        await provider.validate_request(
+            ProviderRequest(
+                model=OPENROUTER_MODEL,
+                parts=["Hello"],
+                reasoning_budget_tokens=0,
+            )
         )
 
 

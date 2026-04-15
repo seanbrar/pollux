@@ -30,7 +30,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
 | Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `response_format` or `structured_outputs` |
-| Reasoning controls (`reasoning_effort`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Passed through to provider where supported; see notes below |
+| `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
+| `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
 | Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | Use the deferred API directly. |
 | Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
@@ -56,9 +57,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   carried entirely via `history`.
 - Tool parameter schemas are normalized at the provider boundary:
   `additionalProperties` is stripped because the Gemini API rejects it.
-- Reasoning: Gemini 3 models (for example `gemini-3-flash-preview`) return
-  full thinking text in `ResultEnvelope.reasoning`. Gemini 2.x models do not
-  support `reasoning_effort` and return a provider error if it is set.
+- Reasoning: Gemini returns full thinking text in `ResultEnvelope.reasoning`
+  when the selected model and reasoning mode support it. Pollux forwards both
+  `reasoning_effort` and `reasoning_budget_tokens`; model-specific acceptance
+  is enforced by the Gemini API.
 
 ### OpenAI
 
@@ -82,7 +84,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - Reasoning: OpenAI provides reasoning summaries (not raw traces) in
   `ResultEnvelope.reasoning`. Token counts appear in
   `ResultEnvelope.usage["reasoning_tokens"]` when the model returns them.
-  Some older models reject `reasoning_effort`.
+  Some older models reject `reasoning_effort`. OpenAI does not accept
+  `reasoning_budget_tokens`; Pollux raises `ConfigurationError` before the
+  request is dispatched.
 
 ### Anthropic
 
@@ -96,9 +100,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   fan-out. Requesting it on unsupported providers raises `ConfigurationError`.
 - See [current caching scope](../caching.md#current-pollux-scope) for what
   Pollux exposes from Anthropic's caching surface.
-- Reasoning: thinking text appears in `ResultEnvelope.reasoning`. All
-  `claude-4.x` models support `reasoning_effort`; the `"max"` level is
-  Opus 4.6 only.
+- Reasoning: thinking text appears in `ResultEnvelope.reasoning`.
+  `reasoning_effort` and `reasoning_budget_tokens` are both forwarded for
+  Anthropic models that support them. Exact model support and budget floors
+  are enforced by Anthropic.
 - Thinking block replay: when Anthropic returns `thinking` or
   `redacted_thinking` blocks, Pollux preserves them in conversation state and
   replays them verbatim on continuation turns so tool loops remain valid.
@@ -148,7 +153,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   Pollux does not expose OpenRouter-specific cache controls.
 - Reasoning: works on OpenRouter models that support reasoning. Thinking text
   appears in `ResultEnvelope.reasoning`, and token counts in
-  `ResultEnvelope.usage["reasoning_tokens"]` when available.
+  `ResultEnvelope.usage["reasoning_tokens"]` when available. OpenRouter does
+  not accept `reasoning_budget_tokens`; Pollux raises `ConfigurationError`
+  before dispatch.
 
 ## Error Semantics
 

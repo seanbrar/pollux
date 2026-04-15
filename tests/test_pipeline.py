@@ -158,6 +158,34 @@ class InMemoryDeferredProvider(FakeProvider):
         return items
 
 
+@dataclass
+class RejectingValidatingProvider(FakeProvider):
+    """Provider double that fails validation before uploads begin."""
+
+    validation_calls: list[ProviderRequest] = field(default_factory=list)
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        self.validation_calls.append(request)
+        raise ConfigurationError(
+            "validation failed",
+            hint="Validation should run before uploads.",
+        )
+
+
+@dataclass
+class RejectingValidatingDeferredProvider(InMemoryDeferredProvider):
+    """Deferred provider double that fails validation before submission side effects."""
+
+    validation_calls: list[ProviderRequest] = field(default_factory=list)
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        self.validation_calls.append(request)
+        raise ConfigurationError(
+            "validation failed",
+            hint="Validation should run before deferred uploads.",
+        )
+
+
 @pytest.mark.asyncio
 async def test_run_and_run_many_smoke() -> None:
     """Smoke: public API returns stable envelope shapes."""
@@ -974,6 +1002,29 @@ async def test_openai_upload_cleanup_runs_even_when_generate_fails(
 
 
 @pytest.mark.asyncio
+async def test_provider_validation_runs_before_uploads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Provider-owned validation should reject realtime requests before uploads."""
+    fake = RejectingValidatingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="validation failed"):
+        await pollux.run(
+            "Read this",
+            source=Source.from_file(file_path, mime_type="application/pdf"),
+            config=cfg,
+        )
+
+    assert fake.upload_calls == 0
+    assert len(fake.validation_calls) == 1
+
+
+@pytest.mark.asyncio
 async def test_duration_includes_upload_cleanup_latency(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
@@ -1416,8 +1467,9 @@ async def test_create_cache_validates_ttl() -> None:
     [
         ({"response_schema": {"type": "object"}}, "structured outputs"),
         ({"reasoning_effort": "high"}, "reasoning"),
+        ({"reasoning_budget_tokens": 0}, "reasoning"),
     ],
-    ids=["structured_outputs", "reasoning"],
+    ids=["structured_outputs", "reasoning_effort", "reasoning_budget_tokens"],
 )
 async def test_option_requires_provider_capability(
     option_kwargs: dict[str, Any],
@@ -1439,9 +1491,47 @@ def test_options_system_instruction_requires_string() -> None:
         Options(system_instruction=123)  # type: ignore[arg-type]
 
 
+def test_options_reasoning_budget_tokens_requires_non_negative_int() -> None:
+    """Budget-based reasoning control should validate shape at option creation."""
+    with pytest.raises(
+        ConfigurationError,
+        match="reasoning_budget_tokens must be a non-negative integer",
+    ):
+        Options(reasoning_budget_tokens=-1)
+
+
+def test_options_reasoning_budget_tokens_rejects_bool() -> None:
+    """Boolean values should not be accepted as integer reasoning budgets."""
+    with pytest.raises(
+        ConfigurationError,
+        match="reasoning_budget_tokens must be a non-negative integer",
+    ):
+        Options(reasoning_budget_tokens=True)
+
+
+def test_options_reasoning_controls_are_mutually_exclusive() -> None:
+    """Qualitative and quantitative reasoning controls should not mix."""
+    with pytest.raises(
+        ConfigurationError,
+        match="reasoning_effort and reasoning_budget_tokens are mutually exclusive",
+    ):
+        Options(reasoning_effort="high", reasoning_budget_tokens=0)
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reasoning_options", "expected_effort", "expected_budget"),
+    [
+        ({"reasoning_effort": "high"}, "high", None),
+        ({"reasoning_budget_tokens": 0}, None, 0),
+    ],
+    ids=["reasoning_effort", "reasoning_budget_tokens"],
+)
 async def test_options_are_forwarded_when_provider_supports_features(
     monkeypatch: pytest.MonkeyPatch,
+    reasoning_options: dict[str, Any],
+    expected_effort: str | None,
+    expected_budget: int | None,
 ) -> None:
     """Options should be normalized and passed through to provider.generate()."""
 
@@ -1454,6 +1544,7 @@ async def test_options_are_forwarded_when_provider_supports_features(
             uploads=True,
             structured_outputs=True,
             reasoning=True,
+            reasoning_budget_tokens=True,
             deferred_delivery=True,
             conversation=True,
         )
@@ -1468,13 +1559,14 @@ async def test_options_are_forwarded_when_provider_supports_features(
         options=Options(
             system_instruction="Reply in one sentence.",
             response_schema=ExampleSchema,
-            reasoning_effort="high",
+            **reasoning_options,
             delivery_mode="realtime",
         ),
     )
 
     assert fake.last_generate_kwargs is not None
-    assert fake.last_generate_kwargs["reasoning_effort"] == "high"
+    assert fake.last_generate_kwargs["reasoning_effort"] == expected_effort
+    assert fake.last_generate_kwargs["reasoning_budget_tokens"] == expected_budget
     assert fake.last_generate_kwargs["history"] is None
     assert fake.last_generate_kwargs["system_instruction"] == "Reply in one sentence."
     response_schema = fake.last_generate_kwargs["response_schema"]
@@ -1550,6 +1642,7 @@ async def test_delivery_mode_deferred_is_explicitly_not_implemented(
             uploads=True,
             structured_outputs=True,
             reasoning=True,
+            reasoning_budget_tokens=True,
             deferred_delivery=True,
             conversation=True,
         )
@@ -1611,6 +1704,30 @@ async def test_defer_many_requires_at_least_one_prompt(
 
     with pytest.raises(ConfigurationError, match="requires at least one prompt"):
         await pollux.defer_many([], config=cfg)
+
+
+@pytest.mark.asyncio
+async def test_deferred_provider_validation_runs_before_uploads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Deferred provider validation should reject requests before submission uploads."""
+    fake = RejectingValidatingDeferredProvider()
+    monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="validation failed"):
+        await pollux.defer_many(
+            ("Q1?",),
+            sources=(Source.from_file(file_path, mime_type="application/pdf"),),
+            config=cfg,
+        )
+
+    assert fake.upload_calls == 0
+    assert fake.submitted_requests == {}
+    assert len(fake.validation_calls) == 1
 
 
 @pytest.mark.asyncio

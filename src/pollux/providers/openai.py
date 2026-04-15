@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from pollux.errors import APIError
+from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import (
@@ -98,6 +98,22 @@ class OpenAIProvider:
         if isinstance(tool_choice, dict) and "name" in tool_choice:
             return {"type": "function", "name": tool_choice["name"]}
         return None
+
+    @staticmethod
+    def _validate_request_features(request: ProviderRequest) -> None:
+        """Reject unsupported request features before any provider side effects."""
+        if request.reasoning_budget_tokens is not None:
+            raise ConfigurationError(
+                "Provider does not support reasoning_budget_tokens",
+                hint=(
+                    "Use reasoning_effort, or choose a provider that accepts "
+                    "an explicit reasoning token budget."
+                ),
+            )
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        """Validate OpenAI-specific request constraints."""
+        self._validate_request_features(request)
 
     @staticmethod
     def _build_input(
@@ -542,6 +558,8 @@ class OpenAIProvider:
         self, request: ProviderRequest
     ) -> dict[str, Any]:
         """Build the raw `/v1/responses` request body."""
+        self._validate_request_features(request)
+
         input_messages = self._build_input(
             request.parts, request.history, request.previous_response_id
         )
@@ -592,6 +610,7 @@ class OpenAIProvider:
         upload_cache: dict[tuple[str, str], ProviderFileAsset],
     ) -> dict[str, Any]:
         """Build one OpenAI Batch API line body for `/v1/responses`."""
+        self._validate_request_features(request)
         resolved_parts: list[Any] = []
         for part in request.parts:
             if (
@@ -621,6 +640,7 @@ class OpenAIProvider:
             tools=request.tools,
             tool_choice=request.tool_choice,
             reasoning_effort=request.reasoning_effort,
+            reasoning_budget_tokens=request.reasoning_budget_tokens,
             history=request.history,
             previous_response_id=request.previous_response_id,
             provider_state=request.provider_state,

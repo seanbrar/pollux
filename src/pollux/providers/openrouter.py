@@ -193,6 +193,15 @@ class OpenRouterProvider:
 
     async def validate_request(self, request: ProviderRequest) -> None:
         """Validate model-dependent OpenRouter behavior before dispatch."""
+        if request.reasoning_budget_tokens is not None:
+            raise ConfigurationError(
+                "Provider does not support reasoning_budget_tokens",
+                hint=(
+                    "Use reasoning_effort, or choose a provider that accepts "
+                    "an explicit reasoning token budget."
+                ),
+            )
+
         metadata = await self._get_model_metadata(request.model)
         _require_text_io(metadata, model=request.model)
 

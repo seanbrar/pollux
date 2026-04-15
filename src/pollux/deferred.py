@@ -17,6 +17,7 @@ from pollux.providers.base import (
     ProviderDeferredHandle,
     ProviderDeferredItem,
     ProviderDeferredSnapshot,
+    ValidatingProvider,
 )
 from pollux.providers.models import ProviderRequest
 from pollux.result import build_result_from_responses
@@ -174,6 +175,14 @@ def _validate_deferred_plan(plan: Plan, provider: Provider) -> None:
             "Provider does not support reasoning controls",
             hint="Remove reasoning_effort or choose a provider with reasoning support.",
         )
+    if options.reasoning_budget_tokens is not None and not caps.reasoning_budget_tokens:
+        raise ConfigurationError(
+            "Provider does not support reasoning_budget_tokens",
+            hint=(
+                "Use reasoning_effort, or choose a provider that accepts "
+                "an explicit reasoning token budget."
+            ),
+        )
     if (not caps.uploads) and any(
         isinstance(part, dict)
         and isinstance(part.get("file_path"), str)
@@ -203,19 +212,35 @@ def _build_provider_requests(plan: Plan) -> list[ProviderRequest]:
                 temperature=options.temperature,
                 top_p=options.top_p,
                 reasoning_effort=options.reasoning_effort,
+                reasoning_budget_tokens=options.reasoning_budget_tokens,
                 max_tokens=options.max_tokens,
             )
         )
     return requests
 
 
+async def _validate_provider_requests(
+    provider: Provider,
+    requests: list[ProviderRequest],
+) -> None:
+    """Run provider-owned validation before deferred submission side effects."""
+    if not isinstance(provider, ValidatingProvider):
+        return
+    # TODO: parallelize if a future provider's validate_request does I/O
+    # (e.g. OpenRouter-style metadata lookups). Current validators are local.
+    for request in requests:
+        await provider.validate_request(request)
+
+
 async def submit_deferred(plan: Plan, provider: Provider) -> DeferredHandle:
     """Submit provider-backed deferred work and return the Pollux handle."""
     _validate_deferred_plan(plan, provider)
+    requests = _build_provider_requests(plan)
+    await _validate_provider_requests(provider, requests)
     deferred_provider = _get_deferred_provider(provider)
     request_ids = _request_ids(len(plan.request.prompts))
     provider_handle = await deferred_provider.submit_deferred(
-        _build_provider_requests(plan),
+        requests,
         request_ids=request_ids,
     )
     submitted_at = (

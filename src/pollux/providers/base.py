@@ -25,6 +25,7 @@ class ProviderCapabilities:
     uploads: bool
     structured_outputs: bool = False
     reasoning: bool = False
+    reasoning_budget_tokens: bool = False
     deferred_delivery: bool = False
     conversation: bool = False
     implicit_caching: bool = False
@@ -96,6 +97,21 @@ class Provider(Protocol):
     @property
     def capabilities(self) -> ProviderCapabilities:
         """Feature capabilities for strict option validation."""
+        ...
+
+
+@runtime_checkable
+class ValidatingProvider(Protocol):
+    """Optional provider hook for request validation before side effects."""
+
+    # TODO: Gemini and Anthropic could adopt this to pre-flight model-specific
+    # rejections (e.g. gemini-2.5 refusing reasoning_effort) instead of
+    # deferring to upstream errors.
+    async def validate_request(
+        self,
+        request: ProviderRequest,
+    ) -> None:
+        """Fail fast on unsupported model- or request-specific features."""
         ...
 
 

@@ -120,6 +120,7 @@ class GeminiProvider:
             uploads=True,
             structured_outputs=True,
             reasoning=True,
+            reasoning_budget_tokens=True,
             deferred_delivery=True,
             conversation=True,
         )
@@ -233,6 +234,11 @@ class GeminiProvider:
             config_kwargs["thinking_config"] = types.ThinkingConfig(
                 include_thoughts=True,
                 thinking_level=request.reasoning_effort,  # type: ignore[arg-type]
+            )
+        elif request.reasoning_budget_tokens is not None:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                include_thoughts=request.reasoning_budget_tokens > 0,
+                thinking_budget=request.reasoning_budget_tokens,
             )
 
         if request.system_instruction is not None:
@@ -676,6 +682,7 @@ class GeminiProvider:
             tools=request.tools,
             tool_choice=request.tool_choice,
             reasoning_effort=request.reasoning_effort,
+            reasoning_budget_tokens=request.reasoning_budget_tokens,
             history=request.history,
             previous_response_id=request.previous_response_id,
             provider_state=request.provider_state,
