@@ -226,6 +226,8 @@ async def _validate_provider_requests(
     """Run provider-owned validation before deferred submission side effects."""
     if not isinstance(provider, ValidatingProvider):
         return
+    # TODO: parallelize if a future provider's validate_request does I/O
+    # (e.g. OpenRouter-style metadata lookups). Current validators are local.
     for request in requests:
         await provider.validate_request(request)
 

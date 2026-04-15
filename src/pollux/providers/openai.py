@@ -469,7 +469,6 @@ class OpenAIProvider:
     ) -> ProviderResponse:
         """Generate a response using OpenAI's responses endpoint."""
         _ = request.cache_name
-        await self.validate_request(request)
         client = self._get_client()
         create_kwargs = self._build_responses_create_kwargs(request)
 

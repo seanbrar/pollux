@@ -104,6 +104,9 @@ class Provider(Protocol):
 class ValidatingProvider(Protocol):
     """Optional provider hook for request validation before side effects."""
 
+    # TODO: Gemini and Anthropic could adopt this to pre-flight model-specific
+    # rejections (e.g. gemini-2.5 refusing reasoning_effort) instead of
+    # deferring to upstream errors.
     async def validate_request(
         self,
         request: ProviderRequest,
