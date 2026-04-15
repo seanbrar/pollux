@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -501,7 +501,9 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
 
     await provider.generate(
         ProviderRequest(
-            model=GEMINI_MODEL, parts=["Think hard."], reasoning_effort="low"
+            model="gemini-3-flash-preview",
+            parts=["Think hard."],
+            reasoning_effort="low",
         )
     )
 
@@ -533,7 +535,7 @@ async def test_gemini_generate_passes_thinking_budget_from_reasoning_budget_toke
 
     await provider.generate(
         ProviderRequest(
-            model=GEMINI_MODEL,
+            model="gemini-2.5-flash",
             parts=["Think less."],
             reasoning_budget_tokens=0,
         )
@@ -565,7 +567,7 @@ async def test_gemini_generate_includes_thoughts_for_non_zero_budget() -> None:
 
     await provider.generate(
         ProviderRequest(
-            model=GEMINI_MODEL,
+            model="gemini-2.5-flash",
             parts=["Think a little."],
             reasoning_budget_tokens=512,
         )
@@ -576,6 +578,59 @@ async def test_gemini_generate_includes_thoughts_for_non_zero_budget() -> None:
     tc = config.thinking_config
     assert tc.include_thoughts is True
     assert tc.thinking_budget == 512
+
+
+@pytest.mark.asyncio
+async def test_gemini_generate_rejects_reasoning_budget_tokens_for_older_models() -> (
+    None
+):
+    """Older Gemini families should fail fast on explicit thinking budgets."""
+    fake_models = MagicMock()
+    fake_models.generate_content = AsyncMock()
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+
+    provider = GeminiProvider("test-key")
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    with pytest.raises(
+        ConfigurationError,
+        match="does not support reasoning_budget_tokens",
+    ):
+        await provider.generate(
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=["Think less."],
+                reasoning_budget_tokens=0,
+            )
+        )
+
+    fake_models.generate_content.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_gemini_generate_rejects_reasoning_effort_for_2_5_models() -> None:
+    """Gemini 2.5 should tell callers to use explicit thinking budgets instead."""
+    fake_models = MagicMock()
+    fake_models.generate_content = AsyncMock()
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+
+    provider = GeminiProvider("test-key")
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    with pytest.raises(ConfigurationError, match="does not support reasoning_effort"):
+        await provider.generate(
+            ProviderRequest(
+                model="gemini-2.5-flash",
+                parts=["Think hard."],
+                reasoning_effort="high",
+            )
+        )
+
+    fake_models.generate_content.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1492,6 +1547,40 @@ async def test_openai_submit_deferred_reuses_shared_file_uploads(
     second_file = lines[1]["body"]["input"][0]["content"][0]["file_id"]
     assert first_file == "file_uploaded_pdf"
     assert second_file == first_file
+
+
+@pytest.mark.asyncio
+async def test_openai_submit_deferred_rejects_reasoning_budget_tokens_before_upload(
+    tmp_path: Path,
+) -> None:
+    """Unsupported reasoning budgets should fail before deferred uploads begin."""
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    files = _FakeBatchFilesClient()
+    batches = _FakeBatchesClient()
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"files": files, "batches": batches})()
+
+    with pytest.raises(
+        ConfigurationError, match="Provider does not support reasoning_budget_tokens"
+    ):
+        await provider.submit_deferred(
+            [
+                ProviderRequest(
+                    model=OPENAI_MODEL,
+                    parts=[
+                        {"file_path": str(pdf_path), "mime_type": "application/pdf"},
+                        "Question",
+                    ],
+                    reasoning_budget_tokens=0,
+                )
+            ],
+            request_ids=["pollux-000000"],
+        )
+
+    assert files.create_calls == []
+    assert batches.create_kwargs is None
 
 
 @pytest.mark.asyncio

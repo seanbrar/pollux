@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 import logging
 from pathlib import Path
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
+from pollux.providers.base import ValidatingProvider
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
@@ -30,6 +31,15 @@ if TYPE_CHECKING:
     from pollux.providers.base import Provider
 
 logger = logging.getLogger(__name__)
+
+
+async def _validate_provider_request(
+    provider: Provider,
+    request: ProviderRequest,
+) -> None:
+    """Run provider-owned validation before uploads or other side effects."""
+    if isinstance(provider, ValidatingProvider):
+        await provider.validate_request(request)
 
 
 def _with_call_idx(err: APIError, call_idx: int | None) -> APIError:
@@ -225,16 +235,6 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         if prompt_part is not None
                         else [*shared_parts]
                     )
-                    parts = await _substitute_upload_parts(
-                        raw_parts,
-                        provider=provider,
-                        call_idx=call_idx,
-                        upload_cache=upload_cache,
-                        upload_inflight=upload_inflight,
-                        upload_lock=upload_lock,
-                        retry_policy=retry_policy,
-                    )
-
                     history_msgs: list[Message] | None = None
                     request_provider_state = (
                         dict(provider_state)
@@ -290,10 +290,9 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                             if request_provider_state is None:
                                 request_provider_state = {}
                             request_provider_state["history"] = history_item_states
-
                     req = ProviderRequest(
                         model=model,
-                        parts=parts,
+                        parts=raw_parts,
                         system_instruction=options.system_instruction,
                         cache_name=cache_name,
                         response_schema=schema,
@@ -309,6 +308,17 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         max_tokens=options.max_tokens,
                         implicit_caching=implicit_caching,
                     )
+                    await _validate_provider_request(provider, req)
+                    parts = await _substitute_upload_parts(
+                        raw_parts,
+                        provider=provider,
+                        call_idx=call_idx,
+                        upload_cache=upload_cache,
+                        upload_inflight=upload_inflight,
+                        upload_lock=upload_lock,
+                        retry_policy=retry_policy,
+                    )
+                    req = replace(req, parts=parts)
 
                     if retry_policy.max_attempts <= 1:
                         resp = await provider.generate(req)

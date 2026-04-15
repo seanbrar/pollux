@@ -100,6 +100,22 @@ class OpenAIProvider:
         return None
 
     @staticmethod
+    def _validate_request_features(request: ProviderRequest) -> None:
+        """Reject unsupported request features before any provider side effects."""
+        if request.reasoning_budget_tokens is not None:
+            raise ConfigurationError(
+                "Provider does not support reasoning_budget_tokens",
+                hint=(
+                    "Use reasoning_effort, or choose a provider that accepts "
+                    "an explicit reasoning token budget."
+                ),
+            )
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        """Validate OpenAI-specific request constraints."""
+        self._validate_request_features(request)
+
+    @staticmethod
     def _build_input(
         parts: list[Any],
         history: list[Any] | None,
@@ -453,6 +469,7 @@ class OpenAIProvider:
     ) -> ProviderResponse:
         """Generate a response using OpenAI's responses endpoint."""
         _ = request.cache_name
+        await self.validate_request(request)
         client = self._get_client()
         create_kwargs = self._build_responses_create_kwargs(request)
 
@@ -542,14 +559,7 @@ class OpenAIProvider:
         self, request: ProviderRequest
     ) -> dict[str, Any]:
         """Build the raw `/v1/responses` request body."""
-        if request.reasoning_budget_tokens is not None:
-            raise ConfigurationError(
-                "Provider does not support reasoning_budget_tokens",
-                hint=(
-                    "Use reasoning_effort, or choose a provider that accepts "
-                    "an explicit reasoning token budget."
-                ),
-            )
+        self._validate_request_features(request)
 
         input_messages = self._build_input(
             request.parts, request.history, request.previous_response_id
@@ -601,6 +611,7 @@ class OpenAIProvider:
         upload_cache: dict[tuple[str, str], ProviderFileAsset],
     ) -> dict[str, Any]:
         """Build one OpenAI Batch API line body for `/v1/responses`."""
+        self._validate_request_features(request)
         resolved_parts: list[Any] = []
         for part in request.parts:
             if (

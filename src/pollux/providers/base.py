@@ -101,6 +101,18 @@ class Provider(Protocol):
 
 
 @runtime_checkable
+class ValidatingProvider(Protocol):
+    """Optional provider hook for request validation before side effects."""
+
+    async def validate_request(
+        self,
+        request: ProviderRequest,
+    ) -> None:
+        """Fail fast on unsupported model- or request-specific features."""
+        ...
+
+
+@runtime_checkable
 class DeferredProvider(Protocol):
     """Lifecycle operations for provider-backed deferred delivery."""
 

@@ -17,6 +17,7 @@ from pollux.providers.base import (
     ProviderDeferredHandle,
     ProviderDeferredItem,
     ProviderDeferredSnapshot,
+    ValidatingProvider,
 )
 from pollux.providers.models import ProviderRequest
 from pollux.result import build_result_from_responses
@@ -218,13 +219,26 @@ def _build_provider_requests(plan: Plan) -> list[ProviderRequest]:
     return requests
 
 
+async def _validate_provider_requests(
+    provider: Provider,
+    requests: list[ProviderRequest],
+) -> None:
+    """Run provider-owned validation before deferred submission side effects."""
+    if not isinstance(provider, ValidatingProvider):
+        return
+    for request in requests:
+        await provider.validate_request(request)
+
+
 async def submit_deferred(plan: Plan, provider: Provider) -> DeferredHandle:
     """Submit provider-backed deferred work and return the Pollux handle."""
     _validate_deferred_plan(plan, provider)
+    requests = _build_provider_requests(plan)
+    await _validate_provider_requests(provider, requests)
     deferred_provider = _get_deferred_provider(provider)
     request_ids = _request_ids(len(plan.request.prompts))
     provider_handle = await deferred_provider.submit_deferred(
-        _build_provider_requests(plan),
+        requests,
         request_ids=request_ids,
     )
     submitted_at = (

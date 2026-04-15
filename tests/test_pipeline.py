@@ -158,6 +158,34 @@ class InMemoryDeferredProvider(FakeProvider):
         return items
 
 
+@dataclass
+class RejectingValidatingProvider(FakeProvider):
+    """Provider double that fails validation before uploads begin."""
+
+    validation_calls: list[ProviderRequest] = field(default_factory=list)
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        self.validation_calls.append(request)
+        raise ConfigurationError(
+            "validation failed",
+            hint="Validation should run before uploads.",
+        )
+
+
+@dataclass
+class RejectingValidatingDeferredProvider(InMemoryDeferredProvider):
+    """Deferred provider double that fails validation before submission side effects."""
+
+    validation_calls: list[ProviderRequest] = field(default_factory=list)
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        self.validation_calls.append(request)
+        raise ConfigurationError(
+            "validation failed",
+            hint="Validation should run before deferred uploads.",
+        )
+
+
 @pytest.mark.asyncio
 async def test_run_and_run_many_smoke() -> None:
     """Smoke: public API returns stable envelope shapes."""
@@ -974,6 +1002,29 @@ async def test_openai_upload_cleanup_runs_even_when_generate_fails(
 
 
 @pytest.mark.asyncio
+async def test_provider_validation_runs_before_uploads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Provider-owned validation should reject realtime requests before uploads."""
+    fake = RejectingValidatingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="validation failed"):
+        await pollux.run(
+            "Read this",
+            source=Source.from_file(file_path, mime_type="application/pdf"),
+            config=cfg,
+        )
+
+    assert fake.upload_calls == 0
+    assert len(fake.validation_calls) == 1
+
+
+@pytest.mark.asyncio
 async def test_duration_includes_upload_cleanup_latency(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
@@ -1653,6 +1704,30 @@ async def test_defer_many_requires_at_least_one_prompt(
 
     with pytest.raises(ConfigurationError, match="requires at least one prompt"):
         await pollux.defer_many([], config=cfg)
+
+
+@pytest.mark.asyncio
+async def test_deferred_provider_validation_runs_before_uploads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Deferred provider validation should reject requests before submission uploads."""
+    fake = RejectingValidatingDeferredProvider()
+    monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
+
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4 fake")
+
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+    with pytest.raises(ConfigurationError, match="validation failed"):
+        await pollux.defer_many(
+            ("Q1?",),
+            sources=(Source.from_file(file_path, mime_type="application/pdf"),),
+            config=cfg,
+        )
+
+    assert fake.upload_calls == 0
+    assert fake.submitted_requests == {}
+    assert len(fake.validation_calls) == 1
 
 
 @pytest.mark.asyncio
