@@ -18,7 +18,7 @@ OPENAI_MODEL = "gpt-5-nano"
 ANTHROPIC_MODEL = "claude-haiku-4-5"
 OPENROUTER_MODEL = "google/gemma-3-27b-it:free"
 CACHE_MODEL = "cache-model"
-GEMINI_API_TEST_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
+GEMINI_API_TEST_MODEL = "gemini-2.5-flash-lite"
 OPENAI_API_TEST_MODEL = OPENAI_MODEL
 ANTHROPIC_API_TEST_MODEL = ANTHROPIC_MODEL
 

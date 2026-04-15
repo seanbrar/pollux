@@ -37,7 +37,7 @@ ProviderName = Literal["gemini", "openai", "anthropic", "openrouter"]
 CaseKind = Literal["live", "validation"]
 
 DEFAULT_MODELS: dict[ProviderName, str] = {
-    "gemini": "gemini-2.5-flash-lite-preview-09-2025",
+    "gemini": "gemini-2.5-flash-lite",
     "openai": "gpt-5-nano",
     "anthropic": "claude-haiku-4-5",
     "openrouter": "openai/gpt-5-nano",
