@@ -33,25 +33,6 @@ from pollux.providers.models import (
 logger = logging.getLogger(__name__)
 
 _GEMINI_BATCH_INLINE_LIMIT_BYTES = 20_000_000
-_GEMINI_REASONING_EFFORT_PREFIXES = ("gemini-3",)
-_GEMINI_REASONING_BUDGET_PREFIXES = ("gemini-2.5", "gemini-3")
-
-
-def _normalized_model_name(model: str) -> str:
-    """Normalize Gemini model names for family checks."""
-    return model.strip().lower()
-
-
-def _supports_reasoning_effort(model: str) -> bool:
-    """Return True when the Gemini model family accepts qualitative effort."""
-    normalized = _normalized_model_name(model)
-    return normalized.startswith(_GEMINI_REASONING_EFFORT_PREFIXES)
-
-
-def _supports_reasoning_budget_tokens(model: str) -> bool:
-    """Return True when the Gemini model family accepts thinking budgets."""
-    normalized = _normalized_model_name(model)
-    return normalized.startswith(_GEMINI_REASONING_BUDGET_PREFIXES)
 
 
 def _provider_hint_payload(
@@ -243,30 +224,6 @@ class GeminiProvider:
             }
         return None
 
-    async def validate_request(self, request: ProviderRequest) -> None:
-        """Validate Gemini model-family constraints before side effects."""
-        if request.reasoning_effort is not None and not _supports_reasoning_effort(
-            request.model
-        ):
-            raise ConfigurationError(
-                f"Gemini model {request.model!r} does not support reasoning_effort",
-                hint=(
-                    "Use a Gemini 3 model for reasoning_effort, or switch to "
-                    "reasoning_budget_tokens on Gemini 2.5 models."
-                ),
-            )
-        if (
-            request.reasoning_budget_tokens is not None
-            and not _supports_reasoning_budget_tokens(request.model)
-        ):
-            raise ConfigurationError(
-                f"Gemini model {request.model!r} does not support reasoning_budget_tokens",
-                hint=(
-                    "Use a Gemini 2.5+ or 3 model when you need an explicit "
-                    "reasoning token budget."
-                ),
-            )
-
     def _build_config_kwargs(self, request: ProviderRequest) -> dict[str, Any]:
         """Assemble Gemini GenerateContentConfig keyword arguments."""
         from google.genai import types
@@ -426,7 +383,6 @@ class GeminiProvider:
             ) as temp_batch:
                 temp_batch_path = Path(temp_batch.name)
                 for request_id, request in zip(request_ids, requests, strict=True):
-                    await self.validate_request(request)
                     resolved_request = await self._resolve_deferred_request(
                         request,
                         upload_cache=upload_cache,
@@ -616,7 +572,6 @@ class GeminiProvider:
         request: ProviderRequest,
     ) -> ProviderResponse:
         """Generate content from the Gemini model."""
-        await self.validate_request(request)
         client = self._get_client()
         from google.genai import types
 

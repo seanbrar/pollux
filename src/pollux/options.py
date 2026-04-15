@@ -130,9 +130,9 @@ class Options:
             raise ConfigurationError(
                 "reasoning_budget_tokens must be a non-negative integer",
                 hint=(
-                    "Providers enforce their own minimums: Gemini 2.5 Flash "
-                    "accepts 0 to disable thinking; Anthropic requires at "
-                    "least 1024; Gemini 2.5 Pro requires at least 128."
+                    "Pass reasoning_budget_tokens=0 or a larger integer. "
+                    "Provider- and model-specific limits are enforced by the "
+                    "provider API."
                 ),
             )
         if (

@@ -46,7 +46,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from pollux import Config, ConfigurationError, Options, Source, run
+from pollux import APIError, Config, ConfigurationError, Options, Source, run
 
 
 class DocumentSummary(BaseModel):
@@ -106,7 +106,7 @@ async def main() -> None:
                 "report.pdf", prompt, provider_name=provider,
             )
             print(f"[{provider}] {summary.title}: {len(summary.key_points)} points")
-        except ConfigurationError as exc:
+        except (ConfigurationError, APIError) as exc:
             print(f"[{provider}] Skipped: {exc.hint}")
 
 
@@ -133,8 +133,9 @@ asyncio.run(main())
    provider name and builds the config internally. The prompt, source, and
    schema are the same regardless of provider.
 
-4. **Handle config errors at the edge.** The `main` function catches
-   `ConfigurationError` and logs a skip. This is the right place for
+4. **Handle portability failures at the edge.** The `main` function catches
+   `ConfigurationError` for Pollux-level unsupported features and `APIError`
+   for provider-side model mismatches. This is the right place for
    provider-specific fallback logic.
 
 ## Model-Specific Constraints
@@ -150,7 +151,7 @@ OpenAI's `gpt-5` family (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) rejects
 models (like `gpt-4.1-nano`) still accept them.
 
 ```python
-# This will fail with a ProviderError for gpt-5 family models
+# This will fail with an APIError for gpt-5 family models
 options = Options(temperature=0.8, top_p=0.9)
 
 # Instead, use the default behavior or rely on reasoning_effort
@@ -165,10 +166,10 @@ Pollux exposes two reasoning knobs, and they are mutually exclusive:
   provider-specific extras).
 - `reasoning_budget_tokens` takes an explicit integer ceiling.
 
-Pick `reasoning_effort` on providers that expose named levels (OpenAI GPT-5,
-Gemini 3.x, Claude 4.x). Pick `reasoning_budget_tokens` on providers that only
-accept a budget (Gemini 2.5), or when you need exact control such as
-disabling thinking entirely on a model that allows it.
+Pick `reasoning_effort` when you want the most portable reasoning control.
+Pick `reasoning_budget_tokens` when you need an exact provider-native token
+ceiling. Pollux rejects the option up front on providers that never support
+it, but model-specific acceptance and minimums remain provider-defined.
 
 ```python
 # Name an effort level on a provider that accepts one.
@@ -178,11 +179,11 @@ result = await run(
     options=Options(reasoning_effort="high"),
 )
 
-# Disable thinking on Gemini 2.5 Flash with an explicit budget of zero.
+# Use an explicit budget on a provider that accepts token-based reasoning.
 result = await run(
-    "Reply with exactly OK.",
-    config=Config(provider="gemini", model="gemini-2.5-flash"),
-    options=Options(reasoning_budget_tokens=0),
+    "Think briefly, then answer.",
+    config=Config(provider="anthropic", model="claude-haiku-4-5"),
+    options=Options(reasoning_budget_tokens=2048),
 )
 
 if "reasoning" in result:
@@ -191,18 +192,17 @@ if "reasoning" in result:
             print("Thinking:", text)
 ```
 
-Provider minimums vary: Anthropic requires at least 1024 tokens and Gemini 2.5
-Pro requires at least 128. A budget that sits below a provider's floor surfaces
-as a provider error at call time.
+Exact budget floors are provider-defined. Pollux validates the shape
+(`int >= 0`) and provider-level support; the upstream provider may still
+reject a model-specific value at call time.
 
 ### Reasoning Control Mapping
 
 | Provider | Model Family | `reasoning_effort` | `reasoning_budget_tokens` | Provider Behavior |
 | --- | --- | --- | --- | --- |
-| **OpenAI** | `gpt-5` family | `"low"`, `"medium"`, `"high"` | ❌ | Returns a reasoning summary |
-| **Gemini** | `gemini-3` family | `"low"`, `"medium"`, `"high"`, `"minimal"` | ✅ | Returns full thinking text |
-| **Gemini** | `gemini-2.5` family | ❌ | ✅ | Uses provider-native thinking budgets |
-| **Anthropic** | `claude-4.x` family | `"low"`, `"medium"`, `"high"`, `"max"` (Opus 4.6 only) | ✅ | Returns thinking text and preserves replay blocks for tool loops |
+| **OpenAI** | provider-supported reasoning models | `"low"`, `"medium"`, `"high"` | ❌ | Returns a reasoning summary |
+| **Gemini** | reasoning-capable Gemini models | provider-defined | ✅ | Returns full thinking text |
+| **Anthropic** | provider-supported reasoning models | `"low"`, `"medium"`, `"high"`, `"max"` (Opus 4.6 only) | ✅ | Returns thinking text and preserves replay blocks for tool loops |
 | **OpenRouter** | reasoning-capable models | Model-dependent | ❌ | Returns reasoning text |
 
 ## Variations
@@ -249,8 +249,8 @@ async def analyze_with_reasoning(
             reasoning = result["reasoning"][0]
         return result["answers"][0], reasoning
 
-    except ConfigurationError:
-        # Provider doesn't support reasoning — retry without it
+    except (ConfigurationError, APIError):
+        # Provider or model doesn't support this reasoning mode — retry without it
         result = await run(
             prompt,
             source=Source.from_file(file_path),
@@ -289,9 +289,11 @@ async def test_analyze_document_mock(provider: str) -> None:
   (explicit for Gemini, implicit for Anthropic). YouTube URLs have limited
   OpenAI and Anthropic support. Check
   [Provider Capabilities](reference/provider-capabilities.md).
-- **Config errors are your portability signal.** A `ConfigurationError` for
-  an unsupported feature marks the boundary of portability. Handle it at
-  the call site.
+- **Config and provider errors are your portability signal.** A
+  `ConfigurationError` marks a Pollux-level unsupported feature. An
+  `APIError` often means the provider rejected a model-specific combination.
+  Handle both at the call site when you intentionally probe provider-specific
+  features.
 - **Model names are provider-specific.** Never hardcode model names in your
   pipeline logic. Keep them in config or a lookup table.
 - **Sampling controls vary.** OpenAI GPT-5 family models reject `temperature`

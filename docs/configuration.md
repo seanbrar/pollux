@@ -149,8 +149,8 @@ options = Options(
 | `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
-| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
-| `reasoning_budget_tokens` | `int \| None` | `None` | Explicit reasoning token budget where supported. Mutually exclusive with `reasoning_effort`. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) |
+| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
+| `reasoning_budget_tokens` | `int \| None` | `None` | Explicit reasoning token budget where supported. Mutually exclusive with `reasoning_effort`. See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
 | `max_tokens` | `int \| None` | `None` | Output-token cap with provider-specific semantics. Anthropic applies provider defaults when omitted; other providers may ignore it. See [Provider Capabilities](reference/provider-capabilities.md) |
 | `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
@@ -168,9 +168,9 @@ options = Options(
     `reasoning_effort` and `reasoning_budget_tokens` are mutually exclusive.
     Use `reasoning_effort` when the provider exposes named levels
     (`"low"`, `"medium"`, `"high"`). Use `reasoning_budget_tokens` when you
-    need an exact token ceiling, for example `reasoning_budget_tokens=0` to
-    disable thinking on Gemini 2.5 Flash. Not every provider accepts both;
-    see [Reasoning Control Mapping](portable-code.md#reasoning-control-mapping).
+    need an exact token ceiling. Not every provider accepts both, and some
+    provider/model combinations may still reject a value at call time; see
+    [Reasoning Control Mapping](portable-code.md#reasoning-control-mapping).
 
 !!! note
     `max_tokens` is not a portable "length knob" with identical behavior
