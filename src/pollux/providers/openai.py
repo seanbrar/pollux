@@ -231,6 +231,11 @@ class OpenAIProvider:
                 reasoning_toks = _field(out_details, "reasoning_tokens")
                 if reasoning_toks is not None:
                     usage["reasoning_tokens"] = int(reasoning_toks)
+            in_details = _field(usage_raw, "input_tokens_details")
+            if in_details:
+                cached_toks = _field(in_details, "cached_tokens")
+                if cached_toks is not None:
+                    usage["cached_tokens"] = int(cached_toks)
 
         tool_calls: list[ToolCall] = []
         reasoning_parts: list[str] = []

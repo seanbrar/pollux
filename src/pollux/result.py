@@ -31,7 +31,12 @@ class ResultEnvelope(TypedDict, total=False):
     #: Always ``"text"`` in v1.0.
     extraction_method: str
     #: Keys: ``input_tokens``, ``output_tokens``, ``total_tokens``,
-    #: and optionally ``reasoning_tokens``.
+    #: and optionally ``reasoning_tokens`` and ``cached_tokens``. Values are
+    #: summed across calls in fan-out; per-call values remain in
+    #: ``diagnostics.raw_responses[i]["usage"]``. ``cached_tokens`` reports
+    #: tokens served from a provider cache hit; it is a subset of
+    #: ``input_tokens`` for Gemini and OpenAI, but reported separately from
+    #: ``input_tokens`` for Anthropic.
     usage: dict[str, int]
     #: Keys: ``duration_s``, ``n_calls``, ``cache_used``, ``finish_reasons``.
     metrics: dict[str, Any]

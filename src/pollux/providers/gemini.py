@@ -1080,6 +1080,9 @@ class GeminiProvider:
                 thoughts_toks = _field(usage_metadata, "thoughts_token_count")
                 if thoughts_toks is not None:
                     usage["reasoning_tokens"] = int(thoughts_toks)
+                cached_toks = _field(usage_metadata, "cached_content_token_count")
+                if cached_toks is not None:
+                    usage["cached_tokens"] = int(cached_toks)
         except Exception:
             usage = {}
 

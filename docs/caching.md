@@ -1,5 +1,6 @@
 <!-- Intent: Teach context caching mechanics: the redundant-context problem,
-     creating a cache, cache identity, TTL tuning, when caching pays off, and
+     creating a cache, cache identity, TTL tuning, when caching pays off,
+     reading cache hit token counts from result["usage"]["cached_tokens"], and
      the distinction between Pollux-controlled caching and provider-side
      automatic prompt caching. Do NOT cover source patterns or structured output
      in depth — link to those pages. Assumes the reader understands run_many()
@@ -16,11 +17,13 @@ depending on the provider.
     **Pollux owns:** creating and reusing cached context via `create_cache()`
     (Gemini), toggling Anthropic prompt caching via
     `Options(implicit_caching=...)`, cache identity from content hashes,
-    single-flight deduplication, and the `metrics.cache_used` signal.
+    single-flight deduplication, the `metrics.cache_used` signal, and
+    surfacing provider-reported cache hit counts in
+    `result["usage"]["cached_tokens"]`.
 
     **You own:** deciding when caching is worth the overhead, tuning TTL to
-    match your reuse window, and checking provider-native usage or billing
-    when you need cache-hit accounting for automatic prompt caching.
+    match your reuse window, and accounting for billing differences by
+    provider when interpreting `cached_tokens`.
 
 ## The Redundant-Context Problem
 
@@ -256,6 +259,32 @@ Check `metrics.cache_used` on subsequent calls:
 Keep prompts and sources stable between runs when comparing warm vs reuse
 behavior. Automatic prompt caching at the provider level can still reduce
 costs even when `cache_used` is `False`.
+
+## Observing Cache Hits
+
+`result["usage"]["cached_tokens"]` reports how many input tokens were served
+from cache. The key is absent when no call in the batch reported it; in a
+fan-out it is summed across all calls:
+
+```python
+# result from any run() or run_many() call with caching active
+cached = result["usage"].get("cached_tokens", 0)
+total_input = result["usage"]["input_tokens"]
+print(f"{cached:,} / {total_input:,} input tokens served from cache")
+```
+
+For a per-call breakdown in a fan-out:
+
+```python
+for i, raw in enumerate(result["diagnostics"]["raw_responses"]):
+    hit = raw["usage"].get("cached_tokens", 0)
+    print(f"  prompt {i}: {hit:,} cached tokens")
+```
+
+**Anthropic billing differs from Gemini and OpenAI.** For Gemini and OpenAI,
+`cached_tokens` is a subset of `input_tokens` — cache reads are billed at a
+discount from the same pool. For Anthropic, `cached_tokens` is additive: the
+total billable input is `input_tokens + cached_tokens`.
 
 ## Tuning Explicit Cache TTL
 
