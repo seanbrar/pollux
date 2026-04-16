@@ -229,7 +229,7 @@ provider.
 | `tool_calls` | `list[list[dict]]` | Only with tool calling | Per-prompt list of tool-call requests. See [Conversations](conversations-and-agents.md) |
 | `confidence` | `float` | Yes | Heuristic: `0.9` for ok, `0.5` otherwise |
 | `extraction_method` | `str` | Yes | Always `"text"` |
-| `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`, and optional `reasoning_tokens`) |
+| `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`, and optional `reasoning_tokens`, `cached_tokens`). See [Observing Cache Hits](caching.md#observing-cache-hits) for `cached_tokens` semantics. |
 | `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` ([explicit caching](caching.md#explicit-caching-gemini) only), `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`). Deferred results also add `metrics["deferred"] = True`. |
 | `diagnostics` | `dict[str, Any]` | Yes | Low-level diagnostics. All calls include `raw_responses`. Deferred results also add `diagnostics["deferred"]` with `job_id`, timing, and per-request lifecycle items. |
 

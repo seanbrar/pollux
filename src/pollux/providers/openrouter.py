@@ -715,6 +715,11 @@ def _parse_response(
             usage["total_tokens"] = total_tokens
         if isinstance(reasoning_tokens, int):
             usage["reasoning_tokens"] = reasoning_tokens
+        prompt_details = usage_raw.get("prompt_tokens_details")
+        if isinstance(prompt_details, Mapping):
+            cached_tokens = prompt_details.get("cached_tokens")
+            if isinstance(cached_tokens, int):
+                usage["cached_tokens"] = cached_tokens
 
     response_id = data.get("id")
     tool_calls = _parse_tool_calls(message.get("tool_calls"))

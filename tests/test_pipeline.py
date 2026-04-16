@@ -3462,3 +3462,71 @@ async def test_reasoning_tokens_aggregate_in_result_usage(
 
     assert result["usage"]["reasoning_tokens"] == 8
     assert result["usage"]["total_tokens"] == 17
+
+
+@pytest.mark.asyncio
+async def test_cached_tokens_aggregate_across_fanout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cached_tokens should sum across fan-out calls like other usage keys."""
+    fake = ScriptedProvider(
+        script=[
+            {
+                "text": "A1",
+                "usage": {
+                    "input_tokens": 10_000,
+                    "output_tokens": 20,
+                    "total_tokens": 10_020,
+                    "cached_tokens": 0,
+                },
+            },
+            {
+                "text": "A2",
+                "usage": {
+                    "input_tokens": 10_000,
+                    "output_tokens": 20,
+                    "total_tokens": 10_020,
+                    "cached_tokens": 9_500,
+                },
+            },
+            {
+                "text": "A3",
+                "usage": {
+                    "input_tokens": 10_000,
+                    "output_tokens": 20,
+                    "total_tokens": 10_020,
+                    "cached_tokens": 9_500,
+                },
+            },
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run_many(("Q1?", "Q2?", "Q3?"), config=cfg)
+
+    assert result["usage"]["cached_tokens"] == 19_000
+    assert result["usage"]["input_tokens"] == 30_000
+    # Per-call values remain accessible under diagnostics for anyone who needs
+    # the per-prompt view (e.g., spotting which call missed the cache).
+    per_call = [r["usage"] for r in result["diagnostics"]["raw_responses"]]
+    assert [u.get("cached_tokens") for u in per_call] == [0, 9_500, 9_500]
+
+
+@pytest.mark.asyncio
+async def test_cached_tokens_absent_when_provider_omits_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cached_tokens should not appear when no provider response reports it."""
+    fake = ScriptedProvider(
+        script=[
+            {"text": "A1", "usage": {"input_tokens": 10, "total_tokens": 15}},
+            {"text": "A2", "usage": {"input_tokens": 10, "total_tokens": 15}},
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+
+    result = await pollux.run_many(("Q1?", "Q2?"), config=cfg)
+
+    assert "cached_tokens" not in result["usage"]

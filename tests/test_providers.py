@@ -212,6 +212,7 @@ def test_gemini_parse_response_extracts_text_and_usage() -> None:
     fake_usage.candidates_token_count = 25
     fake_usage.total_token_count = 35
     fake_usage.thoughts_token_count = None
+    fake_usage.cached_content_token_count = None
 
     fake_response = MagicMock()
     fake_response.text = "The answer is 42."
@@ -368,6 +369,49 @@ def test_gemini_parse_response_extracts_reasoning_tokens() -> None:
     result = provider._parse_response(fake_response)
 
     assert result.usage["reasoning_tokens"] == 512
+
+
+def test_gemini_parse_response_extracts_cached_tokens() -> None:
+    """Cached content token count should appear in usage when present."""
+    provider = GeminiProvider("test-key")
+
+    fake_usage = MagicMock()
+    fake_usage.prompt_token_count = 10_000
+    fake_usage.candidates_token_count = 25
+    fake_usage.total_token_count = 10_025
+    fake_usage.thoughts_token_count = None
+    fake_usage.cached_content_token_count = 9_500
+
+    fake_response = MagicMock()
+    fake_response.text = "ok"
+    fake_response.parsed = None
+    fake_response.usage_metadata = fake_usage
+
+    result = provider._parse_response(fake_response)
+
+    assert result.usage["cached_tokens"] == 9_500
+    assert result.usage["input_tokens"] == 10_000
+
+
+def test_gemini_parse_response_omits_cached_tokens_when_absent() -> None:
+    """No cached_content_token_count field should produce no cached_tokens key."""
+    provider = GeminiProvider("test-key")
+
+    fake_usage = MagicMock()
+    fake_usage.prompt_token_count = 10
+    fake_usage.candidates_token_count = 25
+    fake_usage.total_token_count = 35
+    fake_usage.thoughts_token_count = None
+    fake_usage.cached_content_token_count = None
+
+    fake_response = MagicMock()
+    fake_response.text = "ok"
+    fake_response.parsed = None
+    fake_response.usage_metadata = fake_usage
+
+    result = provider._parse_response(fake_response)
+
+    assert "cached_tokens" not in result.usage
 
 
 def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
@@ -1231,6 +1275,40 @@ async def test_openai_extracts_reasoning_tokens_from_usage() -> None:
     assert result.usage["reasoning_tokens"] == 1024
     assert result.usage["input_tokens"] == 50
     assert result.usage["output_tokens"] == 200
+
+
+@pytest.mark.asyncio
+async def test_openai_extracts_cached_tokens_from_usage() -> None:
+    """Cached prompt token count should appear in usage when present."""
+    in_details = type("InDetails", (), {"cached_tokens": 8_000})()
+    usage_obj = type(
+        "Usage",
+        (),
+        {
+            "input_tokens": 10_000,
+            "output_tokens": 200,
+            "total_tokens": 10_200,
+            "input_tokens_details": in_details,
+        },
+    )()
+
+    fake_response = type(
+        "Response",
+        (),
+        {"output_text": "ok", "id": "resp_789", "usage": usage_obj, "output": []},
+    )()
+
+    responses = _FakeResponses()
+    responses.create = lambda **_kw: _async_return(fake_response)  # type: ignore[method-assign]
+    provider = OpenAIProvider("test-key")
+    provider._client = type("Client", (), {"responses": responses})()
+
+    result = await provider.generate(
+        ProviderRequest(model=OPENAI_MODEL, parts=["Test"])
+    )
+
+    assert result.usage["cached_tokens"] == 8_000
+    assert result.usage["input_tokens"] == 10_000
 
 
 # =============================================================================
@@ -3244,6 +3322,44 @@ def test_anthropic_parse_text_and_usage() -> None:
     assert result.structured is None
 
 
+def test_anthropic_parse_extracts_cached_tokens() -> None:
+    """cache_read_input_tokens should appear as cached_tokens in usage."""
+    from pollux.providers.anthropic import _parse_response
+
+    usage_obj = type(
+        "Usage",
+        (),
+        {
+            "input_tokens": 50,
+            "output_tokens": 25,
+            "cache_read_input_tokens": 9_000,
+        },
+    )()
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("ok")],
+        usage=usage_obj,
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.usage["cached_tokens"] == 9_000
+    # Anthropic semantics: cache reads are reported separately from input_tokens.
+    assert result.usage["input_tokens"] == 50
+
+
+def test_anthropic_parse_omits_cached_tokens_when_absent() -> None:
+    """Missing cache_read_input_tokens should not add cached_tokens."""
+    from pollux.providers.anthropic import _parse_response
+
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("ok")],
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert "cached_tokens" not in result.usage
+
+
 def test_anthropic_parse_structured_from_json_text() -> None:
     """Characterize structured output extraction from JSON text."""
     from pollux.providers.anthropic import _parse_response
@@ -4637,6 +4753,26 @@ async def test_openrouter_parse_response_extracts_tool_calls_and_reasoning_state
             }
         ]
     }
+
+
+def test_openrouter_parse_response_extracts_cached_tokens() -> None:
+    """prompt_tokens_details.cached_tokens should appear as cached_tokens."""
+    result = _parse_response(
+        {
+            "id": "gen_cached_1",
+            "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+            "usage": {
+                "prompt_tokens": 5_000,
+                "completion_tokens": 25,
+                "total_tokens": 5_025,
+                "prompt_tokens_details": {"cached_tokens": 4_800},
+            },
+        },
+        response_schema=None,
+    )
+
+    assert result.usage["cached_tokens"] == 4_800
+    assert result.usage["input_tokens"] == 5_000
 
 
 def test_openrouter_parse_response_preserves_reasoning_and_details_for_replay() -> None:

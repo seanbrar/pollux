@@ -690,6 +690,10 @@ def _parse_response(
             "output_tokens": output_tokens,
             "total_tokens": input_tokens + output_tokens,
         }
+        # cache_read_input_tokens is additive (not a subset of input_tokens).
+        cached_toks = getattr(usage_raw, "cache_read_input_tokens", None)
+        if cached_toks is not None:
+            usage["cached_tokens"] = int(cached_toks)
 
     # Finish reason mapping.
     stop_reason = getattr(response, "stop_reason", None)
