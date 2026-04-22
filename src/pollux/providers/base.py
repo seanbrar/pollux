@@ -29,6 +29,7 @@ class ProviderCapabilities:
     deferred_delivery: bool = False
     conversation: bool = False
     implicit_caching: bool = False
+    file_rejection_hint: str | None = None
 
 
 @dataclass(frozen=True)

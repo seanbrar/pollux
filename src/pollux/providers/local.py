@@ -60,6 +60,10 @@ class LocalProvider:
             deferred_delivery=False,
             conversation=True,
             implicit_caching=False,
+            file_rejection_hint=(
+                "Pass file content as text via Source.from_text(). "
+                "Images, PDFs, and remote URIs are not supported."
+            ),
         )
 
     def _get_client(self) -> httpx.AsyncClient:
