@@ -46,6 +46,7 @@ from tests.conftest import (
     ANTHROPIC_MODEL,
     CACHE_MODEL,
     GEMINI_MODEL,
+    LOCAL_MODEL,
     OPENAI_MODEL,
     FakeProvider,
 )
@@ -1022,6 +1023,29 @@ async def test_provider_validation_runs_before_uploads(
 
     assert fake.upload_calls == 0
     assert len(fake.validation_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_local_file_sources_raise_local_specific_guidance(tmp_path: Any) -> None:
+    """Local file inputs should fail with the text-only local provider guidance."""
+    file_path = tmp_path / "note.txt"
+    file_path.write_text("hello", encoding="utf-8")
+
+    cfg = Config(
+        provider="local",
+        model=LOCAL_MODEL,
+        base_url="http://localhost:8080/v1",
+    )
+
+    with pytest.raises(ConfigurationError, match="Local provider") as exc:
+        await pollux.run(
+            "Summarize this.",
+            source=Source.from_file(file_path, mime_type="text/plain"),
+            config=cfg,
+        )
+
+    assert exc.value.hint is not None
+    assert "Source.from_text()" in exc.value.hint
 
 
 @pytest.mark.asyncio
@@ -2856,6 +2880,51 @@ async def test_conversation_result_includes_conversation_state(
         {"role": "user", "content": "Next question?"},
         {"role": "assistant", "content": "Assistant reply."},
     ]
+
+
+@pytest.mark.asyncio
+async def test_conversation_state_preserves_text_source_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Text sources should remain in replayed history for local continuations."""
+    fake = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=False,
+            uploads=False,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="local", model=LOCAL_MODEL, use_mock=True)
+
+    first = await pollux.run(
+        "What is the project code?",
+        source=Source.from_text("The project code is K9-ORBIT."),
+        config=cfg,
+        options=Options(history=[]),
+    )
+
+    state = first.get("_conversation_state")
+    assert isinstance(state, dict)
+    assert state["history"][0] == {
+        "role": "user",
+        "content": "The project code is K9-ORBIT.\n\nWhat is the project code?",
+    }
+
+    await pollux.run(
+        "Repeat it.",
+        config=cfg,
+        options=Options(continue_from=first),
+    )
+
+    assert fake.last_generate_kwargs is not None
+    assert fake.last_generate_kwargs["history"][0] == Message(
+        role="user",
+        content="The project code is K9-ORBIT.\n\nWhat is the project code?",
+    )
 
 
 @pytest.mark.asyncio

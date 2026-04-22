@@ -158,6 +158,19 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         and isinstance(p.get("mime_type"), str)
         for p in plan.shared_parts
     ):
+        # TODO: Provider-specific guidance belongs in provider validation, not
+        # execution. Local needs this branch because the generic upload gate
+        # currently runs before LocalProvider.validate_request() can emit its
+        # text-only hint. A cleaner design would preflight provider validation
+        # before generic upload capability checks without starting side effects.
+        if config.provider == "local":
+            raise ConfigurationError(
+                "Local provider does not support file or multimodal input",
+                hint=(
+                    "Pass file content as text via Source.from_text(). "
+                    "Images, PDFs, and remote URIs are not supported."
+                ),
+            )
         raise ConfigurationError(
             "Provider does not support file uploads",
             hint="Choose a provider with uploads support, or remove file sources.",
@@ -212,6 +225,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
     )
     total_usage: dict[str, int] = {}
     conversation_state: dict[str, Any] | None = None
+    conversation_user_contents: list[str | None] = [None] * len(prompts)
 
     try:
         cache_name = plan.cache_name
@@ -238,6 +252,9 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         [*shared_parts, prompt_part]
                         if prompt_part is not None
                         else [*shared_parts]
+                    )
+                    conversation_user_contents[call_idx] = _history_text_from_parts(
+                        raw_parts
                     )
                     history_msgs: list[Message] | None = None
                     request_provider_state = (
@@ -415,6 +432,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                 if prompts[0] is not None
                 else None
             )
+            user_content = conversation_user_contents[0] or prompt
             answer = responses[0].get("text")
             reply = answer if isinstance(answer, str) else ""
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
@@ -426,8 +444,8 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                 assistant_msg["provider_state"] = provider_msg_state
 
             updated_history: list[dict[str, Any]] = [*conversation_history]
-            if prompt is not None:
-                updated_history.append({"role": "user", "content": prompt})
+            if user_content is not None:
+                updated_history.append({"role": "user", "content": user_content})
             updated_history.append(assistant_msg)
             conversation_state = {"history": updated_history}
             if isinstance(provider_msg_state, dict):
@@ -450,6 +468,22 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         usage=total_usage,
         conversation_state=conversation_state,
     )
+
+
+def _history_text_from_parts(parts: list[Any]) -> str | None:
+    """Return a replayable text history message when all parts are text."""
+    texts: list[str] = []
+    for part in parts:
+        if isinstance(part, str):
+            texts.append(part)
+            continue
+        if isinstance(part, dict):
+            text = part.get("text")
+            if isinstance(text, str):
+                texts.append(text)
+                continue
+        return None
+    return "\n\n".join(texts) if texts else None
 
 
 async def _substitute_upload_parts(

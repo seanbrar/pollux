@@ -243,8 +243,8 @@ def test_local_mock_mode_does_not_require_base_url(
     monkeypatch: pytest.MonkeyPatch,
     local_model: str,
 ) -> None:
-    """Mock mode should skip the base_url requirement."""
-    monkeypatch.delenv("POLLUX_LOCAL_BASE_URL", raising=False)
+    """Mock mode should skip the base_url requirement and env resolution."""
+    monkeypatch.setenv("POLLUX_LOCAL_BASE_URL", "http://env.local:11434/v1")
 
     cfg = Config(provider="local", model=local_model, use_mock=True)
 

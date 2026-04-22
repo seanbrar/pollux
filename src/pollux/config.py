@@ -106,8 +106,8 @@ class Config:
             )
 
         if self.provider == "local":
-            # Local: resolve base_url, skip API-key resolution entirely.
-            if self.base_url is None:
+            # Local: resolve base_url for real calls, skip API-key resolution entirely.
+            if self.base_url is None and not self.use_mock:
                 env_url = _resolve_local_base_url()
                 if env_url:
                     object.__setattr__(self, "base_url", env_url)
