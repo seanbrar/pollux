@@ -158,11 +158,9 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         and isinstance(p.get("mime_type"), str)
         for p in plan.shared_parts
     ):
-        # TODO: Provider-specific guidance belongs in provider validation, not
-        # execution. Local needs this branch because the generic upload gate
-        # currently runs before LocalProvider.validate_request() can emit its
-        # text-only hint. A cleaner design would preflight provider validation
-        # before generic upload capability checks without starting side effects.
+        # TODO(#166): Provider-specific guidance belongs in ProviderCapabilities,
+        # not here. Fix: add file_rejection_hint to ProviderCapabilities and read
+        # it below instead of branching on config.provider.
         if config.provider == "local":
             raise ConfigurationError(
                 "Local provider does not support file or multimodal input",

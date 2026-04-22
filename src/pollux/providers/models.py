@@ -65,7 +65,7 @@ class ProviderResponse:
     text: str = ""
     usage: dict[str, int] = field(default_factory=dict)
     reasoning: str | None = None
-    structured: Any = None
+    structured: dict[str, Any] | list[Any] | None = None
     tool_calls: list[ToolCall] | None = None
     response_id: str | None = None
     finish_reason: str | None = None

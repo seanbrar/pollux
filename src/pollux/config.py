@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
-from typing import Literal
+from typing import Literal, get_args
 
 import dotenv
 
@@ -24,13 +24,7 @@ _API_KEY_ENV_VARS: dict[ProviderName, str] = {
 
 _LOCAL_BASE_URL_ENV_VAR = "POLLUX_LOCAL_BASE_URL"
 
-_SUPPORTED_PROVIDERS: tuple[ProviderName, ...] = (
-    "gemini",
-    "openai",
-    "anthropic",
-    "openrouter",
-    "local",
-)
+_SUPPORTED_PROVIDERS = get_args(ProviderName)
 
 
 def resolve_api_key(provider: ProviderName) -> str | None:
