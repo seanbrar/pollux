@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.7.0] - 2026-04-22
+
+### Added
+
+- Deprecate Options.delivery_mode ahead of v1.8.0 ([`26e2157`](https://github.com/seanbrar/pollux/commit/26e2157f7d3bfa6c11d22bd19eb2a956bf58a5b9))
+- Surface cached_tokens in result usage across all providers ([`1b94d3f`](https://github.com/seanbrar/pollux/commit/1b94d3f108643acc30801b2a6e6bf2d613de0f5a))
+- Add reasoning budget tokens ([`1ab9df9`](https://github.com/seanbrar/pollux/commit/1ab9df95fb5d52db6ea040c79d468e4170abee3c))
+- Add self-hosted text provider ([`009fd70`](https://github.com/seanbrar/pollux/commit/009fd70b3e2752b006e8195fe286a314c16cf443))
+
 ## [1.6.0] - 2026-03-21
 
 ### Added
@@ -186,6 +195,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.7.0]: https://github.com/seanbrar/pollux/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/seanbrar/pollux/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/seanbrar/pollux/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/seanbrar/pollux/compare/v1.3.0...v1.4.0
