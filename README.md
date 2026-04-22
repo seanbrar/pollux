@@ -46,7 +46,9 @@ print(result["answers"][0])
 
 To use OpenAI instead: `Config(provider="openai", model="gpt-5-nano")`.<br>
 For Anthropic: `Config(provider="anthropic", model="claude-haiku-4-5")`.<br>
-For OpenRouter: `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.
+For OpenRouter: `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.<br>
+For a self-hosted OpenAI-compatible server (text-only):
+`Config(provider="local", model="gemma3:4b", base_url="http://localhost:11434/v1")`.
 
 For a full walkthrough (install, key setup, first result), see
 [Getting Started](https://polluxlib.dev/getting-started/).
@@ -152,6 +154,9 @@ export OPENROUTER_API_KEY="your-key-here"
 ```
 
 Keys from: [Google AI Studio](https://ai.dev/) · [OpenAI](https://platform.openai.com/api-keys) · [Anthropic](https://console.anthropic.com/settings/keys) · [OpenRouter](https://openrouter.ai/keys)
+
+For `provider="local"`, no API key is required; point `base_url` (or
+`POLLUX_LOCAL_BASE_URL`) at a self-hosted OpenAI-compatible server.
 
 ## Documentation
 
