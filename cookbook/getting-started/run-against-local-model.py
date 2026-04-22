@@ -6,10 +6,9 @@ Problem:
     changing pipeline code when you later swap in a cloud provider.
 
 Key idea:
-    `Config(provider="local", model=..., base_url=...)` points Pollux at any
-    OpenAI Chat Completions-compatible server (Ollama, llama.cpp, vLLM,
-    LM Studio, TGI). The `run()` call is identical to any cloud provider —
-    only the `Config` changes.
+    `Config(provider="local", model=..., base_url=...)` points Pollux at a
+    self-hosted server that speaks OpenAI Chat Completions. The `run()` call is
+    identical to any cloud provider; only the `Config` changes.
 
 When to use:
     - You are prototyping against a quantized model on local hardware.
@@ -88,7 +87,7 @@ async def main_async(context: str, prompt: str, *, config: Config) -> None:
         )
     hints.append(
         "Next: keep the same prompt and swap Config to "
-        '`Config(provider="gemini", model="gemini-2.5-flash-lite")` — the '
+        '`Config(provider="gemini", model="gemini-2.5-flash-lite")`; the '
         "call site does not change."
     )
     if len(answer.strip()) < 80:
@@ -132,7 +131,7 @@ def main() -> None:
         default=DEFAULT_MODEL,
         help=(
             "Model identifier as exposed by the local server "
-            "(e.g. 'gemma3:4b' for Ollama, or a repo id for vLLM)."
+            "(for example, 'gemma3:4b' or a GGUF filename)."
         ),
     )
     parser.add_argument(

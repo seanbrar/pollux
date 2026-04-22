@@ -242,7 +242,7 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 | `APIError: Model not found on the local server` | Model not loaded on local server | Pull or load the model (e.g. `ollama pull <model>`), or verify the model slug matches what the server exposes |
 | `APIError: Local inference timed out` | Model is too slow for available hardware | Choose a smaller or more-quantized model, or reduce prompt/output length |
 | `ConfigurationError: Local provider does not support ...` | Feature unavailable on local provider | Remove the unsupported option, or switch to a cloud provider |
-| `structured=[None]` on local calls | Server returned non-JSON or schema-failing text despite JSON mode | JSON-mode fidelity varies by server; simplify the schema, adjust the prompt, or try a different local model |
+| `structured=[None]` on local calls | Server returned non-JSON text, or a Pydantic response failed validation | JSON-mode fidelity varies by server; reduce output length pressure, simplify the schema, adjust the prompt, or try a different local model |
 | Import errors | Missing dependencies | Use Python `>=3.10,<3.15` with `uv sync --all-extras` |
 
 ## Variations

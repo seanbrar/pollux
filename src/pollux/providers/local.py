@@ -1,12 +1,11 @@
-"""Local OpenAI-compatible Chat Completions provider.
+"""Local Chat Completions provider for self-hosted inference servers.
 
-Supports any self-hosted server exposing the OpenAI Chat Completions wire
-format (Ollama, llama.cpp, vLLM, LM Studio, TGI). The supported surface is
-deliberately narrow: text in, text or JSON out. Model-native reasoning text is
-surfaced when returned, but reasoning controls, file uploads, context caching,
-tool calling, and deferred delivery are intentionally unsupported — they belong
-to the cloud providers or to the inference server itself, not to Pollux's
-orchestration layer.
+Pollux targets the OpenAI Chat Completions wire format here, not a specific
+inference engine. The supported surface is deliberately narrow: text in, text or
+JSON out. Model-native reasoning text is surfaced when returned, but reasoning
+controls, file uploads, context caching, tool calling, and deferred delivery are
+intentionally unsupported. Those belong to cloud providers, inference servers,
+or application code, not to Pollux's orchestration layer.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ import httpx
 
 from pollux.errors import APIError, ConfigurationError, walk_exception_chain
 from pollux.providers._errors import wrap_provider_error
+from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
     Message,
@@ -150,13 +150,14 @@ class LocalProvider:
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
         if request.response_schema is not None:
-            # Modern local servers (llama.cpp, Ollama, vLLM) map this natively
-            # to their grammar engines for strict enforcement.
+            strict_schema = to_strict_schema(request.response_schema)
+            # Servers that support Chat Completions JSON schema mode can map this
+            # to their own constrained decoding implementation.
             payload["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "schema",
-                    "schema": request.response_schema,
+                    "name": "pollux_structured_output",
+                    "schema": strict_schema,
                     "strict": True,
                 },
             }
@@ -189,13 +190,13 @@ class LocalProvider:
             raise _local_api_error(
                 "Local server returned a non-object response",
                 phase="generate",
-                hint="Check your server's logs — the response shape is unexpected.",
+                hint="Check your server's logs; the response shape is unexpected.",
             )
 
         return _parse_response(data, response_schema=request.response_schema)
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
-        """Reject uploads — local provider takes inline content only."""
+        """Reject uploads because local provider takes inline content only."""
         _ = path, mime_type
         raise _local_api_error(
             "Local provider does not support file uploads",
@@ -212,7 +213,7 @@ class LocalProvider:
         tools: list[dict[str, Any]] | list[Any] | None = None,
         ttl_seconds: int = 3600,
     ) -> str:
-        """Reject cache creation — local provider has no persistent cache."""
+        """Reject cache creation because local provider has no persistent cache."""
         _ = model, parts, system_instruction, tools, ttl_seconds
         raise _local_api_error(
             "Local provider does not support context caching",
@@ -308,7 +309,7 @@ def _parse_response(
     produces ``structured=None`` (matching OpenRouter). result.py then
     surfaces this as a ``None`` entry in the envelope's ``structured``
     list and marks status accordingly. We deliberately do not raise here
-    — local servers vary in their JSON-mode fidelity, and a structured=None
+    because local servers vary in their JSON-mode fidelity, and a structured=None
     slot is the established Pollux signal for "did not produce structured
     output." Revisit if real-world use shows this silent path confuses users.
     """
@@ -329,14 +330,12 @@ def _parse_response(
         else None
     )
 
-    structured: dict[str, Any] | None = None
+    structured: Any = None
     if response_schema is not None and text:
         try:
-            parsed = json.loads(text)
+            structured = json.loads(text)
         except Exception:
-            parsed = None
-        if isinstance(parsed, dict):
-            structured = parsed
+            structured = None
 
     finish_reason = choice.get("finish_reason")
     if not isinstance(finish_reason, str):
@@ -418,7 +417,7 @@ def _hint_for_local_error(exc: BaseException, *, base_url: str) -> str | None:
         if status >= 500:
             return (
                 "Local server error. The server may be overloaded or the "
-                "model may have crashed — check server logs."
+                "model may have crashed; check server logs."
             )
     return None
 

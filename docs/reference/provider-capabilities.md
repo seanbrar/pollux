@@ -29,7 +29,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
 | Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | ⚠️ server-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
-| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server, so Pollux validates downstream |
+| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
 | Reasoning output (`result["reasoning"]`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ⚠️ server/model-dependent | Pollux surfaces reasoning text when providers return it |
 | `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
 | `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
@@ -161,9 +161,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 ### Local
 
 - The local provider targets self-hosted servers that speak the OpenAI Chat
-  Completions wire format (Ollama, llama.cpp, vLLM, LM Studio, TGI). It is
-  Pollux's orchestration layer pointed at a local inference engine — not a
-  general compatibility shim for every OpenAI-compatible API.
+  Completions wire format. It is Pollux's orchestration layer pointed at a
+  local inference engine, not a general compatibility shim for every
+  OpenAI-compatible API.
 - `base_url` is required (via `Config(base_url=...)` or the
   `POLLUX_LOCAL_BASE_URL` environment variable). `api_key` is optional; most
   self-hosted servers ignore it.
@@ -175,9 +175,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   Requesting any of them raises `ConfigurationError` before dispatch.
 - Structured outputs use OpenAI-compatible JSON schema mode
   (`response_format={"type": "json_schema", ...}`). Server-side schema
-  enforcement quality varies, so Pollux validates the parsed response against
-  the caller's schema downstream. When a server returns non-JSON text or
-  content that fails schema validation, the corresponding entry in
+  enforcement quality varies. Pydantic schema inputs are validated downstream
+  when building `ResultEnvelope.structured`; raw JSON Schema dicts rely on the
+  local server's schema enforcement. When a server returns non-JSON text, or a
+  Pydantic response fails model validation, the corresponding entry in
   `ResultEnvelope.structured` is `None`.
 - Automatic prompt caching depends entirely on the backing inference engine.
   Pollux does not expose a toggle for it.

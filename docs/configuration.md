@@ -66,9 +66,8 @@ project root for local development, but never commit it.
 
 ## Self-Hosted Models (`provider="local"`)
 
-Pollux supports any self-hosted server that speaks the OpenAI Chat Completions
-wire format (Ollama, llama.cpp, vLLM, LM Studio, TGI). Point `base_url` at the
-server; `api_key` is optional.
+Pollux supports self-hosted servers that speak the OpenAI Chat Completions wire
+format. Point `base_url` at the server; `api_key` is optional.
 
 ```python
 config = Config(

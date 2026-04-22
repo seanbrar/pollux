@@ -5319,17 +5319,49 @@ async def test_local_generate_sets_json_mode_when_schema_present() -> None:
     assert fake.last_json["response_format"] == {
         "type": "json_schema",
         "json_schema": {
-            "name": "schema",
+            "name": "pollux_structured_output",
             "schema": {
                 "type": "object",
                 "properties": {"secret_code": {"type": "string"}},
                 "required": ["secret_code"],
+                "additionalProperties": False,
             },
             "strict": True,
         },
     }
     assert "tools" not in fake.last_json
     assert result.structured == {"secret_code": "K9-ORBIT"}
+
+
+@pytest.mark.asyncio
+async def test_local_generate_preserves_non_object_structured_json() -> None:
+    """Structured output parsing should preserve valid non-object JSON values."""
+    fake = _FakeLocalClient(
+        payload={
+            "id": "chatcmpl_local_schema_array",
+            "choices": [
+                {
+                    "message": {"content": '["alpha","beta"]'},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"total_tokens": 5},
+        }
+    )
+    provider = _make_local_provider(fake)
+
+    result = await provider.generate(
+        ProviderRequest(
+            model=LOCAL_MODEL,
+            parts=["Need tags."],
+            response_schema={
+                "type": "array",
+                "items": {"type": "string"},
+            },
+        )
+    )
+
+    assert result.structured == ["alpha", "beta"]
 
 
 @pytest.mark.asyncio
