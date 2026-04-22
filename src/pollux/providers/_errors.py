@@ -18,13 +18,13 @@ from pollux.errors import (
     CacheError,
     ConfigurationError,
     RateLimitError,
-    _walk_exception_chain,
+    walk_exception_chain,
 )
 
 
 def extract_status_code(exc: BaseException) -> int | None:
     """Walk the exception chain to find an HTTP status code."""
-    for e in _walk_exception_chain(exc):
+    for e in walk_exception_chain(exc):
         for attr in ("status_code", "status"):
             value = getattr(e, attr, None)
             if isinstance(value, int) and 100 <= value <= 599:
@@ -76,7 +76,7 @@ def _extract_retry_info_seconds(exc: BaseException) -> float | None:
 
 def extract_retry_after_s(exc: BaseException) -> float | None:
     """Walk the exception chain to find a retry-after delay in seconds."""
-    for e in _walk_exception_chain(exc):
+    for e in walk_exception_chain(exc):
         value = getattr(e, "retry_after", None)
         if isinstance(value, (int, float)) and value >= 0:
             return float(value)
@@ -163,7 +163,7 @@ def wrap_provider_error(
     if isinstance(status_code, int) and status_code in RETRYABLE_STATUS_CODES:
         retryable = True
     elif allow_network_errors:
-        for e in _walk_exception_chain(exc):
+        for e in walk_exception_chain(exc):
             if isinstance(e, (httpx.TimeoutException, httpx.RequestError)):
                 retryable = True
                 break

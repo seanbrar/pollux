@@ -79,7 +79,7 @@ class DeferredNotReadyError(PolluxError):
         self.snapshot = snapshot
 
 
-def _walk_exception_chain(exc: BaseException) -> Iterator[BaseException]:
+def walk_exception_chain(exc: BaseException) -> Iterator[BaseException]:
     """Yield *exc* and its ``__cause__``/``__context__`` chain, with cycle protection."""
     seen: set[int] = set()
     stack: list[BaseException] = [exc]

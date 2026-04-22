@@ -18,24 +18,25 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 ## Capability Matrix
 
-| Capability | Gemini | OpenAI | Anthropic | OpenRouter | Notes |
-|---|---|---|---|---|---|
-| Text generation | ✅ | ✅ | ✅ | ✅ | Core feature |
-| Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
-| Local file inputs | ✅ | ✅ | ✅ | ✅ (images and PDFs) | OpenRouter keeps the local file subset narrow |
-| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | Prefer local PDFs when reliability matters |
-| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | Remote fetch behavior can vary by route |
-| YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
-| Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
-| Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
-| Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
-| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `response_format` or `structured_outputs` |
-| `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
-| `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
-| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | Use the deferred API directly. |
-| Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
-| Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | Works on OpenRouter models that support tool calling |
-| Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
+| Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
+|---|---|---|---|---|---|---|
+| Text generation | ✅ | ✅ | ✅ | ✅ | ✅ | Core feature |
+| Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
+| Local file inputs | ✅ | ✅ | ✅ | ✅ (images and PDFs) | ❌ | OpenRouter keeps the local file subset narrow; local provider is text-only |
+| PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | ❌ | Prefer local PDFs when reliability matters |
+| Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | ❌ | Remote fetch behavior can vary by route |
+| YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
+| Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
+| Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
+| Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | ⚠️ server-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
+| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
+| Reasoning output (`result["reasoning"]`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ⚠️ server/model-dependent | Pollux surfaces reasoning text when providers return it |
+| `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
+| `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
+| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly. |
+| Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
+| Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Works on OpenRouter models that support tool calling |
+| Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
 For when deferred delivery is a fit and how to structure code around provider
 jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.md).
@@ -156,6 +157,35 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   `ResultEnvelope.usage["reasoning_tokens"]` when available. OpenRouter does
   not accept `reasoning_budget_tokens`; Pollux raises `ConfigurationError`
   before dispatch.
+
+### Local
+
+- The local provider targets self-hosted servers that speak the OpenAI Chat
+  Completions wire format. It is Pollux's orchestration layer pointed at a
+  local inference engine, not a general compatibility shim for every
+  OpenAI-compatible API.
+- `base_url` is required (via `Config(base_url=...)` or the
+  `POLLUX_LOCAL_BASE_URL` environment variable). `api_key` is optional; most
+  self-hosted servers ignore it.
+- The supported surface is intentionally narrow: text in, text or JSON out.
+  Pollux passively surfaces model-native reasoning text when the server returns
+  `reasoning_content`, but it does not send portable reasoning controls.
+  File uploads, remote URLs, multimodal parts, tool calling, reasoning controls,
+  explicit and implicit caching, and deferred delivery are not supported.
+  Requesting any of them raises `ConfigurationError` before dispatch.
+- Structured outputs use OpenAI-compatible JSON schema mode
+  (`response_format={"type": "json_schema", ...}`). Server-side schema
+  enforcement quality varies. Pydantic schema inputs are validated downstream
+  when building `ResultEnvelope.structured`; raw JSON Schema dicts rely on the
+  local server's schema enforcement. When a server returns non-JSON text, or a
+  Pydantic response fails model validation, the corresponding entry in
+  `ResultEnvelope.structured` is `None`.
+- Automatic prompt caching depends entirely on the backing inference engine.
+  Pollux does not expose a toggle for it.
+- Conversation continuity uses `history`; there is no server-side session ID
+  equivalent to OpenAI's `previous_response_id`.
+- For swap patterns between local and cloud providers, see
+  [Writing Portable Code Across Providers](../portable-code.md#running-against-a-self-hosted-model).
 
 ## Error Semantics
 

@@ -198,6 +198,104 @@ def test_non_integer_request_concurrency_raises_clear_error(gemini_model: str) -
     assert exc.value.hint is not None
 
 
+def test_local_requires_base_url_without_mock(
+    monkeypatch: pytest.MonkeyPatch,
+    local_model: str,
+) -> None:
+    """Local provider without base_url (env or kwarg) must fail fast."""
+    monkeypatch.delenv("POLLUX_LOCAL_BASE_URL", raising=False)
+
+    with pytest.raises(ConfigurationError, match="base_url required") as exc:
+        Config(provider="local", model=local_model)
+    assert exc.value.hint is not None
+    assert "POLLUX_LOCAL_BASE_URL" in exc.value.hint
+
+
+def test_local_resolves_base_url_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+    local_model: str,
+) -> None:
+    """POLLUX_LOCAL_BASE_URL should populate base_url when kwarg is omitted."""
+    monkeypatch.setenv("POLLUX_LOCAL_BASE_URL", "http://example.local:11434/v1")
+
+    cfg = Config(provider="local", model=local_model)
+
+    assert cfg.base_url == "http://example.local:11434/v1"
+
+
+def test_local_explicit_base_url_takes_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+    local_model: str,
+) -> None:
+    """Explicit base_url kwarg should override POLLUX_LOCAL_BASE_URL."""
+    monkeypatch.setenv("POLLUX_LOCAL_BASE_URL", "http://env.local:11434/v1")
+
+    cfg = Config(
+        provider="local",
+        model=local_model,
+        base_url="http://explicit.local:11434/v1",
+    )
+
+    assert cfg.base_url == "http://explicit.local:11434/v1"
+
+
+def test_local_mock_mode_does_not_require_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+    local_model: str,
+) -> None:
+    """Mock mode should skip the base_url requirement and env resolution."""
+    monkeypatch.setenv("POLLUX_LOCAL_BASE_URL", "http://env.local:11434/v1")
+
+    cfg = Config(provider="local", model=local_model, use_mock=True)
+
+    assert cfg.use_mock is True
+    assert cfg.base_url is None
+
+
+def test_local_does_not_require_api_key(local_model: str) -> None:
+    """Local provider should work without an API key."""
+    cfg = Config(
+        provider="local",
+        model=local_model,
+        base_url="http://localhost:11434/v1",
+    )
+
+    assert cfg.api_key is None
+
+
+def test_local_does_not_read_provider_env_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    local_model: str,
+) -> None:
+    """Cloud provider API key env vars must not leak into a local Config."""
+    monkeypatch.setenv("GEMINI_API_KEY", "should-not-be-used")
+    monkeypatch.setenv("OPENAI_API_KEY", "should-not-be-used")
+
+    cfg = Config(
+        provider="local",
+        model=local_model,
+        base_url="http://localhost:11434/v1",
+    )
+
+    assert cfg.api_key is None
+
+
+def test_cloud_provider_rejects_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+    gemini_model: str,
+) -> None:
+    """base_url is local-only; cloud providers must reject it."""
+    monkeypatch.setenv("GEMINI_API_KEY", "env-key")
+
+    with pytest.raises(ConfigurationError, match="base_url is only valid") as exc:
+        Config(
+            provider="gemini",
+            model=gemini_model,
+            base_url="http://should-not-allow:11434/v1",
+        )
+    assert exc.value.hint is not None
+
+
 def test_config_str_and_repr_redact_api_key(gemini_model: str) -> None:
     """String representations must not leak secrets."""
     secret = "top-secret-key"
@@ -206,3 +304,13 @@ def test_config_str_and_repr_redact_api_key(gemini_model: str) -> None:
     assert secret not in str(cfg)
     assert secret not in repr(cfg)
     assert "[REDACTED]" in str(cfg)
+
+
+def test_config_str_surfaces_base_url_for_local(local_model: str) -> None:
+    """Local configs surface base_url in str() so users can spot wiring issues."""
+    cfg = Config(
+        provider="local",
+        model=local_model,
+        base_url="http://localhost:11434/v1",
+    )
+    assert "http://localhost:11434/v1" in str(cfg)

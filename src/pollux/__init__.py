@@ -317,13 +317,29 @@ async def _close_provider(provider: Provider) -> None:
 
 
 def _create_provider(
-    provider: str, api_key: str | None, *, use_mock: bool = False
+    provider: str,
+    api_key: str | None,
+    *,
+    use_mock: bool = False,
+    base_url: str | None = None,
 ) -> Provider:
     """Instantiate a provider client from explicit parameters."""
     if use_mock:
         from pollux.providers.mock import MockProvider
 
         return MockProvider()
+
+    if provider == "local":
+        from pollux.providers.local import LocalProvider
+
+        if not base_url:
+            raise ConfigurationError(
+                "base_url required for provider='local'",
+                hint=(
+                    "Pass base_url='http://localhost:...' or set POLLUX_LOCAL_BASE_URL."
+                ),
+            )
+        return LocalProvider(base_url=base_url, api_key=api_key)
 
     if provider == "openai":
         from pollux.providers.openai import OpenAIProvider
@@ -367,7 +383,12 @@ def _create_provider(
 
 def _get_provider(config: Config) -> Provider:
     """Get the appropriate provider based on configuration."""
-    return _create_provider(config.provider, config.api_key, use_mock=config.use_mock)
+    return _create_provider(
+        config.provider,
+        config.api_key,
+        use_mock=config.use_mock,
+        base_url=config.base_url,
+    )
 
 
 def _resolve_deferred_provider(handle: DeferredHandle) -> Provider:
