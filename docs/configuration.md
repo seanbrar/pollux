@@ -31,9 +31,10 @@ All fields and their defaults:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `provider` | `"gemini" \| "openai" \| "anthropic" \| "openrouter"` | *(required)* | Provider to use |
+| `provider` | `"gemini" \| "openai" \| "anthropic" \| "openrouter" \| "local"` | *(required)* | Provider to use |
 | `model` | `str` | *(required)* | Model identifier |
-| `api_key` | `str \| None` | `None` | Explicit key; auto-resolved from env if omitted |
+| `api_key` | `str \| None` | `None` | Explicit key; auto-resolved from env if omitted. Optional for `provider="local"` |
+| `base_url` | `str \| None` | `None` | Required for `provider="local"`; rejected for cloud providers. Falls back to `POLLUX_LOCAL_BASE_URL` |
 | `use_mock` | `bool` | `False` | Use mock provider (no network calls) |
 | `request_concurrency` | `int` | `6` | Max concurrent API calls in multi-prompt execution |
 | `retry` | `RetryPolicy` | `RetryPolicy()` | Retry configuration |
@@ -62,6 +63,38 @@ config = Config(provider="openai", model="gpt-5-nano", api_key="sk-...")
 
 Pollux auto-loads `.env` files via `python-dotenv`. Create a `.env` in your
 project root for local development, but never commit it.
+
+## Self-Hosted Models (`provider="local"`)
+
+Pollux supports any self-hosted server that speaks the OpenAI Chat Completions
+wire format (Ollama, llama.cpp, vLLM, LM Studio, TGI). Point `base_url` at the
+server; `api_key` is optional.
+
+```python
+config = Config(
+    provider="local",
+    model="gemma3:4b",
+    base_url="http://localhost:11434/v1",
+)
+```
+
+Or set `POLLUX_LOCAL_BASE_URL` in your environment and omit the kwarg:
+
+```bash
+export POLLUX_LOCAL_BASE_URL="http://localhost:11434/v1"
+```
+
+```python
+config = Config(provider="local", model="gemma3:4b")
+```
+
+The supported surface is narrow by design: text in, text or JSON out. Pollux
+also surfaces model-native reasoning text when the local server returns it.
+File uploads, tool calling, reasoning controls, context caching, and deferred
+delivery are not supported. See
+[Provider Capabilities](reference/provider-capabilities.md#local) for the full
+matrix and [Writing Portable Code Across Providers](portable-code.md#running-against-a-self-hosted-model)
+for swap patterns.
 
 ## Mock Mode
 

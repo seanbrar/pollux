@@ -259,6 +259,36 @@ async def analyze_with_reasoning(
         return result["answers"][0], None
 ```
 
+### Running against a self-hosted model
+
+Point Pollux at a locally hosted model for iteration or privacy-sensitive work,
+then swap back to a cloud provider for production. The pipeline code does not
+change:
+
+```python
+LOCAL = Config(
+    provider="local",
+    model="gemma3:4b",
+    base_url="http://localhost:11434/v1",
+)
+CLOUD = Config(provider="gemini", model="gemini-2.5-flash-lite")
+
+result = await run(
+    "Summarize this.",
+    source=Source.from_text("Test content."),
+    config=LOCAL,  # swap with CLOUD to go remote
+)
+```
+
+The local provider's surface is deliberately narrow: text in, text or JSON
+out. Pollux passively surfaces model-native reasoning text when a local server
+returns it, but it does not send portable reasoning controls to local servers.
+If your pipeline uses file inputs, URLs, tool calling, reasoning controls, or
+context caching, keep those on a cloud provider and treat local as a fallback
+for the text-only subset. See
+[Provider Capabilities](reference/provider-capabilities.md#local) for the
+full matrix.
+
 ### Testing portability
 
 Use mock mode to validate pipeline logic without API calls, then test each
@@ -301,6 +331,12 @@ async def test_analyze_document_mock(provider: str) -> None:
   the error.
 - **Test with mock first.** `use_mock=True` validates your pipeline structure
   without API calls. All providers return synthetic responses in mock mode.
+- **Local is text-only by design.** `provider="local"` targets self-hosted
+  OpenAI-compatible servers for the text subset of Pollux. It can surface
+  model-native reasoning output, but it does not send reasoning controls. If
+  your pipeline relies on file inputs, URLs, tools, reasoning controls, or
+  context caching, keep those paths on a cloud provider and treat local as a
+  fallback.
 
 ---
 

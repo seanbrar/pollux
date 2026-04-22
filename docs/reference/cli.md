@@ -140,7 +140,7 @@ py -m cookbook production.resume_on_failure --limit 1
 
 ## Recipe Catalog
 
-All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-key` flags. Start in `--mock` to validate flow, switch to `--no-mock` when prompts are stable.
+Most recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-key` flags. Start in `--mock` to validate flow, switch to `--no-mock` when prompts are stable. `run-against-local-model` is the deliberate exception: it fixes `provider="local"` and exposes `--base-url` instead of `--provider`.
 
 | Recipe | Spec | Use it when you want to... | Learn the concept in docs |
 |---|---|---|---|
@@ -148,6 +148,7 @@ All recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-ke
 | Broadcast Process Files | `getting-started/broadcast-process-files` | process a directory with the same analysis prompts per file | [Analyzing Collections with Source Patterns](../source-patterns.md) |
 | Structured Output Extraction | `getting-started/structured-output-extraction` | return typed objects instead of parsing JSON by hand | [Extracting Structured Data](../structured-data.md) |
 | Extract Media Insights | `getting-started/extract-media-insights` | analyze one image, audio file, or video with the same entry point | [Sending Content to Models](../sending-content.md) |
+| Run Against Local Model | `getting-started/run-against-local-model` | point Pollux at a self-hosted OpenAI-compatible server without changing call-site code | [Writing Portable Code Across Providers](../portable-code.md) |
 | Fridge Raid | `projects/fridge-raid` | turn fridge photos and pantry notes into a small meal plan with shopping delta | [Extracting Structured Data](../structured-data.md) |
 | Paper-to-Workshop Kit | `projects/paper-to-workshop-kit` | turn one paper into a discussion-ready packet with slides, questions, objections, and actions | [Reducing Costs with Context Caching](../caching.md) |
 | PokeDex Analyst | `projects/pokedex-analyst` | fetch canonical Pokemon facts and turn a short roster into a scouting report | [Continuing Conversations Across Turns](../conversations-and-agents.md) |

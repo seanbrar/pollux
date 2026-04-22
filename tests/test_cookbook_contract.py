@@ -264,6 +264,7 @@ def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
         f"python -m cookbook getting-started/extract-media-insights --input {image} --mock",
         f"python -m cookbook getting-started/extract-media-insights --input {video} --mock",
         f"python -m cookbook getting-started/extract-media-insights --input {audio} --mock",
+        "python -m cookbook getting-started/run-against-local-model --mock",
         f"python -m cookbook projects/fridge-raid {image} --note 'eggs, rice' --mock",
         f"python -m cookbook projects/paper-to-workshop-kit --input {input_txt} --mock",
         "python -m cookbook projects/pokedex-analyst pikachu gyarados ferrothorn --mock",
