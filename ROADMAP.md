@@ -5,9 +5,12 @@ This roadmap is intentionally scope-constrained. Pollux is already past the
 trustworthy, more legible, and harder to misuse.
 
 - **Intent**: communicate priorities and scope boundaries, not promises.
-- **Last updated**: 2026-03-16
-- **Current status**: v1.5 is complete. Realtime and deferred APIs are both in
-  scope and shipped.
+- **Last updated**: 2026-04-22
+- **Current status**: v1.7 ships reasoning budget tokens, normalized
+  `cached_tokens` usage reporting across providers, and a text-only `local`
+  provider for self-hosted OpenAI-compatible servers.
+  `Options.delivery_mode` is soft-deprecated and scheduled for removal in
+  v1.8.0.
 - **Status tracking**: Issues and PRs are the source of truth for active work.
 
 ## Product Strategy
@@ -32,67 +35,37 @@ to own:
 - Stable entry points for realtime and deferred execution:
   `run()`, `run_many()`, `defer()`, `defer_many()`,
   `inspect_deferred()`, `collect_deferred()`, `cancel_deferred()`.
-- Multimodal source handling across the supported provider matrix.
+- Multimodal source handling across the supported cloud provider matrix, plus
+  a text-only `local` provider for self-hosted OpenAI-compatible servers.
 - Source patterns: fan-out, fan-in, and broadcast.
 - Context reuse through explicit caching, implicit caching where exposed, and
   provider-managed prompt caching where available.
-- Structured outputs, tool calling, and conversation continuity.
+- Structured outputs, tool calling, conversation continuity, and reasoning
+  controls (`reasoning_effort`, `reasoning_budget_tokens`) where providers
+  support them.
+- Usage surface normalized across providers, including `reasoning_tokens` and
+  `cached_tokens` in the result envelope when providers report them.
 
-That means the roadmap should no longer be "more features by default." The bar
-for new work is now: does it make the existing contract more reliable or more
-usable without expanding Pollux into a framework?
+## Scope Philosophy
 
-## Important Future Work
+Pollux is demand-driven. New features ship when a concrete use case makes
+them necessary, not to pre-empt hypothetical needs or to match capability
+matrices from larger frameworks. Issues and PRs are welcome; the bar for
+expansion is whether a change makes an existing contract stronger or removes
+real downstream boilerplate, not whether it broadens surface area.
 
-### 1. Provider Contract Hardening
+This keeps the roadmap intentionally short. "More features by default" is not
+the goal; the goal is a small core that stays trustworthy under real use.
 
-- Expand characterization and real API coverage for the highest-drift
-  boundaries: multimodal inputs, deferred lifecycle normalization, tool-call
-  continuations, reasoning metadata, and routed-provider variability.
-- Make capability drift easier to detect so the public capability docs stay
-  aligned with real provider behavior.
-- Keep unsupported combinations fail-fast, with concrete hints instead of
-  silent degradation.
+## Current Candidates
 
-### 2. Deferred Delivery Operational Polish
+Concrete items currently on the shortlist. None are commitments, and the list
+is expected to stay short. Discovered follow-ups are tracked in GitHub issues.
 
-- Improve docs and cookbook coverage for the real deferred operating model:
-  handle persistence, polling cadence, collection, cancellation, partial
-  failure handling, and backfill-style workflows.
-- Keep the lifecycle intentionally small: submit, inspect, collect, cancel.
-  Prefer better guarantees and diagnostics over more deferred entry points.
-- Consider narrowly scoped controls for provider-owned deferred artifacts only
-  when they solve a real operational problem without turning Pollux into a
-  background job manager.
-
-### 3. API Simplification After v1.5
-
-- Remove or deprecate migration shims once they have served their purpose
-  (example: legacy `Options.delivery_mode` compatibility).
-- Keep the boundary between realtime and deferred execution explicit and hard
-  to misuse.
-- Continue pruning ambiguous naming and low-value convenience layers.
-
-### 4. Production Ergonomics for Core Patterns
-
-- Add stronger cookbook coverage for common production shapes: resume on
-  failure, structured extraction, tool loops, and provider switching where the
-  switch is truly one line.
-- Improve guidance for adopting Pollux correctly on the first try, especially
-  around caching, deferred delivery, and provider capability differences.
-- Favor examples and documentation that reduce downstream rework over new
-  abstractions in `src/pollux/`.
-
-### 5. Selective Expansion, Not Breadth for Breadth's Sake
-
-- Add new provider support or new capability surface only when it clearly
-  reinforces Pollux's core job: delivering prompts and sources, reusing
-  context, normalizing provider lifecycle behavior, and extracting stable
-  results.
-- Hold a high bar for parity adapters that mask provider differences and add
-  maintenance cost.
-- Prefer additive, low-policy features over broad "one API for everything"
-  designs.
+- **Remove `Options.delivery_mode`** in v1.8.0. The shim is soft-deprecated in
+  v1.7 and emits `DeprecationWarning` on explicit use today.
+- **Gemini flex inference tier** — evaluate provider-specific support for
+  Google's flex inference pricing tier (lower cost, higher latency).
 
 ## High-Bar / Not Planned
 

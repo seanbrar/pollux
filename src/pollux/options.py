@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
+import warnings
 
 from pydantic import BaseModel
 
@@ -22,6 +23,12 @@ ReasoningEffort = str
 # the accepted set narrow and provides upgrade guidance.
 DeliveryMode = str
 ResponseSchemaInput = type[BaseModel] | dict[str, Any]
+
+# Sentinel default for ``Options.delivery_mode`` so we can distinguish an
+# explicit (deprecated) user value from the implicit default. The sentinel is
+# normalized back to ``"realtime"`` in ``__post_init__`` so external observers
+# never see it.
+_DELIVERY_MODE_UNSET: Final[str] = "__pollux_delivery_mode_unset__"
 
 
 def response_schema_json(
@@ -79,8 +86,10 @@ class Options:
     reasoning_effort: ReasoningEffort | None = None
     #: Controls provider reasoning token budget where supported.
     reasoning_budget_tokens: int | None = None
-    #: Legacy compatibility shim. Realtime remains the only supported value.
-    delivery_mode: DeliveryMode = "realtime"
+    #: Deprecated compatibility shim. Scheduled for removal in v1.8.0.
+    #: Realtime remains the only supported value; use ``run()`` / ``run_many()``
+    #: for realtime work and ``defer()`` / ``defer_many()`` for deferred work.
+    delivery_mode: DeliveryMode = _DELIVERY_MODE_UNSET
     #: Mutually exclusive with *continue_from*.
     history: list[dict[str, Any]] | None = None
     #: Mutually exclusive with *history*.
@@ -144,16 +153,31 @@ class Options:
                 hint="Choose either qualitative effort or an explicit token budget.",
             )
 
-        # Keep this runtime guard even though ``delivery_mode`` is typed as
+        # delivery_mode is a deprecated shim. Distinguish explicit values from
+        # the sentinel default: explicit-but-valid values emit a
+        # DeprecationWarning; the default is silently normalized to "realtime".
+        # Keep the runtime guard even though ``delivery_mode`` is typed as
         # ``str`` on purpose; the loose annotation is a UX choice for editor
         # autocomplete, not a widening of the supported values.
-        if self.delivery_mode not in {"realtime", "deferred"}:
-            raise ConfigurationError(
-                "delivery_mode must be 'realtime' or 'deferred'",
-                hint=(
-                    "Remove delivery_mode, keep the default realtime mode, "
-                    "or use delivery_mode='deferred' only as a migration shim."
-                ),
+        if self.delivery_mode is _DELIVERY_MODE_UNSET:
+            object.__setattr__(self, "delivery_mode", "realtime")
+        else:
+            if self.delivery_mode not in {"realtime", "deferred"}:
+                raise ConfigurationError(
+                    "delivery_mode must be 'realtime' or 'deferred'",
+                    hint=(
+                        "Remove delivery_mode and keep the default realtime "
+                        "mode, or use defer() / defer_many() for deferred work. "
+                        "delivery_mode is deprecated and will be removed in "
+                        "v1.8.0."
+                    ),
+                )
+            warnings.warn(
+                "Options.delivery_mode is deprecated and will be removed in "
+                "v1.8.0. Use run() / run_many() for realtime work and "
+                "defer() / defer_many() for deferred work.",
+                DeprecationWarning,
+                stacklevel=3,
             )
 
         if self.history is not None and self.continue_from is not None:

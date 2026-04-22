@@ -210,11 +210,12 @@ options = Options(
     provider default when you omit it. OpenRouter forwards it to the routed
     model. Other providers may ignore it in the current release.
 
-!!! note
-    `Options.delivery_mode` remains available only as a compatibility shim for
-    older code. New code should omit it.
-    Deferred work uses `defer()` / `defer_many()`. Legacy
-    `delivery_mode="deferred"` values still raise `ConfigurationError`, with
+!!! warning "Deprecated: `Options.delivery_mode`"
+    `Options.delivery_mode` is deprecated and scheduled for removal in
+    **v1.8.0**. Passing it explicitly now emits a `DeprecationWarning`.
+    New code should omit it: use `run()` / `run_many()` for realtime work and
+    `defer()` / `defer_many()` for deferred work. Legacy
+    `delivery_mode="deferred"` values still raise `ConfigurationError` with
     guidance that depends on which entry point you called.
 
 !!! warning "Cache handle restrictions"
