@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import dataclass, field
 import json
 from typing import TYPE_CHECKING, Any
+import warnings
 
 from pydantic import BaseModel
 import pytest
@@ -1586,7 +1587,6 @@ async def test_options_are_forwarded_when_provider_supports_features(
             system_instruction="Reply in one sentence.",
             response_schema=ExampleSchema,
             **reasoning_options,
-            delivery_mode="realtime",
         ),
     )
 
@@ -1657,6 +1657,7 @@ async def test_implicit_caching_requires_provider_capability_when_enabled(
     assert exc.value.hint is not None
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 @pytest.mark.asyncio
 async def test_delivery_mode_deferred_is_explicitly_not_implemented(
     monkeypatch: pytest.MonkeyPatch,
@@ -1684,24 +1685,39 @@ async def test_delivery_mode_deferred_is_explicitly_not_implemented(
         )
 
 
-def test_delivery_mode_realtime_is_accepted_as_legacy_compatibility_shim() -> None:
-    """Explicit realtime mode should remain valid for existing callers."""
-    options = Options(delivery_mode="realtime")
+def test_delivery_mode_default_emits_no_deprecation_warning() -> None:
+    """Constructing Options without delivery_mode should be warning-free."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        options = Options()
 
     assert options.delivery_mode == "realtime"
 
 
-def test_delivery_mode_deferred_is_accepted_as_legacy_compatibility_shim() -> None:
+def test_delivery_mode_realtime_emits_deprecation_warning() -> None:
+    """Explicit realtime remains valid but is soft-deprecated ahead of v1.8.0."""
+    with pytest.warns(DeprecationWarning, match="delivery_mode is deprecated"):
+        options = Options(delivery_mode="realtime")
+
+    assert options.delivery_mode == "realtime"
+
+
+def test_delivery_mode_deferred_emits_deprecation_warning() -> None:
     """Deferred remains constructible so Pollux can raise migration guidance."""
-    options = Options(delivery_mode="deferred")
+    with pytest.warns(DeprecationWarning, match="delivery_mode is deprecated"):
+        options = Options(delivery_mode="deferred")
 
     assert options.delivery_mode == "deferred"
 
 
-def test_delivery_mode_rejects_invalid_values() -> None:
-    """Invalid delivery_mode values should fail fast with a clear error."""
-    with pytest.raises(ConfigurationError, match="must be 'realtime' or 'deferred'"):
-        Options(delivery_mode="bogus")
+def test_delivery_mode_rejects_invalid_values_without_warning() -> None:
+    """Invalid delivery_mode values should raise without emitting a warning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        with pytest.raises(
+            ConfigurationError, match="must be 'realtime' or 'deferred'"
+        ):
+            Options(delivery_mode="bogus")
 
 
 def test_deferred_handle_round_trip_serialization() -> None:
@@ -1769,6 +1785,7 @@ async def test_defer_rejects_global_mock_provider() -> None:
         )
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 @pytest.mark.asyncio
 async def test_defer_rejects_redundant_legacy_delivery_mode() -> None:
     """Deferred entry points should tell legacy callers to drop delivery_mode."""
