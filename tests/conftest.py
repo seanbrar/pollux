@@ -17,6 +17,7 @@ GEMINI_MODEL = "gemini-2.0-flash"
 OPENAI_MODEL = "gpt-5-nano"
 ANTHROPIC_MODEL = "claude-haiku-4-5"
 OPENROUTER_MODEL = "google/gemma-3-27b-it:free"
+LOCAL_MODEL = "gemma3:4b"
 CACHE_MODEL = "cache-model"
 GEMINI_API_TEST_MODEL = "gemini-2.5-flash-lite"
 OPENAI_API_TEST_MODEL = OPENAI_MODEL
@@ -123,6 +124,7 @@ def isolate_provider_env(request, monkeypatch):
                 "ANTHROPIC_",
                 "OPENROUTER_",
                 "POLLUX_COOKBOOK_DATA_",
+                "POLLUX_LOCAL_",
             )
         ):
             monkeypatch.delenv(key, raising=False)
@@ -212,6 +214,12 @@ def anthropic_model() -> str:
 def openrouter_model() -> str:
     """Return the canonical OpenRouter model for non-API tests."""
     return OPENROUTER_MODEL
+
+
+@pytest.fixture
+def local_model() -> str:
+    """Return the canonical local model for testing."""
+    return LOCAL_MODEL
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ import random
 import time
 from typing import TYPE_CHECKING, TypeVar
 
-from pollux.errors import APIError, _walk_exception_chain
+from pollux.errors import APIError, walk_exception_chain
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -73,7 +73,7 @@ def _is_transient_network_error(exc: BaseException) -> bool:
     except Exception:
         httpx = None
 
-    for e in _walk_exception_chain(exc):
+    for e in walk_exception_chain(exc):
         if isinstance(e, (TimeoutError, asyncio.TimeoutError)):
             return True
         if httpx is not None:
