@@ -111,7 +111,11 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
     if options.reasoning_effort is not None and not caps.reasoning:
         raise ConfigurationError(
             "Provider does not support reasoning controls",
-            hint="Remove reasoning_effort or choose a provider with reasoning support.",
+            hint=(
+                "Remove reasoning_effort or choose a provider with reasoning "
+                "controls. Some providers may still surface model-native "
+                "reasoning output without this option."
+            ),
         )
     if options.reasoning_budget_tokens is not None and not caps.reasoning_budget_tokens:
         raise ConfigurationError(
