@@ -158,20 +158,10 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         and isinstance(p.get("mime_type"), str)
         for p in plan.shared_parts
     ):
-        # TODO(#166): Provider-specific guidance belongs in ProviderCapabilities,
-        # not here. Fix: add file_rejection_hint to ProviderCapabilities and read
-        # it below instead of branching on config.provider.
-        if config.provider == "local":
-            raise ConfigurationError(
-                "Local provider does not support file or multimodal input",
-                hint=(
-                    "Pass file content as text via Source.from_text(). "
-                    "Images, PDFs, and remote URIs are not supported."
-                ),
-            )
         raise ConfigurationError(
-            "Provider does not support file uploads",
-            hint="Choose a provider with uploads support, or remove file sources.",
+            "Provider does not support file or multimodal input",
+            hint=caps.file_rejection_hint
+            or "Choose a provider with uploads support, or remove file sources.",
         )
 
     schema = options.response_schema_json()

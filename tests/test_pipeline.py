@@ -1037,7 +1037,9 @@ async def test_local_file_sources_raise_local_specific_guidance(tmp_path: Any) -
         base_url="http://localhost:8080/v1",
     )
 
-    with pytest.raises(ConfigurationError, match="Local provider") as exc:
+    with pytest.raises(
+        ConfigurationError, match="Provider does not support file or multimodal input"
+    ) as exc:
         await pollux.run(
             "Summarize this.",
             source=Source.from_file(file_path, mime_type="text/plain"),
