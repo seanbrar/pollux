@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
 from pollux.errors import ConfigurationError, InternalError
+from pollux.providers.models import is_file_part
 from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 
 if TYPE_CHECKING:
@@ -180,11 +181,7 @@ async def _resolve_file_parts(
     resolved: list[Any] = []
     seen: dict[tuple[str, str], Any] = {}
     for part in parts:
-        if (
-            isinstance(part, dict)
-            and isinstance(part.get("file_path"), str)
-            and isinstance(part.get("mime_type"), str)
-        ):
+        if is_file_part(part):
             fp, mt = part["file_path"], part["mime_type"]
             provider_hints = part.get("provider_hints")
             key = (fp, mt)

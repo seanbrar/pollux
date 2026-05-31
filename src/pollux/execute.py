@@ -24,6 +24,7 @@ from pollux.providers.models import (
     ProviderFileAsset,
     ProviderRequest,
     ProviderResponse,
+    is_file_part,
 )
 from pollux.retry import (
     RetryPolicy,
@@ -109,12 +110,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             "delivery_mode='deferred' is a legacy compatibility shim and is not supported",
             hint="Use pollux.defer() or pollux.defer_many() for deferred delivery.",
         )
-    has_file_parts = any(
-        isinstance(p, dict)
-        and isinstance(p.get("file_path"), str)
-        and isinstance(p.get("mime_type"), str)
-        for p in plan.shared_parts
-    )
+    has_file_parts = any(is_file_part(p) for p in plan.shared_parts)
     validate_capabilities(
         options,
         caps,
@@ -320,11 +316,7 @@ async def _substitute_upload_parts(
     resolved: list[Any] = []
 
     for part in parts:
-        if (
-            isinstance(part, dict)
-            and isinstance(part.get("file_path"), str)
-            and isinstance(part.get("mime_type"), str)
-        ):
+        if is_file_part(part):
             file_path = part["file_path"]
             mime_type = part["mime_type"]
             provider_hints = part.get("provider_hints")

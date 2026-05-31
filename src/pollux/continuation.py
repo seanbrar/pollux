@@ -19,7 +19,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import ConfigurationError
-from pollux.providers.models import Message, ToolCall
+from pollux.providers.models import Message, ToolCall, tool_call_to_dict
 
 if TYPE_CHECKING:
     from pollux.options import Options
@@ -187,10 +187,7 @@ def build_conversation_state(
     }
     tool_calls = responses[0].tool_calls
     if tool_calls:
-        assistant_msg["tool_calls"] = [
-            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-            for tc in tool_calls
-        ]
+        assistant_msg["tool_calls"] = [tool_call_to_dict(tc) for tc in tool_calls]
     provider_msg_state = responses[0].provider_state
     if isinstance(provider_msg_state, dict):
         assistant_msg["provider_state"] = provider_msg_state

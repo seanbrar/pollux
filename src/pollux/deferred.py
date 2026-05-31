@@ -19,7 +19,12 @@ from pollux.providers.base import (
     ProviderDeferredSnapshot,
     ValidatingProvider,
 )
-from pollux.providers.models import ProviderRequest, ProviderResponse, ToolCall
+from pollux.providers.models import (
+    ProviderRequest,
+    ProviderResponse,
+    ToolCall,
+    is_file_part,
+)
 from pollux.result import build_result_from_responses
 
 if TYPE_CHECKING:
@@ -187,12 +192,7 @@ def _validate_deferred_plan(plan: Plan, provider: Provider) -> None:
                 "an explicit reasoning token budget."
             ),
         )
-    if (not caps.uploads) and any(
-        isinstance(part, dict)
-        and isinstance(part.get("file_path"), str)
-        and isinstance(part.get("mime_type"), str)
-        for part in plan.shared_parts
-    ):
+    if (not caps.uploads) and any(is_file_part(part) for part in plan.shared_parts):
         raise ConfigurationError(
             "Provider does not support file uploads",
             hint="Choose a provider with uploads support, or remove file sources.",

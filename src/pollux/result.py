@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from pydantic import BaseModel
 
 from pollux.options import ResponseSchemaInput, response_schema_model
-from pollux.providers.models import ProviderResponse, provider_response_to_dict
+from pollux.providers.models import (
+    ProviderResponse,
+    provider_response_to_dict,
+    tool_call_to_dict,
+)
 
 if TYPE_CHECKING:
     from pollux.execute import ExecutionTrace
@@ -149,10 +153,7 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
     all_tool_calls: list[list[dict[str, Any]]] = []
     has_tools = False
     for response in trace.responses:
-        tcs = [
-            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-            for tc in (response.tool_calls or [])
-        ]
+        tcs = [tool_call_to_dict(tc) for tc in (response.tool_calls or [])]
         all_tool_calls.append(tcs)
         if tcs:
             has_tools = True
