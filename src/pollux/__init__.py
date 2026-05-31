@@ -16,7 +16,7 @@ Public API:
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
@@ -28,6 +28,7 @@ from pollux.config import (
     ProviderName,
     resolve_api_key,
 )
+from pollux.continuation import ConversationState
 from pollux.deferred import (
     DeferredHandle,
     DeferredSnapshot,
@@ -243,11 +244,19 @@ async def continue_tool(
     """
     import copy
 
-    new_state = copy.deepcopy(continue_from.get("_conversation_state", {}))
-    new_state["history"] = new_state.get("history", []) + tool_results
+    prior = ConversationState.from_envelope(continue_from) or ConversationState(
+        history=[]
+    )
+    new_state = replace(prior, history=[*prior.history, *tool_results])
 
-    # Build a synthetic envelope to carry the updated state and response_id
-    synthetic_envelope: ResultEnvelope = {"_conversation_state": new_state}
+    # Deep-copy the serialized state so the synthetic envelope never aliases the
+    # caller's _conversation_state (its nested history/provider_state objects).
+    # cast: TypedDict construction needs a literal key, but ENVELOPE_KEY stays
+    # the single owner of the key string.
+    synthetic_envelope = cast(
+        "ResultEnvelope",
+        {ConversationState.ENVELOPE_KEY: copy.deepcopy(new_state.to_dict())},
+    )
 
     # Merge options, favoring the synthetic continue_from
     # Do not mutate the caller's options object
