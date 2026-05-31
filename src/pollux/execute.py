@@ -11,6 +11,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
+from pollux.capabilities import validate_capabilities
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.providers.base import FileDeletingProvider, ValidatingProvider
 from pollux.providers.models import (
@@ -103,66 +104,19 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             "delivery_mode='deferred' is a legacy compatibility shim and is not supported",
             hint="Use pollux.defer() or pollux.defer_many() for deferred delivery.",
         )
-    if options.response_schema is not None and not caps.structured_outputs:
-        raise ConfigurationError(
-            "Provider does not support structured outputs",
-            hint="Remove response_schema or choose a provider with schema support.",
-        )
-    if options.reasoning_effort is not None and not caps.reasoning:
-        raise ConfigurationError(
-            "Provider does not support reasoning controls",
-            hint=(
-                "Remove reasoning_effort or choose a provider with reasoning "
-                "controls. Some providers may still surface model-native "
-                "reasoning output without this option."
-            ),
-        )
-    if options.reasoning_budget_tokens is not None and not caps.reasoning_budget_tokens:
-        raise ConfigurationError(
-            "Provider does not support reasoning_budget_tokens",
-            hint=(
-                "Use reasoning_effort, or choose a provider that accepts "
-                "an explicit reasoning token budget."
-            ),
-        )
-    if options.implicit_caching is True and not caps.implicit_caching:
-        raise ConfigurationError(
-            "Provider does not support implicit caching",
-            hint="Remove implicit_caching=True or choose a provider with implicit caching support.",
-        )
-    if wants_conversation and not caps.conversation:
-        raise ConfigurationError(
-            "Provider does not support conversation continuity",
-            hint="Remove history/continue_from or choose a provider with conversation support.",
-        )
-    if wants_conversation and len(prompts) != 1:
-        raise ConfigurationError(
-            "Conversation continuity currently supports exactly one prompt per call",
-            hint="Use run() or run_many() with a single prompt when passing history/continue_from.",
-        )
-    # Runtime safety net: reject hand-built handles targeting providers
-    # that lack persistent caching (the planner already validates other
-    # cache conflicts).
-    if plan.cache_name is not None and not caps.persistent_cache:
-        raise ConfigurationError(
-            "Provider does not support persistent caching",
-            hint=(
-                "Remove options.cache or choose a provider with "
-                "persistent_cache support."
-            ),
-        )
-
-    if (not provider.capabilities.uploads) and any(
+    has_file_parts = any(
         isinstance(p, dict)
         and isinstance(p.get("file_path"), str)
         and isinstance(p.get("mime_type"), str)
         for p in plan.shared_parts
-    ):
-        raise ConfigurationError(
-            "Provider does not support file or multimodal input",
-            hint=caps.file_rejection_hint
-            or "Choose a provider with uploads support, or remove file sources.",
-        )
+    )
+    validate_capabilities(
+        options,
+        caps,
+        n_prompts=len(prompts),
+        has_file_parts=has_file_parts,
+        cache_requested=plan.cache_name is not None,
+    )
 
     schema = options.response_schema_json()
 
