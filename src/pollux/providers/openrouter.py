@@ -16,6 +16,14 @@ import httpx
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
+from pollux.providers._openai_compat import (
+    extract_error_message,
+    extract_finish_reason,
+    extract_message_text,
+    extract_response_id,
+    first_choice_message,
+    parse_usage,
+)
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
@@ -677,16 +685,9 @@ def _parse_response(
     response_schema: dict[str, Any] | None,
 ) -> ProviderResponse:
     """Parse an OpenRouter chat-completions payload into ProviderResponse."""
-    choices = data.get("choices")
-    choice = choices[0] if isinstance(choices, list) and choices else {}
-    if not isinstance(choice, Mapping):
-        choice = {}
+    choice, message = first_choice_message(data)
 
-    message = choice.get("message")
-    if not isinstance(message, Mapping):
-        message = {}
-
-    text = _extract_message_text(message.get("content"))
+    text = extract_message_text(message.get("content"))
     structured: dict[str, Any] | None = None
     if response_schema is not None and text:
         try:
@@ -696,32 +697,8 @@ def _parse_response(
         if isinstance(parsed, dict):
             structured = parsed
 
-    finish_reason = choice.get("finish_reason")
-    if not isinstance(finish_reason, str):
-        finish_reason = None
+    usage = parse_usage(data.get("usage"))
 
-    usage_raw = data.get("usage")
-    usage: dict[str, int] = {}
-    if isinstance(usage_raw, Mapping):
-        prompt_tokens = usage_raw.get("prompt_tokens")
-        completion_tokens = usage_raw.get("completion_tokens")
-        total_tokens = usage_raw.get("total_tokens")
-        reasoning_tokens = usage_raw.get("reasoning_tokens")
-        if isinstance(prompt_tokens, int):
-            usage["input_tokens"] = prompt_tokens
-        if isinstance(completion_tokens, int):
-            usage["output_tokens"] = completion_tokens
-        if isinstance(total_tokens, int):
-            usage["total_tokens"] = total_tokens
-        if isinstance(reasoning_tokens, int):
-            usage["reasoning_tokens"] = reasoning_tokens
-        prompt_details = usage_raw.get("prompt_tokens_details")
-        if isinstance(prompt_details, Mapping):
-            cached_tokens = prompt_details.get("cached_tokens")
-            if isinstance(cached_tokens, int):
-                usage["cached_tokens"] = cached_tokens
-
-    response_id = data.get("id")
     tool_calls = _parse_tool_calls(message.get("tool_calls"))
     reasoning = message.get("reasoning")
     reasoning_details = _normalize_reasoning_details(message.get("reasoning_details"))
@@ -738,27 +715,10 @@ def _parse_response(
         reasoning=reasoning if isinstance(reasoning, str) and reasoning else None,
         structured=structured,
         tool_calls=tool_calls if tool_calls else None,
-        response_id=response_id if isinstance(response_id, str) else None,
-        finish_reason=finish_reason,
+        response_id=extract_response_id(data),
+        finish_reason=extract_finish_reason(choice),
         provider_state=provider_state,
     )
-
-
-def _extract_message_text(content: Any) -> str:
-    """Extract text from a chat-completions message content field."""
-    if isinstance(content, str):
-        return content
-
-    if not isinstance(content, list):
-        return ""
-
-    text_parts: list[str] = []
-    for item in content:
-        if not isinstance(item, Mapping):
-            continue
-        if item.get("type") == "text" and isinstance(item.get("text"), str):
-            text_parts.append(item["text"])
-    return "\n\n".join(text_parts)
 
 
 def _parse_tool_calls(value: Any) -> list[ToolCall]:
@@ -863,7 +823,12 @@ def _get_history_item_provider_state(
 
 
 def _extract_error_message(response: httpx.Response) -> str:
-    """Extract a useful error message from an OpenRouter HTTP response."""
+    """Extract an error message, preferring OpenRouter's nested upstream error.
+
+    OpenRouter sometimes returns a stub ``error`` whose real message is nested
+    under ``error.metadata.raw``. We surface that first, then fall back to the
+    shared Chat Completions error shape.
+    """
     try:
         payload = response.json()
     except Exception:
@@ -875,17 +840,8 @@ def _extract_error_message(response: httpx.Response) -> str:
             nested_message = _extract_nested_provider_error_message(error)
             if nested_message is not None:
                 return nested_message
-            message = error.get("message")
-            if isinstance(message, str) and message:
-                return message
-        message = payload.get("message")
-        if isinstance(message, str) and message:
-            return message
 
-    text = response.text.strip()
-    if text:
-        return text
-    return f"HTTP {response.status_code}"
+    return extract_error_message(response)
 
 
 def _extract_nested_provider_error_message(error: Mapping[str, Any]) -> str | None:

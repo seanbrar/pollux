@@ -19,6 +19,14 @@ import httpx
 
 from pollux.errors import APIError, ConfigurationError, walk_exception_chain
 from pollux.providers._errors import wrap_provider_error
+from pollux.providers._openai_compat import (
+    extract_error_message,
+    extract_finish_reason,
+    extract_message_text,
+    extract_response_id,
+    first_choice_message,
+    parse_usage,
+)
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
@@ -171,7 +179,7 @@ class LocalProvider:
             response = await client.post("chat/completions", json=payload)
             if response.is_error:
                 raise httpx.HTTPStatusError(
-                    _extract_error_message(response),
+                    extract_error_message(response),
                     request=response.request,
                     response=response,
                 )
@@ -317,16 +325,9 @@ def _parse_response(
     slot is the established Pollux signal for "did not produce structured
     output." Revisit if real-world use shows this silent path confuses users.
     """
-    choices = data.get("choices")
-    choice = choices[0] if isinstance(choices, list) and choices else {}
-    if not isinstance(choice, Mapping):
-        choice = {}
+    choice, message = first_choice_message(data)
 
-    message = choice.get("message")
-    if not isinstance(message, Mapping):
-        message = {}
-
-    text = _extract_message_text(message.get("content"))
+    text = extract_message_text(message.get("content"))
     reasoning_content = message.get("reasoning_content")
     reasoning = (
         reasoning_content
@@ -341,58 +342,14 @@ def _parse_response(
         except Exception:
             structured = None
 
-    finish_reason = choice.get("finish_reason")
-    if not isinstance(finish_reason, str):
-        finish_reason = None
-
-    usage = _parse_usage(data.get("usage"))
-
-    response_id = data.get("id")
     return ProviderResponse(
         text=text,
-        usage=usage,
+        usage=parse_usage(data.get("usage")),
         reasoning=reasoning,
         structured=structured,
-        response_id=response_id if isinstance(response_id, str) else None,
-        finish_reason=finish_reason,
+        response_id=extract_response_id(data),
+        finish_reason=extract_finish_reason(choice),
     )
-
-
-def _extract_message_text(content: Any) -> str:
-    """Extract text from a Chat Completions message content field."""
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, list):
-        return ""
-    text_parts: list[str] = []
-    for item in content:
-        if isinstance(item, Mapping) and item.get("type") == "text":
-            text = item.get("text")
-            if isinstance(text, str):
-                text_parts.append(text)
-    return "\n\n".join(text_parts)
-
-
-def _parse_usage(usage_raw: Any) -> dict[str, int]:
-    """Extract token usage from a Chat Completions response."""
-    if not isinstance(usage_raw, Mapping):
-        return {}
-    usage: dict[str, int] = {}
-    prompt = usage_raw.get("prompt_tokens")
-    completion = usage_raw.get("completion_tokens")
-    total = usage_raw.get("total_tokens")
-    if isinstance(prompt, int):
-        usage["input_tokens"] = prompt
-    if isinstance(completion, int):
-        usage["output_tokens"] = completion
-    if isinstance(total, int):
-        usage["total_tokens"] = total
-    details = usage_raw.get("prompt_tokens_details")
-    if isinstance(details, Mapping):
-        cached = details.get("cached_tokens")
-        if isinstance(cached, int):
-            usage["cached_tokens"] = cached
-    return usage
 
 
 def _hint_for_local_error(exc: BaseException, *, base_url: str) -> str | None:
@@ -424,25 +381,6 @@ def _hint_for_local_error(exc: BaseException, *, base_url: str) -> str | None:
                 "model may have crashed; check server logs."
             )
     return None
-
-
-def _extract_error_message(response: httpx.Response) -> str:
-    """Extract a useful error message from a local server HTTP response."""
-    try:
-        payload = response.json()
-    except Exception:
-        payload = None
-    if isinstance(payload, Mapping):
-        error = payload.get("error")
-        if isinstance(error, Mapping):
-            message = error.get("message")
-            if isinstance(message, str) and message:
-                return message
-        message = payload.get("message")
-        if isinstance(message, str) and message:
-            return message
-    text = response.text.strip()
-    return text or f"HTTP {response.status_code}"
 
 
 def _local_api_error(
