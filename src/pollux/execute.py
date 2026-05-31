@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field, replace
-import json
 import logging
 from pathlib import Path
 import time
@@ -12,6 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
 from pollux.capabilities import validate_capabilities
+from pollux.continuation import (
+    build_conversation_state,
+    history_text_from_parts,
+    history_to_messages,
+    load_continuation,
+)
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.providers.base import FileDeletingProvider, ValidatingProvider
 from pollux.providers.models import (
@@ -19,7 +24,6 @@ from pollux.providers.models import (
     ProviderFileAsset,
     ProviderRequest,
     ProviderResponse,
-    ToolCall,
 )
 from pollux.retry import (
     RetryPolicy,
@@ -121,40 +125,11 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
 
     schema = options.response_schema_json()
 
-    history = options.history
-    conversation_history: list[dict[str, Any]] = []
-    if history is not None:
-        conversation_history = [dict(item) for item in history]
-
-    previous_response_id: str | None = None
-    provider_state: dict[str, Any] | None = None
-    if options.continue_from is not None:
-        state = options.continue_from.get("_conversation_state")
-        if not isinstance(state, dict):
-            raise ConfigurationError(
-                "continue_from is missing _conversation_state",
-                hint=(
-                    "Pass a prior Pollux ResultEnvelope produced with conversation "
-                    "support."
-                ),
-            )
-
-        state_history = state.get("history")
-        if history is None and isinstance(state_history, list):
-            conversation_history = [
-                item
-                for item in state_history
-                if isinstance(item, dict) and isinstance(item.get("role"), str)
-            ]
-
-        if history is None:
-            history = conversation_history
-
-        prev = state.get("response_id")
-        previous_response_id = prev if isinstance(prev, str) else None
-        raw_provider_state = state.get("provider_state")
-        if isinstance(raw_provider_state, dict):
-            provider_state = dict(raw_provider_state)
+    continuation = load_continuation(options)
+    history = continuation.history
+    conversation_history = continuation.conversation_history
+    previous_response_id = continuation.previous_response_id
+    provider_state = continuation.provider_state
 
     upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
     upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]] = {}
@@ -196,7 +171,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         if prompt_part is not None
                         else [*shared_parts]
                     )
-                    conversation_user_contents[call_idx] = _history_text_from_parts(
+                    conversation_user_contents[call_idx] = history_text_from_parts(
                         raw_parts
                     )
                     history_msgs: list[Message] | None = None
@@ -206,51 +181,8 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         else None
                     )
                     if history is not None:
-                        history_msgs = []
-                        history_item_states: list[dict[str, Any] | None] = []
-                        has_history_item_states = False
-                        for h in history:
-                            role = h.get("role", "user")
-                            content = h.get("content", "")
-                            tc_id = h.get("tool_call_id")
-                            msg_provider_state = h.get("provider_state")
-                            tcs = None
-                            raw_tcs = h.get("tool_calls")
-                            if isinstance(raw_tcs, list):
-                                tcs = []
-                                for tc in raw_tcs:
-                                    if isinstance(tc, dict):
-                                        raw_args = tc.get("arguments", "")
-                                        args_str = (
-                                            json.dumps(raw_args)
-                                            if isinstance(raw_args, dict)
-                                            else str(raw_args)
-                                        )
-                                        tcs.append(
-                                            ToolCall(
-                                                id=str(tc.get("id", "")),
-                                                name=str(tc.get("name", "")),
-                                                arguments=args_str,
-                                            )
-                                        )
-                            if isinstance(msg_provider_state, dict):
-                                history_item_states.append(dict(msg_provider_state))
-                                has_history_item_states = True
-                            else:
-                                history_item_states.append(None)
-                            history_msgs.append(
-                                Message(
-                                    role=str(role),
-                                    content=content
-                                    if isinstance(content, str)
-                                    else str(content),
-                                    tool_call_id=tc_id
-                                    if isinstance(tc_id, str)
-                                    else None,
-                                    tool_calls=tcs,
-                                )
-                            )
-                        if has_history_item_states:
+                        history_msgs, history_item_states = history_to_messages(history)
+                        if history_item_states is not None:
                             if request_provider_state is None:
                                 request_provider_state = {}
                             request_provider_state["history"] = history_item_states
@@ -349,40 +281,16 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         # Build conversation state when either (a) the caller opted in via
         # history/continue_from, or (b) the response contains tool calls that
         # the caller may need to continue via continue_tool/continue_from.
-        has_tool_calls = bool(responses and responses[0].tool_calls)
-        if (wants_conversation or has_tool_calls) and responses:
-            prompt = (
-                prompts[0]
-                if isinstance(prompts[0], str)
-                else str(prompts[0])
-                if prompts[0] is not None
-                else None
-            )
-            user_content = conversation_user_contents[0] or prompt
-            reply = responses[0].text
-            assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
-            tool_calls = responses[0].tool_calls
-            if tool_calls:
-                assistant_msg["tool_calls"] = [
-                    {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-                    for tc in tool_calls
-                ]
-            provider_msg_state = responses[0].provider_state
-            if isinstance(provider_msg_state, dict):
-                assistant_msg["provider_state"] = provider_msg_state
-
-            updated_history: list[dict[str, Any]] = [*conversation_history]
-            if user_content is not None:
-                updated_history.append({"role": "user", "content": user_content})
-            updated_history.append(assistant_msg)
-            conversation_state = {"history": updated_history}
-            if isinstance(provider_msg_state, dict):
-                conversation_state["provider_state"] = provider_msg_state
-            response_id = responses[0].response_id
-            if isinstance(response_id, str):
-                conversation_state["response_id"] = response_id
-            elif previous_response_id is not None:
-                conversation_state["response_id"] = previous_response_id
+        conversation_state = build_conversation_state(
+            responses,
+            first_prompt=prompts[0] if prompts else None,
+            first_user_content=conversation_user_contents[0]
+            if conversation_user_contents
+            else None,
+            conversation_history=conversation_history,
+            previous_response_id=previous_response_id,
+            wants_conversation=wants_conversation,
+        )
     finally:
         # Clean up uploaded files (best-effort; server-side TTL is the backstop).
         await _cleanup_uploads(upload_cache, provider)
@@ -396,22 +304,6 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         usage=total_usage,
         conversation_state=conversation_state,
     )
-
-
-def _history_text_from_parts(parts: list[Any]) -> str | None:
-    """Return a replayable text history message when all parts are text."""
-    texts: list[str] = []
-    for part in parts:
-        if isinstance(part, str):
-            texts.append(part)
-            continue
-        if isinstance(part, dict):
-            text = part.get("text")
-            if isinstance(text, str):
-                texts.append(text)
-                continue
-        return None
-    return "\n\n".join(texts) if texts else None
 
 
 async def _substitute_upload_parts(
