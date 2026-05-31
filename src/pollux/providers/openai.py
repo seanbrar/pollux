@@ -26,6 +26,7 @@ from pollux.providers.models import (
     ProviderRequest,
     ProviderResponse,
     ToolCall,
+    is_file_part,
     provider_response_to_dict,
 )
 
@@ -619,11 +620,7 @@ class OpenAIProvider:
         self._validate_request_features(request)
         resolved_parts: list[Any] = []
         for part in request.parts:
-            if (
-                isinstance(part, dict)
-                and isinstance(part.get("file_path"), str)
-                and isinstance(part.get("mime_type"), str)
-            ):
+            if is_file_part(part):
                 file_path = part["file_path"]
                 mime_type = part["mime_type"]
                 cache_key = (file_path, mime_type)

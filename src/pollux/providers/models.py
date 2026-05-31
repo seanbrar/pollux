@@ -15,6 +15,19 @@ class ToolCall:
     arguments: str
 
 
+def tool_call_to_dict(tool_call: ToolCall) -> dict[str, Any]:
+    """Serialize a ToolCall to its normalized ``{id, name, arguments}`` dict.
+
+    This is the single owner of the normalized tool-call dict shape shared by
+    diagnostics (``raw_responses``), result envelopes, and conversation state.
+    """
+    return {
+        "id": tool_call.id,
+        "name": tool_call.name,
+        "arguments": tool_call.arguments,
+    }
+
+
 @dataclass(frozen=True)
 class ProviderFileAsset:
     """A formally tracked remote file asset returned by upload_file."""
@@ -58,6 +71,20 @@ class ProviderRequest:
     implicit_caching: bool = False
 
 
+def is_file_part(part: Any) -> bool:
+    """Return True if *part* is a local-file placeholder awaiting upload.
+
+    File placeholders are built during planning and resolved to provider assets
+    during execution and deferred submission. This predicate is the single
+    definition of that ``ProviderRequest.parts`` shape.
+    """
+    return (
+        isinstance(part, dict)
+        and isinstance(part.get("file_path"), str)
+        and isinstance(part.get("mime_type"), str)
+    )
+
+
 @dataclass
 class ProviderResponse:
     """A standardized response from a provider generation call."""
@@ -85,10 +112,7 @@ def provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
     if response.structured is not None:
         payload["structured"] = response.structured
     if response.tool_calls is not None:
-        payload["tool_calls"] = [
-            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-            for tc in response.tool_calls
-        ]
+        payload["tool_calls"] = [tool_call_to_dict(tc) for tc in response.tool_calls]
     if response.response_id is not None:
         payload["response_id"] = response.response_id
     if response.finish_reason is not None:
