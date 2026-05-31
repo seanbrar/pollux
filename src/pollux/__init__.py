@@ -43,6 +43,7 @@ from pollux.errors import (
 from pollux.execute import execute_plan
 from pollux.options import Options
 from pollux.plan import build_plan
+from pollux.providers.base import CloseableProvider
 from pollux.request import normalize_request
 from pollux.result import ResultEnvelope, build_result
 from pollux.retry import RetryPolicy
@@ -306,10 +307,9 @@ async def create_cache(
 
 async def _close_provider(provider: Provider) -> None:
     """Close provider resources without masking primary errors."""
-    aclose = getattr(provider, "aclose", None)
-    if callable(aclose):
+    if isinstance(provider, CloseableProvider):
         try:
-            await aclose()
+            await provider.aclose()
         except asyncio.CancelledError:
             raise
         except Exception as exc:

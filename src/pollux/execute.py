@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
-from pollux.providers.base import ValidatingProvider
+from pollux.providers.base import FileDeletingProvider, ValidatingProvider
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
@@ -561,8 +561,7 @@ async def _cleanup_uploads(
     OpenAI). Failures are logged but never raised—the server-side TTL is the
     backstop.
     """
-    delete_fn = getattr(provider, "delete_file", None)
-    if delete_fn is None or not callable(delete_fn):
+    if not isinstance(provider, FileDeletingProvider):
         return
 
     file_ids: list[str] = []
@@ -572,7 +571,7 @@ async def _cleanup_uploads(
 
     for file_id in file_ids:
         try:
-            await delete_fn(file_id)
+            await provider.delete_file(file_id)
             logger.debug("Deleted uploaded file: %s", file_id)
         except Exception as exc:
             logger.debug("Failed to delete uploaded file %s: %s", file_id, exc)
