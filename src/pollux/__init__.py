@@ -16,11 +16,18 @@ Public API:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from pollux.cache import CacheHandle
-from pollux.config import Config, ProviderName, resolve_api_key
+from pollux.config import (
+    _API_KEY_ENV_VARS,
+    _LOCAL_BASE_URL_ENV_VAR,
+    Config,
+    ProviderName,
+    resolve_api_key,
+)
 from pollux.deferred import (
     DeferredHandle,
     DeferredSnapshot,
@@ -43,13 +50,14 @@ from pollux.errors import (
 from pollux.execute import execute_plan
 from pollux.options import Options
 from pollux.plan import build_plan
+from pollux.providers.base import CloseableProvider
 from pollux.request import normalize_request
 from pollux.result import ResultEnvelope, build_result
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from pollux.providers.base import Provider
 
@@ -306,14 +314,70 @@ async def create_cache(
 
 async def _close_provider(provider: Provider) -> None:
     """Close provider resources without masking primary errors."""
-    aclose = getattr(provider, "aclose", None)
-    if callable(aclose):
+    if isinstance(provider, CloseableProvider):
         try:
-            await aclose()
+            await provider.aclose()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.warning("Provider cleanup failed: %s", exc)
+
+
+@dataclass(frozen=True)
+class _ProviderSpec:
+    """Registry entry describing how to build and use a provider.
+
+    ``build`` performs a lazy import so provider SDKs stay un-imported until the
+    provider is actually instantiated.
+    """
+
+    build: Callable[[str | None, str | None], Provider]
+    requires_api_key: bool = True
+    requires_base_url: bool = False
+    supports_deferred: bool = False
+
+
+def _build_gemini(api_key: str | None, _base_url: str | None) -> Provider:
+    from pollux.providers.gemini import GeminiProvider
+
+    return GeminiProvider(cast("str", api_key))
+
+
+def _build_openai(api_key: str | None, _base_url: str | None) -> Provider:
+    from pollux.providers.openai import OpenAIProvider
+
+    return OpenAIProvider(cast("str", api_key))
+
+
+def _build_anthropic(api_key: str | None, _base_url: str | None) -> Provider:
+    from pollux.providers.anthropic import AnthropicProvider
+
+    return AnthropicProvider(cast("str", api_key))
+
+
+def _build_openrouter(api_key: str | None, _base_url: str | None) -> Provider:
+    from pollux.providers.openrouter import OpenRouterProvider
+
+    return OpenRouterProvider(cast("str", api_key))
+
+
+def _build_local(api_key: str | None, base_url: str | None) -> Provider:
+    from pollux.providers.local import LocalProvider
+
+    return LocalProvider(base_url=cast("str", base_url), api_key=api_key)
+
+
+# Single source of truth for provider construction and lifecycle traits.
+# Keep keys aligned with config.ProviderName.
+_PROVIDER_REGISTRY: dict[str, _ProviderSpec] = {
+    "gemini": _ProviderSpec(build=_build_gemini, supports_deferred=True),
+    "openai": _ProviderSpec(build=_build_openai, supports_deferred=True),
+    "anthropic": _ProviderSpec(build=_build_anthropic, supports_deferred=True),
+    "openrouter": _ProviderSpec(build=_build_openrouter, supports_deferred=True),
+    "local": _ProviderSpec(
+        build=_build_local, requires_api_key=False, requires_base_url=True
+    ),
+}
 
 
 def _create_provider(
@@ -329,56 +393,32 @@ def _create_provider(
 
         return MockProvider()
 
-    if provider == "local":
-        from pollux.providers.local import LocalProvider
+    spec = _PROVIDER_REGISTRY.get(provider)
+    if spec is None:
+        raise ConfigurationError(
+            f"Unknown provider: {provider!r}",
+            hint="Supported providers: "
+            + ", ".join(repr(name) for name in _PROVIDER_REGISTRY),
+        )
 
-        if not base_url:
-            raise ConfigurationError(
-                "base_url required for provider='local'",
-                hint=(
-                    "Pass base_url='http://localhost:...' or set POLLUX_LOCAL_BASE_URL."
-                ),
-            )
-        return LocalProvider(base_url=base_url, api_key=api_key)
-
-    if provider == "openai":
-        from pollux.providers.openai import OpenAIProvider
-
-        if not api_key:
-            raise ConfigurationError(
-                "api_key required for real API",
-                hint="Set OPENAI_API_KEY or pass Config(api_key=...).",
-            )
-        return OpenAIProvider(api_key)
-
-    if provider == "anthropic":
-        from pollux.providers.anthropic import AnthropicProvider
-
-        if not api_key:
-            raise ConfigurationError(
-                "api_key required for real API",
-                hint="Set ANTHROPIC_API_KEY or pass Config(api_key=...).",
-            )
-        return AnthropicProvider(api_key)
-
-    if provider == "openrouter":
-        from pollux.providers.openrouter import OpenRouterProvider
-
-        if not api_key:
-            raise ConfigurationError(
-                "api_key required for real API",
-                hint="Set OPENROUTER_API_KEY or pass Config(api_key=...).",
-            )
-        return OpenRouterProvider(api_key)
-
-    from pollux.providers.gemini import GeminiProvider
-
-    if not api_key:
+    if spec.requires_base_url and not base_url:
+        raise ConfigurationError(
+            f"base_url required for provider={provider!r}",
+            hint=(
+                "Pass base_url='http://localhost:...' or set "
+                f"{_LOCAL_BASE_URL_ENV_VAR}."
+            ),
+        )
+    if spec.requires_api_key and not api_key:
+        env_var = _API_KEY_ENV_VARS.get(
+            cast("ProviderName", provider), "the provider API key"
+        )
         raise ConfigurationError(
             "api_key required for real API",
-            hint="Set GEMINI_API_KEY or pass Config(api_key=...).",
+            hint=f"Set {env_var} or pass Config(api_key=...).",
         )
-    return GeminiProvider(api_key)
+
+    return spec.build(api_key, base_url)
 
 
 def _get_provider(config: Config) -> Provider:
@@ -393,7 +433,8 @@ def _get_provider(config: Config) -> Provider:
 
 def _resolve_deferred_provider(handle: DeferredHandle) -> Provider:
     """Resolve a provider client for deferred lifecycle calls from the handle."""
-    if handle.provider not in {"gemini", "openai", "anthropic", "openrouter"}:
+    spec = _PROVIDER_REGISTRY.get(handle.provider)
+    if spec is None or not spec.supports_deferred:
         raise ConfigurationError(
             f"Unknown provider on deferred handle: {handle.provider!r}",
             hint="Persist Pollux DeferredHandle values without modifying their provider field.",

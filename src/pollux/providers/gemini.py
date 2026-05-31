@@ -28,6 +28,7 @@ from pollux.providers.models import (
     ProviderRequest,
     ProviderResponse,
     ToolCall,
+    provider_response_to_dict,
 )
 
 logger = logging.getLogger(__name__)
@@ -897,7 +898,7 @@ class GeminiProvider:
                 ProviderDeferredItem(
                     request_id=request_id,
                     status="succeeded",
-                    response=_provider_response_to_dict(parsed),
+                    response=provider_response_to_dict(parsed),
                     provider_status="succeeded",
                     finish_reason=parsed.finish_reason,
                 )
@@ -942,7 +943,7 @@ class GeminiProvider:
                 ProviderDeferredItem(
                     request_id=request_id,
                     status="succeeded",
-                    response=_provider_response_to_dict(parsed),
+                    response=provider_response_to_dict(parsed),
                     provider_status="succeeded",
                     finish_reason=parsed.finish_reason,
                 )
@@ -1365,25 +1366,6 @@ def _job_error_code(error: Any) -> str | None:
     if isinstance(code, str) and code:
         return code
     return None
-
-
-def _provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
-    """Convert ProviderResponse into the normalized deferred response shape."""
-    payload: dict[str, Any] = {"text": response.text, "usage": response.usage}
-    if response.reasoning is not None:
-        payload["reasoning"] = response.reasoning
-    if response.structured is not None:
-        payload["structured"] = response.structured
-    if response.tool_calls is not None:
-        payload["tool_calls"] = [
-            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-            for tc in response.tool_calls
-        ]
-    if response.response_id is not None:
-        payload["response_id"] = response.response_id
-    if response.finish_reason is not None:
-        payload["finish_reason"] = response.finish_reason
-    return payload
 
 
 def _batch_level_item_status(raw_state: str) -> DeferredItemStatus | None:

@@ -102,6 +102,24 @@ class Provider(Protocol):
 
 
 @runtime_checkable
+class CloseableProvider(Protocol):
+    """Optional provider hook for releasing transport resources."""
+
+    async def aclose(self) -> None:
+        """Close client resources (HTTP clients, sessions)."""
+        ...
+
+
+@runtime_checkable
+class FileDeletingProvider(Protocol):
+    """Optional provider hook for deleting provider-managed uploaded files."""
+
+    async def delete_file(self, file_id: str) -> None:
+        """Delete a previously uploaded file by its provider id."""
+        ...
+
+
+@runtime_checkable
 class ValidatingProvider(Protocol):
     """Optional provider hook for request validation before side effects."""
 
