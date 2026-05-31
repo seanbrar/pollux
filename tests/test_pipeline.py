@@ -1123,6 +1123,55 @@ async def test_cached_context_rejects_sources(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("conflict_options", "expected_match"),
+    [
+        ({"system_instruction": "Be brief."}, "system_instruction cannot be used"),
+        (
+            {
+                "tools": [
+                    {
+                        "name": "f",
+                        "description": "d",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                ]
+            },
+            "tools cannot be used",
+        ),
+        ({"tool_choice": "auto"}, "tool_choice cannot be used"),
+    ],
+)
+async def test_cached_context_rejects_conflicting_options(
+    monkeypatch: pytest.MonkeyPatch,
+    conflict_options: dict[str, Any],
+    expected_match: str,
+) -> None:
+    """A cache handle conflicts with options the cache already bakes in."""
+    import time
+
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+
+    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+    handle = CacheHandle(
+        name="cachedContents/test",
+        model=CACHE_MODEL,
+        provider="gemini",
+        expires_at=time.time() + 3600,
+    )
+
+    with pytest.raises(ConfigurationError, match=expected_match):
+        await pollux.run(
+            "prompt",
+            config=cfg,
+            options=Options(cache=handle, **conflict_options),
+        )
+
+    assert fake.last_parts is None
+
+
+@pytest.mark.asyncio
 async def test_options_cache_requires_persistent_cache_capability(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

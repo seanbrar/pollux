@@ -109,6 +109,11 @@ class DeferredSnapshot:
 
 
 def _get_deferred_provider(provider: Provider) -> DeferredProvider:
+    # Two distinct instance-level gates (see also the pre-instantiation registry
+    # gate in __init__._resolve_deferred_provider):
+    #  - the capability flag is the user-facing "not supported" contract;
+    #  - the protocol check verifies the declaration matches the implementation,
+    #    so a flag set without the lifecycle methods is a programming error.
     if not provider.capabilities.deferred_delivery:
         raise ConfigurationError(
             "Provider does not support deferred delivery",

@@ -446,6 +446,11 @@ def _get_provider(config: Config) -> Provider:
 
 def _resolve_deferred_provider(handle: DeferredHandle) -> Provider:
     """Resolve a provider client for deferred lifecycle calls from the handle."""
+    # Gate on the registry flag, not provider.capabilities.deferred_delivery:
+    # this runs before instantiation, keyed only by the persisted provider name.
+    # A handle carries no base_url, so e.g. ``local`` cannot even be built to
+    # inspect its capabilities. The registry flag is the pre-instantiation gate;
+    # deferred.py applies the instance-level capability + protocol checks.
     spec = _PROVIDER_REGISTRY.get(handle.provider)
     if spec is None or not spec.supports_deferred:
         raise ConfigurationError(

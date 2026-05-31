@@ -372,9 +372,6 @@ async def _substitute_upload_parts(
     return resolved
 
 
-_OPENAI_FILE_PREFIX = "openai://file/"
-
-
 async def _cleanup_uploads(
     upload_cache: dict[tuple[str, str], ProviderFileAsset],
     provider: Provider,
