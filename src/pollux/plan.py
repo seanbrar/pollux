@@ -61,38 +61,36 @@ def build_plan(request: Request) -> Plan:
                     "with the same model."
                 ),
             )
-        if request.options.system_instruction is not None:
-            raise ConfigurationError(
+        # Inputs that conflict with a cache handle because the cache already
+        # bakes in this context. Each row: (conflicting, message, hint). Order is
+        # preserved so callers see a deterministic first failure.
+        conflict_checks: tuple[tuple[bool, str, str], ...] = (
+            (
+                request.options.system_instruction is not None,
                 "system_instruction cannot be used with a cache handle",
-                hint=(
-                    "Bake the system instruction into create_cache() instead, "
-                    "or remove the cache handle."
-                ),
-            )
-        if request.options.tools is not None:
-            raise ConfigurationError(
+                "Bake the system instruction into create_cache() instead, "
+                "or remove the cache handle.",
+            ),
+            (
+                request.options.tools is not None,
                 "tools cannot be used with a cache handle",
-                hint=(
-                    "Bake tools into create_cache() instead, "
-                    "or remove the cache handle."
-                ),
-            )
-        if request.options.tool_choice is not None:
-            raise ConfigurationError(
+                "Bake tools into create_cache() instead, or remove the cache handle.",
+            ),
+            (
+                request.options.tool_choice is not None,
                 "tool_choice cannot be used with a cache handle",
-                hint=(
-                    "Remove tool_choice when using a cache handle, "
-                    "or remove the cache handle."
-                ),
-            )
-        if shared_parts:
-            raise ConfigurationError(
+                "Remove tool_choice when using a cache handle, "
+                "or remove the cache handle.",
+            ),
+            (
+                bool(shared_parts),
                 "sources cannot be used with a cache handle",
-                hint=(
-                    "Bake sources into create_cache() instead, "
-                    "or remove the cache handle."
-                ),
-            )
+                "Bake sources into create_cache() instead, or remove the cache handle.",
+            ),
+        )
+        for conflicting, message, hint in conflict_checks:
+            if conflicting:
+                raise ConfigurationError(message, hint=hint)
         cache_name = cache.name
 
     return Plan(
