@@ -18,6 +18,7 @@ from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderRequest,
+    ProviderResponse,
     ToolCall,
 )
 from pollux.retry import (
@@ -71,7 +72,7 @@ def _with_call_idx(err: APIError, call_idx: int | None) -> APIError:
 class ExecutionTrace:
     """Trace of execution with responses and metrics."""
 
-    responses: list[dict[str, Any]] = field(default_factory=list)
+    responses: list[ProviderResponse] = field(default_factory=list)
     cache_name: str | None = None
     duration_s: float = 0.0
     usage: dict[str, int] = field(default_factory=dict)
@@ -159,7 +160,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
     upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]] = {}
     upload_lock = asyncio.Lock()
     retry_policy = config.retry
-    responses: list[dict[str, Any]] = []
+    responses: list[ProviderResponse] = []
     implicit_caching = (
         options.implicit_caching
         if options.implicit_caching is not None
@@ -182,7 +183,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             cache_name or "disabled",
         )
 
-        async def _execute_call(call_idx: int) -> dict[str, Any]:
+        async def _execute_call(call_idx: int) -> ProviderResponse:
             async with sem:
                 try:
                     # Build parts: shared context + prompt
@@ -292,23 +293,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                             should_retry=should_retry_generate,
                         )
 
-                    out: dict[str, Any] = {"text": resp.text, "usage": resp.usage}
-                    if resp.reasoning is not None:
-                        out["reasoning"] = resp.reasoning
-                    if resp.structured is not None:
-                        out["structured"] = resp.structured
-                    if resp.tool_calls is not None:
-                        out["tool_calls"] = [
-                            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-                            for tc in resp.tool_calls
-                        ]
-                    if resp.response_id is not None:
-                        out["response_id"] = resp.response_id
-                    if resp.finish_reason is not None:
-                        out["finish_reason"] = resp.finish_reason
-                    if resp.provider_state is not None:
-                        out["provider_state"] = resp.provider_state
-                    return out
+                    return resp
 
                 except asyncio.CancelledError:
                     raise
@@ -348,24 +333,23 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                 raise item
 
         for item in results:
-            if not isinstance(item, dict):
+            if not isinstance(item, ProviderResponse):
                 raise InternalError(
                     f"Provider returned invalid response type: {type(item).__name__}",
-                    hint="Providers must return dict payloads with at least a 'text' field.",
+                    hint="Providers must return a ProviderResponse.",
                 )
             responses.append(item)
 
         # Aggregate usage
         for resp in responses:
-            usage = resp.get("usage", {})
-            for k, v in usage.items():
+            for k, v in resp.usage.items():
                 if isinstance(v, int):
                     total_usage[k] = total_usage.get(k, 0) + v
 
         # Build conversation state when either (a) the caller opted in via
         # history/continue_from, or (b) the response contains tool calls that
         # the caller may need to continue via continue_tool/continue_from.
-        has_tool_calls = bool(responses and responses[0].get("tool_calls"))
+        has_tool_calls = bool(responses and responses[0].tool_calls)
         if (wants_conversation or has_tool_calls) and responses:
             prompt = (
                 prompts[0]
@@ -375,13 +359,15 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                 else None
             )
             user_content = conversation_user_contents[0] or prompt
-            answer = responses[0].get("text")
-            reply = answer if isinstance(answer, str) else ""
+            reply = responses[0].text
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": reply}
-            tool_calls = responses[0].get("tool_calls")
+            tool_calls = responses[0].tool_calls
             if tool_calls:
-                assistant_msg["tool_calls"] = tool_calls
-            provider_msg_state = responses[0].get("provider_state")
+                assistant_msg["tool_calls"] = [
+                    {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                    for tc in tool_calls
+                ]
+            provider_msg_state = responses[0].provider_state
             if isinstance(provider_msg_state, dict):
                 assistant_msg["provider_state"] = provider_msg_state
 
@@ -392,7 +378,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             conversation_state = {"history": updated_history}
             if isinstance(provider_msg_state, dict):
                 conversation_state["provider_state"] = provider_msg_state
-            response_id = responses[0].get("response_id")
+            response_id = responses[0].response_id
             if isinstance(response_id, str):
                 conversation_state["response_id"] = response_id
             elif previous_response_id is not None:

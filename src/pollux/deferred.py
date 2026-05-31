@@ -19,7 +19,7 @@ from pollux.providers.base import (
     ProviderDeferredSnapshot,
     ValidatingProvider,
 )
-from pollux.providers.models import ProviderRequest
+from pollux.providers.models import ProviderRequest, ProviderResponse, ToolCall
 from pollux.result import build_result_from_responses
 
 if TYPE_CHECKING:
@@ -324,36 +324,47 @@ def _validate_collect_schema(
         )
 
 
-def _aggregate_usage(responses: list[dict[str, Any]]) -> dict[str, int]:
+def _aggregate_usage(responses: list[ProviderResponse]) -> dict[str, int]:
     total_usage: dict[str, int] = {}
     for response in responses:
-        usage = response.get("usage", {})
-        if not isinstance(usage, dict):
-            continue
-        for key, value in usage.items():
+        for key, value in response.usage.items():
             if isinstance(value, int):
                 total_usage[key] = total_usage.get(key, 0) + value
     return total_usage
 
 
-def _response_from_item(item: ProviderDeferredItem) -> dict[str, Any]:
+def _response_from_item(item: ProviderDeferredItem) -> ProviderResponse:
     if item.status != "succeeded":
-        response: dict[str, Any] = {"text": "", "usage": {}}
-        if item.finish_reason is not None:
-            response["finish_reason"] = item.finish_reason
-        return response
+        return ProviderResponse(text="", usage={}, finish_reason=item.finish_reason)
     if item.response is None:
         raise InternalError(
             f"Deferred item {item.request_id!r} succeeded without a response payload",
             hint="Deferred providers must return a response for succeeded items.",
         )
-    response = dict(item.response)
-    response.setdefault("text", "")
-    if "usage" not in response or not isinstance(response["usage"], dict):
-        response["usage"] = {}
-    if item.finish_reason is not None:
-        response.setdefault("finish_reason", item.finish_reason)
-    return response
+    payload = item.response
+    raw_text = payload.get("text", "")
+    raw_usage = payload.get("usage")
+    raw_tool_calls = payload.get("tool_calls")
+    tool_calls: list[ToolCall] | None = None
+    if isinstance(raw_tool_calls, list):
+        tool_calls = [
+            ToolCall(
+                id=str(tc.get("id", "")),
+                name=str(tc.get("name", "")),
+                arguments=str(tc.get("arguments", "")),
+            )
+            for tc in raw_tool_calls
+            if isinstance(tc, dict)
+        ]
+    return ProviderResponse(
+        text=raw_text if isinstance(raw_text, str) else "",
+        usage=raw_usage if isinstance(raw_usage, dict) else {},
+        reasoning=payload.get("reasoning"),
+        structured=payload.get("structured"),
+        tool_calls=tool_calls,
+        response_id=payload.get("response_id"),
+        finish_reason=payload.get("finish_reason", item.finish_reason),
+    )
 
 
 async def collect_deferred_handle(
@@ -384,7 +395,7 @@ async def collect_deferred_handle(
         items_by_id[item.request_id] = item
 
     request_ids = _request_ids(handle.request_count)
-    responses: list[dict[str, Any]] = []
+    responses: list[ProviderResponse] = []
     deferred_items: list[dict[str, Any]] = []
     for request_id in request_ids:
         collected_item = items_by_id.get(request_id)
@@ -418,9 +429,9 @@ async def collect_deferred_handle(
     # When no schema was provided at collect time but providers returned
     # structured payloads, surface them as plain dicts.
     if response_schema is None and any(
-        "structured" in response for response in responses
+        response.structured is not None for response in responses
     ):
-        result["structured"] = [response.get("structured") for response in responses]
+        result["structured"] = [response.structured for response in responses]
 
     result["metrics"]["deferred"] = True
     result["diagnostics"]["deferred"] = {

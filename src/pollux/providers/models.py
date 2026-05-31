@@ -70,3 +70,29 @@ class ProviderResponse:
     response_id: str | None = None
     finish_reason: str | None = None
     provider_state: dict[str, Any] | None = None
+
+
+def provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
+    """Flatten a ProviderResponse into the normalized response dict shape.
+
+    This is the single serialization form shared by execution diagnostics
+    (``raw_responses``) and deferred item payloads. Optional facets are omitted
+    when unset so the dict stays compact.
+    """
+    payload: dict[str, Any] = {"text": response.text, "usage": response.usage}
+    if response.reasoning is not None:
+        payload["reasoning"] = response.reasoning
+    if response.structured is not None:
+        payload["structured"] = response.structured
+    if response.tool_calls is not None:
+        payload["tool_calls"] = [
+            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+            for tc in response.tool_calls
+        ]
+    if response.response_id is not None:
+        payload["response_id"] = response.response_id
+    if response.finish_reason is not None:
+        payload["finish_reason"] = response.finish_reason
+    if response.provider_state is not None:
+        payload["provider_state"] = response.provider_state
+    return payload
