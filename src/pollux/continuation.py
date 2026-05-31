@@ -4,6 +4,7 @@ Pollux 1.x carries continuation state as a dict under the private
 ``_conversation_state`` key of a ``ResultEnvelope``. This module owns the full
 surface of that mechanism:
 
+- :class:`ConversationState` owns the serialized ``_conversation_state`` shape.
 - :func:`load_continuation` resolves prior-turn state from ``continue_from``.
 - :func:`history_to_messages` translates history dicts into provider messages.
 - :func:`build_conversation_state` assembles the updated state after a response.
@@ -16,14 +17,73 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pollux.errors import ConfigurationError
 from pollux.providers.models import Message, ToolCall, tool_call_to_dict
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from pollux.options import Options
     from pollux.providers.models import ProviderResponse
+
+
+@dataclass(frozen=True)
+class ConversationState:
+    """Serialized state stored under a ResultEnvelope's ``_conversation_state`` key.
+
+    This is the single owner of that dict shape: the magic keys (``history``,
+    ``response_id``, ``provider_state``) and the envelope key itself live here
+    rather than as string literals across the read, write, and continue paths.
+    It is distinct from :class:`ContinuationState`, which is the *resolved*
+    prior-turn working state derived from this serialized form.
+    """
+
+    #: Envelope key under which this state is stored in a ``ResultEnvelope``.
+    ENVELOPE_KEY: ClassVar[str] = "_conversation_state"
+
+    history: list[dict[str, Any]]
+    response_id: str | None = None
+    provider_state: dict[str, Any] | None = None
+
+    @classmethod
+    def from_envelope(cls, envelope: Mapping[str, Any]) -> ConversationState | None:
+        """Parse from a ResultEnvelope, or ``None`` when the key is absent/invalid."""
+        state = envelope.get(cls.ENVELOPE_KEY)
+        if not isinstance(state, dict):
+            return None
+        return cls.from_state_dict(state)
+
+    @classmethod
+    def from_state_dict(cls, state: Mapping[str, Any]) -> ConversationState:
+        """Parse a serialized state dict, type-guarding each facet."""
+        raw_history = state.get("history")
+        history = list(raw_history) if isinstance(raw_history, list) else []
+        raw_response_id = state.get("response_id")
+        response_id = raw_response_id if isinstance(raw_response_id, str) else None
+        raw_provider_state = state.get("provider_state")
+        provider_state = (
+            dict(raw_provider_state) if isinstance(raw_provider_state, dict) else None
+        )
+        return cls(
+            history=history,
+            response_id=response_id,
+            provider_state=provider_state,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to the ``_conversation_state`` dict shape.
+
+        Optional facets are omitted when unset so the shape stays compact and
+        matches what ``build_conversation_state`` has always produced.
+        """
+        state: dict[str, Any] = {"history": self.history}
+        if self.provider_state is not None:
+            state["provider_state"] = self.provider_state
+        if self.response_id is not None:
+            state["response_id"] = self.response_id
+        return state
 
 
 @dataclass(frozen=True)
@@ -51,8 +111,8 @@ def load_continuation(options: Options) -> ContinuationState:
     previous_response_id: str | None = None
     provider_state: dict[str, Any] | None = None
     if options.continue_from is not None:
-        state = options.continue_from.get("_conversation_state")
-        if not isinstance(state, dict):
+        state = ConversationState.from_envelope(options.continue_from)
+        if state is None:
             raise ConfigurationError(
                 "continue_from is missing _conversation_state",
                 hint=(
@@ -61,22 +121,16 @@ def load_continuation(options: Options) -> ContinuationState:
                 ),
             )
 
-        state_history = state.get("history")
-        if history is None and isinstance(state_history, list):
+        if history is None:
             conversation_history = [
                 item
-                for item in state_history
+                for item in state.history
                 if isinstance(item, dict) and isinstance(item.get("role"), str)
             ]
-
-        if history is None:
             history = conversation_history
 
-        prev = state.get("response_id")
-        previous_response_id = prev if isinstance(prev, str) else None
-        raw_provider_state = state.get("provider_state")
-        if isinstance(raw_provider_state, dict):
-            provider_state = dict(raw_provider_state)
+        previous_response_id = state.response_id
+        provider_state = state.provider_state
 
     return ContinuationState(
         history=history,
@@ -197,12 +251,13 @@ def build_conversation_state(
         updated_history.append({"role": "user", "content": user_content})
     updated_history.append(assistant_msg)
 
-    conversation_state: dict[str, Any] = {"history": updated_history}
-    if isinstance(provider_msg_state, dict):
-        conversation_state["provider_state"] = provider_msg_state
     response_id = responses[0].response_id
-    if isinstance(response_id, str):
-        conversation_state["response_id"] = response_id
-    elif previous_response_id is not None:
-        conversation_state["response_id"] = previous_response_id
-    return conversation_state
+    return ConversationState(
+        history=updated_history,
+        response_id=response_id
+        if isinstance(response_id, str)
+        else previous_response_id,
+        provider_state=(
+            provider_msg_state if isinstance(provider_msg_state, dict) else None
+        ),
+    ).to_dict()
