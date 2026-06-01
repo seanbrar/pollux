@@ -216,13 +216,16 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 |---|---|---|
 | One question, optional source | `run()` | Smallest surface area |
 | Multiple questions on shared source(s) | `run_many()` | Fan-out efficiency |
-| Same question across many sources | `run_many()` | Fan-in analysis |
-| Many questions across many sources | `run_many()` | Broadcast pattern |
+| Same question across shared sources | `run_many()` | Fan-in analysis |
+| Many questions against the same shared source set | `run_many()` | Fan-out over a combined context |
+| Many questions per file in a collection | Outer loop + `run_many()` | Broadcast pattern; see [Source Patterns](source-patterns.md) |
 | Non-urgent work you will collect later | `defer()` / `defer_many()` | Background provider execution with a serializable handle |
 | Returning tool results to the model | `continue_tool()` | Feeds tool outputs back into the conversation |
 
-Rule of thumb: if prompts or sources are plural and you want answers now, reach
-for `run_many()`. If the workload can wait, reach for `defer_many()`.
+Rule of thumb: if prompts or sources are plural and every prompt should receive
+the same shared context, reach for `run_many()`. If you need one result record
+per file, write the outer file loop yourself and call `run_many()` inside it.
+If the workload can wait, reach for `defer_many()`.
 
 `continue_tool()` is a specialized entry point for agent loops. It takes a
 previous `ResultEnvelope` containing tool calls and your tool results, and

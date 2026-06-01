@@ -140,7 +140,12 @@ py -m cookbook production.resume_on_failure --limit 1
 
 ## Recipe Catalog
 
-Most recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-key` flags. Start in `--mock` to validate flow, switch to `--no-mock` when prompts are stable. `run-against-local-model` is the deliberate exception: it fixes `provider="local"` and exposes `--base-url` instead of `--provider`.
+Most recipes support `--mock / --no-mock`, `--provider`, `--model`, and
+`--api-key` flags. Start in `--mock` to validate flow, switch to `--no-mock`
+when prompts are stable. If `--model` is omitted, the cookbook chooses a
+provider-aware starter model. `run-against-local-model` is the deliberate
+exception: it fixes `provider="local"` and exposes `--base-url` instead of
+`--provider`.
 
 | Recipe | Spec | Use it when you want to... | Learn the concept in docs |
 |---|---|---|---|
@@ -157,8 +162,8 @@ Most recipes support `--mock / --no-mock`, `--provider`, `--model`, and `--api-k
 | Run vs RunMany | `optimization/run-vs-run-many` | compare prompt loops against one `run_many()` call | [Analyzing Collections with Source Patterns](../source-patterns.md) |
 | Cache Warming and TTL | `optimization/cache-warming-and-ttl` | measure cache reuse and choose a TTL for repeated prompts | [Reducing Costs with Context Caching](../caching.md) |
 | Large-Scale Fan-Out | `optimization/large-scale-fan-out` | fan out per-file work with bounded client-side concurrency | [Analyzing Collections with Source Patterns](../source-patterns.md) |
-| Comparative Analysis | `research-workflows/comparative-analysis` | compare two sources and emit structured JSON output | [Analyzing Collections with Source Patterns](../source-patterns.md) |
-| Multi-Video Synthesis | `research-workflows/multi-video-synthesis` | synthesize themes across multiple video sources | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Comparative Analysis | `research-workflows/comparative-analysis` | turn two sources into a structured comparison brief | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Multi-Video Synthesis | `research-workflows/multi-video-synthesis` | synthesize a source-attributed brief across YouTube videos (or local files) | [Analyzing Collections with Source Patterns](../source-patterns.md) |
 | Rate Limits and Concurrency | `production/rate-limits-and-concurrency` | tune concurrency without overrunning provider limits | [Configuring Pollux](../configuration.md) |
 | Resume on Failure | `production/resume-on-failure` | checkpoint long-running work and resume failed items | [Handling Errors and Recovery](../error-handling.md) |
 

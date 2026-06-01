@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
-"""Recipe: Compare two sources with structured JSON output.
+"""Recipe: Turn two sources into a structured comparison brief.
 
 Problem:
-    You need side-by-side similarities and differences across documents.
+    You need a decision-ready brief that compares two documents without
+    hand-parsing model prose.
 
 Pattern:
-    - Request strict JSON from the model.
-    - Parse defensively.
-    - Print a compact decision-ready summary.
+    - Send both sources as shared context.
+    - Use a Pydantic response schema for the comparison artifact.
+    - Print the strongest differences and follow-up questions.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import BaseModel, Field
+
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR
-from cookbook.utils.json_tools import coerce_json
 from cookbook.utils.presentation import (
     print_excerpt,
     print_header,
@@ -30,50 +31,71 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, run_many
+from pollux import Config, Options, Source, run_many
 
 PROMPT = (
-    "Return application/json only with keys: similarities (list), differences (list), "
-    "strengths (list), weaknesses (list)."
+    "Compare these sources for a project lead deciding what to do next. "
+    "Focus on concrete overlaps, disagreements, strengths, weaknesses, and "
+    "follow-up questions that would change the decision."
 )
 
 
-@dataclass
-class Comparison:
-    similarities: list[str]
-    differences: list[str]
-    strengths: list[str]
-    weaknesses: list[str]
+class ComparisonBrief(BaseModel):
+    title: str = Field(description="Short title for the comparison brief.")
+    similarities: list[str] = Field(description="Concrete overlaps between sources.")
+    differences: list[str] = Field(description="Important disagreements or contrasts.")
+    source_a_strengths: list[str] = Field(
+        description="Where the first source is stronger."
+    )
+    source_b_strengths: list[str] = Field(
+        description="Where the second source is stronger."
+    )
+    follow_up_questions: list[str] = Field(
+        description="Questions worth answering before making a decision."
+    )
 
 
-def parse_comparison(raw: str) -> Comparison | None:
-    """Parse robust JSON model output into comparison object."""
-    data = coerce_json(raw)
-    if not isinstance(data, dict):
-        return None
-
-    def as_list(name: str) -> list[str]:
-        value = data.get(name, [])
-        if not isinstance(value, list):
-            return []
-        return [str(item) for item in value]
-
-    return Comparison(
-        similarities=as_list("similarities"),
-        differences=as_list("differences"),
-        strengths=as_list("strengths"),
-        weaknesses=as_list("weaknesses"),
+def mock_brief(paths: list[Path]) -> ComparisonBrief:
+    """Return a deterministic artifact preview for mock mode."""
+    left = paths[0].stem if paths else "source-a"
+    right = paths[1].stem if len(paths) > 1 else "source-b"
+    return ComparisonBrief(
+        title=f"{left} vs {right}",
+        similarities=[
+            "Both sources discuss the same project space and can be compared side by side.",
+            "Both need source-labeled evidence before a project lead should act.",
+        ],
+        differences=[
+            f"{left} should be checked for claims that are absent from {right}.",
+            f"{right} may contain constraints or caveats missing from {left}.",
+        ],
+        source_a_strengths=[f"{left} can anchor the first half of the brief."],
+        source_b_strengths=[f"{right} can supply contrast and missing context."],
+        follow_up_questions=[
+            "Which difference would change the next implementation decision?",
+        ],
     )
 
 
 async def main_async(paths: list[Path], *, config: Config) -> None:
     sources = [Source.from_file(path) for path in paths]
-    envelope = await run_many([PROMPT], sources=sources, config=config)
+    if config.use_mock:
+        # Exercise one real pipeline call, then render a deterministic artifact:
+        # the mock provider does not produce structured output.
+        envelope = await run_many([PROMPT], sources=sources, config=config)
+        brief: ComparisonBrief | None = mock_brief(paths)
+    else:
+        options = Options(response_schema=ComparisonBrief)
+        envelope = await run_many(
+            [PROMPT], sources=sources, config=config, options=options
+        )
+        structured = envelope.get("structured") or []
+        first = structured[0] if structured else None
+        brief = first if isinstance(first, ComparisonBrief) else None
 
     answer = str((envelope.get("answers") or [""])[0])
-    parsed = parse_comparison(answer)
 
-    print_section("Comparative analysis")
+    print_section("Comparison brief")
     print_kv_rows(
         [
             ("Status", envelope.get("status", "ok")),
@@ -81,38 +103,44 @@ async def main_async(paths: list[Path], *, config: Config) -> None:
         ]
     )
 
-    if parsed is None:
-        print_kv_rows([("Parse status", "Could not parse JSON output")])
+    if not isinstance(brief, ComparisonBrief):
+        print_kv_rows([("Structured output", "No validated brief returned")])
         print_excerpt("Raw excerpt", answer, limit=400)
         print_learning_hints(
             [
-                "Next: tighten JSON-only instructions and required keys in the prompt.",
-                "Next: keep source scope narrow so comparisons stay concrete.",
+                "Next: choose a provider/model with structured output support.",
+                "Next: keep source scope narrow so comparison fields stay concrete.",
             ]
         )
         return
 
     print_kv_rows(
         [
+            ("Title", brief.title),
             (
                 "Counts",
                 " ".join(
                     [
-                        f"similarities={len(parsed.similarities)}",
-                        f"differences={len(parsed.differences)}",
-                        f"strengths={len(parsed.strengths)}",
-                        f"weaknesses={len(parsed.weaknesses)}",
+                        f"similarities={len(brief.similarities)}",
+                        f"differences={len(brief.differences)}",
+                        f"a_strengths={len(brief.source_a_strengths)}",
+                        f"b_strengths={len(brief.source_b_strengths)}",
+                        f"questions={len(brief.follow_up_questions)}",
                     ]
                 ),
             ),
         ]
     )
-    if parsed.differences:
-        print_kv_rows([("First key difference", parsed.differences[0])])
+    if brief.differences:
+        print_kv_rows([("First key difference", brief.differences[0])])
+    if brief.follow_up_questions:
+        print_excerpt(
+            "Best follow-up question", brief.follow_up_questions[0], limit=240
+        )
     print_learning_hints(
         [
-            "Next: constrain comparison dimensions (method, evidence, risk) if differences are weak.",
-            "Next: add schema validation before using outputs in downstream systems.",
+            "Next: adapt the schema fields to your decision criteria.",
+            "Next: feed this brief into a second Pollux call to draft an action plan.",
         ]
     )
 

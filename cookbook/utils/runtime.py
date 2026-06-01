@@ -13,7 +13,13 @@ if TYPE_CHECKING:
     from pollux.result import ResultEnvelope
 
 DEFAULT_PROVIDER = "gemini"
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODELS = {
+    "gemini": "gemini-2.5-flash-lite",
+    "openai": "gpt-5-nano",
+    "anthropic": "claude-haiku-4-5",
+    "openrouter": "openai/gpt-5-nano",
+}
+DEFAULT_MODEL = DEFAULT_MODELS[DEFAULT_PROVIDER]
 
 
 def add_runtime_args(parser: argparse.ArgumentParser) -> None:
@@ -26,8 +32,8 @@ def add_runtime_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
-        help="Model id for the selected provider.",
+        default=None,
+        help="Model id for the selected provider. Defaults to a provider-aware starter model.",
     )
     parser.add_argument(
         "--mock",
@@ -44,10 +50,11 @@ def add_runtime_args(parser: argparse.ArgumentParser) -> None:
 
 def build_config_or_exit(args: argparse.Namespace) -> Config:
     """Build Config from parsed args, exiting with a concise actionable error."""
+    model = args.model or DEFAULT_MODELS[args.provider]
     try:
         return Config(
             provider=args.provider,
-            model=args.model,
+            model=model,
             use_mock=bool(args.mock),
             api_key=args.api_key,
         )

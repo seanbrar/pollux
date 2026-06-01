@@ -6,13 +6,14 @@ and recipe execution.
 
 from __future__ import annotations
 
+import argparse
 import runpy
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 import cookbook.__main__ as runner
-from cookbook.utils import data_packs
+from cookbook.utils import data_packs, runtime
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -199,3 +200,18 @@ def test_install_pack_rejects_missing_explicit_source_root(
             source_root=explicit_source,
             fetch_assets=False,
         )
+
+
+def test_runtime_uses_provider_aware_default_model() -> None:
+    """Shared recipe args should not pair non-Gemini providers with Gemini models."""
+    args = argparse.Namespace(
+        provider="openai",
+        model=None,
+        mock=True,
+        api_key=None,
+    )
+
+    config = runtime.build_config_or_exit(args)
+
+    assert config.provider == "openai"
+    assert config.model == runtime.DEFAULT_MODELS["openai"]

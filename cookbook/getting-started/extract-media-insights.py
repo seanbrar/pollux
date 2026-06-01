@@ -82,6 +82,9 @@ async def main_async(path: Path, *, config: Config) -> None:
     prompts = prompts_for(kind)
     source = Source.from_file(path)
 
+    # Pollux already retries provider-signaled errors. This adds a client-side
+    # guard for the media-specific window where a freshly uploaded video/audio
+    # file is still PROCESSING (not yet ACTIVE) — see retry_async's substrings.
     envelope = await retry_async(
         lambda: run_many(prompts, sources=[source], config=config),
         retries=3,
@@ -106,7 +109,7 @@ async def main_async(path: Path, *, config: Config) -> None:
         [
             "Next: tighten prompts to demand evidence/attribution when outputs are vague.",
             (
-                "Next: for multi-source video synthesis, move to Multi-Video Synthesis once this is stable."
+                "Next: to synthesize across several videos (YouTube URLs or files), move to Multi-Video Synthesis."
                 if kind == "video"
                 else "Next: scale to directories with Broadcast Process Files or Large-Scale Fan-Out."
             ),

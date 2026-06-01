@@ -144,7 +144,7 @@ your application tracks background work.
 
 - Large fan-out or fan-in work where no person is waiting on the answer.
 - Scheduled analysis, backfills, and recurring report generation.
-- Provider pricing paths that reward batch-style execution.
+- Provider pricing paths that reward deferred job execution.
 
 Deferred is a poor fit for chat, request-response APIs, or workflows that need
 an answer before the current process can continue.

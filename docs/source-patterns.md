@@ -39,6 +39,11 @@ graph LR
   template across a collection. Consistent prompts make output comparison
   predictable.
 
+In Pollux code, broadcast usually means an outer loop over sources, with
+`run_many()` handling the prompt set for each source. Passing multiple sources
+to one `run_many()` call gives every prompt the same combined source context;
+that is fan-in plus fan-out, not one row per source.
+
 !!! info "Boundary"
     **Pollux owns:** source upload, context caching, concurrent API calls
     within a single `run_many()`, retries, and result normalization.

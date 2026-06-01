@@ -266,8 +266,8 @@ costs even when `cache_used` is `False`.
 ## Observing Cache Hits
 
 `result["usage"]["cached_tokens"]` reports how many input tokens were served
-from cache. The key is absent when no call in the batch reported it; in a
-fan-out it is summed across all calls:
+from cache. The key is absent when no provider call reported it; in a fan-out
+it is summed across all calls:
 
 ```python
 # result from any run() or run_many() call with caching active
@@ -299,10 +299,10 @@ default is 3600 seconds (1 hour). Tune it to match your expected reuse window:
 - **Too long:** cached content lingers unnecessarily. No correctness
   issues, but it consumes provider-side resources.
 
-For interactive workloads where you run a batch and then refine prompts within
-the same session, 3600s is a reasonable starting point. For one-shot scripts,
-shorter TTLs (300-600s) avoid lingering cache entries. Anthropic manages the
-lifetime of implicit caches on its side.
+For interactive workloads where you run a prompt set and then refine prompts
+within the same session, 3600s is a reasonable starting point. For one-shot
+scripts, shorter TTLs (300-600s) avoid lingering cache entries. Anthropic
+manages the lifetime of implicit caches on its side.
 
 ## When Caching Pays Off
 
