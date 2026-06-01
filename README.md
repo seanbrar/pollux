@@ -67,14 +67,20 @@ can wait, submit it once, persist the handle, and collect the same
 
 ## What Pollux Handles
 
-Say you have a document and ten questions about it. Each API call re-uploads the file, and you're left managing caching, retries, and concurrency yourself. Pollux uploads once, caches the content, fans out your prompts concurrently, and hands back results.
+Say you have a document and ten questions about it. Without orchestration, each
+API call re-uploads the file, and your code has to manage caching, retries, and
+concurrency. Pollux uploads once, caches the content when the provider supports
+it, fans out your prompts concurrently, and hands back results.
 
-The same `Source` interface handles PDFs, images, video, YouTube URLs, and arXiv papers. No per-format upload code.
+The same `Source` interface handles PDFs, images, video, YouTube URLs, and
+arXiv papers. Your code does not need per-format upload branches.
 Gemini-specific video clipping and FPS controls are available via
 `Source.with_gemini_video_settings(...)`; see the sending-content docs for the
 intended scope.
 
-Need structured output? Pass a Pydantic model as `response_schema` and get a validated instance alongside the raw text. Switching providers is a one-line change: `provider="gemini"` to `provider="openai"`.
+Need structured output? Pass a Pydantic model as `response_schema` and get a
+validated instance alongside the raw text. Switching providers is a config
+change: `provider="gemini"` to `provider="openai"`.
 
 ## One Upload, Many Prompts
 
@@ -95,7 +101,10 @@ for answer in envelope["answers"]:
     print(answer)
 ```
 
-Add more sources and Pollux broadcasts every prompt across every source, uploading each once regardless of how many prompts reference it.
+Add more sources when each prompt should see the same shared context. For
+per-file collection work, wrap `run_many()` in your own outer loop over files;
+that gives you one result record per file while Pollux handles each file's
+prompt set.
 
 ## When the Work Can Wait
 
@@ -136,7 +145,9 @@ and
 
 ## Where Pollux Ends
 
-Pollux owns content delivery, context caching, and provider translation. Prompt design, workflow orchestration, and what you do with results are yours. See [Core Concepts](https://polluxlib.dev/concepts/) for the full boundary model.
+Pollux owns content delivery, context caching, and provider translation. Prompt
+design, workflow orchestration, and what you do with results are yours. See
+[Core Concepts](https://polluxlib.dev/concepts/) for the full boundary model.
 
 ## Installation
 

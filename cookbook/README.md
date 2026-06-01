@@ -71,3 +71,5 @@ Notes:
 - `just demo-data` installs the shared starter data pack used by shared cookbook fallbacks.
 - `just demo-data spellbook-sidekick` installs the authored spellbook starter pack.
 - Most recipes support `--mock/--no-mock`, `--provider`, and `--model`.
+  If you omit `--model`, the cookbook picks a starter model for the selected
+  provider.

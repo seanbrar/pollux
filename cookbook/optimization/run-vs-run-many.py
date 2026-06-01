@@ -66,7 +66,7 @@ async def run_loop(
     }
 
 
-async def run_batched(
+async def run_vectorized(
     prompts: list[str], *, source: Source, config: Config
 ) -> dict[str, object]:
     start = time.perf_counter()
@@ -87,43 +87,43 @@ async def main_async(path: Path, *, config: Config) -> None:
     print_kv_rows([("Source", path), ("Prompts", len(PROMPTS))])
 
     loop = await run_loop(PROMPTS, source=source, config=config)
-    batched = await run_batched(PROMPTS, source=source, config=config)
+    vectorized = await run_vectorized(PROMPTS, source=source, config=config)
 
     loop_elapsed_raw = loop.get("elapsed_s")
-    batched_elapsed_raw = batched.get("elapsed_s")
+    vectorized_elapsed_raw = vectorized.get("elapsed_s")
     loop_elapsed = (
         float(loop_elapsed_raw) if isinstance(loop_elapsed_raw, (int, float)) else 0.0
     )
-    batched_elapsed = (
-        float(batched_elapsed_raw)
-        if isinstance(batched_elapsed_raw, (int, float))
+    vectorized_elapsed = (
+        float(vectorized_elapsed_raw)
+        if isinstance(vectorized_elapsed_raw, (int, float))
         else 0.0
     )
-    speedup = (loop_elapsed / batched_elapsed) if batched_elapsed > 0 else None
+    speedup = (loop_elapsed / vectorized_elapsed) if vectorized_elapsed > 0 else None
 
     print_section("Comparison")
     print_kv_rows(
         [
             ("Loop `run()` wall time (s)", f"{loop_elapsed:.2f}"),
-            ("Batched `run_many()` wall time (s)", f"{batched_elapsed:.2f}"),
-            ("Speedup (loop / batched)", f"{speedup:.2f}x" if speedup else "n/a"),
+            ("Vectorized `run_many()` wall time (s)", f"{vectorized_elapsed:.2f}"),
+            ("Speedup (loop / vectorized)", f"{speedup:.2f}x" if speedup else "n/a"),
             (
                 "Loop tokens (sum)",
                 loop["token_sum"] if loop["token_sum"] is not None else "n/a",
             ),
             (
-                "Batched tokens",
-                batched["tokens"] if batched["tokens"] is not None else "n/a",
+                "Vectorized tokens",
+                vectorized["tokens"] if vectorized["tokens"] is not None else "n/a",
             ),
         ]
     )
 
-    result_obj = batched.get("result")
+    result_obj = vectorized.get("result")
     if isinstance(result_obj, dict):
         result = result_obj  # runtime TypedDict is a dict
         answers = [str(a) for a in result.get("answers", [])]
         if answers:
-            print_excerpt("Batched first answer excerpt", answers[0], limit=320)
+            print_excerpt("Vectorized first answer excerpt", answers[0], limit=320)
         print_usage(cast("ResultEnvelope", result_obj))
 
     print_learning_hints(
@@ -140,7 +140,7 @@ async def main_async(path: Path, *, config: Config) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compare looped run() vs batched run_many() for one source.",
+        description="Compare looped run() vs vectorized run_many() for one source.",
     )
     parser.add_argument(
         "--input", type=Path, default=None, help="Path to a source file"
@@ -156,7 +156,7 @@ def main() -> None:
     )
     config = build_config_or_exit(args)
 
-    print_header("Prompt batching: run vs run_many", config=config)
+    print_header("Vectorized prompts: run vs run_many", config=config)
     asyncio.run(main_async(path, config=config))
 
 

@@ -18,23 +18,45 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 
 ## Capability Matrix
 
+Use this table as a release contract, not a model catalog. A ✅ means Pollux
+implements the feature for the provider. A ⚠️ means the feature depends on the
+selected model, route, or backing server. A ❌ means Pollux rejects the request
+before dispatch or the provider page below calls out why it is out of scope.
+
+### Core Execution
+
 | Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
 |---|---|---|---|---|---|---|
 | Text generation | ✅ | ✅ | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
+| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
+| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly |
+
+### Inputs
+
+| Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
+|---|---|---|---|---|---|---|
 | Local file inputs | ✅ | ✅ | ✅ | ✅ (images and PDFs) | ❌ | OpenRouter keeps the local file subset narrow; local provider is text-only |
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | ❌ | Prefer local PDFs when reliability matters |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | ❌ | Remote fetch behavior can vary by route |
 | Text/document URL inputs | ✅ (Gemini URL Context opt-in) | ✅ (native `input_file.file_url`) | ❌ | ⚠️ best-effort | ❌ | Provider-specific MIME support varies |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
+
+### Caching
+
+| Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
+|---|---|---|---|---|---|---|
 | Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
 | Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | ⚠️ server-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
-| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
+
+### Reasoning And Agents
+
+| Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
+|---|---|---|---|---|---|---|
 | Reasoning output (`result["reasoning"]`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ⚠️ server/model-dependent | Pollux surfaces reasoning text when providers return it |
 | `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
 | `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
-| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly. |
 | Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | `Options.tools` is for Pollux-normalized client/application tools |
 | Provider-hosted tools | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ server-dependent | Raw provider escape hatch; not normalized by Pollux |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Works on OpenRouter models that support tool calling |

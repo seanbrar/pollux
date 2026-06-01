@@ -8,7 +8,7 @@
 
 Some work does not need an answer in the next few seconds. A long fan-out over
 large documents, a nightly analysis job, or a backfill across stored reports
-fits a different shape: submit now, collect later, and use provider batch
+fits a different shape: submit now, collect later, and use provider deferred
 pricing when it is available.
 
 Pollux handles the provider-facing deferred lifecycle. Your application stores

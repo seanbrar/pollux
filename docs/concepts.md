@@ -95,9 +95,10 @@ file path.
 ### Deferred Delivery
 
 Not all work needs an immediate answer. **Deferred delivery** submits requests
-to a provider's batch system, often at lower cost when batch pricing is
+to a provider-side job system, often at lower cost when deferred pricing is
 available, and returns a serializable handle. Your code persists the handle and
-collects the `ResultEnvelope` later. See
+collects the `ResultEnvelope` later. Some providers call this a batch API, but
+Pollux uses **deferred delivery** for the user-facing workflow. See
 [Building With Deferred Delivery](building-with-deferred-delivery.md) for the
 operating model, then
 [Submitting Work for Later Collection](submitting-work-for-later-collection.md)
