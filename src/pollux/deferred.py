@@ -223,6 +223,9 @@ def _build_provider_requests(plan: Plan) -> list[ProviderRequest]:
                 reasoning_effort=options.reasoning_effort,
                 reasoning_budget_tokens=options.reasoning_budget_tokens,
                 max_tokens=options.max_tokens,
+                provider_options=options.provider_options_for(
+                    plan.request.config.provider
+                ),
             )
         )
     return requests

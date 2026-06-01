@@ -263,6 +263,19 @@ async def create_cache_impl(
                 f"Expected Source, got {type(s).__name__}",
                 hint="Use Source.from_file(), Source.from_text(), etc.",
             )
+        if (
+            s.provider_hints_for(config.provider) is not None
+            and (s.provider_hints_for(config.provider) or {}).get("url_context")
+            is not None
+        ):
+            raise ConfigurationError(
+                "Gemini URL Context sources cannot be used with create_cache()",
+                hint=(
+                    "URL Context performs request-time retrieval. Remove "
+                    "with_gemini_url_context() or send the URL without an "
+                    "explicit cache handle."
+                ),
+            )
 
     if tools is not None:
         for i, t in enumerate(tools):

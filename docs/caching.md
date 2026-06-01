@@ -88,7 +88,8 @@ provider level:
 - **Explicit caching (Gemini):** You upload content once with
   `create_cache()`, get a handle back, and pass that handle to later calls.
 - **Implicit caching (Anthropic):** Pollux maps
-  `Options(implicit_caching=...)` to Anthropic's prompt caching behavior.
+  `Options(implicit_caching=...)` to Anthropic's automatic prompt caching
+  behavior.
 - **Automatic prompt caching (OpenAI, Gemini, OpenRouter):** These providers
   can discount repeated long prefixes on their own. Pollux does not control
   or configure this, but you can benefit from it without doing anything.
@@ -98,10 +99,12 @@ verify automatic prompt caching, check provider-native usage or billing.
 
 ## Implicit Caching (Anthropic)
 
-Anthropic caches shared prefixes from the top of the request downward:
-system instruction, tools, conversation history, and repeated prompt context.
-You do not create a cache object yourself. Pollux toggles this with
-`Options(implicit_caching=...)`.
+Anthropic currently describes this provider feature as automatic prompt
+caching. Pollux calls the toggle `implicit_caching` to distinguish it from
+Gemini's explicit `create_cache()` handles. Anthropic caches shared prefixes
+from the top of the request downward: system instruction, tools, conversation
+history, and repeated prompt context. You do not create a cache object
+yourself. Pollux toggles this with `Options(implicit_caching=...)`.
 
 ### Cost Mechanics
 
@@ -146,8 +149,8 @@ Setting `implicit_caching=True` on a provider that does not support it raises
 ### Current Pollux Scope
 
 Pollux currently exposes Anthropic's default ephemeral caching behavior. It
-does not expose Anthropic's 1-hour TTL or manual block-level cache
-breakpoints in the public API.
+does not expose Anthropic's 1-hour TTL or manual block-level cache breakpoints
+in the public API.
 
 ## Explicit Caching (Gemini)
 

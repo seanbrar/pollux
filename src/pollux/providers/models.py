@@ -69,6 +69,7 @@ class ProviderRequest:
     provider_state: dict[str, Any] | None = None
     max_tokens: int | None = None
     implicit_caching: bool = False
+    provider_options: dict[str, Any] | None = None
 
 
 def is_file_part(part: Any) -> bool:
@@ -97,6 +98,7 @@ class ProviderResponse:
     response_id: str | None = None
     finish_reason: str | None = None
     provider_state: dict[str, Any] | None = None
+    artifacts: dict[str, Any] | None = None
 
 
 def provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
@@ -119,4 +121,6 @@ def provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
         payload["finish_reason"] = response.finish_reason
     if response.provider_state is not None:
         payload["provider_state"] = response.provider_state
+    if response.artifacts is not None:
+        payload["artifacts"] = response.artifacts
     return payload

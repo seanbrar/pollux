@@ -22,7 +22,7 @@ a `Source`, which entry point to call, and how to read the result.
 | Constructor | Input | Notes |
 |---|---|---|
 | `Source.from_text(text)` | Plain string | Identifier defaults to first 50 chars |
-| `Source.from_file(path)` | Local file path | Supports PDF, images, video, audio, text |
+| `Source.from_file(path)` | Local file path | Wraps local files; provider MIME support varies |
 | `Source.from_youtube(url)` | YouTube URL | URL reference (no download); Gemini-native, limited on OpenAI and Anthropic |
 | `Source.from_arxiv(ref)` | arXiv ID or URL | Normalizes to canonical PDF URL (no download at construction time) |
 | `Source.from_uri(uri, mime_type=...)` | Remote URI | Generic remote reference; provider support varies by MIME type |
@@ -56,11 +56,31 @@ profile = Source.from_json(UserProfile(name="Alice", preferences=["concise", "fo
 responses, database records, or configuration objects) as context alongside
 a prompt, without manually serializing to a string.
 
-Pollux accepts PDFs, images, video, audio, and text files through the same
-interface. The source type is detected from the file extension or MIME type;
-you do not need to specify format-specific options. For media sources (images,
-video, audio), keep prompts concrete: ask for objects, attributes, timestamps,
-or quoted text rather than open-ended descriptions.
+Pollux wraps PDFs, images, video, audio, text, and other files through the same
+interface. Provider support is narrower than the `Source` abstraction: Gemini
+has the broadest native multimodal coverage, OpenAI accepts images plus many
+document-like file inputs, and Anthropic document inputs are limited to PDFs
+and plaintext files. Unsupported combinations fail with provider-specific
+errors or Pollux validation hints. For media sources (images, video, audio),
+keep prompts concrete: ask for objects, attributes, timestamps, or quoted text
+rather than open-ended descriptions.
+
+### Gemini URL Context
+
+Gemini can retrieve public HTTP(S) URLs at request time with URL Context. Pollux
+exposes this as a Gemini-specific source modifier:
+
+```python
+source = Source.from_uri(
+    "https://example.com/report.html",
+    mime_type="text/html",
+).with_gemini_url_context()
+```
+
+Use this only when you have chosen Gemini. URL Context retrieval metadata is
+available in `result["diagnostics"]["raw_responses"][i]["artifacts"]`. Because
+retrieval happens at request time, URL Context sources cannot be baked into
+`create_cache()`.
 
 ### Gemini Video Controls
 

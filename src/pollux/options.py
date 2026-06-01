@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal, get_args
 import warnings
 
 from pydantic import BaseModel
 
+from pollux.config import ProviderName
 from pollux.errors import ConfigurationError
 
 if TYPE_CHECKING:
@@ -101,6 +102,9 @@ class Options:
     #: Controls implicit model-level caching (e.g., Anthropic prefix caching).
     #: Defaults to True for a single provider call, False for multi-call fan-out.
     implicit_caching: bool | None = None
+    #: Raw provider-scoped request options. Keys are provider names; values are
+    #: passed through without normalization at the active provider boundary.
+    provider_options: dict[str, dict[str, Any]] | None = None
 
     def __post_init__(self) -> None:
         """Validate option shapes early for clear errors."""
@@ -214,6 +218,28 @@ class Options:
                     "cache must be a CacheHandle from create_cache()",
                     hint="Call create_cache() first, then pass Options(cache=handle).",
                 )
+        if self.provider_options is not None:
+            if not isinstance(self.provider_options, dict):
+                raise ConfigurationError(
+                    "provider_options must be a dictionary keyed by provider name",
+                    hint="Pass provider_options={'openai': {'tools': [...]}}.",
+                )
+            supported_providers = set(get_args(ProviderName))
+            for provider, provider_payload in self.provider_options.items():
+                if provider not in supported_providers:
+                    allowed = ", ".join(sorted(supported_providers))
+                    raise ConfigurationError(
+                        f"Unknown provider_options provider: {provider!r}",
+                        hint=f"Use one of: {allowed}.",
+                    )
+                if not isinstance(provider_payload, dict):
+                    raise ConfigurationError(
+                        f"provider_options[{provider!r}] must be a dictionary",
+                        hint=(
+                            "Pass raw provider parameters as a dictionary, e.g. "
+                            f"provider_options={{{provider!r}: {{'key': 'value'}}}}."
+                        ),
+                    )
 
     def response_schema_json(self) -> dict[str, Any] | None:
         """Return JSON Schema for provider APIs."""
@@ -226,3 +252,10 @@ class Options:
     def response_schema_hash(self) -> str | None:
         """Return a stable hash of the JSON Schema."""
         return response_schema_hash(self.response_schema)
+
+    def provider_options_for(self, provider: str) -> dict[str, Any] | None:
+        """Return raw options for the active provider."""
+        if self.provider_options is None:
+            return None
+        payload = self.provider_options.get(provider)
+        return dict(payload) if payload is not None else None

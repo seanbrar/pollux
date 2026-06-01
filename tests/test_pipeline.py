@@ -269,6 +269,49 @@ def test_request_rejects_non_source_objects() -> None:
     assert exc.value.hint is not None
 
 
+def test_options_reject_unknown_provider_options_provider() -> None:
+    """provider_options should be keyed by supported provider names."""
+    with pytest.raises(ConfigurationError, match="Unknown provider_options provider"):
+        Options(provider_options={"not-a-provider": {"x": 1}})
+
+
+@pytest.mark.asyncio
+async def test_provider_options_are_forwarded_for_active_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Execution should pass only the active provider's raw options."""
+    fake = FakeProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
+
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+    await pollux.run(
+        "Hello",
+        config=cfg,
+        options=Options(
+            provider_options={
+                "openai": {"seed": 123},
+                "gemini": {"seed": 456},
+            }
+        ),
+    )
+
+    assert fake.last_generate_kwargs is not None
+    assert fake.last_generate_kwargs["provider_options"] == {"seed": 123}
+
+
+@pytest.mark.asyncio
+async def test_create_cache_rejects_gemini_url_context_sources() -> None:
+    """URL Context is request-time retrieval and should not enter explicit caches."""
+    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
+    source = Source.from_uri(
+        "https://example.com/page",
+        mime_type="text/html",
+    ).with_gemini_url_context()
+
+    with pytest.raises(ConfigurationError, match="URL Context"):
+        await pollux.create_cache((source,), config=cfg)
+
+
 @pytest.mark.asyncio
 async def test_generate_error_attributes_provider_and_call_index(
     monkeypatch: pytest.MonkeyPatch,

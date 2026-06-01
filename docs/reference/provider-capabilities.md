@@ -25,6 +25,7 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | Local file inputs | ✅ | ✅ | ✅ | ✅ (images and PDFs) | ❌ | OpenRouter keeps the local file subset narrow; local provider is text-only |
 | PDF URL inputs | ✅ (via URI part) | ✅ (native `input_file.file_url`) | ✅ (native `document` URL block) | ⚠️ best-effort | ❌ | Prefer local PDFs when reliability matters |
 | Image URL inputs | ✅ (via URI part) | ✅ (native `input_image.image_url`) | ✅ (native `image` URL block) | ⚠️ best-effort on supported models | ❌ | Remote fetch behavior can vary by route |
+| Text/document URL inputs | ✅ (Gemini URL Context opt-in) | ✅ (native `input_file.file_url`) | ❌ | ⚠️ best-effort | ❌ | Provider-specific MIME support varies |
 | YouTube URL inputs | ✅ | ⚠️ limited | ⚠️ limited | ❌ | ❌ | OpenAI/Anthropic parity layers (download/re-upload) are out of scope |
 | Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
 | Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
@@ -34,7 +35,8 @@ Pollux is **capability-transparent**, not capability-equalizing: providers are a
 | `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
 | `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
 | Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly. |
-| Tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Requires an OpenRouter model that supports `tools`; forced tool use may also require `tool_choice` |
+| Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | `Options.tools` is for Pollux-normalized client/application tools |
+| Provider-hosted tools | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ server-dependent | Raw provider escape hatch; not normalized by Pollux |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Works on OpenRouter models that support tool calling |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
@@ -50,6 +52,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   points.
 - Video sources can carry Gemini-specific clipping and FPS controls via
   `Source.with_gemini_video_settings(...)`.
+- HTTP(S) URI sources can opt into Gemini URL Context via
+  `Source.from_uri(...).with_gemini_url_context()`. This performs request-time
+  retrieval, surfaces URL retrieval metadata in diagnostics, and cannot be used
+  with explicit cache handles.
 - Those controls are intentionally not normalized across providers. Pollux
   keeps them explicit so portability decisions stay in caller code.
 - Gemini also caches repeated long prefixes automatically. Pollux does not
@@ -69,9 +75,11 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   Pollux also performs best-effort cleanup of uploaded files after execution.
 - Deferred delivery uses the OpenAI Batch API through Pollux's deferred entry
   points.
-- OpenAI caches repeated long prefixes automatically. Pollux does not expose
-  OpenAI-specific cache controls.
-- Remote URL support is intentionally narrow: PDFs and images only.
+- OpenAI caches repeated long prefixes automatically. OpenAI-specific cache
+  routing controls can be passed through `provider_options`.
+- Remote URL support includes images plus PDFs, text-like files, and common
+  document/spreadsheet/presentation formats accepted by OpenAI `input_file`
+  URLs. Audio, video, and unknown binary URLs remain unsupported.
 - Conversation can use either explicit `history` or `previous_response_id`
   (via `continue_from`). When `previous_response_id` is set, only tool
   result messages are forwarded from history; the rest is handled
@@ -92,7 +100,8 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 ### Anthropic
 
 - Local file uploads use the Anthropic Files API (beta). Supported types:
-  images, PDFs, and text files.
+  images, PDFs, and plaintext files. Convert CSV, Markdown, Office files, and
+  other text-like formats to `text/plain` before sending.
 - Deferred delivery uses the Anthropic Message Batches API through Pollux's
   deferred entry points.
 - Remote URL support is intentionally narrow: images and PDFs only.
@@ -104,7 +113,8 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - Reasoning: thinking text appears in `ResultEnvelope.reasoning`.
   `reasoning_effort` and `reasoning_budget_tokens` are both forwarded for
   Anthropic models that support them. Exact model support and budget floors
-  are enforced by Anthropic.
+  are enforced by Anthropic. Pollux routes current Opus adaptive-thinking
+  models through Anthropic's adaptive thinking mode.
 - Thinking block replay: when Anthropic returns `thinking` or
   `redacted_thinking` blocks, Pollux preserves them in conversation state and
   replays them verbatim on continuation turns so tool loops remain valid.

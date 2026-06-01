@@ -170,6 +170,9 @@ options = Options(
     # reasoning_budget_tokens=0,      # Explicit reasoning token budget where supported
     max_tokens=4096,                  # Provider-specific output cap
     implicit_caching=True,            # Auto-cache prefix (Anthropic only)
+    provider_options={                # Raw provider escape hatch
+        "openai": {"tools": [{"type": "web_search_preview"}]},
+    },
 )
 ```
 
@@ -178,7 +181,7 @@ options = Options(
 | `system_instruction` | `str \| None` | `None` | Global system prompt |
 | `temperature` | `float \| None` | `None` | Sampling temperature |
 | `top_p` | `float \| None` | `None` | Nucleus sampling probability |
-| `tools` | `list[dict] \| None` | `None` | JSON schemas for native tools. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
+| `tools` | `list[dict] \| None` | `None` | JSON schemas for Pollux-normalized function tools. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
 | `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
 | `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
@@ -188,6 +191,28 @@ options = Options(
 | `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
 | `cache` | `CacheHandle \| None` | `None` | Persistent explicit cache (Gemini). See [Reducing Costs with Context Caching](caching.md) |
 | `implicit_caching` | `bool \| None` | `None` | Enable or disable Anthropic implicit caching. Defaults to `True` for a single provider call and `False` for multi-call fan-out. `implicit_caching=True` raises on providers that do not support it. See [Reducing Costs with Context Caching](caching.md) |
+| `provider_options` | `dict[str, dict] \| None` | `None` | Raw provider-scoped request options. Keys must be provider names. |
+
+### Provider Options Escape Hatch
+
+`provider_options` is Pollux's one raw provider escape hatch. It is for
+provider-specific request fields that Pollux does not normalize, such as
+hosted/server tools, service tiers, or newly released provider knobs.
+
+```python
+options = Options(
+    provider_options={
+        "openai": {"tools": [{"type": "web_search_preview"}]},
+        "gemini": {"seed": 123},
+    },
+)
+```
+
+Only the active provider's dictionary is forwarded. If a raw key overlaps with
+a field Pollux already generated from first-class options, Pollux raises
+`ConfigurationError` instead of silently overriding either value. For example,
+do not pass both `Options(tools=[...])` and
+`provider_options={"openai": {"tools": [...]}}` in the same call.
 
 !!! note
     OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject

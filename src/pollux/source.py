@@ -317,6 +317,24 @@ class Source:
             ),
         )
 
+    def with_gemini_url_context(self) -> Source:
+        """Return a copy that asks Gemini to retrieve this HTTP(S) URI at request time."""
+        if self.source_type != "uri":
+            raise SourceError("Gemini URL Context requires Source.from_uri(...)")
+
+        parsed = urlparse(self.identifier)
+        if parsed.scheme not in {"http", "https"}:
+            raise SourceError("Gemini URL Context requires an HTTP(S) URI")
+
+        return replace(
+            self,
+            provider_hints=self._with_provider_hint(
+                provider="gemini",
+                name="url_context",
+                payload={},
+            ),
+        )
+
     def _is_video_source(self) -> bool:
         """Return True when Gemini video controls can apply to this source."""
         return self.source_type == "youtube" or self.mime_type.startswith("video/")
