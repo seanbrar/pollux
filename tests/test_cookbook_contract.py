@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 import cookbook.__main__ as runner
+from cookbook.utils import data_packs
 
 pytestmark = pytest.mark.unit
 
@@ -305,6 +306,94 @@ def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
         )
         assert result.returncode == 0, (
             f"command failed: {command}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+
+
+def test_seed_pack_satisfies_default_roles_without_download(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The committed seed is the resolution floor on a fresh clone.
+
+    With no env source, no local pollux-cookbook-data checkout, and an empty
+    installed data dir, the shipped roles must resolve under the in-repo seed,
+    while opt-in roles (video, audio, fridge image) stay unresolved.
+    """
+    monkeypatch.setattr(data_packs, "_local_repo_candidates", list)
+    monkeypatch.setattr(data_packs, "cookbook_data_dir", lambda: tmp_path)
+
+    for role in (
+        "text_dir",
+        "text_primary",
+        "text_compare",
+        "media_image",
+        "media_paper",
+    ):
+        resolved = data_packs.default_shared_role_path(role)
+        assert resolved is not None, f"seed should provide role {role!r}"
+        assert resolved.exists()
+        assert (
+            data_packs._SEED_DATA_ROOT in resolved.parents
+            or resolved == data_packs._SEED_DATA_ROOT
+        )
+
+    # Heavy/optional assets are intentionally absent from the seed.
+    for role in ("media_video", "media_audio", "media_fridge_image"):
+        assert data_packs.default_shared_role_path(role) is None
+
+
+def test_data_source_override_takes_precedence_over_seed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """POLLUX_COOKBOOK_DATA_SOURCE must win over the in-repo seed."""
+    pack_root = tmp_path / "shared" / "v1" / "text-medium"
+    pack_root.mkdir(parents=True)
+    (tmp_path / "shared" / "v1" / "pack.toml").write_text(
+        "\n".join(
+            [
+                'id = "shared"',
+                'version = "1"',
+                "[roles]",
+                'text_dir = "text-medium"',
+            ]
+        )
+    )
+    (pack_root / "marker.txt").write_text("override source\n")
+    monkeypatch.setenv("POLLUX_COOKBOOK_DATA_SOURCE", str(tmp_path))
+
+    resolved = data_packs.default_shared_role_path("text_dir")
+    assert resolved == tmp_path / "shared" / "v1" / "text-medium"
+
+
+@pytest.mark.integration
+def test_default_path_recipes_run_without_inputs() -> None:
+    """Representative recipes run with no --input, proving the seed default path.
+
+    In CI (no pollux-cookbook-data checkout, no installed packs) this exercises
+    the committed seed end to end — a path the explicit-input smoke test above
+    never covers.
+    """
+    env = {
+        k: v for k, v in os.environ.items() if not k.startswith("POLLUX_COOKBOOK_DATA_")
+    }
+    recipes = [
+        "getting-started/analyze-single-paper",
+        "getting-started/broadcast-process-files",
+        "getting-started/extract-media-insights",
+        "research-workflows/comparative-analysis",
+    ]
+    for recipe in recipes:
+        result = subprocess.run(  # noqa: S603 - fixed local command list in test
+            [sys.executable, "-m", "cookbook", recipe, "--mock"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"default-path recipe failed: {recipe}\n"
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )

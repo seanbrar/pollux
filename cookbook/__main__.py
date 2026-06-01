@@ -313,8 +313,11 @@ def run_recipe(
         import pollux as _pollux  # noqa: F401
     except ImportError:
         print(
-            "Error: could not import pollux. "
-            "Run 'uv sync --all-extras' or 'pip install -e .' first.",
+            "Error: could not import pollux.\n"
+            "  1. Install the project from a checkout: 'uv sync' or 'pip install -e .'.\n"
+            "  2. Run inside that environment: 'uv run python -m cookbook <recipe>',\n"
+            "     or activate the venv first. An editable install is not visible to a\n"
+            "     bare 'python' outside its environment.",
             file=sys.stderr,
         )
         return 1
