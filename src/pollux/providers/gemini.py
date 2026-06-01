@@ -15,6 +15,7 @@ import uuid
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
+from pollux.providers._utils import jsonable_provider_artifact, merge_provider_options
 from pollux.providers.base import (
     DeferredItemStatus,
     ProviderCapabilities,
@@ -52,6 +53,12 @@ def _provider_hint_payload(
     if not isinstance(payload, dict) or not payload:
         raise APIError(f"Provider hint {name!r} must be a non-empty dictionary")
     return payload
+
+
+def _has_provider_hint(part: dict[str, Any], *, name: str) -> bool:
+    """Return True when a transport part carries a named provider hint."""
+    provider_hints = part.get("provider_hints")
+    return isinstance(provider_hints, dict) and name in provider_hints
 
 
 def _build_video_metadata(part: dict[str, Any], *, mime_type: str | None) -> Any:
@@ -148,6 +155,9 @@ class GeminiProvider:
             elif isinstance(p, dict):
                 # Handle URI-based parts (including uploaded assets with video settings)
                 if "uri" in p and "mime_type" in p:
+                    if _has_provider_hint(p, name="url_context"):
+                        converted.append(p["uri"])
+                        continue
                     converted.append(
                         types.Part(
                             file_data=types.FileData(
@@ -255,15 +265,24 @@ class GeminiProvider:
         if request.top_p is not None:
             config_kwargs["top_p"] = request.top_p
 
-        if request.tools is not None:
-            tool_objs = self._normalize_tools(request.tools)
-            if tool_objs:
-                config_kwargs["tools"] = tool_objs
+        tool_objs = (
+            self._normalize_tools(request.tools) if request.tools is not None else []
+        )
+        if _request_uses_url_context(request):
+            tool_objs.append(types.Tool(url_context=types.UrlContext()))
+        if tool_objs:
+            config_kwargs["tools"] = tool_objs
 
+        if request.tools is not None:
             tool_config = self._map_tool_choice(request.tool_choice)
             if tool_config is not None:
                 config_kwargs["tool_config"] = tool_config
 
+        merge_provider_options(
+            config_kwargs,
+            request.provider_options,
+            provider="gemini",
+        )
         return config_kwargs
 
     def _build_contents(
@@ -686,6 +705,7 @@ class GeminiProvider:
             provider_state=request.provider_state,
             max_tokens=request.max_tokens,
             implicit_caching=request.implicit_caching,
+            provider_options=request.provider_options,
         )
 
     async def _upload_deferred_batch_input_file(self, path: Path) -> str:
@@ -1104,6 +1124,7 @@ class GeminiProvider:
 
         finish_reason: str | None = None
         reasoning_parts: list[str] = []
+        artifacts: dict[str, Any] = {}
         try:
             candidates = _field(response, "candidates", []) or []
             if isinstance(candidates, list) and candidates:
@@ -1111,6 +1132,11 @@ class GeminiProvider:
                 finish_reason = _normalize_finish_reason(
                     _field(candidate, "finish_reason")
                 )
+                url_context_metadata = _field(candidate, "url_context_metadata")
+                if url_context_metadata is not None:
+                    artifacts["url_context_metadata"] = jsonable_provider_artifact(
+                        url_context_metadata
+                    )
                 content = _field(candidate, "content")
                 parts = _field(content, "parts", []) if content is not None else []
                 if isinstance(parts, list):
@@ -1131,6 +1157,7 @@ class GeminiProvider:
             tool_calls=tool_calls if tool_calls else None,
             response_id=None,
             finish_reason=finish_reason,
+            artifacts=artifacts or None,
         )
 
 
@@ -1165,6 +1192,14 @@ def _extract_response_text(response: Any) -> str:
             ):
                 parts.append(part_text)
     return "".join(parts)
+
+
+def _request_uses_url_context(request: ProviderRequest) -> bool:
+    """Return True when a request contains a Gemini URL Context source."""
+    for part in request.parts:
+        if isinstance(part, dict) and _has_provider_hint(part, name="url_context"):
+            return True
+    return False
 
 
 def _is_content_list(value: Any) -> bool:

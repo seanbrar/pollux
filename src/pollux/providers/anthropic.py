@@ -11,7 +11,11 @@ from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
-from pollux.providers._utils import to_strict_schema
+from pollux.providers._utils import (
+    jsonable_provider_artifact,
+    merge_provider_options,
+    to_strict_schema,
+)
 from pollux.providers.base import (
     DeferredItemStatus,
     ProviderCapabilities,
@@ -39,7 +43,12 @@ _ANTHROPIC_THINKING_BLOCKS_KEY = "anthropic_thinking_blocks"
 _ALLOWED_REASONING_EFFORTS = {"low", "medium", "high", "max"}
 # Note: Sonnet 4.6 supports both manual and adaptive thinking.
 # We route through adaptive as it is the recommended path and simpler UX.
-_ADAPTIVE_THINKING_MODEL_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
+_ADAPTIVE_THINKING_MODEL_PREFIXES = (
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+)
 _MANUAL_THINKING_BUDGETS = {
     "low": 2048,
     "medium": 5120,
@@ -312,6 +321,11 @@ class AnthropicProvider:
                 beta_headers.append(existing_beta)
         create_kwargs["extra_headers"] = {"anthropic-beta": ",".join(beta_headers)}
 
+        merge_provider_options(
+            create_kwargs,
+            request.provider_options,
+            provider="anthropic",
+        )
         return create_kwargs
 
     async def submit_deferred(
@@ -557,10 +571,20 @@ class AnthropicProvider:
             provider_state=request.provider_state,
             max_tokens=request.max_tokens,
             implicit_caching=request.implicit_caching,
+            provider_options=request.provider_options,
         )
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a local file using the Anthropic Files API."""
+        if not _is_supported_anthropic_file_mime_type(mime_type):
+            raise ConfigurationError(
+                f"Unsupported mime type for Anthropic file input: {mime_type}",
+                hint=(
+                    "Anthropic document inputs support PDFs and plaintext files. "
+                    "Convert CSV, Markdown, Office files, and other text-like "
+                    "formats to text/plain before sending."
+                ),
+            )
         client = self._get_client()
 
         try:
@@ -644,6 +668,7 @@ def _parse_response(
     reasoning_parts: list[str] = []
     tool_calls: list[ToolCall] = []
     thinking_blocks: list[dict[str, str]] = []
+    artifacts: list[Any] = []
 
     for block in getattr(response, "content", []):
         block_type = getattr(block, "type", None)
@@ -674,6 +699,8 @@ def _parse_response(
                     arguments=json.dumps(getattr(block, "input", {})),
                 )
             )
+        elif block_type is not None:
+            artifacts.append(jsonable_provider_artifact(block))
 
     text = "\n\n".join(text_parts) if text_parts else ""
 
@@ -721,6 +748,7 @@ def _parse_response(
             if thinking_blocks
             else None
         ),
+        artifacts={"content_blocks": artifacts} if artifacts else None,
     )
 
 
@@ -990,10 +1018,13 @@ def _normalize_reasoning_effort(reasoning_effort: str, model_name: str) -> str:
             hint=f"Use one of: {allowed}.",
         )
 
-    if effort == "max" and not model_name.lower().startswith("claude-opus-4-6"):
+    model = model_name.lower()
+    if effort == "max" and not model.startswith(
+        ("claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8")
+    ):
         raise ConfigurationError(
-            "reasoning_effort='max' is only supported on Claude Opus 4.6.",
-            hint="Try 'high' for this model.",
+            "reasoning_effort='max' is only supported on Claude Opus 4.6+ models.",
+            hint="Use 'high' for Sonnet, Haiku, or older Opus models.",
         )
 
     return effort
@@ -1004,6 +1035,15 @@ def _supports_adaptive_thinking(model: str) -> bool:
     model_name = model.lower()
     return any(
         model_name.startswith(prefix) for prefix in _ADAPTIVE_THINKING_MODEL_PREFIXES
+    )
+
+
+def _is_supported_anthropic_file_mime_type(mime_type: str) -> bool:
+    """Return True for Anthropic document/image file MIME types Pollux supports."""
+    return (
+        mime_type == "application/pdf"
+        or mime_type == "text/plain"
+        or mime_type.startswith("image/")
     )
 
 
@@ -1106,7 +1146,7 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
                     "file_id": uri,
                 },
             }
-        if mime_type == "application/pdf" or mime_type.startswith("text/"):
+        if mime_type in {"application/pdf", "text/plain"}:
             return {
                 "type": "document",
                 "source": {
@@ -1116,7 +1156,7 @@ def _normalize_input_part(part: Any) -> dict[str, Any] | None:
             }
         raise APIError(
             f"Unsupported mime type for Anthropic Files API: {mime_type}",
-            hint="Anthropic supports text, images and PDFs via file IDs.",
+            hint="Anthropic supports images, PDFs, and plaintext via file IDs.",
         )
 
     if not isinstance(part, dict):

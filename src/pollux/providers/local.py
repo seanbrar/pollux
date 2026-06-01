@@ -27,7 +27,7 @@ from pollux.providers._openai_compat import (
     first_choice_message,
     parse_usage,
 )
-from pollux.providers._utils import to_strict_schema
+from pollux.providers._utils import merge_provider_options, to_strict_schema
 from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
     Message,
@@ -173,6 +173,11 @@ class LocalProvider:
                     "strict": True,
                 },
             }
+        merge_provider_options(
+            payload,
+            request.provider_options,
+            provider="local",
+        )
 
         client = self._get_client()
         try:

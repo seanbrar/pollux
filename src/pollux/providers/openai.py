@@ -13,7 +13,11 @@ from urllib.parse import urlparse
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.providers._errors import wrap_provider_error
-from pollux.providers._utils import to_strict_schema
+from pollux.providers._utils import (
+    jsonable_provider_artifact,
+    merge_provider_options,
+    to_strict_schema,
+)
 from pollux.providers.base import (
     DeferredItemStatus,
     ProviderCapabilities,
@@ -241,6 +245,7 @@ class OpenAIProvider:
 
         tool_calls: list[ToolCall] = []
         reasoning_parts: list[str] = []
+        annotations: list[Any] = []
         for item in _field(response, "output", []) or []:
             item_type = _field(item, "type")
             if item_type == "function_call":
@@ -256,6 +261,11 @@ class OpenAIProvider:
                     summary_text = _field(summary_item, "text")
                     if isinstance(summary_text, str) and summary_text:
                         reasoning_parts.append(summary_text)
+            elif item_type == "message":
+                for content in _field(item, "content", []) or []:
+                    content_annotations = _field(content, "annotations", []) or []
+                    if isinstance(content_annotations, list):
+                        annotations.extend(content_annotations)
 
         return ProviderResponse(
             text=text,
@@ -267,6 +277,11 @@ class OpenAIProvider:
             tool_calls=tool_calls if tool_calls else None,
             response_id=response_id if isinstance(response_id, str) else None,
             finish_reason=finish_reason,
+            artifacts=(
+                {"annotations": jsonable_provider_artifact(annotations)}
+                if annotations
+                else None
+            ),
         )
 
     async def submit_deferred(
@@ -608,6 +623,11 @@ class OpenAIProvider:
                 }
             }
 
+        merge_provider_options(
+            create_kwargs,
+            request.provider_options,
+            provider="openai",
+        )
         return create_kwargs
 
     async def _build_batch_request_body(
@@ -649,6 +669,7 @@ class OpenAIProvider:
             provider_state=request.provider_state,
             max_tokens=request.max_tokens,
             implicit_caching=request.implicit_caching,
+            provider_options=request.provider_options,
         )
         return self._build_responses_create_kwargs(resolved_request)
 
@@ -1071,14 +1092,17 @@ def _normalize_input_part(part: Any) -> dict[str, str] | None:
     if parsed.scheme not in {"http", "https"}:
         raise APIError(f"Unsupported URI for OpenAI provider: {uri}")
 
-    if mime_type == "application/pdf":
+    if _is_openai_remote_file_mime_type(mime_type):
         return {"type": "input_file", "file_url": uri}
     if mime_type.startswith("image/"):
         return {"type": "input_image", "image_url": uri}
 
     raise APIError(
         f"Unsupported remote mime type for OpenAI provider: {mime_type}",
-        hint="Supported remote types for v1.0 are PDFs and images.",
+        hint=(
+            "Supported remote types are images plus text, PDF, and common "
+            "document/spreadsheet/presentation file URLs."
+        ),
     )
 
 
@@ -1103,3 +1127,20 @@ def _is_text_like_mime_type(mime_type: str) -> bool:
         return True
 
     return mime_type.endswith(("+json", "+xml"))
+
+
+def _is_openai_remote_file_mime_type(mime_type: str) -> bool:
+    """Return True when OpenAI can receive a remote URL as input_file."""
+    if _is_text_like_mime_type(mime_type):
+        return True
+    common_document_types = {
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/rtf",
+    }
+    return mime_type in common_document_types

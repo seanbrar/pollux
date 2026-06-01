@@ -147,3 +147,27 @@ def test_with_gemini_video_settings_returns_copied_payloads() -> None:
     payload["fps"] = 99.0
 
     assert source.gemini_video_settings_for("gemini") == {"fps": 1.0}
+
+
+def test_with_gemini_url_context_stores_provider_hint() -> None:
+    """Gemini URL Context should be a Gemini-scoped URI source hint."""
+    source = Source.from_uri(
+        "https://example.com/page",
+        mime_type="text/html",
+    ).with_gemini_url_context()
+
+    assert source.provider_hints_for("gemini") == {"url_context": {}}
+    assert source.provider_hints_for("openai") is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        Source.from_text("hello"),
+        Source.from_uri("gs://bucket/object", mime_type="text/plain"),
+    ],
+)
+def test_with_gemini_url_context_rejects_invalid_sources(source: Source) -> None:
+    """Gemini URL Context should be limited to HTTP(S) URI sources."""
+    with pytest.raises(SourceError):
+        source.with_gemini_url_context()

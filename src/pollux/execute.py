@@ -199,6 +199,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
                         provider_state=request_provider_state,
                         max_tokens=options.max_tokens,
                         implicit_caching=implicit_caching,
+                        provider_options=options.provider_options_for(config.provider),
                     )
                     await _validate_provider_request(provider, req)
                     parts = await _substitute_upload_parts(

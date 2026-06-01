@@ -134,8 +134,11 @@ result = await run(
 
 ## Setting Up Tool Calling
 
-Pollux passes tool definitions to providers and surfaces tool call responses
-in the result envelope.
+Pollux passes function tool definitions to providers and surfaces tool call
+responses in the result envelope. `Options.tools` is for Pollux-normalized
+client/application tools that your code executes. Provider-hosted server tools
+such as web search or code execution are provider-specific and belong in
+`Options(provider_options=...)`.
 
 **Defining tools:** pass a list of tool schemas in `Options.tools`:
 

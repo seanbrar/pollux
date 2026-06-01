@@ -62,6 +62,7 @@ class FakeProvider:
             "previous_response_id": request.previous_response_id,
             "provider_state": request.provider_state,
             "implicit_caching": request.implicit_caching,
+            "provider_options": request.provider_options,
         }
         prompt = (
             request.parts[-1]

@@ -325,6 +325,44 @@ def test_gemini_parse_response_extracts_reasoning_from_thought_parts() -> None:
     assert result.text == "The answer is 42."
 
 
+def test_gemini_parse_response_extracts_url_context_artifacts() -> None:
+    """URL Context metadata should be preserved as provider artifacts."""
+    provider = GeminiProvider("test-key")
+
+    class UrlContextMetadata:
+        def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
+            return {
+                "url_metadata": [
+                    {
+                        "retrieved_url": "https://example.com",
+                        "url_retrieval_status": "URL_RETRIEVAL_STATUS_SUCCESS",
+                    }
+                ]
+            }
+
+    metadata = UrlContextMetadata()
+    fake_candidate = MagicMock()
+    fake_candidate.url_context_metadata = metadata
+    fake_response = MagicMock()
+    fake_response.text = "ok"
+    fake_response.parsed = None
+    fake_response.usage_metadata = None
+    fake_response.candidates = [fake_candidate]
+
+    result = provider._parse_response(fake_response)
+
+    assert result.artifacts == {
+        "url_context_metadata": {
+            "url_metadata": [
+                {
+                    "retrieved_url": "https://example.com",
+                    "url_retrieval_status": "URL_RETRIEVAL_STATUS_SUCCESS",
+                }
+            ]
+        }
+    }
+
+
 def test_gemini_parse_response_joins_multiple_thought_parts() -> None:
     """Multiple thought parts should be joined with double newlines."""
     provider = GeminiProvider("test-key")
@@ -676,6 +714,87 @@ async def test_gemini_generate_attaches_video_metadata_from_source_settings() ->
 
 
 @pytest.mark.asyncio
+async def test_gemini_generate_uses_url_context_tool_for_url_context_sources() -> None:
+    """Gemini URL Context sources should become URL text plus url_context tool."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(**kwargs: Any) -> Any:
+        captured["contents"] = kwargs.get("contents")
+        captured["config"] = kwargs.get("config")
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=[
+                {
+                    "uri": "https://example.com/page",
+                    "mime_type": "text/html",
+                    "provider_hints": {"url_context": {}},
+                },
+                "Summarize this URL.",
+            ],
+            tools=[{"name": "save_summary", "parameters": {"type": "object"}}],
+        )
+    )
+
+    assert captured["contents"] == [
+        "https://example.com/page",
+        "Summarize this URL.",
+    ]
+    config = captured["config"]
+    assert len(config.tools) == 2
+    assert config.tools[0].function_declarations[0].name == "save_summary"
+    assert config.tools[1].url_context is not None
+
+
+@pytest.mark.asyncio
+async def test_gemini_provider_options_merge_and_overlap() -> None:
+    """Raw Gemini options should merge unless they overlap managed config keys."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(**kwargs: Any) -> Any:
+        captured["config"] = kwargs.get("config")
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        ProviderRequest(
+            model=GEMINI_MODEL,
+            parts=["Hello"],
+            provider_options={"seed": 123},
+        )
+    )
+
+    assert captured["config"].seed == 123
+
+    with pytest.raises(ConfigurationError, match="overlap"):
+        await provider.generate(
+            ProviderRequest(
+                model=GEMINI_MODEL,
+                parts=["Hello"],
+                temperature=0.2,
+                provider_options={"temperature": 0.7},
+            )
+        )
+
+
+@pytest.mark.asyncio
 async def test_gemini_strips_additional_properties_from_tool_schemas() -> None:
     """Gemini rejects additionalProperties; Pollux should strip it."""
     captured: dict[str, Any] = {}
@@ -1023,6 +1142,37 @@ async def test_openai_skips_normalization_when_strict_is_false() -> None:
     assert "required" not in params
 
 
+@pytest.mark.asyncio
+async def test_openai_provider_options_merge_and_overlap() -> None:
+    """Raw OpenAI options should merge unless they overlap managed fields."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=["Search if needed."],
+            provider_options={"tools": [{"type": "web_search_preview"}]},
+        )
+    )
+
+    assert responses.last_kwargs is not None
+    assert responses.last_kwargs["tools"] == [{"type": "web_search_preview"}]
+
+    with pytest.raises(ConfigurationError, match="overlap"):
+        await provider.generate(
+            ProviderRequest(
+                model=OPENAI_MODEL,
+                parts=["Search if needed."],
+                tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
+                provider_options={"tools": [{"type": "web_search_preview"}]},
+            )
+        )
+
+
 # =============================================================================
 # OpenAI Request Part Building (Characterization)
 # =============================================================================
@@ -1168,6 +1318,36 @@ async def test_openai_rejects_unsupported_remote_mime_type() -> None:
 
 
 @pytest.mark.asyncio
+async def test_openai_accepts_remote_text_like_mime_types() -> None:
+    """Remote text-like URIs should use input_file.file_url."""
+    responses = _FakeResponses()
+    fake_client = type("Client", (), {"responses": responses})()
+
+    provider = OpenAIProvider("test-key")
+    provider._client = fake_client
+
+    await provider.generate(
+        ProviderRequest(
+            model=OPENAI_MODEL,
+            parts=[
+                {"uri": "https://example.com/data.csv", "mime_type": "text/csv"},
+                {
+                    "uri": "https://example.com/notes.md",
+                    "mime_type": "text/markdown",
+                },
+            ],
+        )
+    )
+
+    assert responses.last_kwargs is not None
+    content = responses.last_kwargs["input"][0]["content"]
+    assert content == [
+        {"type": "input_file", "file_url": "https://example.com/data.csv"},
+        {"type": "input_file", "file_url": "https://example.com/notes.md"},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_openai_generate_forwards_reasoning_effort_and_summary() -> None:
     """reasoning_effort should map to reasoning dict with effort and summary."""
     responses = _FakeResponses()
@@ -1247,6 +1427,32 @@ async def test_openai_extracts_reasoning_summary_from_response() -> None:
 
     assert result.reasoning == "The model considered..."
     assert result.text == "The answer."
+
+
+def test_openai_parse_extracts_output_annotations_as_artifacts() -> None:
+    """OpenAI output annotations should be preserved in diagnostics artifacts."""
+    annotation = {"type": "file_citation", "file_id": "file_123", "index": 0}
+    content = type(
+        "OutputText",
+        (),
+        {"type": "output_text", "text": "cited answer", "annotations": [annotation]},
+    )()
+    message_item = type("MessageItem", (), {"type": "message", "content": [content]})()
+    fake_response = type(
+        "Response",
+        (),
+        {
+            "output_text": "cited answer",
+            "id": "resp_123",
+            "usage": None,
+            "output": [message_item],
+            "status": "completed",
+        },
+    )()
+
+    result = OpenAIProvider._parse_response(fake_response, response_schema=None)
+
+    assert result.artifacts == {"annotations": [annotation]}
 
 
 @pytest.mark.asyncio
@@ -3354,6 +3560,28 @@ def test_anthropic_parse_extracts_cached_tokens() -> None:
     assert result.usage["input_tokens"] == 50
 
 
+def test_anthropic_parse_preserves_unknown_blocks_as_artifacts() -> None:
+    """Provider-specific server-tool blocks should remain inspectable."""
+    from pollux.providers.anthropic import _parse_response
+
+    server_block = type(
+        "ServerToolBlock",
+        (),
+        {"type": "server_tool_use", "id": "srv_123", "name": "web_search"},
+    )()
+    response = _fake_anthropic_response(
+        content=[_fake_text_block("ok"), server_block],
+    )
+
+    result = _parse_response(response, response_schema=None)
+
+    assert result.artifacts == {
+        "content_blocks": [
+            {"id": "srv_123", "name": "web_search", "type": "server_tool_use"}
+        ]
+    }
+
+
 def test_anthropic_parse_omits_cached_tokens_when_absent() -> None:
     """Missing cache_read_input_tokens should not add cached_tokens."""
     from pollux.providers.anthropic import _parse_response
@@ -3752,6 +3980,50 @@ async def test_anthropic_generate_reasoning_with_tools_omits_header_for_adaptive
 
 
 @pytest.mark.asyncio
+async def test_anthropic_generate_uses_adaptive_for_opus_4_7() -> None:
+    """Opus 4.7 rejects manual thinking and should route through adaptive."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model="claude-opus-4-7",
+            parts=["Think."],
+            reasoning_effort="max",
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["output_config"]["effort"] == "max"
+    assert messages.last_kwargs["thinking"] == {"type": "adaptive"}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_provider_options_merge_and_overlap() -> None:
+    """Raw Anthropic options should merge unless they overlap managed fields."""
+    provider, messages = _anthropic_provider_with_fake()
+
+    await provider.generate(
+        ProviderRequest(
+            model=ANTHROPIC_MODEL,
+            parts=["Hello"],
+            provider_options={"metadata": {"user_id": "pollux-test"}},
+        )
+    )
+
+    assert messages.last_kwargs is not None
+    assert messages.last_kwargs["metadata"] == {"user_id": "pollux-test"}
+
+    with pytest.raises(ConfigurationError, match="overlap"):
+        await provider.generate(
+            ProviderRequest(
+                model=ANTHROPIC_MODEL,
+                parts=["Hello"],
+                provider_options={"max_tokens": 64},
+            )
+        )
+
+
+@pytest.mark.asyncio
 async def test_anthropic_generate_rejects_unknown_reasoning_effort() -> None:
     """Anthropic effort mapping should fail fast on unsupported values."""
     provider, _messages = _anthropic_provider_with_fake()
@@ -3773,7 +4045,7 @@ async def test_anthropic_generate_rejects_max_effort_on_non_opus_4_6() -> None:
 
     provider, _messages = _anthropic_provider_with_fake()
 
-    with pytest.raises(ConfigurationError, match=r"supported on Claude Opus 4\.6"):
+    with pytest.raises(ConfigurationError, match=r"supported on Claude Opus 4\.6\+"):
         await provider.generate(
             ProviderRequest(
                 model="claude-sonnet-4-6",
@@ -4033,6 +4305,33 @@ async def test_anthropic_upload_success(tmp_path: Any) -> None:
     assert fake_files.last_kwargs["extra_headers"] == {
         "anthropic-beta": "files-api-2025-04-14"
     }
+
+
+@pytest.mark.asyncio
+async def test_anthropic_upload_rejects_text_csv_before_dispatch(tmp_path: Any) -> None:
+    """Anthropic accepts only plaintext document files, not all text/* MIME types."""
+
+    class _FakeBetaFiles:
+        upload_called = False
+
+        async def upload(self, **kwargs: Any) -> Any:  # noqa: ARG002
+            self.upload_called = True
+            return type("Result", (), {"id": "file_123"})()
+
+    fake_files = _FakeBetaFiles()
+    fake_client = type(
+        "Client", (), {"beta": type("Beta", (), {"files": fake_files})()}
+    )()
+
+    provider = AnthropicProvider("test-key")
+    provider._client = fake_client
+
+    file_path = tmp_path / "data.csv"
+    file_path.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="Unsupported mime type"):
+        await provider.upload_file(file_path, "text/csv")
+    assert fake_files.upload_called is False
 
 
 @pytest.mark.asyncio

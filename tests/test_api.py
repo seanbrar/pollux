@@ -369,6 +369,33 @@ async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> Non
 
 
 @pytest.mark.asyncio
+async def test_gemini_url_context_roundtrip(
+    gemini_api_key: str,
+    gemini_test_model: str,
+) -> None:
+    """E2E: Gemini URL Context retrieves a public URL and exposes metadata."""
+    config = Config(
+        provider="gemini",
+        model=gemini_test_model,
+        api_key=gemini_api_key,
+    )
+
+    result = await pollux.run(
+        "Use URL Context. Reply exactly GEMINI_URL_CONTEXT_OK if the URL is accessible.",
+        source=Source.from_uri(
+            "https://raw.githubusercontent.com/openai/openai-python/main/README.md",
+            mime_type="text/markdown",
+        ).with_gemini_url_context(),
+        config=config,
+    )
+
+    assert result["status"] == "ok"
+    assert "gemini_url_context_ok" in result["answers"][0].lower()
+    raw = result["diagnostics"]["raw_responses"][0]
+    assert "url_context_metadata" in raw.get("artifacts", {})
+
+
+@pytest.mark.asyncio
 async def test_gemini_live_deferred_inline_submit_and_inspect(
     gemini_api_key: str,
     gemini_test_model: str,
@@ -534,6 +561,18 @@ async def test_openai_binary_upload_cleanup_roundtrip(
     assert "pdf_ok" in result["answers"][0].lower()
     assert deleted_file_ids
     assert all(isinstance(file_id, str) and file_id for file_id in deleted_file_ids)
+
+    remote = await pollux.run(
+        "Read the remote file and reply exactly REMOTE_MARKDOWN_OK.",
+        source=Source.from_uri(
+            "https://raw.githubusercontent.com/openai/openai-python/main/README.md",
+            mime_type="text/markdown",
+        ),
+        config=config,
+        options=Options(max_tokens=512),
+    )
+    assert remote["status"] == "ok"
+    assert "remote_markdown_ok" in remote["answers"][0].lower()
 
 
 @pytest.mark.asyncio
