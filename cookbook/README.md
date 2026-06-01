@@ -15,16 +15,21 @@ forkable applications under `cookbook/projects/`.
 
 ## Setup
 
-Recipes require a dev install so that `import pollux` resolves through the package manager:
+Recipes need Pollux importable from a checkout. Install the project (this is all
+you need to run recipes):
 
 ```bash
-uv sync --all-extras          # or: pip install -e ".[dev]"
+uv sync                       # or: pip install -e .
 ```
 
-Then install the shared starter data pack:
+`uv sync` also installs the dev tooling used by `just check`; `pip install -e .`
+installs just the library, which is enough to run recipes. Recipes run with no
+extra setup — the repo ships a tiny seed of demo inputs, so the default path
+works on a fresh clone. To add richer/heavier samples (audio, video, authored
+project packs), install the optional data packs:
 
 ```bash
-just demo-data
+just demo-data                # optional: heavier shared media + a network fetch
 ```
 
 ## Quick start
@@ -33,27 +38,24 @@ just demo-data
 # 1) List recipes
 python -m cookbook --list
 
-# 2) Install starter inputs once, then let recipes fall back to them
-just demo-data
-
-# 3) Run a baseline recipe in mock mode (default)
+# 2) Run a baseline recipe in mock mode (default) — works on the in-repo seed
 python -m cookbook getting-started/analyze-single-paper
 
-# 4) Run a project recipe
+# 3) Run a project recipe
 python -m cookbook projects/paper-to-workshop-kit
 
-# 5) Run a multimodal project recipe
+# 4) Run a multimodal project recipe
 python -m cookbook projects/fridge-raid \
   --note "eggs, rice, scallions"
 
-# 6) Run a DnD project recipe
+# 5) Run a DnD project recipe
 python -m cookbook projects/treasure-tailor \
   --party-member "Nyx:rogue:5" \
   --party-member "Brakka:fighter:5" \
   --party-member "Iri:wizard:5" \
   --summary "The party cleared a flooded observatory."
 
-# 7) Run a DnD spell packet recipe
+# 6) Run a DnD spell packet recipe (uses an authored pack: `just demo-data spellbook-sidekick`)
 python -m cookbook projects/spellbook-sidekick \
   --spell Shield \
   --spell Web \
@@ -61,14 +63,15 @@ python -m cookbook projects/spellbook-sidekick \
   --class wizard \
   --level 5
 
-# 8) Run against a real provider
+# 7) Run against a real provider
 python -m cookbook getting-started/analyze-single-paper \
   --input path/to/file.pdf --no-mock --provider gemini --model gemini-2.5-flash-lite
 ```
 
 Notes:
 
-- `just demo-data` installs the shared starter data pack used by shared cookbook fallbacks.
+- Recipes run on a tiny in-repo seed by default; `just demo-data` is optional and
+  adds heavier shared media (audio, video) via a network fetch.
 - `just demo-data spellbook-sidekick` installs the authored spellbook starter pack.
 - Most recipes support `--mock/--no-mock`, `--provider`, and `--model`.
   If you omit `--model`, the cookbook picks a starter model for the selected

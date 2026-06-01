@@ -1,0 +1,16 @@
+Design Note B: Reducing LLM API Costs with Deferred Batch Execution
+
+The Research team argues that deferred execution, not caching, is the bigger
+cost lever for analysis that no user is actively waiting on. Many providers
+offer a lower-priced asynchronous path: submit a large set of requests, collect
+results later, and accept higher latency in exchange for a meaningful discount.
+
+For nightly report generation across thousands of stored documents, deferred
+execution cut total spend by close to half compared with synchronous calls, at
+the cost of results arriving minutes to hours later. Caching helped less here,
+because each document was analyzed only once, so there was little shared context
+to reuse. The main risk is operational: the application must persist a handle
+for each submission and reconcile results when they return.
+
+Recommendation: route non-urgent, high-volume batch work through deferred
+execution, and reserve caching for interactive sessions that reuse one source.

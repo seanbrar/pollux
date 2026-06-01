@@ -23,10 +23,11 @@ Pollux currently ships one documented CLI surface:
 
 ## Prerequisites
 
-Install dev dependencies so recipe imports resolve correctly:
+Install the project so recipe imports resolve (this is all you need to run
+recipes; `uv sync` also adds the dev tooling used by `just check`):
 
 ```bash
-uv sync --all-extras          # installs all dev/test/docs/lint deps
+uv sync                       # or: pip install -e .
 ```
 
 ## Command Shape
@@ -181,14 +182,18 @@ exception: it fixes `provider="local"` and exposes `--base-url` instead of
 ### Setup
 
 ```bash
-uv sync --all-extras          # installs all dev/test/docs/lint deps
+uv sync                        # or: pip install -e .
 python -m cookbook --list      # verify install
-just demo-data                # install the shared starter data pack
+just demo-data                 # optional: heavier shared media (audio, video)
 ```
+
+Recipes run on a tiny in-repo seed by default, so `just demo-data` is optional
+enrichment, not a prerequisite.
 
 ## Troubleshooting
 
-- `could not import pollux`: run `uv sync --all-extras`.
+- `could not import pollux`: run `uv sync` (or `pip install -e .`), and run via
+  `uv run python -m cookbook …` or an activated venv.
 - `Recipe not found`: verify the spec with `python -m cookbook --list`.
 - Unexpected relative-path behavior: use `--no-cwd-repo-root` only when you need CWD-local paths.
 - **No demo files:** run `just demo-data` for shared starter data, or `just demo-data spellbook-sidekick` for the authored spellbook pack.

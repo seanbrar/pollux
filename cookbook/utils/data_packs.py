@@ -39,7 +39,11 @@ ENV_DATA_SOURCE = "POLLUX_COOKBOOK_DATA_SOURCE"
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _COOKBOOK_ROOT = Path(__file__).resolve().parents[1]
-_LEGACY_SHARED_ROOT = _COOKBOOK_ROOT / "data" / "demo"
+# Tiny shared pack committed in-repo so the default recipe path runs on a fresh
+# clone with no download. Mirrors the data-repo layout (<base>/shared/v1/...) so
+# the same role-resolution machinery handles it; it is the lowest-precedence
+# pack root, below any installed pack or local pollux-cookbook-data checkout.
+_SEED_DATA_ROOT = _COOKBOOK_ROOT / "data" / "seed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,8 +122,12 @@ def find_pack_root(spec: PackSpec) -> Path | None:
 
 
 def iter_pack_roots(spec: PackSpec) -> list[Path]:
-    """Return all available pack roots in precedence order."""
-    roots = [*_local_repo_candidates(), cookbook_data_dir()]
+    """Return all available pack roots in precedence order.
+
+    Precedence: env source / local pollux-cookbook-data checkout, then the
+    installed user data dir, then the committed in-repo seed as a last resort.
+    """
+    roots = [*_local_repo_candidates(), cookbook_data_dir(), _SEED_DATA_ROOT]
     out: list[Path] = []
     seen: set[Path] = set()
     for root in roots:
@@ -159,27 +167,15 @@ def pack_role_path(spec: PackSpec, role: str) -> Path | None:
 
 
 def default_shared_role_path(role: str) -> Path | None:
-    """Resolve one shared-pack role, falling back to the legacy in-repo layout."""
-    pack_path = pack_role_path(SHARED_PACK, role)
-    if pack_path is not None:
-        return pack_path
+    """Resolve one shared-pack role across all pack roots.
 
-    legacy_map = {
-        "text_dir": _LEGACY_SHARED_ROOT / "text-medium",
-        "text_primary": _LEGACY_SHARED_ROOT / "text-medium" / "input.txt",
-        "text_compare": _LEGACY_SHARED_ROOT / "text-medium" / "compare.txt",
-        "media_dir": _LEGACY_SHARED_ROOT / "multimodal-basic",
-        "media_paper": _LEGACY_SHARED_ROOT / "multimodal-basic" / "sample.pdf",
-        "media_image": _LEGACY_SHARED_ROOT / "multimodal-basic" / "sample_image.jpg",
-        "media_audio": _LEGACY_SHARED_ROOT / "multimodal-basic" / "sample_audio.mp3",
-        "media_song": _LEGACY_SHARED_ROOT / "multimodal-basic" / "sample_song_64kb.mp3",
-        "media_fridge_image": _LEGACY_SHARED_ROOT / "multimodal-basic" / "fridge.png",
-        "media_video": _LEGACY_SHARED_ROOT / "multimodal-basic" / "sample_video.mp4",
-    }
-    candidate = legacy_map.get(role)
-    if candidate is not None and candidate.exists():
-        return candidate
-    return None
+    Resolution flows through the shared pack's ``[roles]`` table over every
+    available root (env source, local checkout, installed dir, in-repo seed).
+    Roles the seed does not ship (audio, song, video, fridge image) resolve only
+    when a richer pack is installed via ``just demo-data``; otherwise the caller
+    falls back or exits with a hint.
+    """
+    return pack_role_path(SHARED_PACK, role)
 
 
 def _open_url(url: str, timeout: float, user_agent: str) -> Any:

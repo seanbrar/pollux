@@ -15,7 +15,7 @@ focused rationale are what move this project forward.
 We use `uv` for dependency management:
 
 ```bash
-uv sync --all-extras          # installs all dev/test/docs/lint deps
+uv sync                       # installs the project + dev/test/docs/lint deps
 just check                    # lint + typecheck + tests
 ```
 

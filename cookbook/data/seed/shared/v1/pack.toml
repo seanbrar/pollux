@@ -1,0 +1,25 @@
+id = "shared"
+version = "1"
+title = "Shared Cookbook Seed Data"
+summary = "Tiny in-repo subset of the shared pack so recipes run on a fresh clone with no download. Heavy/authored assets live in the pollux-cookbook-data repo (install with `just demo-data`)."
+license = "MIT"
+status = "stable"
+
+# Role keys mirror pollux-cookbook-data/shared/v1/pack.toml. This seed ships the
+# subset that keeps the default recipe path runnable with zero setup; audio,
+# song, video, and the fridge image stay opt-in via the data repo.
+[roles]
+text_dir = "text-medium"
+text_primary = "text-medium/input.txt"
+text_compare = "text-medium/compare.txt"
+media_dir = "multimodal-basic"
+media_image = "multimodal-basic/sample_image.jpg"
+media_paper = "multimodal-basic/sample.pdf"
+
+[text-medium]
+description = "Two short design notes (caching vs deferred execution) for text and comparative-analysis recipes."
+files = ["text-medium/input.txt", "text-medium/compare.txt"]
+
+[multimodal-basic]
+description = "Small image and tiny PDF for getting-started and media recipes."
+files = ["multimodal-basic/sample_image.jpg", "multimodal-basic/sample.pdf"]

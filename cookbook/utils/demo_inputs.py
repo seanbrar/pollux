@@ -12,12 +12,15 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 _COOKBOOK_ROOT = Path(__file__).resolve().parents[1]
-_LEGACY_DEMO_ROOT = _COOKBOOK_ROOT / "data" / "demo"
+# The committed seed pack guarantees these roles resolve on a fresh clone, so
+# these fallbacks are effectively unreachable; they point at the seed (not the
+# download-only demo dir) to stay valid if role resolution ever returns None.
+_SEED_SHARED_ROOT = _COOKBOOK_ROOT / "data" / "seed" / "shared" / "v1"
 DEFAULT_TEXT_DEMO_DIR = default_shared_role_path("text_dir") or (
-    _LEGACY_DEMO_ROOT / "text-medium"
+    _SEED_SHARED_ROOT / "text-medium"
 )
 DEFAULT_MEDIA_DEMO_DIR = default_shared_role_path("media_dir") or (
-    _LEGACY_DEMO_ROOT / "multimodal-basic"
+    _SEED_SHARED_ROOT / "multimodal-basic"
 )
 DEFAULT_PAPER_DEMO_FILE = default_shared_role_path("media_paper")
 DEFAULT_FRIDGE_DEMO_FILE = default_shared_role_path("media_fridge_image")

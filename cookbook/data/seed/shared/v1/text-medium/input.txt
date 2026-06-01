@@ -1,0 +1,16 @@
+Design Note A: Reducing LLM API Costs with Context Caching
+
+The Platform team proposes context caching as the primary lever for cutting
+inference spend on document-heavy workloads. When the same source document is
+reused across many prompts, uploading and re-sending it on every call dominates
+token cost. By uploading once and caching the content for a short TTL, repeated
+prompts reuse the cached context and pay only for the new prompt tokens.
+
+In our internal benchmark over a 40-page contract analyzed with ten prompts,
+context caching reduced input tokens by roughly 85 percent and cut median
+latency by about half, because the upload step no longer repeats. The main risk
+is cache invalidation: if the document changes, stale cache entries must be
+evicted, and not every provider exposes explicit cache control.
+
+Recommendation: enable caching for any workload that issues three or more
+prompts against the same source within a single session.

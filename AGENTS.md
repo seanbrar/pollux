@@ -165,7 +165,7 @@ uv run pytest -m "unit" -v                         # By marker
 ```bash
 just docs-serve           # Serve docs locally at http://127.0.0.1:8000
 just docs-build           # Build the documentation site
-just demo-data            # Fetch demo data into cookbook/data/demo/
+just demo-data            # Optional: fetch heavier shared media into the user data dir
 ```
 
 ## Testing
@@ -331,6 +331,21 @@ Every PR includes a test plan. When no new tests are added, explain why using
   safe-by-default (no secrets, no ambient CWD assumptions).
 - If you add or move docs pages, update `mkdocs.yml`.
 - If you change user-facing behavior or public API, update docs in the same PR.
+
+### Cookbook distribution (decision)
+
+- The cookbook is a **clone-and-run** teaching artifact. It is intentionally
+  **not** shipped in the wheel (`pyproject` packages only `src/pollux`), and
+  there is no console entry point. This matches how comparable libraries ship
+  examples and keeps the published surface to the library itself. Revisit only
+  for a deliberate scaffold-launcher feature (e.g. `pollux new-recipe`).
+- Recipes must run on a **fresh clone with no download**: a tiny shared seed
+  lives at `cookbook/data/seed/` (mirrors the data-repo `shared/v1/` layout and
+  is the lowest-precedence pack root). `just demo-data` is **opt-in enrichment**
+  for heavy media (audio, video) and authored project packs, pulled from the
+  separate `pollux-cookbook-data` repo — never a prerequisite for the default
+  path. Keep the seed tiny and stable; heavy/evolving assets belong in the data
+  repo.
 
 ## Security & Safety
 
