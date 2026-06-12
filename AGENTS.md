@@ -1,413 +1,189 @@
 # Agent Guidelines (Pollux)
 
-This file is the authoritative operating manual for AI coding agents working in
-this repo. It covers project context, architecture, workflows, and guardrails.
+This is the operating guide for AI coding agents working in this repository.
+It should help an agent make good first moves, preserve project boundaries, and
+verify work without duplicating facts that are easy to read from the code.
 
-Supplementary references:
-- `TESTING.md` — Testing philosophy and boundary-first structure
-- `ROADMAP.md` — Scope boundaries, post-1.0 candidates
-- `docs/contributing.md` — Human contributor guide (PR/docs/cookbook standards)
-- `.github/PULL_REQUEST_TEMPLATE.md` — PR body template
+Use these files as the source of truth when they are relevant:
 
-## Project Overview
+- `src/pollux/__init__.py` - public API exports and entry-point behavior
+- `src/pollux/config.py` - providers, credentials, and config validation
+- `src/pollux/providers/` - provider adapters and capability boundaries
+- `TESTING.md` - testing philosophy and boundary-first structure
+- `ROADMAP.md` - scope boundaries and post-1.0 candidates
+- `docs/contributing.md` - human contributor and PR guidance
+- `.github/PULL_REQUEST_TEMPLATE.md` - required PR body format
 
-Pollux is a Python library for multimodal orchestration on LLM APIs. It
-provides source patterns (fan-out, fan-in, broadcast), context caching, and a
-modern async pipeline for analyzing text, PDFs, images, videos, and YouTube
-URLs.
+## Project Context
 
-**Core value:** You describe what to analyze. Pollux handles source patterns,
-context caching, rate limits, and retries—so you don't.
+Pollux is a Python library for multimodal orchestration on LLM APIs. Users
+describe what to analyze; Pollux handles source patterns, context caching, rate
+limits, retries, provider differences, and result normalization.
+
+The main execution model is:
+
+```text
+Request -> Plan -> Execute -> Extract
+```
+
+The implementation follows that shape across `request.py`, `plan.py`,
+`execute.py`, and `result.py`. Keep provider-specific SDK calls inside
+`src/pollux/providers/`; code above that boundary should work through Pollux's
+provider abstractions.
 
 ## Vocabulary
 
-Use precise terms to avoid confusion with provider-specific features:
+Use project terms precisely:
 
-| Term | Definition |
-|------|------------|
-| **Context caching** | Uploading content once, reusing across prompts |
-| **Fan-out** | One source → many prompts |
-| **Fan-in** | Many sources → one prompt |
-| **Broadcast** | Many sources × many prompts |
-| **Source patterns** | Fan-out, fan-in, broadcast collectively |
-| **Deferred mode** | (Future) Provider's async batch API (e.g., Google's Batch Prediction) |
+| Term | Meaning |
+| ---- | ------- |
+| Context caching | Uploading content once and reusing it across prompts |
+| Fan-out | One source -> many prompts |
+| Fan-in | Many sources -> one prompt |
+| Broadcast | Many sources x many prompts |
+| Source patterns | Fan-out, fan-in, and broadcast collectively |
+| Deferred mode | Provider-side asynchronous job APIs exposed through Pollux deferred entry points |
 
-**Avoid:** "batch processing" alone—it's ambiguous with provider batch APIs.
+When writing docs or comments, prefer "source patterns" for Pollux's
+multi-source/multi-prompt behavior and use "deferred" for provider-side async
+jobs.
 
-## Project Map
+## Repo Map
 
-| Path | Contents |
-|------|----------|
-| `src/pollux/` | Library code |
-| `tests/` | Tests (flat, boundary-first) |
-| `docs/` | MkDocs site; navigation in `mkdocs.yml` |
-| `cookbook/` | Runnable recipes (user-facing) |
-| `scripts/` | Helper scripts |
+- `src/pollux/` - library code
+- `tests/` - flat, boundary-first test suite
+- `docs/` - MkDocs site; navigation lives in `mkdocs.yml`
+- `cookbook/` - runnable, user-facing recipes
+- `scripts/` - helper scripts
 
-## Architecture
+## Agent Workflow
 
-### Four-Phase Pipeline
+Start by turning the request into an executable spec: expected inputs, outputs,
+edge cases, and what counts as done. Identify the boundary being changed, such
+as public API, provider adapter, execution planning, result extraction, docs, or
+cookbook.
 
-```
-Request → Plan → Execute → Extract
-```
-
-1. **Request Normalization** (`src/pollux/request.py`): Validates and normalizes prompts, sources, and config into a canonical `Request` dataclass
-2. **Execution Planning** (`src/pollux/plan.py`): Converts request into an execution plan with API calls; computes deterministic cache keys from content hashes
-3. **Plan Execution** (`src/pollux/execute.py`): Executes the plan asynchronously with file uploads, context caching, and concurrent API calls
-4. **Result Extraction** (`src/pollux/result.py`): Transforms API responses into standardized `ResultEnvelope` with `answers`, optional `structured`, and `usage` metadata
-
-### Entry Points
-
-The public API is exposed through `src/pollux/__init__.py`:
-
-- **`run(prompt, *, source=None, config, options=None)`** — Single prompt execution
-- **`run_many(prompts, *, sources=(), config, options=None)`** — Multi-prompt execution with shared sources (source patterns)
-
-### Key Modules
-
-| Module | Purpose |
-|--------|---------|
-| `config.py` | Immutable `Config` dataclass with API key resolution |
-| `source.py` | `Source` factory with `from_text()`, `from_file()`, `from_youtube()`, `from_arxiv()` |
-| `options.py` | Execution options: `response_schema`, `reasoning_effort`, deprecated `delivery_mode` shim (removal in v1.8.0), and conversation inputs |
-| `cache.py` | `CacheRegistry` for TTL-based context cache management |
-| `errors.py` | Exception hierarchy with `.hint` attribute for actionable messages |
-| `retry.py` | `RetryPolicy` + bounded async retry used by execution and providers |
-| `providers/` | Provider implementations: `gemini.py`, `openai.py`, `mock.py` |
-
-### Provider Abstraction
-
-Providers live behind a common interface in `src/pollux/providers/`. Each
-provider module translates Pollux's internal plan into provider-specific API
-calls. The boundary is strict: library code above `providers/` never imports
-provider SDKs directly.
-
-### Environment Variables
-
-- `GEMINI_API_KEY` — Gemini API key (auto-loaded from `.env`)
-- `OPENAI_API_KEY` — OpenAI API key (auto-loaded from `.env`)
-
-### Async Model
-
-The pipeline is async end-to-end. `run()` and `run_many()` are coroutines.
-Synchronous callers use `asyncio.run()`.
-
-## Agent Operating Procedure
-
-### 1. Orient
-
-- Restate the goal as an executable spec: inputs, outputs, edge cases, and
-  what counts as done.
-- Find the boundary you're changing (public API, provider adapter, CLI, etc.).
-- Search for related open issues before starting work:
-  `gh issue list --state open --search "<keywords>"`
-- Search the codebase before inventing new modules or abstractions.
-- Be action-forward: gather context with safe, read-only operations and only
-  stop to ask questions when ambiguity would change the correct design.
-
-### 2. Change Minimally
-
-- Prefer the smallest diff that satisfies the spec.
-- Keep public APIs stable unless the task explicitly calls for breaking change.
-- Avoid dead code in `src/pollux/`; delete unused paths rather than parking
-  them.
-
-### 3. Verify
-
-- Add or adjust tests when behavior changes.
-- Use MTMT vocabulary when you intentionally do not add tests:
-  architectural guarantee, boundary coverage, trivial delegation,
-  non-behavioral change.
-- Verify incrementally: run the narrowest check that builds confidence first
-  (a single test file or marker), then finish with `just check` for
-  non-trivial changes.
-
-### 4. Communicate
-
-- In your final response: what changed, why, risks, and exact commands run.
-- Call out deliberate non-goals or follow-ups (but do not expand scope).
-
-## Build & Development Commands
-
-### Install
+For non-trivial work, search related open issues before editing:
 
 ```bash
-just install-dev          # Install all dev/test/docs/lint deps via uv
+gh issue list --state open --search "<keywords>"
 ```
 
-### Verify (full suite)
+Search the codebase before adding modules, abstractions, or public API. Let the
+existing tests and nearby code determine the shape of the change.
+
+Make the smallest coherent change that satisfies the spec. Keep public APIs
+stable unless the task explicitly asks for a breaking change. Remove dead code
+introduced by the change instead of parking unused paths in `src/pollux/`.
+
+Ask questions only when the answer changes the correct design and cannot be
+discovered from the repository. Otherwise, make a reasonable assumption, state
+it, and keep moving.
+
+If a local CLI behaves differently because of the execution environment, capture
+the failure, try a reasonable fallback, and report any remaining blocker in the
+final response.
+
+## Verification
+
+Add or adjust tests when behavior changes. Prefer narrow verification first,
+then broader checks when the risk justifies it.
+
+Common commands:
 
 ```bash
-just check                # lint + typecheck + tests
-just test                 # All tests (except API tests)
-just test-api             # API tests (requires ENABLE_API_TESTS=1 + at least one provider API key)
-just lint                 # Ruff format check + lint
-just typecheck            # Mypy strict checks
+just install-dev
+just format
+just lint
+just typecheck
+just test
+just check
+uv run pytest tests/test_config.py -v
+uv run pytest tests/test_pipeline.py::test_name -v
+uv run pytest -m "unit" -v
 ```
 
-### Fix
+Use `just check` before a PR or after non-trivial changes when feasible. If you
+do not add tests, explain why with MTMT vocabulary:
 
-```bash
-just format               # Auto-format and apply safe Ruff fixes
-```
+- Architectural guarantee - the design makes the bug class impossible
+- Boundary coverage - existing tests already cover the affected boundary
+- Trivial delegation - the change delegates to already-tested code
+- Non-behavioral change - docs, comments, formatting, or config-only changes
 
-### Narrow (single target)
+API tests are opt-in. They must be marked `api`, skip cleanly without
+credentials, and are gated by `ENABLE_API_TESTS=1`. Run them only when asked or
+when real provider verification is necessary.
 
-```bash
-uv run pytest tests/test_config.py -v             # Single test file
-uv run pytest tests/test_pipeline.py::test_name -v # Single test
-uv run pytest -m "unit" -v                         # By marker
-```
-
-### Docs & Demo Data
-
-```bash
-just docs-serve           # Serve docs locally at http://127.0.0.1:8000
-just docs-build           # Build the documentation site
-just demo-data            # Optional: fetch heavier shared media into the user data dir
-```
-
-## Testing
-
-Tests follow a **boundary-first flat structure**. See [TESTING.md](TESTING.md)
-for the full testing philosophy.
-
-### Test Files
-
-| File | Purpose |
-|------|---------|
-| `test_source.py` | Source boundary: factory methods, validation, normalization |
-| `test_pipeline.py` | Pipeline boundary: public API, request normalization, caching, options forwarding |
-| `test_config.py` | Config boundary: resolution, validation, redaction |
-| `test_providers.py` | Provider characterization: request/response shapes |
-| `test_api.py` | Real API integration (Gemini + OpenAI, requires `ENABLE_API_TESTS=1`) |
-| `test_cookbook.py` | Cookbook CLI runner boundary |
-
-### Markers
-
-Tests use pytest markers for selection: `unit`, `integration`, `api`, `slow`.
-
-### Test Isolation
-
-Autouse fixtures in `tests/conftest.py` provide environment isolation:
-
-| Fixture | Default behavior | Opt-out marker |
-|---------|-----------------|----------------|
-| `block_dotenv()` | Prevents `.env` loading | `@pytest.mark.allow_dotenv` |
-| `isolate_provider_env()` | Cleans `GEMINI_*` and `OPENAI_*` env vars | `@pytest.mark.allow_env_pollution` |
-
-API test fixtures (not autouse):
-
-- `gemini_api_key` — Returns `GEMINI_API_KEY` or skips test
-- `openai_api_key` — Returns `OPENAI_API_KEY` or skips test
-
-### API Test Rules
-
-- Must be explicitly marked `api`.
-- Must skip cleanly without credentials.
-- Gated by `ENABLE_API_TESTS=1` (otherwise skipped).
-- Do not run them unless asked or the change genuinely requires provider
-  verification.
-
-### Coverage
-
-Coverage is tracked in CI via Codecov (diagnostic only, no enforced targets).
+Tests intentionally isolate environment and dotenv behavior by default. Check
+`tests/conftest.py` before changing credential, dotenv, or provider-env tests.
 
 ## Code Style
 
-- **Formatting:** Ruff (88 cols, double quotes). Use `just format` after edits.
-- **Types:** Library code uses strict mypy (`disallow_untyped_defs = true`).
-  Tests are exempt from `disallow_untyped_defs`.
-- **Naming:** `snake_case` for functions/modules, `PascalCase` for classes.
-- **Docstrings:** Google style.
-- **Compatibility:** Packaging supports Python `>=3.10,<3.15`; dev commonly
-  uses 3.13 (see `.python-version`).
+- Format with Ruff: 88 columns, double quotes.
+- Library code is strictly typed with mypy; tests allow untyped defs.
+- Use `snake_case` for functions/modules and `PascalCase` for classes.
+- Use Google-style docstrings where docstrings are needed.
+- Keep supported Python versions and tool settings aligned with `pyproject.toml`.
 
-## Contributing Workflow
+## Docs And Cookbook
 
-See `docs/contributing.md` for the full human contributor guide. The guidance
-below focuses on judgment calls agents face regularly.
+Docs and cookbook recipes are user-facing. Keep them runnable, explicit, and
+safe by default: no secrets, no ambient CWD assumptions, and no provider calls
+hidden behind surprising defaults.
 
-### Conventional Commits
+Update docs in the same PR when public API or user-facing behavior changes. If
+you add or move docs pages, update `mkdocs.yml`.
 
-Commit and PR titles use `type(scope): subject` (imperative mood). Common
-scopes: `api`, `core`, `cookbook`, `tests`, `ci`, `deps`, `docs`, `config`.
-Use bare types (`feat:`, `fix:`, `docs:`, `chore:`) for cross-cutting changes.
-These are examples, not a fixed allowlist.
+The cookbook is a clone-and-run teaching artifact, not part of the wheel and not
+a console entry point. Recipes should run on a fresh clone with the tiny seed
+data under `cookbook/data/seed/`; heavier assets belong in the optional
+`pollux-cookbook-data` path loaded by `just demo-data`.
 
-### Pull Requests
+## Security
 
-The repo has a [PR template](.github/PULL_REQUEST_TEMPLATE.md) with four
-sections:
+Keep provider calls explicit and testable. Default to mock or non-networked
+verification unless the task requires real provider access.
 
-1. **Summary** — what and why, one or two sentences
-2. **Related issue** — link with closing keywords (`Closes #123`), or "None"
-   for unprompted changes
-3. **Test plan** — describe verification with evidence (see test plan guidance)
-4. **Notes** (optional) — context not obvious from the diff
+Never commit real keys. `.env` is local-only; `.env.example` is the template.
+Credential and local-provider behavior should follow `src/pollux/config.py`.
 
-Before opening, ensure:
+## Issues And PRs
 
-- PR title follows conventional commits
-- `just check` passes (lint + typecheck + tests)
-- Tests cover meaningful cases, not just the happy path
-- Docs updated if public API or user-facing behavior changed
+Use GitHub issues when they help future work:
 
-### GitHub Issues Workflow
+- Search for related issues before creating one.
+- File issues for concrete bugs, doc drift, or out-of-scope follow-ups a human
+  maintainer would reasonably act on.
+- Add comments only when you have useful technical context: reproduction,
+  root cause, scope clarification, or implementation notes.
 
-Use `gh` (GitHub CLI) to work with issues as a natural part of development.
+Commit and PR titles use conventional commits: `type(scope): subject`.
+Common scopes include `api`, `core`, `cookbook`, `tests`, `ci`, `deps`, `docs`,
+and `config`; use a bare type for cross-cutting changes.
 
-**Reading issues (proactive, every task):**
+Before opening a PR, make sure:
 
-At the start of any non-trivial task, check for related open issues:
+- The PR body follows `.github/PULL_REQUEST_TEMPLATE.md`
+- The related issue section says `Closes #...`, `Relates to #...`, or `None`
+- The test plan names exact commands and evidence
+- User-facing behavior changes include docs or cookbook updates
 
-```bash
-gh issue list --state open --search "<keywords relevant to the task>"
-```
-
-Also check issues before creating a PR — the work may fully or partially
-resolve an existing issue.
-
-**Creating issues:**
-
-File issues for genuine findings discovered during development:
-
-- Real bugs encountered that are out of scope for the current task
-- Deferred work explicitly called out in the current PR
-- Missing functionality that blocks or complicates the current task
-
-Before creating, search for duplicates: `gh issue list --search "<summary>"`.
-Use the repo's issue templates:
-
-```bash
-# Non-interactive (recommended): start from the template content in
-# .github/ISSUE_TEMPLATE/{bug,feature}.md, then file via --body-file.
-gh issue create --title "fix(scope): summary" --body-file /tmp/issue.md
-```
-
-Issue titles follow the same conventional commits format as PR titles.
-
-**Do not create issues for**: speculative improvements, style preferences,
-vague TODOs, or anything the current PR already addresses. The bar: *would a
-human contributor file this?*
-
-**Commenting on issues:**
-
-Add a comment when you have **substantive information** to contribute: root
-cause analysis, reproduction details, scope clarification, or technical context
-that would help whoever picks up the issue next.
-
-Do not comment just to signal activity — the linked PR sidebar already shows
-that.
-
-```bash
-gh issue comment <number> --body "<substantive context>"
-```
-
-**Linking issues in PRs:**
-
-Always populate the **Related issue** section of the PR template:
-
-- `Closes #123` / `Fixes #123` — when the PR fully resolves the issue
-- `Relates to #123` — when partial or tangential
-- `None` — for unprompted changes with no related issue
-
-### Test Plan Guidance
-
-Every PR includes a test plan. When no new tests are added, explain why using
-[MTMT](https://github.com/seanbrar/minimal-tests-maximum-trust) vocabulary:
-
-- **Architectural guarantee** — the design makes the bug class impossible
-- **Boundary coverage** — existing tests already cover the affected boundary
-- **Trivial delegation** — the change delegates to already-tested code with no
-  new logic
-- **Non-behavioral change** — docs, comments, formatting, or config-only
-  changes
-
-## Documentation & Cookbook
-
-- Docs and cookbook recipes are user-facing. Keep them runnable, explicit, and
-  safe-by-default (no secrets, no ambient CWD assumptions).
-- If you add or move docs pages, update `mkdocs.yml`.
-- If you change user-facing behavior or public API, update docs in the same PR.
-
-### Cookbook distribution (decision)
-
-- The cookbook is a **clone-and-run** teaching artifact. It is intentionally
-  **not** shipped in the wheel (`pyproject` packages only `src/pollux`), and
-  there is no console entry point. This matches how comparable libraries ship
-  examples and keeps the published surface to the library itself. Revisit only
-  for a deliberate scaffold-launcher feature (e.g. `pollux new-recipe`).
-- Recipes must run on a **fresh clone with no download**: a tiny shared seed
-  lives at `cookbook/data/seed/` (mirrors the data-repo `shared/v1/` layout and
-  is the lowest-precedence pack root). `just demo-data` is **opt-in enrichment**
-  for heavy media (audio, video) and authored project packs, pulled from the
-  separate `pollux-cookbook-data` repo — never a prerequisite for the default
-  path. Keep the seed tiny and stable; heavy/evolving assets belong in the data
-  repo.
-
-## Security & Safety
-
-- Never commit real keys. `.env` is local-only; `.env.example` is the template.
-- Default to mock or non-networked verification unless the task requires real
-  provider calls.
-- Avoid introducing "quiet" network behavior in library code: make provider
-  calls explicit and testable.
-
-## Codex Sandbox
-
-In Codex, repo-facing CLIs like `git` and `gh` may need to run **outside the
-sandbox**. If they are blocked or behave oddly, rerun via `functions.exec_command`
-with `sandbox_permissions="require_escalated"`. For `gh`, saved command prefixes
-only auto-approve on the user side; live GitHub API calls (issues search/list/view,
-`gh api`, etc.) still require an out-of-sandbox execution.
-
-## Initiative (Judgment Calls)
-
-Agents should make judgment calls, but keep scopes clean.
-
-- If you discover a **real bug**, **doc drift**, or **out-of-scope follow-up**
-  that would help even a solo maintainer: file an issue. Use the same bar as a
-  human contributor: *would this be worth documenting for later?*
-- If a follow-up is small and clearly separable: prefer a **second PR** rather
-  than expanding the current one. A separate branch/worktree is encouraged when
-  available.
-- Avoid noise: do not open issues for speculative refactors, style preferences,
-  or “maybe someday” ideas.
-
-### Follow-up PR via worktree (recommended)
-
-Keep the current PR clean by doing follow-up work on a new branch in a new
-worktree:
+For separable follow-up work, prefer a second branch or worktree so the current
+change stays reviewable:
 
 ```bash
 git fetch origin
 git worktree add -b <branch> .worktrees/<topic> origin/main
 cd .worktrees/<topic>
 just check
-git add -A && git commit -m "fix(scope): <subject>" && git push -u origin <branch>
+git add -A
+git commit -m "fix(scope): <subject>"
+git push -u origin <branch>
 gh pr create
 ```
 
-Notes:
-- New worktrees do not include untracked local files (example: `.env`); prefer
-  explicit environment variables when running API tests.
-- Run commands from inside the worktree to avoid testing/committing from the
-  wrong directory.
+## Final Response
 
-## Known Footguns
-
-- **API tests are double-gated.** `tests/` skip `@pytest.mark.api` unless
-  `ENABLE_API_TESTS=1` is set (even if keys are present). `just test-api`
-  selects `-m api`, but you still need `ENABLE_API_TESTS=1`.
-- **`.env` is loaded lazily during `Config` initialization.** `src/pollux/config.py`
-  calls `load_dotenv()` only when `api_key` is omitted and the provider key is
-  not already exported. Tests intentionally block dotenv loading unless
-  explicitly opted out.
-- **Test isolation is intentional.** Autouse fixtures clear provider env vars
-  and redirect home config by default; opt out only when the test requires it.
-- **Prefer the code as source of truth for API names.** The public API is
-  exported from `src/pollux/__init__.py` (`run`, `run_many`). If docs/cookbook
-  mention stale names (example: `batch`), treat it as doc drift and consider
-  fixing in a follow-up.
+Summarize what changed, why it changed, risks or non-goals, and the exact
+commands run. If verification was skipped or incomplete, say so directly.
