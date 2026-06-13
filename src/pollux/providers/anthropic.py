@@ -1040,10 +1040,8 @@ def _supports_adaptive_thinking(model: str) -> bool:
 
 def _is_supported_anthropic_file_mime_type(mime_type: str) -> bool:
     """Return True for Anthropic document/image file MIME types Pollux supports."""
-    return (
-        mime_type == "application/pdf"
-        or mime_type == "text/plain"
-        or mime_type.startswith("image/")
+    return mime_type in {"application/pdf", "text/plain"} or mime_type.startswith(
+        "image/"
     )
 
 
