@@ -26,6 +26,9 @@ You should read this page if your 1.x code uses any of these:
 
 - `Options(...)` for output shape, tools, reasoning, caching, or provider
   controls.
+- The removed `Options.delivery_mode` setting. In v1.8+, use `run()` /
+  `run_many()` for realtime calls and `defer()` / `defer_many()` for
+  provider-side deferred work.
 - `continue_from`, `history`, `continue_tool()`, or persisted continuation
   blobs.
 - `create_cache(...)` and explicit cache handles.
