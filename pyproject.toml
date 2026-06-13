@@ -296,6 +296,12 @@ major_on_zero = true
 match = "main"
 prerelease = false
 
+[tool.semantic_release.branches.v1]
+# Long-lived v1 maintenance line. Publishes final patch/minor releases after
+# main moves to v2 (e.g., 1.8.1 or 1.9.0), not prereleases.
+match = "v1"
+prerelease = false
+
 [tool.semantic_release.branches.release]
 # Release branches publish RCs (e.g., 1.0.0-rc.1) before final main release.
 match = "^release\\/.*$"
@@ -303,9 +309,9 @@ prerelease = true
 prerelease_token = "rc"
 
 [tool.semantic_release.branches.preview]
-# Allow dry-run previews on non-main/non-release branches without changing release rules.
+# Allow dry-run previews on feature branches without changing release rules.
 # This produces prerelease versions like `0.10.0-preview.1` on feature branches.
-match = "^(?!main$)(?!release\\/).+"
+match = "^(?!main$)(?!v1$)(?!release\\/).+"
 prerelease = true
 prerelease_token = "preview"
 
