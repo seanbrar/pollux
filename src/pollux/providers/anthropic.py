@@ -57,6 +57,17 @@ _MANUAL_THINKING_BUDGETS = {
 }
 
 
+def _model_lacks_extended_thinking(model: str) -> bool:
+    """True for Claude 3.0/3.5 models, which have no extended thinking.
+
+    Extended thinking launched with Claude 3.7; the 3.0 and 3.5 families are
+    frozen and will never gain it, so this is a stable fact rather than a
+    moving capability matrix. Claude 3.7 (``claude-3-7-*``) and the 4.x
+    families do support thinking and are deliberately excluded.
+    """
+    return "claude-3-" in model and "claude-3-7" not in model
+
+
 class AnthropicProvider:
     """Anthropic Messages API provider."""
 
@@ -506,6 +517,28 @@ class AnthropicProvider:
                 allow_network_errors=True,
                 message="Anthropic batch cancel failed",
             ) from e
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        """Pre-flight model-specific rejections before any network call.
+
+        Implements the :class:`ValidatingProvider` hook. The provider-level
+        ``reasoning`` capability is coarse; this adds the model-specific layer
+        beneath it. A reasoning request against a Claude 3.0/3.5 model would
+        400 upstream after a wasted round-trip, so fail fast with an actionable
+        error instead.
+        """
+        wants_reasoning = (
+            request.reasoning_effort is not None
+            or request.reasoning_budget_tokens is not None
+        )
+        if wants_reasoning and _model_lacks_extended_thinking(request.model):
+            raise ConfigurationError(
+                f"Model {request.model!r} does not support extended thinking",
+                hint=(
+                    "Remove reasoning_effort/reasoning_budget_tokens, or use a "
+                    "model with extended thinking (Claude 3.7 or 4.x)."
+                ),
+            )
 
     async def generate(
         self,

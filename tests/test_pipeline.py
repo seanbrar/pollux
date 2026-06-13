@@ -3321,6 +3321,28 @@ def test_history_still_rejects_items_without_role() -> None:
 
 
 @pytest.mark.asyncio
+async def test_anthropic_preflight_rejects_reasoning_before_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real AnthropicProvider rejects reasoning on Claude 3 via validate_request.
+
+    Proves the pipeline runs the ValidatingProvider pre-flight before any
+    network call: the provider has no usable client, so a non-failing path
+    would error differently than this ConfigurationError.
+    """
+    provider = AnthropicProvider("test-key")
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+    cfg = Config(
+        provider="anthropic", model="claude-3-5-sonnet-20241022", use_mock=True
+    )
+
+    with pytest.raises(ConfigurationError, match="extended thinking"):
+        await pollux.run(
+            "Think hard.", config=cfg, options=Options(reasoning_effort="high")
+        )
+
+
+@pytest.mark.asyncio
 async def test_tool_call_response_populates_conversation_state_without_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
