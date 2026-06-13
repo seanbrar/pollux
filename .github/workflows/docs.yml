@@ -2,25 +2,50 @@ name: Docs
 
 "on":
   push:
-    branches: [ main ]
+    branches: [ main, v1 ]
     tags: [ 'v*' ]
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'pyproject.toml'
       - 'README.md'
       - 'src/**'
+      - 'uv.lock'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'pyproject.toml'
       - 'README.md'
       - 'src/**'
+      - 'uv.lock'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
+    inputs:
+      docs_version:
+        description: 'Optional mike version override, e.g. 1.8'
+        required: false
+        type: string
+        default: ""
+      aliases:
+        description: 'Optional space-separated aliases, e.g. v1 latest'
+        required: false
+        type: string
+        default: ""
+      default_version:
+        description: 'Optional mike default version or alias, e.g. latest'
+        required: false
+        type: string
+        default: ""
+      title:
+        description: 'Optional version selector title, e.g. 1.8 or Next'
+        required: false
+        type: string
+        default: ""
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -49,11 +74,6 @@ jobs:
       - name: Build site (strict)
         run: uv run mkdocs build --strict --clean
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-
       - name: Upload PR preview artifact
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@v6
@@ -64,11 +84,108 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v1' || startsWith(github.ref, 'refs/tags/v')) }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Configure docs version
+        id: docs-version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ref_name="${GITHUB_REF_NAME}"
+          version=""
+          title=""
+          default_version=""
+          aliases=""
+
+          if [[ -n "${{ inputs.docs_version }}" ]]; then
+            version="${{ inputs.docs_version }}"
+            title="${{ inputs.title }}"
+            aliases="${{ inputs.aliases }}"
+            default_version="${{ inputs.default_version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release="${ref_name#v}"
+            version="${release%.*}"
+            title="${version}"
+            major="${version%%.*}"
+            if [[ "${major}" == "1" ]]; then
+              aliases="v1"
+            else
+              aliases="latest"
+              default_version="latest"
+            fi
+          elif [[ "${ref_name}" == "v1" ]]; then
+            version="v1"
+            title="v1"
+          else
+            version="next"
+            title="Next"
+          fi
+          if [[ -z "${title}" ]]; then
+            title="${version}"
+          fi
+
+          {
+            echo "version=${version}"
+            echo "title=${title}"
+            echo "aliases=${aliases}"
+            echo "default_version=${default_version}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy versioned docs
+        run: |
+          aliases="${{ steps.docs-version.outputs.aliases }}"
+          if [[ -n "${aliases}" ]]; then
+            uv run mike deploy \
+              --push \
+              --update-aliases \
+              --title "${{ steps.docs-version.outputs.title }}" \
+              "${{ steps.docs-version.outputs.version }}" \
+              ${aliases}
+          else
+            uv run mike deploy \
+              --push \
+              --update-aliases \
+              --title "${{ steps.docs-version.outputs.title }}" \
+              "${{ steps.docs-version.outputs.version }}"
+          fi
+
+      - name: Set default docs version
+        if: ${{ steps.docs-version.outputs.default_version != '' }}
+        run: uv run mike set-default --push "${{ steps.docs-version.outputs.default_version }}"
+
+      - name: Checkout Pages branch
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
