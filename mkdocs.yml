@@ -89,6 +89,7 @@ nav:
   - Writing Portable Code Across Providers: portable-code.md
   - Handling Errors and Recovery: error-handling.md
   - Configuring Pollux: configuration.md
+  - Migrating to 2.0: migrating-to-v2.md
   - Reference:
       - API: reference/api.md
       - Provider Capabilities: reference/provider-capabilities.md
