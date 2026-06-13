@@ -91,13 +91,15 @@ def should_retry_generate(exc: BaseException) -> bool:
 
     Contract:
     - Cancellation is never retried.
-    - APIError is retried when the provider marked it retryable.
+    - APIError is retried when the provider marked it retryable and the category allows it.
     - Unwrapped transient network errors are retried as a pragmatic fallback.
     """
     if isinstance(exc, asyncio.CancelledError):
         return False
 
     if isinstance(exc, APIError):
+        if exc.error_category in ("context_overflow", "auth_refreshable"):
+            return False
         return exc.retryable is True
 
     return _is_transient_network_error(exc)
@@ -115,6 +117,8 @@ def should_retry_side_effect(exc: BaseException) -> bool:
         return False
 
     if isinstance(exc, APIError):
+        if exc.error_category in ("context_overflow", "auth_refreshable"):
+            return False
         return exc.retryable is True
 
     return False

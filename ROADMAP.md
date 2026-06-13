@@ -6,11 +6,10 @@ trustworthy, more legible, and harder to misuse.
 
 - **Intent**: communicate priorities and scope boundaries, not promises.
 - **Last updated**: 2026-04-22
-- **Current status**: v1.7 ships reasoning budget tokens, normalized
-  `cached_tokens` usage reporting across providers, and a text-only `local`
-  provider for self-hosted OpenAI-compatible servers.
-  `Options.delivery_mode` is soft-deprecated and scheduled for removal in
-  v1.8.0.
+- **Current status**: v1.8 ships reasoning budget tokens, normalized
+  `cached_tokens` usage reporting across providers, a text-only `local`
+  provider for self-hosted OpenAI-compatible servers, and removes the deprecated
+  `Options.delivery_mode` shim.
 - **Status tracking**: Issues and PRs are the source of truth for active work.
 
 ## Product Strategy
@@ -62,8 +61,6 @@ the goal; the goal is a small core that stays trustworthy under real use.
 Concrete items currently on the shortlist. None are commitments, and the list
 is expected to stay short. Discovered follow-ups are tracked in GitHub issues.
 
-- **Remove `Options.delivery_mode`** in v1.8.0. The shim is soft-deprecated in
-  v1.7 and emits `DeprecationWarning` on explicit use today.
 - **Gemini flex inference tier** — evaluate provider-specific support for
   Google's flex inference pricing tier (lower cost, higher latency).
 

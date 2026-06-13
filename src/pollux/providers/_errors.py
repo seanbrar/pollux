@@ -128,6 +128,70 @@ def _auth_hint(
     return None
 
 
+def _detect_error_category(exc: BaseException, status_code: int | None) -> str | None:
+    """Detect normalized error category based on status code, message, and exception type."""
+    for e in walk_exception_chain(exc):
+        name = type(e).__name__
+        msg = str(e).lower()
+
+        # 1. rate_limit
+        if (
+            name == "RateLimitError"
+            or status_code == 429
+            or "rate limit" in msg
+            or "too many requests" in msg
+        ):
+            return "rate_limit"
+
+        # 2. auth_refreshable
+        if (
+            name in ("AuthenticationError", "PermissionDeniedError")
+            or status_code in (401, 403)
+            or "unauthorized" in msg
+            or "invalid api key" in msg
+            or "api key not valid" in msg
+        ):
+            return "auth_refreshable"
+
+        # 3. capacity
+        if (
+            name == "InternalServerError"
+            or status_code in (502, 503, 504)
+            or any(
+                w in msg
+                for w in ("overloaded", "capacity", "unavailable", "server error")
+            )
+        ):
+            return "capacity"
+
+        # 4. context_overflow
+        if (name == "BadRequestError" or status_code == 400) and any(
+            w in msg
+            for w in (
+                "context length",
+                "max tokens",
+                "max_tokens",
+                "too long",
+                "exceeds maximum",
+                "token limit",
+                "exceeds limit",
+                "prompt length",
+            )
+        ):
+            return "context_overflow"
+
+    # Default fallback for status codes
+    if status_code is not None:
+        if status_code == 429:
+            return "rate_limit"
+        if status_code in (401, 403):
+            return "auth_refreshable"
+        if 500 <= status_code < 600:
+            return "capacity"
+
+    return None
+
+
 def wrap_provider_error(
     exc: BaseException,
     *,
@@ -146,6 +210,9 @@ def wrap_provider_error(
     if isinstance(exc, ConfigurationError):
         raise exc
 
+    status_code = extract_status_code(exc)
+    error_category = _detect_error_category(exc, status_code)
+
     # Already wrapped — fill in missing context only.
     if isinstance(exc, APIError):
         if exc.provider is None:
@@ -154,9 +221,10 @@ def wrap_provider_error(
             exc.phase = phase
         if hint is not None and exc.hint is None:
             exc.hint = hint
+        if exc.error_category is None:
+            exc.error_category = error_category
         return exc
 
-    status_code = extract_status_code(exc)
     retry_after_s = extract_retry_after_s(exc)
 
     retryable = retry_after_s is not None
@@ -181,8 +249,9 @@ def wrap_provider_error(
     msg = message or f"{provider} {phase} failed"
 
     err_cls: type[APIError] = APIError
-    if status_code == 429:
+    if status_code == 429 or error_category == "rate_limit":
         err_cls = RateLimitError
+        error_category = "rate_limit"
     elif phase == "cache":
         err_cls = CacheError
 
@@ -196,4 +265,5 @@ def wrap_provider_error(
         retry_after_s=retry_after_s,
         provider=provider,
         phase=phase,
+        error_category=error_category,
     )

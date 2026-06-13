@@ -43,7 +43,8 @@ class ResultEnvelope(TypedDict, total=False):
     #: ``input_tokens`` for Gemini and OpenAI, but reported separately from
     #: ``input_tokens`` for Anthropic.
     usage: dict[str, int]
-    #: Keys: ``duration_s``, ``n_calls``, ``cache_used``, ``finish_reasons``.
+    #: Keys: ``duration_s``, ``n_calls``, ``cache_used``, ``cache_mode``,
+    #: ``cache_hit``, and ``finish_reasons``.
     metrics: dict[str, Any]
     diagnostics: dict[str, Any]
     _conversation_state: dict[str, Any]
@@ -58,6 +59,7 @@ def build_result_from_responses(
     usage: dict[str, int],
     n_calls: int,
     cache_used: bool = False,
+    cache_mode: str = "none",
 ) -> ResultEnvelope:
     """Build a ResultEnvelope from provider responses.
 
@@ -109,6 +111,12 @@ def build_result_from_responses(
         response.finish_reason for response in responses
     ]
 
+    cache_hit = False
+    if cache_mode == "persistent":
+        cache_hit = cache_used
+    elif cache_mode == "implicit":
+        cache_hit = usage.get("cached_tokens", 0) > 0
+
     envelope = ResultEnvelope(
         status=status,
         answers=answers,
@@ -120,6 +128,8 @@ def build_result_from_responses(
             "n_calls": n_calls,
             "cache_used": cache_used,
             "finish_reasons": finish_reasons,
+            "cache_mode": cache_mode,
+            "cache_hit": cache_hit,
         },
         diagnostics={
             "raw_responses": [provider_response_to_dict(r) for r in responses],
@@ -145,6 +155,7 @@ def build_result(plan: Plan, trace: ExecutionTrace) -> ResultEnvelope:
         usage=trace.usage,
         n_calls=plan.n_calls,
         cache_used=trace.cache_name is not None,
+        cache_mode=trace.cache_mode,
     )
 
     if trace.conversation_state is not None:

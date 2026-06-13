@@ -50,6 +50,7 @@ class APIError(PolluxError):
         provider: str | None = None,
         phase: str | None = None,
         call_idx: int | None = None,
+        error_category: str | None = None,
     ) -> None:
         super().__init__(message, hint=hint)
         self.retryable = retryable
@@ -58,6 +59,7 @@ class APIError(PolluxError):
         self.provider = provider
         self.phase = phase
         self.call_idx = call_idx
+        self.error_category = error_category
 
 
 class CacheError(APIError):

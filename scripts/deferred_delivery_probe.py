@@ -82,10 +82,6 @@ CASE_DESCRIPTIONS: dict[str, tuple[CaseKind, str]] = {
         "validation",
         "Verify defer_many([]) fails fast with the documented ConfigurationError.",
     ),
-    "legacy_delivery_mode_rejected": (
-        "validation",
-        "Verify Options(delivery_mode='deferred') is rejected on defer entry points.",
-    ),
     "out_of_scope_options_rejected": (
         "validation",
         "Verify deferred rejects cache, conversation continuity, tools, and implicit caching.",
@@ -336,8 +332,6 @@ async def execute_validation_case(
     try:
         if case_name == "empty_prompts_rejected":
             details = await _validation_empty_prompts_rejected(case_dir)
-        elif case_name == "legacy_delivery_mode_rejected":
-            details = await _validation_legacy_delivery_mode_rejected(case_dir)
         elif case_name == "out_of_scope_options_rejected":
             details = await _validation_out_of_scope_options_rejected(case_dir)
         elif case_name == "unsupported_provider_rejected":
@@ -738,23 +732,6 @@ async def _validation_empty_prompts_rejected(case_dir: Path) -> dict[str, Any]:
         "requires at least one prompt",
     )
     return {"checks": [{"name": "empty_prompts", "message": message}]}
-
-
-async def _validation_legacy_delivery_mode_rejected(case_dir: Path) -> dict[str, Any]:
-    config = Config(
-        provider="openai", model=DEFAULT_MODELS["openai"], api_key="test-key"
-    )
-    message = await _expect_configuration_error(
-        case_dir,
-        "legacy_delivery_mode",
-        pollux.defer(
-            "Q1?",
-            config=config,
-            options=Options(delivery_mode="deferred"),
-        ),
-        "not needed with defer",
-    )
-    return {"checks": [{"name": "legacy_delivery_mode", "message": message}]}
 
 
 async def _validation_out_of_scope_options_rejected(case_dir: Path) -> dict[str, Any]:

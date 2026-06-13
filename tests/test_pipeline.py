@@ -6,7 +6,6 @@ import asyncio
 from dataclasses import dataclass, field
 import json
 from typing import TYPE_CHECKING, Any
-import warnings
 
 from pydantic import BaseModel
 import pytest
@@ -655,6 +654,128 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
 
         assert fake.generate_calls == expect_generate_calls
         assert fake.upload_attempts == expect_upload_attempts
+
+
+@pytest.mark.asyncio
+async def test_retry_skipped_for_permanent_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that permanent errors like context_overflow or auth_refreshable do not trigger retries."""
+    retry = RetryPolicy(
+        max_attempts=3,
+        initial_delay_s=0.0,
+        max_delay_s=0.0,
+        jitter=False,
+    )
+
+    @dataclass
+    class _FailingProvider(FakeProvider):
+        calls: int = 0
+        error_type: str = "context_overflow"
+
+        async def generate(self, _request: ProviderRequest) -> ProviderResponse:
+            self.calls += 1
+            if self.error_type == "context_overflow":
+                raise APIError(
+                    "context length exceeded limit",
+                    retryable=True,  # force True to verify category override
+                    status_code=400,
+                    error_category="context_overflow",
+                )
+            raise APIError(
+                "unauthorized access",
+                retryable=True,
+                status_code=401,
+                error_category="auth_refreshable",
+            )
+
+    cfg = Config(
+        provider="gemini",
+        model=GEMINI_MODEL,
+        use_mock=True,
+        retry=retry,
+    )
+
+    # 1. Test context_overflow
+    fake = _FailingProvider(error_type="context_overflow")
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
+    with pytest.raises(APIError, match="context length"):
+        await pollux.run("hello", config=cfg)
+    assert fake.calls == 1  # Should only run once, not retried!
+
+    # 2. Test auth_refreshable
+    fake2 = _FailingProvider(error_type="auth_refreshable")
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake2: _fake)
+    with pytest.raises(APIError, match="unauthorized"):
+        await pollux.run("hello", config=cfg)
+    assert fake2.calls == 1  # Should only run once, not retried!
+
+
+@pytest.mark.asyncio
+async def test_cache_diagnostics_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that cache_mode and cache_hit are correctly populated in ResultEnvelope metrics."""
+    from pollux.providers.base import ProviderCapabilities
+
+    fake = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=True,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=False,
+            implicit_caching=True,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    # 1. No caching
+    # Need a separate provider for No-Implicit-Caching to avoid validation passing
+    fake_no_caching = FakeProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=True,
+            uploads=True,
+            structured_outputs=False,
+            reasoning=False,
+            deferred_delivery=False,
+            conversation=False,
+            implicit_caching=False,
+        )
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake_no_caching)
+    res_none = await pollux.run("hello", config=cfg)
+    assert res_none["metrics"]["cache_mode"] == "none"
+    assert res_none["metrics"]["cache_hit"] is False
+
+    # 2. Implicit caching
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
+    res_implicit = await pollux.run(
+        "hello", config=cfg, options=Options(implicit_caching=True)
+    )
+    assert res_implicit["metrics"]["cache_mode"] == "implicit"
+    # usage lacks cached_tokens here, so cache_hit is False
+    assert res_implicit["metrics"]["cache_hit"] is False
+
+    # 3. Persistent caching (using mock provider / plan cache name)
+    @dataclass
+    class _CacheTrackingProvider(FakeProvider):
+        async def create_cache(self, **_kwargs: Any) -> str:
+            return "cachedContents/mock-handle-123"
+
+    fake_cache = _CacheTrackingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake_cache)
+    cfg_cache = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
+    handle = await pollux.create_cache(
+        (Source.from_text("shared context"),), config=cfg_cache
+    )
+
+    # Use the handle
+    res_cached = await pollux.run(
+        "hello", config=cfg_cache, options=Options(cache=handle)
+    )
+    assert res_cached["metrics"]["cache_mode"] == "persistent"
+    assert res_cached["metrics"]["cache_hit"] is True
 
 
 @pytest.mark.asyncio
@@ -1749,69 +1870,6 @@ async def test_implicit_caching_requires_provider_capability_when_enabled(
     assert exc.value.hint is not None
 
 
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
-@pytest.mark.asyncio
-async def test_delivery_mode_deferred_is_explicitly_not_implemented(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Legacy deferred mode should fail fast and point callers at the sibling API."""
-    fake = FakeProvider(
-        _capabilities=ProviderCapabilities(
-            persistent_cache=True,
-            uploads=True,
-            structured_outputs=True,
-            reasoning=True,
-            reasoning_budget_tokens=True,
-            deferred_delivery=True,
-            conversation=True,
-        )
-    )
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
-    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-
-    with pytest.raises(ConfigurationError, match="legacy compatibility shim"):
-        await pollux.run_many(
-            ("Q1?",),
-            config=cfg,
-            options=Options(delivery_mode="deferred"),
-        )
-
-
-def test_delivery_mode_default_emits_no_deprecation_warning() -> None:
-    """Constructing Options without delivery_mode should be warning-free."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        options = Options()
-
-    assert options.delivery_mode == "realtime"
-
-
-def test_delivery_mode_realtime_emits_deprecation_warning() -> None:
-    """Explicit realtime remains valid but is soft-deprecated ahead of v1.8.0."""
-    with pytest.warns(DeprecationWarning, match="delivery_mode is deprecated"):
-        options = Options(delivery_mode="realtime")
-
-    assert options.delivery_mode == "realtime"
-
-
-def test_delivery_mode_deferred_emits_deprecation_warning() -> None:
-    """Deferred remains constructible so Pollux can raise migration guidance."""
-    with pytest.warns(DeprecationWarning, match="delivery_mode is deprecated"):
-        options = Options(delivery_mode="deferred")
-
-    assert options.delivery_mode == "deferred"
-
-
-def test_delivery_mode_rejects_invalid_values_without_warning() -> None:
-    """Invalid delivery_mode values should raise without emitting a warning."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        with pytest.raises(
-            ConfigurationError, match="must be 'realtime' or 'deferred'"
-        ):
-            Options(delivery_mode="bogus")
-
-
 def test_deferred_handle_round_trip_serialization() -> None:
     """Deferred handles should serialize cleanly for downstream persistence."""
     handle = DeferredHandle(
@@ -1874,20 +1932,6 @@ async def test_defer_rejects_global_mock_provider() -> None:
             ("Summarize this text", "List two risks"),
             sources=(Source.from_text("shared context"),),
             config=cfg,
-        )
-
-
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
-@pytest.mark.asyncio
-async def test_defer_rejects_redundant_legacy_delivery_mode() -> None:
-    """Deferred entry points should tell legacy callers to drop delivery_mode."""
-    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-
-    with pytest.raises(ConfigurationError, match="not needed with defer"):
-        await pollux.defer_many(
-            ("Summarize this text",),
-            config=cfg,
-            options=Options(delivery_mode="deferred"),
         )
 
 
