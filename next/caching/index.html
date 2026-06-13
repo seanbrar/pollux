@@ -1,0 +1,1497 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://polluxlib.dev/next/caching/">
+      
+      
+        <link rel="prev" href="../agent-loop/">
+      
+      
+        <link rel="next" href="../portable-code/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Reducing Costs with Context Caching - Pollux</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../stylesheets/home.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#reducing-costs-with-context-caching" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Pollux" class="md-header__button md-logo" aria-label="Pollux" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pollux
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reducing Costs with Context Caching
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/seanbrar/pollux" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    seanbrar/pollux
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Pollux" class="md-nav__button md-logo" aria-label="Pollux" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pollux
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/seanbrar/pollux" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    seanbrar/pollux
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sending-content/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sending Content to Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../source-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyzing Collections with Source Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../submitting-work-for-later-collection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitting Work for Later Collection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../building-with-deferred-delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building With Deferred Delivery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structured-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extracting Structured Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conversations-and-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuing Conversations Across Turns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-loop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building an Agent Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reducing Costs with Context Caching
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reducing Costs with Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-redundant-context-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Redundant-Context Problem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quantifying-the-savings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quantifying the Savings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#three-caching-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three Caching Paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implicit-caching-anthropic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implicit Caching (Anthropic)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implicit Caching (Anthropic)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cost-mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost Mechanics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#default-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#current-pollux-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Pollux Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#explicit-caching-gemini" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explicit Caching (Gemini)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Explicit Caching (Gemini)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-by-step-walkthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step-by-Step Walkthrough
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cache-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache Identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#single-flight-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-Flight Protection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verifying-cache-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying Cache Reuse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observing-cache-hits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observing Cache Hits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tuning-explicit-cache-ttl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning Explicit Cache TTL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-caching-pays-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When Caching Pays Off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provider-dependency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Dependency
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../portable-code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Portable Code Across Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Handling Errors and Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuring Pollux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_16">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/provider-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!-- Intent: Teach context caching mechanics: the redundant-context problem,
+     creating a cache, cache identity, TTL tuning, when caching pays off,
+     reading cache hit token counts from result["usage"]["cached_tokens"], and
+     the distinction between Pollux-controlled caching and provider-side
+     automatic prompt caching. Do NOT cover source patterns or structured output
+     in depth — link to those pages. Assumes the reader understands run_many()
+     and fan-out workflows. Register: conceptual opening → guided applied. -->
+
+<h1 id="reducing-costs-with-context-caching">Reducing Costs with Context Caching<a class="headerlink" href="#reducing-costs-with-context-caching" title="Permanent link">&para;</a></h1>
+<p>Pollux's context caching uploads content once and reuses it across prompts,
+turning redundant re-uploads into cheap cache references. Providers implement
+caching differently, and Pollux gives you different levels of control
+depending on the provider.</p>
+<div class="admonition info">
+<p class="admonition-title">Boundary</p>
+<p><strong>Pollux owns:</strong> creating and reusing cached context via <code>create_cache()</code>
+(Gemini), toggling Anthropic prompt caching via
+<code>Options(implicit_caching=...)</code>, cache identity from content hashes,
+single-flight deduplication, the <code>metrics.cache_used</code> signal, and
+surfacing provider-reported cache hit counts in
+<code>result["usage"]["cached_tokens"]</code>.</p>
+<p><strong>You own:</strong> deciding when caching is worth the overhead, tuning TTL to
+match your reuse window, and accounting for billing differences by
+provider when interpreting <code>cached_tokens</code>.</p>
+</div>
+<h2 id="the-redundant-context-problem">The Redundant-Context Problem<a class="headerlink" href="#the-redundant-context-problem" title="Permanent link">&para;</a></h2>
+<p>Without caching, asking multiple questions about the same content resends it
+every time:</p>
+<div class="highlight"><pre><span></span><code>Question 1: [video tokens] + [question 1] → [answer 1]
+Question 2: [video tokens] + [question 2] → [answer 2]
+Question 3: [video tokens] + [question 3] → [answer 3]
+</code></pre></div>
+<p>For a 1-hour video (~946,800 tokens), five questions means transmitting
+~4.7M input tokens. The video content is identical each time.</p>
+<p>With caching:</p>
+<div class="highlight"><pre><span></span><code>Upload:     [video tokens] → cached
+Question 1: [cache ref] + [question 1] → [answer 1]
+Question 2: [cache ref] + [question 2] → [answer 2]
+Question 3: [cache ref] + [question 3] → [answer 3]
+</code></pre></div>
+<p>Now you transmit the full content once, plus a small cache reference per
+question. Savings compound with each additional prompt.</p>
+<h2 id="quantifying-the-savings">Quantifying the Savings<a class="headerlink" href="#quantifying-the-savings" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">compare_efficiency</span><span class="p">(</span><span class="n">video_tokens</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">num_questions</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compare token usage between naive and cached approaches.&quot;&quot;&quot;</span>
+    <span class="n">question_tokens</span> <span class="o">=</span> <span class="mi">50</span>   <span class="c1"># Average question length</span>
+    <span class="n">answer_tokens</span> <span class="o">=</span> <span class="mi">100</span>    <span class="c1"># Average answer length</span>
+
+    <span class="c1"># Naive: send full context each time</span>
+    <span class="n">naive_total</span> <span class="o">=</span> <span class="n">num_questions</span> <span class="o">*</span> <span class="p">(</span><span class="n">video_tokens</span> <span class="o">+</span> <span class="n">question_tokens</span> <span class="o">+</span> <span class="n">answer_tokens</span><span class="p">)</span>
+
+    <span class="c1"># Cached: send context once, reference thereafter</span>
+    <span class="n">cached_total</span> <span class="o">=</span> <span class="n">video_tokens</span> <span class="o">+</span> <span class="n">num_questions</span> <span class="o">*</span> <span class="p">(</span><span class="n">question_tokens</span> <span class="o">+</span> <span class="n">answer_tokens</span><span class="p">)</span>
+
+    <span class="n">savings</span> <span class="o">=</span> <span class="n">naive_total</span> <span class="o">-</span> <span class="n">cached_total</span>
+    <span class="n">savings_pct</span> <span class="o">=</span> <span class="p">(</span><span class="n">savings</span> <span class="o">/</span> <span class="n">naive_total</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Questions: </span><span class="si">{</span><span class="n">num_questions</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Naive approach: </span><span class="si">{</span><span class="n">naive_total</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> tokens&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cached approach: </span><span class="si">{</span><span class="n">cached_total</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> tokens&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Savings: </span><span class="si">{</span><span class="n">savings</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> tokens (</span><span class="si">{</span><span class="n">savings_pct</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%)&quot;</span><span class="p">)</span>
+
+<span class="c1"># Example: 1-hour video, 10 questions</span>
+<span class="n">compare_efficiency</span><span class="p">(</span><span class="mi">946_800</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="c1"># Savings: 8,521,200 tokens (90.0%)</span>
+</code></pre></div>
+<p>More questions on the same content = greater savings.</p>
+<h2 id="three-caching-paths">Three Caching Paths<a class="headerlink" href="#three-caching-paths" title="Permanent link">&para;</a></h2>
+<p>Pollux gives you two caching controls, and a third path exists at the
+provider level:</p>
+<ul>
+<li><strong>Explicit caching (Gemini):</strong> You upload content once with
+  <code>create_cache()</code>, get a handle back, and pass that handle to later calls.</li>
+<li><strong>Implicit caching (Anthropic):</strong> Pollux maps
+  <code>Options(implicit_caching=...)</code> to Anthropic's automatic prompt caching
+  behavior.</li>
+<li><strong>Automatic prompt caching (OpenAI, Gemini, OpenRouter):</strong> These providers
+  can discount repeated long prefixes on their own. Pollux does not control
+  or configure this, but you can benefit from it without doing anything.</li>
+</ul>
+<p><code>metrics.cache_used</code> only reflects explicit cache handles. If you need to
+verify automatic prompt caching, check provider-native usage or billing.</p>
+<h2 id="implicit-caching-anthropic">Implicit Caching (Anthropic)<a class="headerlink" href="#implicit-caching-anthropic" title="Permanent link">&para;</a></h2>
+<p>Anthropic currently describes this provider feature as automatic prompt
+caching. Pollux calls the toggle <code>implicit_caching</code> to distinguish it from
+Gemini's explicit <code>create_cache()</code> handles. Anthropic caches shared prefixes
+from the top of the request downward: system instruction, tools, conversation
+history, and repeated prompt context. You do not create a cache object
+yourself. Pollux toggles this with <code>Options(implicit_caching=...)</code>.</p>
+<h3 id="cost-mechanics">Cost Mechanics<a class="headerlink" href="#cost-mechanics" title="Permanent link">&para;</a></h3>
+<p>Unlike explicit caching, Anthropic changes token pricing per request:</p>
+<ul>
+<li><strong>Cache writes:</strong> +25% (1.25x standard cost)</li>
+<li><strong>Cache reads:</strong> -90% (0.10x standard cost)</li>
+</ul>
+<p>Caching pays off when a prefix is written once and then reused. Without
+caching, sending the same prefix twice costs 2.0x. With caching, it costs
+1.35x.</p>
+<h3 id="default-behavior">Default Behavior<a class="headerlink" href="#default-behavior" title="Permanent link">&para;</a></h3>
+<p>Because cache writes cost more, Pollux does not treat implicit caching as a
+blanket default:</p>
+<ul>
+<li><strong>Single provider call:</strong> Pollux enables implicit caching by default.</li>
+<li><strong>Multi-call fan-out:</strong> Pollux disables it by default.</li>
+</ul>
+<p>This is a request-shape rule, not an API-entrypoint rule. <code>run()</code> always makes
+one provider call, so the default is on. <code>run_many()</code> with multiple prompts
+makes multiple parallel calls, so the default is off. <code>run_many(["Q"])</code> still
+makes one provider call, so the default is on there too.</p>
+<p>The reason is cost. In a conversation, the write premium lands once and later
+turns benefit from cheap cache reads. In a wide fan-out, many identical calls
+arrive before the cache is warm, so you pay the write premium repeatedly.</p>
+<p>You can override the default when you need to:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Options</span>
+
+<span class="c1"># Disable Anthropic implicit caching for a one-off call.</span>
+<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">implicit_caching</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<p>Setting <code>implicit_caching=True</code> on a provider that does not support it raises
+<code>ConfigurationError</code>. Pollux does not silently ignore the request.</p>
+<h3 id="current-pollux-scope">Current Pollux Scope<a class="headerlink" href="#current-pollux-scope" title="Permanent link">&para;</a></h3>
+<p>Pollux currently exposes Anthropic's default ephemeral caching behavior. It
+does not expose Anthropic's 1-hour TTL or manual block-level cache breakpoints
+in the public API.</p>
+<h2 id="explicit-caching-gemini">Explicit Caching (Gemini)<a class="headerlink" href="#explicit-caching-gemini" title="Permanent link">&para;</a></h2>
+<p>For Gemini, use <code>create_cache()</code> to upload content to the provider once, then pass the
+returned handle to <code>run()</code> or <code>run_many()</code> via <code>Options(cache=handle)</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">create_cache</span><span class="p">,</span> <span class="n">run_many</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span>
+        <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">sources</span> <span class="o">=</span> <span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span>
+        <span class="s2">&quot;ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), &quot;</span>
+        <span class="s2">&quot;operating margin 18.5%, guidance raised for Q4.&quot;</span>
+    <span class="p">)]</span>
+
+    <span class="n">handle</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_cache</span><span class="p">(</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">ttl_seconds</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+
+    <span class="n">prompts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Summarize in one sentence.&quot;</span><span class="p">,</span> <span class="s2">&quot;List 3 keywords.&quot;</span><span class="p">]</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="o">=</span><span class="n">prompts</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="n">handle</span><span class="p">))</span>
+    <span class="n">second</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="o">=</span><span class="n">prompts</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="n">handle</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;first:&quot;</span><span class="p">,</span> <span class="n">first</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;second:&quot;</span><span class="p">,</span> <span class="n">second</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;cache_used:&quot;</span><span class="p">,</span> <span class="n">second</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;metrics&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cache_used&quot;</span><span class="p">))</span>
+
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<h3 id="step-by-step-walkthrough">Step-by-Step Walkthrough<a class="headerlink" href="#step-by-step-walkthrough" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Call <code>create_cache()</code>.</strong> Pass your sources, config, and a TTL. Pollux
+   uploads the content to the provider and returns a <code>CacheHandle</code>. If you
+   bake in <code>system_instruction</code> or <code>tools</code>, those become part of the cached
+   bundle too.</p>
+</li>
+<li>
+<p><strong>Set <code>ttl_seconds</code>.</strong> The TTL controls how long the cached content lives on
+   the provider. Match it to your reuse window. 3600s (1 hour) is a
+   reasonable default for interactive sessions.</p>
+</li>
+<li>
+<p><strong>Pass the handle via <code>Options(cache=handle)</code>.</strong> Each <code>run()</code> or <code>run_many()</code>
+   call that uses this handle references the cached content instead of
+   re-uploading it.</p>
+</li>
+<li>
+<p><strong>Verify with <code>metrics.cache_used</code>.</strong> Check
+   <code>result["metrics"]["cache_used"]</code> on subsequent calls. <code>True</code> confirms
+   the provider served content from cache rather than re-uploading.</p>
+</li>
+</ol>
+<p>Pollux computes cache identity deterministically. Calls with the same handle
+reuse the cached context automatically.</p>
+<div class="admonition warning">
+<p class="admonition-title">Options restricted when using a cache handle</p>
+<p>When <code>Options(cache=handle)</code> is set, the following fields <strong>cannot</strong> be
+passed alongside it:</p>
+<ul>
+<li><code>system_instruction</code> — bake it into <code>create_cache(system_instruction=...)</code>
+  instead.</li>
+<li><code>tools</code> — bake them into <code>create_cache(tools=...)</code> instead (when
+  supported).</li>
+<li><code>tool_choice</code> — remove it when using cached content.</li>
+<li><code>sources</code> — bake them into <code>create_cache()</code> instead.</li>
+</ul>
+<p>Pollux raises <code>ConfigurationError</code> immediately if it detects these
+conflicts.  This mirrors a hard constraint in the Gemini API, where
+<code>cached_content</code> cannot coexist with <code>system_instruction</code>, <code>tools</code>, or
+<code>tool_config</code> in the same <code>GenerateContent</code> request.</p>
+</div>
+<h2 id="cache-identity">Cache Identity<a class="headerlink" href="#cache-identity" title="Permanent link">&para;</a></h2>
+<p>For explicit caches, keys are deterministic:
+<code>hash(model + provider + api_key + system_instruction + tools + source identity hashes)</code>.</p>
+<p>This means:</p>
+<ul>
+<li><strong>Same content, different file paths</strong> → same cache key. Renaming or moving
+  a file doesn't invalidate the cache.</li>
+<li><strong>Different models or providers</strong> → different cache keys. A cache created
+  for <code>gemini-2.5-flash-lite</code> won't be reused for <code>gemini-2.5-pro</code>, and a
+  Gemini cache key won't collide with one from another provider.</li>
+<li><strong>Different API keys</strong> → different cache keys in the same Python process.
+  Pollux scopes explicit cache reuse to the provider account that created it.</li>
+<li><strong>Different baked-in <code>system_instruction</code> or <code>tools</code></strong> → different cache
+  keys. Changing the cached behavior contract creates a fresh cache entry.</li>
+<li><strong>Different Gemini video settings</strong> → different cache keys. Two sources with
+  the same content but different clip windows or FPS do not collapse to the
+  same cache entry. This applies only to Gemini, where those settings change
+  the provider-visible meaning of the source.</li>
+<li><strong>Content changes</strong> → new cache key. Editing a source file produces a fresh
+  cache entry.</li>
+</ul>
+<h2 id="single-flight-protection">Single-Flight Protection<a class="headerlink" href="#single-flight-protection" title="Permanent link">&para;</a></h2>
+<p>When multiple concurrent calls target the same explicit cache key (common in fan-out
+workloads), Pollux deduplicates the creation call: only one coroutine performs
+the upload, and others await the same result. This eliminates duplicate uploads
+without requiring caller-side coordination.</p>
+<h2 id="verifying-cache-reuse">Verifying Cache Reuse<a class="headerlink" href="#verifying-cache-reuse" title="Permanent link">&para;</a></h2>
+<p>Check <code>metrics.cache_used</code> on subsequent calls:</p>
+<ul>
+<li><code>True</code> — provider confirmed cache hit (explicit cache handles only)</li>
+<li><code>False</code> — full upload, or cache expired</li>
+</ul>
+<p>Keep prompts and sources stable between runs when comparing warm vs reuse
+behavior. Automatic prompt caching at the provider level can still reduce
+costs even when <code>cache_used</code> is <code>False</code>.</p>
+<h2 id="observing-cache-hits">Observing Cache Hits<a class="headerlink" href="#observing-cache-hits" title="Permanent link">&para;</a></h2>
+<p><code>result["usage"]["cached_tokens"]</code> reports how many input tokens were served
+from cache. The key is absent when no provider call reported it; in a fan-out
+it is summed across all calls:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># result from any run() or run_many() call with caching active</span>
+<span class="n">cached</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;usage&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cached_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">total_input</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;usage&quot;</span><span class="p">][</span><span class="s2">&quot;input_tokens&quot;</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cached</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">total_input</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> input tokens served from cache&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>For a per-call breakdown in a fan-out:</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;diagnostics&quot;</span><span class="p">][</span><span class="s2">&quot;raw_responses&quot;</span><span class="p">]):</span>
+    <span class="n">hit</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="s2">&quot;usage&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cached_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  prompt </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">hit</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> cached tokens&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Anthropic billing differs from Gemini and OpenAI.</strong> For Gemini and OpenAI,
+<code>cached_tokens</code> is a subset of <code>input_tokens</code> — cache reads are billed at a
+discount from the same pool. For Anthropic, <code>cached_tokens</code> is additive: the
+total billable input is <code>input_tokens + cached_tokens</code>.</p>
+<h2 id="tuning-explicit-cache-ttl">Tuning Explicit Cache TTL<a class="headerlink" href="#tuning-explicit-cache-ttl" title="Permanent link">&para;</a></h2>
+<p>Pass <code>ttl_seconds</code> to <code>create_cache()</code> to control the explicit cache lifetime. The
+default is 3600 seconds (1 hour). Tune it to match your expected reuse window:</p>
+<ul>
+<li><strong>Too short:</strong> the cache expires before you reuse it, wasting the
+  warm-up cost.</li>
+<li><strong>Too long:</strong> cached content lingers unnecessarily. No correctness
+  issues, but it consumes provider-side resources.</li>
+</ul>
+<p>For interactive workloads where you run a prompt set and then refine prompts
+within the same session, 3600s is a reasonable starting point. For one-shot
+scripts, shorter TTLs (300-600s) avoid lingering cache entries. Anthropic
+manages the lifetime of implicit caches on its side.</p>
+<h2 id="when-caching-pays-off">When Caching Pays Off<a class="headerlink" href="#when-caching-pays-off" title="Permanent link">&para;</a></h2>
+<p>Caching is most effective when:</p>
+<ul>
+<li><strong>Sources are large:</strong> video, long PDFs, multi-image sets</li>
+<li><strong>Prompt sets are repeated:</strong> fan-out workflows with 3+ prompts per source
+  using explicit caching</li>
+<li><strong>Conversations are deep:</strong> multi-turn dialogues with large system prompts
+  using implicit caching</li>
+<li><strong>Prompt prefixes repeat across calls:</strong> automatic prompt caching at the
+  provider level can help even without a Pollux cache handle</li>
+</ul>
+<p>Caching adds overhead for single-prompt, small-source calls. Start without
+caching and enable it when you see repeated context in your workload.</p>
+<h2 id="provider-dependency">Provider Dependency<a class="headerlink" href="#provider-dependency" title="Permanent link">&para;</a></h2>
+<p>Calling <code>create_cache()</code> with a provider that lacks explicit cache support
+raises an actionable error. <code>Options(implicit_caching=True)</code> raises in the
+same way on providers without implicit caching support. Automatic prompt
+caching at the provider level is separate and not gated by Pollux. See
+<a href="../reference/provider-capabilities/">Provider Capabilities</a> for the full
+matrix.</p>
+<hr />
+<p>For the full provider feature matrix and portability guidance, see
+<a href="../reference/provider-capabilities/">Provider Capabilities</a> and
+<a href="../portable-code/">Writing Portable Code Across Providers</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    
+      
+      <nav class="pollux-footer-nav" aria-label="Footer navigation" >
+        
+          <div class="pollux-footer-nav__item pollux-footer-nav__item--prev">
+            <a href="../agent-loop/"
+               class="pollux-footer-nav__pill"
+               aria-label="Previous: Building an Agent Loop">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"
+                   fill="currentColor" aria-hidden="true"
+                   class="pollux-footer-nav__icon">
+                <path fill-rule="evenodd"
+                      d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z"
+                      clip-rule="evenodd"/>
+              </svg>
+              Previous
+            </a>
+            <a href="../agent-loop/"
+               class="pollux-footer-nav__title"
+               tabindex="-1" aria-hidden="true">
+              Building an Agent Loop
+            </a>
+          </div>
+        
+        
+          <div class="pollux-footer-nav__item pollux-footer-nav__item--next">
+            <a href="../portable-code/"
+               class="pollux-footer-nav__pill"
+               aria-label="Next: Writing Portable Code Across Providers">
+              Next
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"
+                   fill="currentColor" aria-hidden="true"
+                   class="pollux-footer-nav__icon">
+                <path fill-rule="evenodd"
+                      d="M2 8a.75.75 0 0 1 .75-.75h8.69L8.22 4.03a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z"
+                      clip-rule="evenodd"/>
+              </svg>
+            </a>
+            <a href="../portable-code/"
+               class="pollux-footer-nav__title"
+               tabindex="-1" aria-hidden="true">
+              Writing Portable Code Across Providers
+            </a>
+          </div>
+        
+      </nav>
+    
+  
+  <div class="pollux-footer-meta">
+    <div class="pollux-footer-meta__inner">
+      
+        <p class="pollux-footer-meta__copyright">Copyright &copy; 2026 Sean Brar</p>
+      
+      
+        <div class="pollux-footer-meta__social">
+          
+            
+            
+            
+            <a href="https://github.com/seanbrar/pollux" target="_blank" rel="noopener"
+               title="Pollux on GitHub"
+               class="pollux-footer-meta__social-link">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+            </a>
+          
+        </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.footer", "content.code.copy", "toc.integrate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,81 @@
+{#-
+  Custom footer: reference-inspired pill navigation + integrated meta row.
+  Replaces the stock Material footer with a transparent, content-aligned design.
+-#}
+{% set features = config.theme.features or [] %}
+<footer class="md-footer">
+  {% if "navigation.footer" in features %}
+    {% if page.previous_page or page.next_page %}
+      {% if page.meta and page.meta.hide %}
+        {% set hidden = "hidden" if "footer" in page.meta.hide %}
+      {% endif %}
+      <nav class="pollux-footer-nav" aria-label="Footer navigation" {{ hidden }}>
+        {% if page.previous_page %}
+          <div class="pollux-footer-nav__item pollux-footer-nav__item--prev">
+            <a href="{{ page.previous_page.url | url }}"
+               class="pollux-footer-nav__pill"
+               aria-label="Previous: {{ page.previous_page.title | e }}">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"
+                   fill="currentColor" aria-hidden="true"
+                   class="pollux-footer-nav__icon">
+                <path fill-rule="evenodd"
+                      d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z"
+                      clip-rule="evenodd"/>
+              </svg>
+              Previous
+            </a>
+            <a href="{{ page.previous_page.url | url }}"
+               class="pollux-footer-nav__title"
+               tabindex="-1" aria-hidden="true">
+              {{ page.previous_page.title }}
+            </a>
+          </div>
+        {% endif %}
+        {% if page.next_page %}
+          <div class="pollux-footer-nav__item pollux-footer-nav__item--next">
+            <a href="{{ page.next_page.url | url }}"
+               class="pollux-footer-nav__pill"
+               aria-label="Next: {{ page.next_page.title | e }}">
+              Next
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"
+                   fill="currentColor" aria-hidden="true"
+                   class="pollux-footer-nav__icon">
+                <path fill-rule="evenodd"
+                      d="M2 8a.75.75 0 0 1 .75-.75h8.69L8.22 4.03a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z"
+                      clip-rule="evenodd"/>
+              </svg>
+            </a>
+            <a href="{{ page.next_page.url | url }}"
+               class="pollux-footer-nav__title"
+               tabindex="-1" aria-hidden="true">
+              {{ page.next_page.title }}
+            </a>
+          </div>
+        {% endif %}
+      </nav>
+    {% endif %}
+  {% endif %}
+  <div class="pollux-footer-meta">
+    <div class="pollux-footer-meta__inner">
+      {% if config.copyright %}
+        <p class="pollux-footer-meta__copyright">{{ config.copyright }}</p>
+      {% endif %}
+      {% if config.extra.social %}
+        <div class="pollux-footer-meta__social">
+          {% for social in config.extra.social %}
+            {% set rel = "noopener" %}
+            {% if "mastodon" in social.icon %}
+              {% set rel = rel ~ " me" %}
+            {% endif %}
+            {% set title = social.name %}
+            <a href="{{ social.link }}" target="_blank" rel="{{ rel }}"
+               title="{{ title | e }}"
+               class="pollux-footer-meta__social-link">
+              {% include ".icons/" ~ social.icon ~ ".svg" %}
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</footer>
