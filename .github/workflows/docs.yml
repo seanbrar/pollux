@@ -136,7 +136,6 @@ jobs:
           else
             version="next"
             title="Next"
-            aliases="next"
           fi
           if [[ -z "${title}" ]]; then
             title="${version}"
