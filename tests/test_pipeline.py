@@ -14,6 +14,7 @@ import pollux
 import pollux.cache
 from pollux.cache import CacheHandle, CacheRegistry, compute_cache_key
 from pollux.config import Config
+from pollux.continuation import ConversationState
 from pollux.deferred import DeferredHandle
 from pollux.errors import (
     APIError,
@@ -3030,11 +3031,36 @@ async def test_conversation_result_includes_conversation_state(
     state = result.get("_conversation_state")
     assert isinstance(state, dict)
     assert state["response_id"] == "resp_next"
+    # Forward-compat stamp: a future major can detect/reject incompatible state.
+    assert state["version"] == 1
+    assert state["provider"] == "gemini"
     assert state["history"] == [
         {"role": "user", "content": "hello"},
         {"role": "user", "content": "Next question?"},
         {"role": "assistant", "content": "Assistant reply."},
     ]
+
+
+def test_conversation_state_stamp_roundtrip_and_back_compat() -> None:
+    """to_dict stamps version/provider; from_state_dict reads pre-1.8 state."""
+    # Newly built state carries the schema version and provider marker.
+    written = ConversationState(
+        history=[{"role": "user", "content": "hi"}],
+        provider="gemini",
+    ).to_dict()
+    assert written["version"] == ConversationState.SCHEMA_VERSION
+    assert written["provider"] == "gemini"
+    assert ConversationState.from_state_dict(written).provider == "gemini"
+
+    # A pre-1.8 envelope (no version, no provider) still loads, read as v1.
+    legacy = ConversationState.from_state_dict(
+        {"history": [{"role": "user", "content": "hi"}]}
+    )
+    assert legacy.version == 1
+    assert legacy.provider is None
+
+    # provider is omitted from the dict when unset, keeping the shape compact.
+    assert "provider" not in ConversationState(history=[]).to_dict()
 
 
 @pytest.mark.asyncio
@@ -3292,6 +3318,28 @@ def test_history_still_rejects_items_without_role() -> None:
     """Items missing 'role' must still raise ConfigurationError."""
     with pytest.raises(ConfigurationError, match="role"):
         Options(history=[{"content": "no role here"}])
+
+
+@pytest.mark.asyncio
+async def test_anthropic_preflight_rejects_reasoning_before_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real AnthropicProvider rejects reasoning on Claude 3 via validate_request.
+
+    Proves the pipeline runs the ValidatingProvider pre-flight before any
+    network call: the provider has no usable client, so a non-failing path
+    would error differently than this ConfigurationError.
+    """
+    provider = AnthropicProvider("test-key")
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+    cfg = Config(
+        provider="anthropic", model="claude-3-5-sonnet-20241022", use_mock=True
+    )
+
+    with pytest.raises(ConfigurationError, match="extended thinking"):
+        await pollux.run(
+            "Think hard.", config=cfg, options=Options(reasoning_effort="high")
+        )
 
 
 @pytest.mark.asyncio

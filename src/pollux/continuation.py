@@ -33,19 +33,29 @@ if TYPE_CHECKING:
 class ConversationState:
     """Serialized state stored under a ResultEnvelope's ``_conversation_state`` key.
 
-    This is the single owner of that dict shape: the magic keys (``history``,
-    ``response_id``, ``provider_state``) and the envelope key itself live here
-    rather than as string literals across the read, write, and continue paths.
-    It is distinct from :class:`ContinuationState`, which is the *resolved*
-    prior-turn working state derived from this serialized form.
+    This is the single owner of that dict shape: the magic keys (``version``,
+    ``provider``, ``history``, ``response_id``, ``provider_state``) and the
+    envelope key itself live here rather than as string literals across the
+    read, write, and continue paths. It is distinct from
+    :class:`ContinuationState`, which is the *resolved* prior-turn working state
+    derived from this serialized form.
+
+    The ``version`` and ``provider`` markers let a future major (which redefines
+    this shape) detect and reject an incompatible serialized state with a clear
+    error instead of misreading it. v1.x stays permissive on read: a missing
+    ``version`` is treated as a pre-1.8 envelope rather than an error.
     """
 
     #: Envelope key under which this state is stored in a ``ResultEnvelope``.
     ENVELOPE_KEY: ClassVar[str] = "_conversation_state"
+    #: Schema version stamped into newly written state. Bump on shape changes.
+    SCHEMA_VERSION: ClassVar[int] = 1
 
     history: list[dict[str, Any]]
     response_id: str | None = None
     provider_state: dict[str, Any] | None = None
+    version: int = SCHEMA_VERSION
+    provider: str | None = None
 
     @classmethod
     def from_envelope(cls, envelope: Mapping[str, Any]) -> ConversationState | None:
@@ -57,7 +67,11 @@ class ConversationState:
 
     @classmethod
     def from_state_dict(cls, state: Mapping[str, Any]) -> ConversationState:
-        """Parse a serialized state dict, type-guarding each facet."""
+        """Parse a serialized state dict, type-guarding each facet.
+
+        A missing or non-integer ``version`` is read as ``1`` (a pre-1.8
+        envelope), keeping older serialized state loadable.
+        """
         raw_history = state.get("history")
         history = list(raw_history) if isinstance(raw_history, list) else []
         raw_response_id = state.get("response_id")
@@ -66,10 +80,16 @@ class ConversationState:
         provider_state = (
             dict(raw_provider_state) if isinstance(raw_provider_state, dict) else None
         )
+        raw_version = state.get("version")
+        version = raw_version if isinstance(raw_version, int) else 1
+        raw_provider = state.get("provider")
+        provider = raw_provider if isinstance(raw_provider, str) else None
         return cls(
             history=history,
             response_id=response_id,
             provider_state=provider_state,
+            version=version,
+            provider=provider,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,7 +98,9 @@ class ConversationState:
         Optional facets are omitted when unset so the shape stays compact and
         matches what ``build_conversation_state`` has always produced.
         """
-        state: dict[str, Any] = {"history": self.history}
+        state: dict[str, Any] = {"version": self.version, "history": self.history}
+        if self.provider is not None:
+            state["provider"] = self.provider
         if self.provider_state is not None:
             state["provider_state"] = self.provider_state
         if self.response_id is not None:
@@ -216,6 +238,7 @@ def build_conversation_state(
     conversation_history: list[dict[str, Any]],
     previous_response_id: str | None,
     wants_conversation: bool,
+    provider: str | None = None,
 ) -> dict[str, Any] | None:
     """Assemble updated ``_conversation_state`` after a response.
 
@@ -260,4 +283,5 @@ def build_conversation_state(
         provider_state=(
             provider_msg_state if isinstance(provider_msg_state, dict) else None
         ),
+        provider=provider,
     ).to_dict()

@@ -4363,6 +4363,52 @@ async def test_anthropic_generate_continuation_no_prompt() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model", ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+)
+async def test_anthropic_validate_request_rejects_reasoning_on_claude_3(
+    model: str,
+) -> None:
+    """Claude 3.0/3.5 lack extended thinking; a reasoning request must fail fast."""
+    provider = AnthropicProvider("test-key")
+
+    with pytest.raises(ConfigurationError, match="extended thinking"):
+        await provider.validate_request(
+            ProviderRequest(model=model, parts=["Think hard."], reasoning_effort="high")
+        )
+    with pytest.raises(ConfigurationError, match="extended thinking"):
+        await provider.validate_request(
+            ProviderRequest(
+                model=model, parts=["Think hard."], reasoning_budget_tokens=2048
+            )
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["claude-3-7-sonnet-20250219", ANTHROPIC_MODEL])
+async def test_anthropic_validate_request_allows_reasoning_on_thinking_models(
+    model: str,
+) -> None:
+    """Claude 3.7 and 4.x support thinking; the 3.7 prefix must not be rejected."""
+    provider = AnthropicProvider("test-key")
+
+    # Returns None (no raise) when the model supports extended thinking.
+    await provider.validate_request(
+        ProviderRequest(model=model, parts=["Think hard."], reasoning_effort="high")
+    )
+
+
+@pytest.mark.asyncio
+async def test_anthropic_validate_request_allows_non_reasoning_on_claude_3() -> None:
+    """A plain request on a Claude 3 model must pass validation unchanged."""
+    provider = AnthropicProvider("test-key")
+
+    await provider.validate_request(
+        ProviderRequest(model="claude-3-5-sonnet-20241022", parts=["Hello."])
+    )
+
+
+@pytest.mark.asyncio
 async def test_anthropic_upload_raises() -> None:
     """upload_file should raise APIError on network or IO failure."""
     from pathlib import Path
