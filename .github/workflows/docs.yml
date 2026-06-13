@@ -38,6 +38,11 @@ name: Docs
         required: false
         type: string
         default: ""
+      title:
+        description: 'Optional version selector title, e.g. 1.8 or Next'
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -105,16 +110,19 @@ jobs:
 
           ref_name="${GITHUB_REF_NAME}"
           version=""
+          title=""
           default_version=""
           aliases=""
 
           if [[ -n "${{ inputs.docs_version }}" ]]; then
             version="${{ inputs.docs_version }}"
+            title="${{ inputs.title }}"
             aliases="${{ inputs.aliases }}"
             default_version="${{ inputs.default_version }}"
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release="${ref_name#v}"
             version="${release%.*}"
+            title="${version}"
             major="${version%%.*}"
             if [[ "${major}" == "1" ]]; then
               aliases="v1"
@@ -124,14 +132,19 @@ jobs:
             fi
           elif [[ "${ref_name}" == "v1" ]]; then
             version="v1"
+            title="v1"
           else
-            version="dev"
-            aliases="latest"
-            default_version="latest"
+            version="next"
+            title="Next"
+            aliases="next"
+          fi
+          if [[ -z "${title}" ]]; then
+            title="${version}"
           fi
 
           {
             echo "version=${version}"
+            echo "title=${title}"
             echo "aliases=${aliases}"
             echo "default_version=${default_version}"
           } >> "$GITHUB_OUTPUT"
@@ -148,12 +161,14 @@ jobs:
             uv run mike deploy \
               --push \
               --update-aliases \
+              --title "${{ steps.docs-version.outputs.title }}" \
               "${{ steps.docs-version.outputs.version }}" \
               ${aliases}
           else
             uv run mike deploy \
               --push \
               --update-aliases \
+              --title "${{ steps.docs-version.outputs.title }}" \
               "${{ steps.docs-version.outputs.version }}"
           fi
 
