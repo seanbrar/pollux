@@ -148,12 +148,6 @@ def _validate_deferred_plan(plan: Plan, provider: Provider) -> None:
     options = plan.request.options
     caps = provider.capabilities
 
-    if options.delivery_mode == "deferred":
-        raise ConfigurationError(
-            "delivery_mode='deferred' is not needed with defer() or defer_many()",
-            hint="Call defer() / defer_many() directly without setting delivery_mode.",
-        )
-
     _get_deferred_provider(provider)
     if options.cache is not None:
         raise ConfigurationError(

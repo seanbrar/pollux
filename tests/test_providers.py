@@ -205,6 +205,109 @@ def test_hint_for_400_with_api_key_message() -> None:
     assert "GEMINI_API_KEY" in err.hint
 
 
+def test_wrap_provider_error_categorizes_rate_limit_error() -> None:
+    class _SdkError(Exception):
+        status_code: int
+
+    # Status code 429
+    err1 = wrap_provider_error(
+        _SdkError("Too many requests"),
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err1.error_category == "rate_limit"
+
+    # Status code 429 from attribute
+    exc = _SdkError("custom limit")
+    exc.status_code = 429
+    err2 = wrap_provider_error(
+        exc,
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err2.error_category == "rate_limit"
+
+
+def test_wrap_provider_error_categorizes_auth_error() -> None:
+    class AuthenticationError(Exception):
+        pass
+
+    err1 = wrap_provider_error(
+        AuthenticationError("Invalid API key"),
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err1.error_category == "auth_refreshable"
+
+    class _SdkError(Exception):
+        status_code: int
+
+    exc = _SdkError("unauthorized access")
+    exc.status_code = 401
+    err2 = wrap_provider_error(
+        exc,
+        provider="anthropic",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err2.error_category == "auth_refreshable"
+
+
+def test_wrap_provider_error_categorizes_capacity_error() -> None:
+    class InternalServerError(Exception):
+        pass
+
+    err1 = wrap_provider_error(
+        InternalServerError("Overloaded"),
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err1.error_category == "capacity"
+
+    class _SdkError(Exception):
+        status_code: int
+
+    exc = _SdkError("service unavailable")
+    exc.status_code = 503
+    err2 = wrap_provider_error(
+        exc,
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err2.error_category == "capacity"
+
+
+def test_wrap_provider_error_categorizes_context_overflow_error() -> None:
+    class BadRequestError(Exception):
+        pass
+
+    err1 = wrap_provider_error(
+        BadRequestError("This model's maximum context length is 8192 tokens"),
+        provider="openai",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err1.error_category == "context_overflow"
+
+    class _SdkError(Exception):
+        status_code: int
+
+    exc = _SdkError("Prompt exceeds maximum context length")
+    exc.status_code = 400
+    err2 = wrap_provider_error(
+        exc,
+        provider="anthropic",
+        phase="generate",
+        allow_network_errors=True,
+    )
+    assert err2.error_category == "context_overflow"
+
+
 # =============================================================================
 # Gemini Response Parsing (Characterization)
 # =============================================================================

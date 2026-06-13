@@ -263,15 +263,11 @@ async def continue_tool(
     if options is None:
         merged_options = Options(continue_from=synthetic_envelope)
     else:
-        # TODO(v1.8.0): once Options.delivery_mode is removed, replace this
-        # __dict__ copy with dataclasses.replace(options, history=None,
-        # continue_from=synthetic_envelope). replace() can't be used today
-        # because __post_init__ re-fires the delivery_mode DeprecationWarning
-        # on the already-normalized "realtime" value.
-        kwargs = dict(options.__dict__)
-        kwargs.pop("history", None)
-        kwargs.pop("continue_from", None)
-        merged_options = Options(continue_from=synthetic_envelope, **kwargs)
+        merged_options = replace(
+            options,
+            history=None,
+            continue_from=synthetic_envelope,
+        )
 
     return await run(prompt=None, config=config, options=merged_options)
 

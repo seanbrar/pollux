@@ -17,7 +17,7 @@ from pollux.continuation import (
     history_to_messages,
     load_continuation,
 )
-from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
+from pollux.errors import APIError, InternalError, PolluxError
 from pollux.providers.base import FileDeletingProvider, ValidatingProvider
 from pollux.providers.models import (
     Message,
@@ -70,6 +70,7 @@ def _with_call_idx(err: APIError, call_idx: int | None) -> APIError:
         provider=err.provider,
         phase=err.phase,
         call_idx=call_idx,
+        error_category=err.error_category,
     )
 
 
@@ -79,6 +80,7 @@ class ExecutionTrace:
 
     responses: list[ProviderResponse] = field(default_factory=list)
     cache_name: str | None = None
+    cache_mode: str = "none"
     duration_s: float = 0.0
     usage: dict[str, int] = field(default_factory=dict)
     conversation_state: dict[str, Any] | None = None
@@ -103,13 +105,6 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
         options.history is not None or options.continue_from is not None
     )
 
-    # Belt-and-suspenders: Options.__post_init__ already rejects "deferred",
-    # but guard here in case validation is ever bypassed.
-    if options.delivery_mode == "deferred":
-        raise ConfigurationError(
-            "delivery_mode='deferred' is a legacy compatibility shim and is not supported",
-            hint="Use pollux.defer() or pollux.defer_many() for deferred delivery.",
-        )
     has_file_parts = any(is_file_part(p) for p in plan.shared_parts)
     validate_capabilities(
         options,
@@ -294,9 +289,16 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
 
     duration_s = time.perf_counter() - start_time
 
+    cache_mode = "none"
+    if cache_name is not None:
+        cache_mode = "persistent"
+    elif implicit_caching:
+        cache_mode = "implicit"
+
     return ExecutionTrace(
         responses=responses,
         cache_name=cache_name,
+        cache_mode=cache_mode,
         duration_s=duration_s,
         usage=total_usage,
         conversation_state=conversation_state,
