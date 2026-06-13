@@ -1,0 +1,1517 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://polluxlib.dev/dev/sending-content/">
+      
+      
+        <link rel="prev" href="../concepts/">
+      
+      
+        <link rel="next" href="../source-patterns/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Sending Content to Models - Pollux</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../stylesheets/home.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sending-content-to-models" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Pollux" class="md-header__button md-logo" aria-label="Pollux" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pollux
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Sending Content to Models
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/seanbrar/pollux" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    seanbrar/pollux
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Pollux" class="md-nav__button md-logo" aria-label="Pollux" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pollux
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/seanbrar/pollux" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    seanbrar/pollux
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sending Content to Models
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sending Content to Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#source-constructors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source Constructors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Source Constructors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gemini-url-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gemini URL Context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gemini-video-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gemini Video Controls
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#single-prompt-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single Prompt: run()
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Single Prompt: run()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-by-step-walkthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step-by-Step Walkthrough
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiple-prompts-run_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple Prompts: run_many()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-entry-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the Entry Point
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resultenvelope-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ResultEnvelope Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../source-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyzing Collections with Source Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../submitting-work-for-later-collection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitting Work for Later Collection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../building-with-deferred-delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building With Deferred Delivery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structured-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extracting Structured Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conversations-and-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuing Conversations Across Turns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-loop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building an Agent Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reducing Costs with Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../portable-code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Portable Code Across Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Handling Errors and Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuring Pollux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_16">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/provider-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!-- Intent: Teach the three core mechanics: creating Sources, calling run()
+     and run_many(), and reading ResultEnvelope. Do NOT cover source patterns
+     in depth (that's the next page), tool calling, or conversation history.
+     Assumes the reader has completed Getting Started. Register: guided applied. -->
+
+<h1 id="sending-content-to-models">Sending Content to Models<a class="headerlink" href="#sending-content-to-models" title="Permanent link">&para;</a></h1>
+<p>You want to send content (text, files, videos, or structured data) to an
+LLM and get answers back. Three things to know: how to wrap your input as
+a <code>Source</code>, which entry point to call, and how to read the result.</p>
+<div class="admonition info">
+<p class="admonition-title">Boundary</p>
+<p><strong>Pollux owns:</strong> uploading and caching source content, attaching it to
+provider API calls, running prompts concurrently, and normalizing
+responses into a stable <code>ResultEnvelope</code>.</p>
+<p><strong>You own:</strong> choosing what to analyze, writing prompts, and processing
+the returned answers.</p>
+</div>
+<h2 id="source-constructors">Source Constructors<a class="headerlink" href="#source-constructors" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Constructor</th>
+<th>Input</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Source.from_text(text)</code></td>
+<td>Plain string</td>
+<td>Identifier defaults to first 50 chars</td>
+</tr>
+<tr>
+<td><code>Source.from_file(path)</code></td>
+<td>Local file path</td>
+<td>Wraps local files; provider MIME support varies</td>
+</tr>
+<tr>
+<td><code>Source.from_youtube(url)</code></td>
+<td>YouTube URL</td>
+<td>URL reference (no download); Gemini-native, limited on OpenAI and Anthropic</td>
+</tr>
+<tr>
+<td><code>Source.from_arxiv(ref)</code></td>
+<td>arXiv ID or URL</td>
+<td>Normalizes to canonical PDF URL (no download at construction time)</td>
+</tr>
+<tr>
+<td><code>Source.from_uri(uri, mime_type=...)</code></td>
+<td>Remote URI</td>
+<td>Generic remote reference; provider support varies by MIME type</td>
+</tr>
+<tr>
+<td><code>Source.from_json(data)</code></td>
+<td>Dict or Pydantic model instance</td>
+<td>Serializes via <code>json.dumps()</code>; calls <code>model_dump()</code> on Pydantic objects</td>
+</tr>
+</tbody>
+</table>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Source</span>
+
+<span class="n">text</span>    <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="s2">&quot;Caching reduces repeated token cost.&quot;</span><span class="p">)</span>
+<span class="n">paper</span>   <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;paper.pdf&quot;</span><span class="p">)</span>
+<span class="n">video</span>   <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_youtube</span><span class="p">(</span><span class="s2">&quot;https://youtube.com/watch?v=dQw4w9WgXcQ&quot;</span><span class="p">)</span>
+<span class="n">arxiv</span>   <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_arxiv</span><span class="p">(</span><span class="s2">&quot;2301.00001&quot;</span><span class="p">)</span>
+<span class="n">remote</span>  <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_uri</span><span class="p">(</span><span class="s2">&quot;https://example.com/data.csv&quot;</span><span class="p">,</span> <span class="n">mime_type</span><span class="o">=</span><span class="s2">&quot;text/csv&quot;</span><span class="p">)</span>
+
+<span class="c1"># Pass application data as context</span>
+<span class="n">metrics</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;revenue_q1&quot;</span><span class="p">:</span> <span class="mi">4_200_000</span><span class="p">,</span> <span class="s2">&quot;growth_pct&quot;</span><span class="p">:</span> <span class="mf">12.5</span><span class="p">,</span> <span class="s2">&quot;region&quot;</span><span class="p">:</span> <span class="s2">&quot;EMEA&quot;</span><span class="p">}</span>
+<span class="n">context</span> <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">metrics</span><span class="p">)</span>
+
+<span class="c1"># Pydantic models work directly, model_dump() is called automatically</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UserProfile</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">preferences</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+<span class="n">profile</span> <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">UserProfile</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Alice&quot;</span><span class="p">,</span> <span class="n">preferences</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;concise&quot;</span><span class="p">,</span> <span class="s2">&quot;formal&quot;</span><span class="p">]))</span>
+</code></pre></div>
+<p><code>from_json</code> is useful when you want to pass structured application data (API
+responses, database records, or configuration objects) as context alongside
+a prompt, without manually serializing to a string.</p>
+<p>Pollux wraps PDFs, images, video, audio, text, and other files through the same
+interface. Provider support is narrower than the <code>Source</code> abstraction: Gemini
+has the broadest native multimodal coverage, OpenAI accepts images plus many
+document-like file inputs, and Anthropic document inputs are limited to PDFs
+and plaintext files. Unsupported combinations fail with provider-specific
+errors or Pollux validation hints. For media sources (images, video, audio),
+keep prompts concrete: ask for objects, attributes, timestamps, or quoted text
+rather than open-ended descriptions.</p>
+<h3 id="gemini-url-context">Gemini URL Context<a class="headerlink" href="#gemini-url-context" title="Permanent link">&para;</a></h3>
+<p>Gemini can retrieve public HTTP(S) URLs at request time with URL Context. Pollux
+exposes this as a Gemini-specific source modifier:</p>
+<div class="highlight"><pre><span></span><code><span class="n">source</span> <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_uri</span><span class="p">(</span>
+    <span class="s2">&quot;https://example.com/report.html&quot;</span><span class="p">,</span>
+    <span class="n">mime_type</span><span class="o">=</span><span class="s2">&quot;text/html&quot;</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">with_gemini_url_context</span><span class="p">()</span>
+</code></pre></div>
+<p>Use this only when you have chosen Gemini. URL Context retrieval metadata is
+available in <code>result["diagnostics"]["raw_responses"][i]["artifacts"]</code>. Because
+retrieval happens at request time, URL Context sources cannot be baked into
+<code>create_cache()</code>.</p>
+<h3 id="gemini-video-controls">Gemini Video Controls<a class="headerlink" href="#gemini-video-controls" title="Permanent link">&para;</a></h3>
+<p>Gemini supports clip windows and custom frame sampling for video inputs. Pollux
+exposes these as an explicit Gemini-only source helper instead of a generic
+provider passthrough, so the public API stays stable even if Google's wire
+format changes.</p>
+<p><strong>Example: Gemini video clipping</strong></p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">)</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
+        <span class="s2">&quot;lecture.mp4&quot;</span><span class="p">,</span> <span class="n">mime_type</span><span class="o">=</span><span class="s2">&quot;video/mp4&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">with_gemini_video_settings</span><span class="p">(</span>
+        <span class="n">start_offset</span><span class="o">=</span><span class="s2">&quot;33m0s&quot;</span><span class="p">,</span>
+        <span class="n">end_offset</span><span class="o">=</span><span class="s2">&quot;34m10s&quot;</span><span class="p">,</span>
+        <span class="n">fps</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
+        <span class="s2">&quot;What claim does the lecturer make in this segment?&quot;</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<p>Pollux validates these settings up front and maps them onto Gemini's current
+video-processing request shape internally. See the
+<a href="https://ai.google.dev/gemini-api/docs/video-understanding">Gemini video guide</a>
+for the current provider behavior.</p>
+<p>Use this helper only when you have consciously chosen Gemini as the provider.
+On non-Gemini providers, the source still works as a normal video source, but
+the Gemini-specific controls are ignored rather than translated to another
+provider-specific feature.</p>
+<h2 id="single-prompt-run">Single Prompt: <code>run()</code><a class="headerlink" href="#single-prompt-run" title="Permanent link">&para;</a></h2>
+<p>Start with the simplest case: one prompt, one source, one answer.
+<code>run()</code> takes one prompt and at most one source. Use it to tune prompt
+quality before scaling up.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
+        <span class="s2">&quot;What are the main conclusions?&quot;</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;paper.pdf&quot;</span><span class="p">),</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>   <span class="c1"># &quot;ok&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>ok
+The paper concludes that context caching reduces repeated token cost by up to
+90% for fan-out workloads, with diminishing returns below 3 prompts per source.
+</code></pre></div>
+<h3 id="step-by-step-walkthrough">Step-by-Step Walkthrough<a class="headerlink" href="#step-by-step-walkthrough" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Create a <code>Config</code>.</strong> Specify the provider and model. Pollux resolves the
+   API key from the environment automatically.</p>
+</li>
+<li>
+<p><strong>Wrap your input as a <code>Source</code>.</strong> <code>Source.from_file()</code> handles upload,
+   MIME detection, and content hashing. You do not need to read the file or
+   specify its type.</p>
+</li>
+<li>
+<p><strong>Call <code>run()</code>.</strong> Pass the prompt, source, and config. Pollux normalizes the
+   request, plans the API call, executes it, and extracts the answer.</p>
+</li>
+<li>
+<p><strong>Read <code>result["answers"]</code>.</strong> The first (and only) element contains the
+   model's response. Check <code>result["status"]</code> to confirm the call succeeded.</p>
+</li>
+</ol>
+<h2 id="multiple-prompts-run_many">Multiple Prompts: <code>run_many()</code><a class="headerlink" href="#multiple-prompts-run_many" title="Permanent link">&para;</a></h2>
+<p>Now scale up. <code>run_many()</code> handles multiple prompts and sources, with
+upload reuse, concurrency, and cache identity managed automatically. This
+is where source patterns (fan-out, fan-in, broadcast) come into play.
+See <a href="../source-patterns/">Analyzing Collections with Source Patterns</a> for
+collection-level workflows.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run_many</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">)</span>
+    <span class="n">sources</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;paper1.pdf&quot;</span><span class="p">),</span>
+        <span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;paper2.pdf&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+    <span class="n">prompts</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">&quot;Summarize the main argument.&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;List key findings.&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="n">envelope</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">envelope</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">envelope</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">],</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Q</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">answer</span><span class="p">[:</span><span class="mi">80</span><span class="p">]</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
+
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code>ok
+Q1: Paper 1 argues that multimodal orchestration layers reduce boilerplate by...
+Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
+</code></pre></div>
+<h2 id="choosing-the-entry-point">Choosing the Entry Point<a class="headerlink" href="#choosing-the-entry-point" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Use</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One question, optional source</td>
+<td><code>run()</code></td>
+<td>Smallest surface area</td>
+</tr>
+<tr>
+<td>Multiple questions on shared source(s)</td>
+<td><code>run_many()</code></td>
+<td>Fan-out efficiency</td>
+</tr>
+<tr>
+<td>Same question across shared sources</td>
+<td><code>run_many()</code></td>
+<td>Fan-in analysis</td>
+</tr>
+<tr>
+<td>Many questions against the same shared source set</td>
+<td><code>run_many()</code></td>
+<td>Fan-out over a combined context</td>
+</tr>
+<tr>
+<td>Many questions per file in a collection</td>
+<td>Outer loop + <code>run_many()</code></td>
+<td>Broadcast pattern; see <a href="../source-patterns/">Source Patterns</a></td>
+</tr>
+<tr>
+<td>Non-urgent work you will collect later</td>
+<td><code>defer()</code> / <code>defer_many()</code></td>
+<td>Background provider execution with a serializable handle</td>
+</tr>
+<tr>
+<td>Returning tool results to the model</td>
+<td><code>continue_tool()</code></td>
+<td>Feeds tool outputs back into the conversation</td>
+</tr>
+</tbody>
+</table>
+<p>Rule of thumb: if prompts or sources are plural and every prompt should receive
+the same shared context, reach for <code>run_many()</code>. If you need one result record
+per file, write the outer file loop yourself and call <code>run_many()</code> inside it.
+If the workload can wait, reach for <code>defer_many()</code>.</p>
+<p><code>continue_tool()</code> is a specialized entry point for agent loops. It takes a
+previous <code>ResultEnvelope</code> containing tool calls and your tool results, and
+returns the model's next response. See
+<a href="../conversations-and-agents/#feeding-tool-results-back-with-continue_tool">Feeding Tool Results Back with <code>continue_tool()</code></a>
+for details.</p>
+<p><code>run()</code> is a convenience wrapper that delegates to <code>run_many()</code> with a single
+prompt. In benchmarks, <code>run_many()</code> is typically faster for multi-prompt
+workloads because it shares uploads and runs prompts concurrently.</p>
+<h2 id="resultenvelope-reference">ResultEnvelope Reference<a class="headerlink" href="#resultenvelope-reference" title="Permanent link">&para;</a></h2>
+<p>Every <code>run()</code>, <code>run_many()</code>, and <code>collect_deferred()</code> call returns a
+<code>ResultEnvelope</code>: a dict with a stable shape that works the same regardless of
+provider.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Always present</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td><code>"ok" \| "partial" \| "error"</code></td>
+<td>Yes</td>
+<td><code>ok</code> = all answers populated; <code>partial</code> = some empty; <code>error</code> = all empty</td>
+</tr>
+<tr>
+<td><code>answers</code></td>
+<td><code>list[str]</code></td>
+<td>Yes</td>
+<td>One string per prompt</td>
+</tr>
+<tr>
+<td><code>structured</code></td>
+<td><code>list[Any]</code></td>
+<td>Only with <code>response_schema</code></td>
+<td>Parsed objects matching your schema</td>
+</tr>
+<tr>
+<td><code>reasoning</code></td>
+<td><code>list[str \| None]</code></td>
+<td>No</td>
+<td>Provider reasoning traces (when available)</td>
+</tr>
+<tr>
+<td><code>tool_calls</code></td>
+<td><code>list[list[dict]]</code></td>
+<td>Only with tool calling</td>
+<td>Per-prompt list of tool-call requests. See <a href="../conversations-and-agents/">Conversations</a></td>
+</tr>
+<tr>
+<td><code>confidence</code></td>
+<td><code>float</code></td>
+<td>Yes</td>
+<td>Heuristic: <code>0.9</code> for ok, <code>0.5</code> otherwise</td>
+</tr>
+<tr>
+<td><code>extraction_method</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Always <code>"text"</code></td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td><code>dict[str, int]</code></td>
+<td>Yes</td>
+<td>Token counts (<code>input_tokens</code>, <code>output_tokens</code>, <code>total_tokens</code>, and optional <code>reasoning_tokens</code>, <code>cached_tokens</code>). See <a href="../caching/#observing-cache-hits">Observing Cache Hits</a> for <code>cached_tokens</code> semantics.</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td><code>dict[str, Any]</code></td>
+<td>Yes</td>
+<td><code>duration_s</code>, <code>n_calls</code>, <code>cache_used</code> (<a href="../caching/#explicit-caching-gemini">explicit caching</a> only), <code>finish_reasons</code> (per-prompt, e.g. <code>"stop"</code>, <code>"max_tokens"</code>). Deferred results also add <code>metrics["deferred"] = True</code>.</td>
+</tr>
+<tr>
+<td><code>diagnostics</code></td>
+<td><code>dict[str, Any]</code></td>
+<td>Yes</td>
+<td>Low-level diagnostics. All calls include <code>raw_responses</code>. Deferred results also add <code>diagnostics["deferred"]</code> with <code>job_id</code>, timing, and per-request lifecycle items.</td>
+</tr>
+</tbody>
+</table>
+<p>Example of a complete envelope:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+    <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;ok&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;answers&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;The paper concludes that...&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;confidence&quot;</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">,</span>
+    <span class="s2">&quot;extraction_method&quot;</span><span class="p">:</span> <span class="s2">&quot;text&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;usage&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;input_tokens&quot;</span><span class="p">:</span> <span class="mi">1250</span><span class="p">,</span> <span class="s2">&quot;output_tokens&quot;</span><span class="p">:</span> <span class="mi">89</span><span class="p">,</span> <span class="s2">&quot;total_tokens&quot;</span><span class="p">:</span> <span class="mi">1339</span><span class="p">},</span>
+    <span class="s2">&quot;metrics&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;duration_s&quot;</span><span class="p">:</span> <span class="mf">1.42</span><span class="p">,</span> <span class="s2">&quot;n_calls&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;cache_used&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;finish_reasons&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;stop&quot;</span><span class="p">]},</span>
+    <span class="s2">&quot;diagnostics&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;raw_responses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">]},</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Conversation continuity (<code>history</code>, <code>continue_from</code>) works with one
+  prompt per call. See
+  <a href="../conversations-and-agents/">Continuing Conversations Across Turns</a>.</li>
+<li>Deferred work uses <code>defer()</code>, <code>defer_many()</code>, <code>inspect_deferred()</code>,
+  <code>collect_deferred()</code>, and <code>cancel_deferred()</code>.</li>
+<li>Deferred lifecycle calls take a <code>DeferredHandle</code>, not <code>Config</code>. Persist the
+  handle and restore it later. See
+  <a href="../submitting-work-for-later-collection/">Submitting Work for Later Collection</a>.</li>
+<li>Provider feature support varies. See
+  <a href="../reference/provider-capabilities/">Provider Capabilities</a>.</li>
+</ul>
+<hr />
+<p>Once you're comfortable with single calls, see
+<a href="../source-patterns/">Analyzing Collections with Source Patterns</a> for fan-out,
+fan-in, and broadcast workflows,
+<a href="../submitting-work-for-later-collection/">Submitting Work for Later Collection</a>
+when the job can run in the background, or
+<a href="../structured-data/">Extracting Structured Data</a> to get typed objects instead
+of free-form text.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    
+      
+      <nav class="pollux-footer-nav" aria-label="Footer navigation" >
+        
+          <div class="pollux-footer-nav__item pollux-footer-nav__item--prev">
+            <a href="../concepts/"
+               class="pollux-footer-nav__pill"
+               aria-label="Previous: Core Concepts">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"
+                   fill="currentColor" aria-hidden="true"
+                   class="pollux-footer-nav__icon">
+                <path fill-rule="evenodd"
+                      d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z"
+                      clip-rule="evenodd"/>
+              </svg>
+              Previous
+            </a>
+            <a href="../concepts/"
+               class="pollux-footer-nav__title"
+               tabindex="-1" aria-hidden="true">
+              Core Concepts
+            </a>
+          </div>
+        
+        
+          <div class="pollux-footer-nav__item pollux-footer-nav__item--next">
+            <a href="../source-patterns/"
+               class="pollux-footer-nav__pill"
+               aria-label="Next: Analyzing Collections with Source Patterns">
+              Next
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"
+                   fill="currentColor" aria-hidden="true"
+                   class="pollux-footer-nav__icon">
+                <path fill-rule="evenodd"
+                      d="M2 8a.75.75 0 0 1 .75-.75h8.69L8.22 4.03a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z"
+                      clip-rule="evenodd"/>
+              </svg>
+            </a>
+            <a href="../source-patterns/"
+               class="pollux-footer-nav__title"
+               tabindex="-1" aria-hidden="true">
+              Analyzing Collections with Source Patterns
+            </a>
+          </div>
+        
+      </nav>
+    
+  
+  <div class="pollux-footer-meta">
+    <div class="pollux-footer-meta__inner">
+      
+        <p class="pollux-footer-meta__copyright">Copyright &copy; 2026 Sean Brar</p>
+      
+      
+        <div class="pollux-footer-meta__social">
+          
+            
+            
+            
+            <a href="https://github.com/seanbrar/pollux" target="_blank" rel="noopener"
+               title="Pollux on GitHub"
+               class="pollux-footer-meta__social-link">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+            </a>
+          
+        </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.footer", "content.code.copy", "toc.integrate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
