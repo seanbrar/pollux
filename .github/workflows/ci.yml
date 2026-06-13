@@ -6,10 +6,10 @@ name: Continuous Integration
   push:
     # Avoid duplicate CI runs on feature branches that already have a PR.
     # (Push to a PR branch triggers both `push` and `pull_request`.)
-    branches: [main, "release/**"]
-  # Run on pull requests that target the main branch
+    branches: [main, v1, "release/**"]
+  # Run on pull requests that target active release lines.
   pull_request:
-    branches: [main, "release/**"]
+    branches: [main, v1, "release/**"]
   # Run API tests nightly to detect provider-side drift during quiet periods
   schedule:
     - cron: "0 8 * * *" # 8am UTC daily

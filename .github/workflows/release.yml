@@ -17,8 +17,9 @@ name: Release
 
 jobs:
   release:
-    # Safety: allow dry-runs from any branch. Restrict real publishing to main/release branches.
-    if: ${{ inputs.dry_run || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') }}
+    # Safety: allow dry-runs from any branch. Restrict real publishing to
+    # final release lines (main, v1) and RC branches (release/**).
+    if: ${{ inputs.dry_run || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v1' || startsWith(github.ref, 'refs/heads/release/') }}
     runs-on: ubuntu-latest
     environment:
       name: pypi
