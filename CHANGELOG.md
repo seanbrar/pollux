@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [1.8.0] - 2026-06-13
+
+### Added
+
+- Stamp continuation state with schema version and provider ([`68fd568`](https://github.com/seanbrar/pollux/commit/68fd5684b588c435305256fa746a927f3daafedd))
+- Pre-flight reject extended thinking on Claude 3 models ([`159d880`](https://github.com/seanbrar/pollux/commit/159d8801e371f4a18483c758c028a0d4c1fd68b1))
+- Add v1 audit escape hatch ([`4984299`](https://github.com/seanbrar/pollux/commit/49842997a4a2f5c4f9c9d944d7e2b35c3625bb88))
+
+### Changed
+
+- Make recipes runnable and align source-pattern terminology ([`e80e785`](https://github.com/seanbrar/pollux/commit/e80e7856148a1d9a26db9e88c4da0755c63fde9e))
+- Mark v2-removed entry points and add 2.0 migration stub ([`883ee51`](https://github.com/seanbrar/pollux/commit/883ee51485bc8881bfa275db533f8870dc894437))
+- Streamline agent guidelines in AGENTS.md ([`8590344`](https://github.com/seanbrar/pollux/commit/859034465988b859a07b5c4f73a3f1244b00593d))
+- Refine migration cleanup notes ([`0d9afc8`](https://github.com/seanbrar/pollux/commit/0d9afc8f94a9c50d9ecb85c2228daefa3dabf34a))
+
 ## [1.7.0] - 2026-04-22
 
 ### Added
@@ -195,6 +210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[1.8.0]: https://github.com/seanbrar/pollux/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/seanbrar/pollux/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/seanbrar/pollux/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/seanbrar/pollux/compare/v1.4.0...v1.5.0
