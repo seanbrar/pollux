@@ -164,9 +164,9 @@ async def defer_many(
 ) -> DeferredHandle:
     """Submit deferred work and return a handle for later inspection/collection.
 
-    Removed in Pollux 2.0: the 2.0 deferred entry point submits a single
-    interaction or a source-pattern collection through one unambiguous call.
-    See the *Migrating to 2.0* guide.
+    Planned for Pollux 2.0: deferred submission moves to one entry point that
+    can submit a single interaction or a source-pattern collection. See the
+    *Migrating to 2.0* guide.
     """
     request = normalize_request(prompts, sources, config, options=options)
     if not request.prompts:
@@ -237,8 +237,8 @@ async def continue_tool(
 ) -> ResultEnvelope:
     """Continue a conversation with the results of tool calls.
 
-    Removed in Pollux 2.0: continuation and tool-result replay become core
-    interaction semantics, expressed as
+    Planned for Pollux 2.0: continuation and tool-result replay become core
+    interaction semantics, expressed as something like
     ``interact(environment, Input(continuation=..., tool_results=...))`` rather
     than a dedicated helper. See the *Migrating to 2.0* guide.
 
@@ -292,7 +292,7 @@ async def create_cache(
 ) -> CacheHandle:
     """Create a persistent context cache for use with ``run()`` / ``run_many()``.
 
-    Removed in Pollux 2.0: context caching moves into environment preparation,
+    Planned for Pollux 2.0: context caching moves into environment preparation,
     where cache identity is part of a prepared environment rather than a
     standalone handle. See the *Migrating to 2.0* guide.
 

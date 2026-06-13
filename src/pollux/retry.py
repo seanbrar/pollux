@@ -124,10 +124,6 @@ def should_retry_side_effect(exc: BaseException) -> bool:
     return False
 
 
-# Backwards-compatible internal alias.
-should_retry = should_retry_generate
-
-
 def _compute_backoff_delay(policy: RetryPolicy, *, retry_index: int) -> float:
     """Compute backoff delay with full jitter when enabled."""
     # retry_index starts at 1 for the first retry sleep.
