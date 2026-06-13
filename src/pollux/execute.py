@@ -282,6 +282,7 @@ async def execute_plan(plan: Plan, provider: Provider) -> ExecutionTrace:
             conversation_history=conversation_history,
             previous_response_id=previous_response_id,
             wants_conversation=wants_conversation,
+            provider=config.provider,
         )
     finally:
         # Clean up uploaded files (best-effort; server-side TTL is the backstop).
