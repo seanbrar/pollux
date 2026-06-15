@@ -13,9 +13,9 @@ from pollux.config import Config
 from pollux.errors import (
     APIError,
 )
+from pollux.providers import _compile
 from pollux.providers.models import (
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
 )
 from pollux.retry import RetryPolicy
@@ -43,10 +43,12 @@ async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) ->
         fail_generate: bool = False
         fail_close: bool = False
 
-        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        async def generate(
+            self, snapshot: Any, input: Any, requirements: Any, config: Any
+        ) -> ProviderResponse:
             if self.fail_generate:
                 raise APIError("bad request", retryable=False, status_code=400)
-            return await super().generate(request)
+            return await super().generate(snapshot, input, requirements, config)
 
         async def aclose(self) -> None:
             self.closed += 1
@@ -96,7 +98,9 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
         generate_calls: int = 0
         upload_attempts: int = 0
 
-        async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        async def generate(
+            self, snapshot: Any, input: Any, requirements: Any, config: Any
+        ) -> ProviderResponse:
             self.generate_calls += 1
             if self.mode == "generate_retry" and self.generate_calls == 1:
                 raise APIError("rate limited", retryable=True, status_code=429)
@@ -105,7 +109,7 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
 
             # Upload scenarios: verify substitution happened before generate().
             if self.mode.startswith("upload_"):
-                parts = request.parts
+                parts = _compile.request_parts(snapshot, input)
                 assert any(
                     isinstance(p, ProviderFileAsset)
                     and p.file_id == "mock://uploaded/doc.txt"
@@ -186,7 +190,9 @@ async def test_retry_skipped_for_permanent_errors(
         calls: int = 0
         error_type: str = "context_overflow"
 
-        async def generate(self, _request: ProviderRequest) -> ProviderResponse:
+        async def generate(
+            self, snapshot: Any, input: Any, requirements: Any, config: Any
+        ) -> ProviderResponse:
             self.calls += 1
             if self.error_type == "context_overflow":
                 raise APIError(

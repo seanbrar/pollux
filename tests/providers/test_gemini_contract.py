@@ -12,13 +12,19 @@ from pollux.errors import APIError, ConfigurationError
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.models import (
     ProviderFileAsset,
-    ProviderRequest,
 )
 from tests.conftest import (
     GEMINI_MODEL,
 )
+from tests.helpers import make_interaction
 
 pytestmark = pytest.mark.contract
+
+
+def _gemini(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    """Build the four primitives for a gemini-provider generate() call."""
+    kwargs.setdefault("model", GEMINI_MODEL)
+    return make_interaction(provider="gemini", **kwargs)
 
 
 def _obj(**attrs: Any) -> Any:
@@ -318,10 +324,9 @@ async def test_gemini_generate_characterizes_config_shape(golden: Any) -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=["What is 2+2?"],
-            system_instruction="Be concise.",
+        *_gemini(
+            content="What is 2+2?",
+            instructions="Be concise.",
             cache_name="cachedContents/abc123",
             response_schema={
                 "type": "object",
@@ -353,7 +358,7 @@ async def test_gemini_generate_omits_config_when_no_options() -> None:
     provider._client = MagicMock()
     provider._client.aio = fake_aio
 
-    await provider.generate(ProviderRequest(model=GEMINI_MODEL, parts=["Hello"]))
+    await provider.generate(*_gemini(content="Hello"))
 
     assert captured["config"] is not None
 
@@ -376,9 +381,9 @@ async def test_gemini_generate_passes_thinking_level_from_reasoning_effort() -> 
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
+        *_gemini(
             model="models/gemini-3-flash-preview",
-            parts=["Think hard."],
+            content="Think hard.",
             reasoning_effort="low",
         )
     )
@@ -410,9 +415,9 @@ async def test_gemini_generate_passes_thinking_budget_from_reasoning_budget_toke
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
+        *_gemini(
             model="models/gemini-2.5-flash",
-            parts=["Think less."],
+            content="Think less.",
             reasoning_budget_tokens=0,
         )
     )
@@ -442,9 +447,9 @@ async def test_gemini_generate_includes_thoughts_for_non_zero_budget() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
+        *_gemini(
             model="models/gemini-2.5-flash",
-            parts=["Think a little."],
+            content="Think a little.",
             reasoning_budget_tokens=512,
         )
     )
@@ -474,9 +479,8 @@ async def test_gemini_generate_attaches_video_metadata_from_source_settings() ->
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=[
+        *_gemini(
+            prepared_parts=[
                 {
                     "uri": "https://example.test/files/uploaded_video",
                     "mime_type": "video/mp4",
@@ -488,8 +492,8 @@ async def test_gemini_generate_attaches_video_metadata_from_source_settings() ->
                         },
                     },
                 },
-                "Describe this clip.",
             ],
+            content="Describe this clip.",
         )
     )
 
@@ -519,16 +523,15 @@ async def test_gemini_generate_uses_url_context_tool_for_url_context_sources() -
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=[
+        *_gemini(
+            prepared_parts=[
                 {
                     "uri": "https://example.com/page",
                     "mime_type": "text/html",
                     "provider_hints": {"url_context": {}},
                 },
-                "Summarize this URL.",
             ],
+            content="Summarize this URL.",
             tools=[{"name": "save_summary", "parameters": {"type": "object"}}],
         )
     )
@@ -561,10 +564,9 @@ async def test_gemini_provider_options_merge_and_overlap() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=["Hello"],
-            provider_options={"seed": 123},
+        *_gemini(
+            content="Hello",
+            provider_options={"gemini": {"seed": 123}},
         )
     )
 
@@ -572,11 +574,10 @@ async def test_gemini_provider_options_merge_and_overlap() -> None:
 
     with pytest.raises(ConfigurationError, match="overlap"):
         await provider.generate(
-            ProviderRequest(
-                model=GEMINI_MODEL,
-                parts=["Hello"],
+            *_gemini(
+                content="Hello",
                 temperature=0.2,
-                provider_options={"temperature": 0.7},
+                provider_options={"gemini": {"temperature": 0.7}},
             )
         )
 
@@ -604,9 +605,8 @@ async def test_gemini_strips_additional_properties_from_tool_schemas() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=["Pick a color"],
+        *_gemini(
+            content="Pick a color",
             tools=[
                 {
                     "name": "pick_color",

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from pollux.errors import ConfigurationError, DeferredNotReadyError, InternalError
 from pollux.interaction.capabilities import resolve_capabilities
 from pollux.interaction.collection import OutputCollection
-from pollux.interaction.compile import compile_request
 from pollux.interaction.environment import EnvironmentSnapshot
 from pollux.interaction.extract import provider_response_to_output
 from pollux.interaction.output import Diagnostics, Output
@@ -28,7 +27,6 @@ from pollux.providers.base import (
     ValidatingProvider,
 )
 from pollux.providers.models import (
-    ProviderRequest,
     ProviderResponse,
     ToolCall,
 )
@@ -151,17 +149,20 @@ def _provider_handle_from_handle(handle: DeferredHandle) -> ProviderDeferredHand
     )
 
 
-async def _validate_provider_requests(
+async def _validate_provider_inputs(
     provider: Provider,
-    requests: list[ProviderRequest],
+    snapshot: EnvironmentSnapshot,
+    inputs: Sequence[Input],
+    requirements: OutputRequirements,
+    config: Config,
 ) -> None:
     """Run provider-owned validation before deferred submission side effects."""
     if not isinstance(provider, ValidatingProvider):
         return
     # TODO: parallelize if a future provider's validate_request does I/O
     # (e.g. OpenRouter-style metadata lookups). Current validators are local.
-    for request in requests:
-        await provider.validate_request(request)
+    for inp in inputs:
+        await provider.validate_request(snapshot, inp, requirements, config)
 
 
 async def submit_deferred(
@@ -173,14 +174,14 @@ async def submit_deferred(
 ) -> DeferredHandle:
     """Submit provider-backed deferred work and return the Pollux handle.
 
-    Compiles the v2 interaction primitives into provider requests and submits
-    them to the provider's deferred lifecycle. Tool calling, continuation, and
-    persistent caching are out of scope for deferred delivery and are not part
-    of the ``defer()`` surface; capability gaps (uploads, structured outputs,
-    reasoning) are rejected by :func:`validate_interaction` before submission.
+    Hands the canonical v2 primitives to the provider's deferred lifecycle,
+    which compiles and submits them. Tool calling, continuation, and persistent
+    caching are out of scope for deferred delivery and are not part of the
+    ``defer()`` surface; capability gaps (uploads, structured outputs, reasoning)
+    are rejected by :func:`validate_interaction` before submission.
     """
     # Gate on deferred support first so an unsupported provider fails with the
-    # clearest message before any compilation or capability checks.
+    # clearest message before any capability checks.
     deferred_provider = _get_deferred_provider(provider)
     inputs = tuple(inputs)
     snapshot = EnvironmentSnapshot.from_environment(
@@ -189,12 +190,14 @@ async def submit_deferred(
     caps = resolve_capabilities(provider.capabilities, config.capabilities)
     validate_interaction(requirements, inputs, snapshot, caps, cache_requested=False)
 
-    requests = [compile_request(snapshot, inp, requirements, config) for inp in inputs]
-    await _validate_provider_requests(provider, requests)
+    await _validate_provider_inputs(provider, snapshot, inputs, requirements, config)
 
     request_ids = _request_ids(len(inputs))
     provider_handle = await deferred_provider.submit_deferred(
-        requests,
+        snapshot,
+        list(inputs),
+        requirements,
+        config,
         request_ids=request_ids,
     )
     submitted_at = (

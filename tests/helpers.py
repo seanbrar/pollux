@@ -8,32 +8,92 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
+from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.environment import EnvironmentSnapshot
+from pollux.interaction.input import Input
+from pollux.interaction.requirements import OutputRequirements
+from pollux.interaction.tools import ToolDeclaration, ToolResult
 from pollux.providers.base import (
     ProviderCapabilities,
     ProviderDeferredHandle,
     ProviderDeferredItem,
     ProviderDeferredSnapshot,
 )
-from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderFileAsset, ProviderResponse
 from tests.conftest import FakeProvider
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
-@dataclass
-class CaptureProvider(FakeProvider):
-    """FakeProvider that records generate() kwargs for assertions."""
+    from pollux.config import ProviderName
+    from pollux.interaction.continuation import Continuation, Message
 
-    generate_calls: int = 0
-    generate_kwargs: list[dict[str, Any]] = field(default_factory=list)
 
-    async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        self.generate_calls += 1
-        self.generate_kwargs.append({"request": request})
-        parts = request.parts
-        prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
-        return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
+def make_interaction(
+    *,
+    model: str,
+    provider: str = "mock",
+    content: str | None = None,
+    prepared_parts: Sequence[Any] = (),
+    instructions: str | None = None,
+    tools: Sequence[dict[str, Any]] | None = None,
+    tool_choice: Any = None,
+    response_schema: Any = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_budget_tokens: int | None = None,
+    provider_options: dict[str, dict[str, Any]] | None = None,
+    history: Sequence[Message] | None = None,
+    continuation: Continuation | None = None,
+    tool_results: Sequence[ToolResult] = (),
+    cache_name: str | None = None,
+    implicit_caching: bool = False,
+    base_url: str | None = None,
+) -> tuple[EnvironmentSnapshot, Input, OutputRequirements, Config]:
+    """Build the four v2 primitives a flipped ``provider.generate`` consumes.
+
+    Contract tests call ``provider.generate`` directly (bypassing core), so they
+    set ``prepared_parts`` (the uploaded shared source parts) and ``cache_name``
+    on the snapshot themselves, exactly as the execution path would.
+    """
+    snapshot = EnvironmentSnapshot(
+        instructions=instructions,
+        tools=tuple(ToolDeclaration.from_dict(t) for t in (tools or ())),
+        provider=provider,
+        prepared_parts=tuple(prepared_parts),
+        cache_name=cache_name,
+        implicit_caching=implicit_caching,
+    )
+    inp = Input(
+        content=content,
+        history=tuple(history) if history is not None else None,
+        continuation=continuation,
+        tool_results=tool_results,
+    )
+    requirements = OutputRequirements(
+        output_schema=response_schema,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=tool_choice,
+        provider_options=provider_options,
+    )
+    config = Config(
+        provider=cast("ProviderName", provider),
+        model=model,
+        use_mock=base_url is None,
+        base_url=base_url,
+    )
+    return snapshot, inp, requirements, config
 
 
 @dataclass
@@ -48,8 +108,14 @@ class ScriptedProvider(FakeProvider):
     )
     generate_calls: int = 0
 
-    async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        _ = request
+    async def generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> ProviderResponse:
+        _ = snapshot, input, requirements, config
         self.generate_calls += 1
         if not self.script:
             return ProviderResponse(text="ok", usage={"total_tokens": 1})
@@ -86,9 +152,15 @@ class GateProvider(FakeProvider):
             ),
         )
 
-    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+    async def generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> ProviderResponse:
         self.generate_calls += 1
-        return await super().generate(request)
+        return await super().generate(snapshot, input, requirements, config)
 
     async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:
         _ = path, mime_type
@@ -142,7 +214,7 @@ class InMemoryDeferredProvider(FakeProvider):
     inspect_status: str = "completed"
     provider_status: str | None = None
     item_overrides: dict[str, ProviderDeferredItem] = field(default_factory=dict)
-    submitted_requests: dict[str, list[ProviderRequest]] = field(default_factory=dict)
+    submitted_requests: dict[str, list[Input]] = field(default_factory=dict)
     submitted_ids: dict[str, list[str]] = field(default_factory=dict)
     cancelled_jobs: list[str] = field(default_factory=list)
     submitted_at: float = 100.0
@@ -150,12 +222,16 @@ class InMemoryDeferredProvider(FakeProvider):
 
     async def submit_deferred(
         self,
-        requests: list[ProviderRequest],
+        snapshot: EnvironmentSnapshot,
+        inputs: list[Input],
+        requirements: OutputRequirements,
+        config: Config,
         *,
         request_ids: list[str],
     ) -> ProviderDeferredHandle:
+        _ = snapshot, requirements, config
         job_id = f"job-{len(self.submitted_requests)}"
-        self.submitted_requests[job_id] = list(requests)
+        self.submitted_requests[job_id] = list(inputs)
         self.submitted_ids[job_id] = list(request_ids)
         return ProviderDeferredHandle(
             job_id=job_id,
@@ -197,19 +273,15 @@ class InMemoryDeferredProvider(FakeProvider):
         self.cancelled_jobs.append(handle.job_id)
 
     def _collected_items(self, job_id: str) -> list[ProviderDeferredItem]:
-        requests = self.submitted_requests[job_id]
+        inputs = self.submitted_requests[job_id]
         request_ids = self.submitted_ids[job_id]
         items: list[ProviderDeferredItem] = []
-        for request_id, request in zip(request_ids, requests, strict=True):
+        for request_id, inp in zip(request_ids, inputs, strict=True):
             override = self.item_overrides.get(request_id)
             if override is not None:
                 items.append(override)
                 continue
-            prompt = (
-                request.parts[-1]
-                if request.parts and isinstance(request.parts[-1], str)
-                else ""
-            )
+            prompt = inp.content or ""
             items.append(
                 ProviderDeferredItem(
                     request_id=request_id,
@@ -229,10 +301,17 @@ class InMemoryDeferredProvider(FakeProvider):
 class RejectingValidatingProvider(FakeProvider):
     """Provider double that fails validation before uploads begin."""
 
-    validation_calls: list[ProviderRequest] = field(default_factory=list)
+    validation_calls: list[Input] = field(default_factory=list)
 
-    async def validate_request(self, request: ProviderRequest) -> None:
-        self.validation_calls.append(request)
+    async def validate_request(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> None:
+        _ = snapshot, requirements, config
+        self.validation_calls.append(input)
         raise ConfigurationError(
             "validation failed",
             hint="Validation should run before uploads.",
@@ -243,10 +322,17 @@ class RejectingValidatingProvider(FakeProvider):
 class RejectingValidatingDeferredProvider(InMemoryDeferredProvider):
     """Deferred provider double that fails validation before submission side effects."""
 
-    validation_calls: list[ProviderRequest] = field(default_factory=list)
+    validation_calls: list[Input] = field(default_factory=list)
 
-    async def validate_request(self, request: ProviderRequest) -> None:
-        self.validation_calls.append(request)
+    async def validate_request(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> None:
+        _ = snapshot, requirements, config
+        self.validation_calls.append(input)
         raise ConfigurationError(
             "validation failed",
             hint="Validation should run before deferred uploads.",

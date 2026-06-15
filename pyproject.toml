@@ -216,7 +216,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "cookbook/*" = ["S105", "S106", "T20", "D103", "D", "S", "RUF001", "RUF002"]
 "scripts/*" = ["T201", "S310"]
 "tests/helpers.py" = ["S603"]
-"tests/*" = ["D", "N806", "S101", "S105", "S106", "S108"]
+"tests/*" = ["D", "N806", "S101", "S105", "S106", "S108", "A", "ARG", "RUF100"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

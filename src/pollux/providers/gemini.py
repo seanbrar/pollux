@@ -10,10 +10,12 @@ import logging
 from pathlib import Path
 import tempfile
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import uuid
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.parts import build_shared_parts
+from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import jsonable_provider_artifact, merge_provider_options
 from pollux.providers.base import (
@@ -26,12 +28,17 @@ from pollux.providers.base import (
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
     ToolCall,
     is_file_part,
     provider_response_to_dict,
 )
+
+if TYPE_CHECKING:
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
 
 logger = logging.getLogger(__name__)
 
@@ -236,51 +243,58 @@ class GeminiProvider:
             }
         return None
 
-    def _build_config_kwargs(self, request: ProviderRequest) -> dict[str, Any]:
+    def _build_config_kwargs(
+        self,
+        parts: list[Any],
+        snapshot: EnvironmentSnapshot,
+        requirements: OutputRequirements,
+    ) -> dict[str, Any]:
         """Assemble Gemini GenerateContentConfig keyword arguments."""
         from google.genai import types
 
         config_kwargs: dict[str, Any] = {}
 
-        if request.reasoning_effort is not None:
+        if requirements.reasoning_effort is not None:
             config_kwargs["thinking_config"] = types.ThinkingConfig(
                 include_thoughts=True,
-                thinking_level=request.reasoning_effort,  # type: ignore[arg-type]
+                thinking_level=requirements.reasoning_effort,  # type: ignore[arg-type]
             )
-        elif request.reasoning_budget_tokens is not None:
+        elif requirements.reasoning_budget_tokens is not None:
             config_kwargs["thinking_config"] = types.ThinkingConfig(
-                include_thoughts=request.reasoning_budget_tokens > 0,
-                thinking_budget=request.reasoning_budget_tokens,
+                include_thoughts=requirements.reasoning_budget_tokens > 0,
+                thinking_budget=requirements.reasoning_budget_tokens,
             )
 
-        if request.system_instruction is not None:
-            config_kwargs["system_instruction"] = request.system_instruction
-        if request.cache_name is not None:
-            config_kwargs["cached_content"] = request.cache_name
-        if request.response_schema is not None:
-            config_kwargs["response_mime_type"] = "application/json"
-            config_kwargs["response_json_schema"] = request.response_schema
-        if request.temperature is not None:
-            config_kwargs["temperature"] = request.temperature
-        if request.top_p is not None:
-            config_kwargs["top_p"] = request.top_p
+        system_instruction = _compile.system_instruction(snapshot)
+        response_schema = requirements.output_schema_json()
+        tools = _compile.tool_dicts(snapshot)
 
-        tool_objs = (
-            self._normalize_tools(request.tools) if request.tools is not None else []
-        )
-        if _request_uses_url_context(request):
+        if system_instruction is not None:
+            config_kwargs["system_instruction"] = system_instruction
+        if snapshot.cache_name is not None:
+            config_kwargs["cached_content"] = snapshot.cache_name
+        if response_schema is not None:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_json_schema"] = response_schema
+        if requirements.temperature is not None:
+            config_kwargs["temperature"] = requirements.temperature
+        if requirements.top_p is not None:
+            config_kwargs["top_p"] = requirements.top_p
+
+        tool_objs = self._normalize_tools(tools) if tools is not None else []
+        if _parts_use_url_context(parts):
             tool_objs.append(types.Tool(url_context=types.UrlContext()))
         if tool_objs:
             config_kwargs["tools"] = tool_objs
 
-        if request.tools is not None:
-            tool_config = self._map_tool_choice(request.tool_choice)
+        if tools is not None:
+            tool_config = self._map_tool_choice(requirements.tool_choice)
             if tool_config is not None:
                 config_kwargs["tool_config"] = tool_config
 
         merge_provider_options(
             config_kwargs,
-            request.provider_options,
+            requirements.provider_options_for("gemini"),
             provider="gemini",
         )
         return config_kwargs
@@ -383,7 +397,10 @@ class GeminiProvider:
 
     async def submit_deferred(
         self,
-        requests: list[ProviderRequest],
+        snapshot: EnvironmentSnapshot,
+        inputs: list[Input],
+        requirements: OutputRequirements,
+        config: Config,
         *,
         request_ids: list[str],
     ) -> ProviderDeferredHandle:
@@ -403,18 +420,18 @@ class GeminiProvider:
                 delete=False,
             ) as temp_batch:
                 temp_batch_path = Path(temp_batch.name)
-                for request_id, request in zip(request_ids, requests, strict=True):
-                    resolved_request = await self._resolve_deferred_request(
-                        request,
+                for request_id, inp in zip(request_ids, inputs, strict=True):
+                    parts = await self._resolve_deferred_parts(
+                        snapshot,
+                        inp,
+                        config,
                         upload_cache=upload_cache,
                     )
+                    history, _prev, _ps = _compile.prior_turns(inp)
                     inlined_request = types.InlinedRequest(
-                        contents=self._build_contents(
-                            resolved_request.parts,
-                            resolved_request.history,
-                        ),
+                        contents=self._build_contents(parts, history or None),
                         config=types.GenerateContentConfig(
-                            **self._build_config_kwargs(resolved_request)
+                            **self._build_config_kwargs(parts, snapshot, requirements)
                         ),
                         metadata={"pollux_request_id": request_id},
                     )
@@ -433,7 +450,7 @@ class GeminiProvider:
             owned_file_ids = _owned_deferred_file_ids(upload_cache)
             if inlined_requests is not None:
                 batch = await client.aio.batches.create(
-                    model=requests[0].model,
+                    model=config.model,
                     src=inlined_requests,
                 )
             else:
@@ -442,7 +459,7 @@ class GeminiProvider:
                 )
                 owned_file_ids.append(batch_input_file)
                 batch = await client.aio.batches.create(
-                    model=requests[0].model,
+                    model=config.model,
                     src=types.BatchJobSource(file_name=batch_input_file),
                 )
             return ProviderDeferredHandle(
@@ -451,7 +468,8 @@ class GeminiProvider:
                 provider_state={
                     "request_ids": list(request_ids),
                     "owned_file_ids": sorted(set(owned_file_ids)),
-                    "has_response_schema": _requests_have_response_schema(requests),
+                    "has_response_schema": requirements.output_schema_json()
+                    is not None,
                 },
             )
         except asyncio.CancelledError:
@@ -590,18 +608,23 @@ class GeminiProvider:
 
     async def generate(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> ProviderResponse:
         """Generate content from the Gemini model."""
         client = self._get_client()
         from google.genai import types
 
-        config_kwargs = self._build_config_kwargs(request)
-        contents = self._build_contents(request.parts, request.history)
+        parts = _compile.request_parts(snapshot, input)
+        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
+        config_kwargs = self._build_config_kwargs(parts, snapshot, requirements)
+        contents = self._build_contents(parts, history or None)
 
         try:
             response = await client.aio.models.generate_content(
-                model=request.model,
+                model=config.model,
                 contents=contents,
                 config=types.GenerateContentConfig(**config_kwargs),
             )
@@ -655,15 +678,20 @@ class GeminiProvider:
             f"{timeout_seconds}s (stuck in {last_state})"
         )
 
-    async def _resolve_deferred_request(
+    async def _resolve_deferred_parts(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        config: Config,
         *,
         upload_cache: dict[tuple[str, str], ProviderFileAsset],
-    ) -> ProviderRequest:
-        """Resolve local file parts into provider assets for deferred submission."""
+    ) -> list[Any]:
+        """Resolve an environment's source parts into assets for deferred submission.
+
+        The deferred path is not pre-prepared by core, so uploads happen here.
+        """
         resolved_parts: list[Any] = []
-        for part in request.parts:
+        for part in build_shared_parts(snapshot.sources, provider=config.provider):
             if is_file_part(part):
                 file_path = part["file_path"]
                 mime_type = part["mime_type"]
@@ -687,26 +715,9 @@ class GeminiProvider:
                     resolved_parts.append(asset)
             else:
                 resolved_parts.append(part)
-
-        return ProviderRequest(
-            model=request.model,
-            parts=resolved_parts,
-            system_instruction=request.system_instruction,
-            cache_name=request.cache_name,
-            response_schema=request.response_schema,
-            temperature=request.temperature,
-            top_p=request.top_p,
-            tools=request.tools,
-            tool_choice=request.tool_choice,
-            reasoning_effort=request.reasoning_effort,
-            reasoning_budget_tokens=request.reasoning_budget_tokens,
-            history=request.history,
-            previous_response_id=request.previous_response_id,
-            provider_state=request.provider_state,
-            max_tokens=request.max_tokens,
-            implicit_caching=request.implicit_caching,
-            provider_options=request.provider_options,
-        )
+        if input.content is not None:
+            resolved_parts.append(input.content)
+        return resolved_parts
 
     async def _upload_deferred_batch_input_file(self, path: Path) -> str:
         """Upload a JSONL batch input file and return its file resource name."""
@@ -1194,9 +1205,9 @@ def _extract_response_text(response: Any) -> str:
     return "".join(parts)
 
 
-def _request_uses_url_context(request: ProviderRequest) -> bool:
-    """Return True when a request contains a Gemini URL Context source."""
-    for part in request.parts:
+def _parts_use_url_context(parts: list[Any]) -> bool:
+    """Return True when request parts contain a Gemini URL Context source."""
+    for part in parts:
         if isinstance(part, dict) and _has_provider_hint(part, name="url_context"):
             return True
     return False
@@ -1263,11 +1274,6 @@ def _owned_deferred_file_ids(
         if asset.file_id
     }
     return sorted(file_ids)
-
-
-def _requests_have_response_schema(requests: list[ProviderRequest]) -> bool:
-    """Persist whether structured outputs were enabled at submission time."""
-    return any(request.response_schema is not None for request in requests)
 
 
 def _job_state_name(state: Any) -> str:

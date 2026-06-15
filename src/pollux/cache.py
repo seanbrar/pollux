@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from pollux._singleflight import singleflight_cached
 from pollux.errors import ConfigurationError, InternalError
+from pollux.providers.base import CachingProvider, FileUploadingProvider
 from pollux.providers.models import is_file_part
 from pollux.retry import RetryPolicy, retry_async, should_retry_side_effect
 
@@ -123,7 +124,9 @@ async def get_or_create_cache(
     File placeholders in *raw_parts* are resolved inside the single-flight
     work function so concurrent callers share both uploads and cache creation.
     """
-    if not provider.capabilities.persistent_cache:
+    if not provider.capabilities.persistent_cache or not isinstance(
+        provider, CachingProvider
+    ):
         return None
 
     async def _work() -> tuple[str, float]:
@@ -169,7 +172,7 @@ _registry = CacheRegistry()
 
 async def _resolve_file_parts(
     parts: list[Any],
-    provider: Provider,
+    provider: CachingProvider,
     retry_policy: RetryPolicy,
 ) -> list[Any]:
     """Replace file placeholders with uploaded assets.
@@ -180,8 +183,18 @@ async def _resolve_file_parts(
     """
     resolved: list[Any] = []
     seen: dict[tuple[str, str], Any] = {}
+    if any(is_file_part(part) for part in parts) and not isinstance(
+        provider, FileUploadingProvider
+    ):
+        raise ConfigurationError(
+            "Provider does not support file uploads for cached sources",
+            hint="Choose a provider with uploads support, or remove file sources.",
+        )
     for part in parts:
         if is_file_part(part):
+            assert isinstance(  # noqa: S101
+                provider, FileUploadingProvider
+            )  # guarded above
             fp, mt = part["file_path"], part["mime_type"]
             provider_hints = part.get("provider_hints")
             key = (fp, mt)
@@ -234,7 +247,7 @@ async def create_cache_impl(
     current five axes, consider a validated ``CacheSpec`` dataclass to
     keep this boundary manageable.
     """
-    from pollux.plan import build_shared_parts
+    from pollux.parts import build_shared_parts
     from pollux.source import Source as SourceCls
 
     if not isinstance(ttl_seconds, int) or ttl_seconds < 1:

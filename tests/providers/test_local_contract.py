@@ -8,17 +8,25 @@ import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.continuation import Message
+from pollux.interaction.tools import ToolCall
 from pollux.providers.local import LocalProvider
-from pollux.providers.models import (
-    Message,
-    ProviderRequest,
-    ToolCall,
-)
 from tests.conftest import (
     LOCAL_MODEL,
 )
+from tests.helpers import make_interaction
 
 pytestmark = pytest.mark.contract
+
+
+def _local(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    """Build the four primitives for a local-provider generate() call."""
+    return make_interaction(
+        provider="local",
+        base_url=_LOCAL_BASE_URL,
+        model=LOCAL_MODEL,
+        **kwargs,
+    )
 
 
 # =============================================================================
@@ -100,10 +108,9 @@ async def test_local_generate_builds_chat_completions_payload() -> None:
     provider = _make_local_provider(fake)
 
     result = await provider.generate(
-        ProviderRequest(
-            model=LOCAL_MODEL,
-            parts=["Current prompt"],
-            system_instruction="Be concise.",
+        *_local(
+            content="Current prompt",
+            instructions="Be concise.",
             history=[
                 Message(role="user", content="Earlier question"),
                 Message(role="assistant", content="Earlier answer"),
@@ -154,9 +161,8 @@ async def test_local_generate_sets_json_mode_when_schema_present() -> None:
     provider = _make_local_provider(fake)
 
     result = await provider.generate(
-        ProviderRequest(
-            model=LOCAL_MODEL,
-            parts=["Need orbit code."],
+        *_local(
+            content="Need orbit code.",
             response_schema={
                 "type": "object",
                 "properties": {"secret_code": {"type": "string"}},
@@ -201,9 +207,8 @@ async def test_local_generate_preserves_non_object_structured_json() -> None:
     provider = _make_local_provider(fake)
 
     result = await provider.generate(
-        ProviderRequest(
-            model=LOCAL_MODEL,
-            parts=["Need tags."],
+        *_local(
+            content="Need tags.",
             response_schema={
                 "type": "array",
                 "items": {"type": "string"},
@@ -235,9 +240,8 @@ async def test_local_generate_extracts_reasoning_content() -> None:
     provider = _make_local_provider(fake)
 
     result = await provider.generate(
-        ProviderRequest(
-            model=LOCAL_MODEL,
-            parts=["2+2?"],
+        *_local(
+            content="2+2?",
         )
     )
 
@@ -265,9 +269,8 @@ async def test_local_generate_returns_structured_none_when_response_is_not_json(
     provider = _make_local_provider(fake)
 
     result = await provider.generate(
-        ProviderRequest(
-            model=LOCAL_MODEL,
-            parts=["Need orbit code."],
+        *_local(
+            content="Need orbit code.",
             response_schema={
                 "type": "object",
                 "properties": {"secret_code": {"type": "string"}},
@@ -297,7 +300,7 @@ async def test_local_generate_extracts_cached_tokens() -> None:
     provider = _make_local_provider(fake)
 
     result = await provider.generate(
-        ProviderRequest(model=LOCAL_MODEL, parts=["hi"]),
+        *_local(content="hi"),
     )
 
     assert result.usage["cached_tokens"] == 4_800
@@ -312,9 +315,8 @@ async def test_local_generate_rejects_reasoning_effort() -> None:
 
     with pytest.raises(ConfigurationError, match="reasoning_effort"):
         await provider.generate(
-            ProviderRequest(
-                model=LOCAL_MODEL,
-                parts=["hi"],
+            *_local(
+                content="hi",
                 reasoning_effort="medium",
             )
         )
@@ -329,9 +331,8 @@ async def test_local_generate_rejects_reasoning_budget_tokens() -> None:
 
     with pytest.raises(ConfigurationError, match="reasoning_budget_tokens"):
         await provider.generate(
-            ProviderRequest(
-                model=LOCAL_MODEL,
-                parts=["hi"],
+            *_local(
+                content="hi",
                 reasoning_budget_tokens=1024,
             )
         )
@@ -344,9 +345,8 @@ async def test_local_generate_rejects_tools() -> None:
 
     with pytest.raises(ConfigurationError, match="tool calling"):
         await provider.generate(
-            ProviderRequest(
-                model=LOCAL_MODEL,
-                parts=["hi"],
+            *_local(
+                content="hi",
                 tools=[{"name": "get_weather"}],
             )
         )
@@ -360,9 +360,11 @@ async def test_local_generate_rejects_tools() -> None:
         [
             Message(
                 role="assistant",
-                tool_calls=[
-                    ToolCall(id="call_1", name="lookup", arguments='{"q":"x"}')
-                ],
+                tool_calls=(
+                    ToolCall.from_text(
+                        id="call_1", name="lookup", arguments_text='{"q":"x"}'
+                    ),
+                ),
             )
         ],
     ],
@@ -377,9 +379,8 @@ async def test_local_generate_rejects_tool_call_history(
 
     with pytest.raises(ConfigurationError, match="tool-call history"):
         await provider.generate(
-            ProviderRequest(
-                model=LOCAL_MODEL,
-                parts=["continue"],
+            *_local(
+                content="continue",
                 history=history,
             )
         )
@@ -394,10 +395,9 @@ async def test_local_generate_rejects_non_text_parts() -> None:
 
     with pytest.raises(ConfigurationError, match="file or multimodal input"):
         await provider.generate(
-            ProviderRequest(
-                model=LOCAL_MODEL,
-                parts=[
-                    "Describe this image.",
+            *_local(
+                content="Describe this image.",
+                prepared_parts=[
                     {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
                 ],
             )
@@ -443,7 +443,7 @@ async def test_local_generate_surfaces_http_error_as_api_error() -> None:
 
     with pytest.raises(APIError) as exc:
         await provider.generate(
-            ProviderRequest(model=LOCAL_MODEL, parts=["hi"]),
+            *_local(content="hi"),
         )
 
     err = exc.value

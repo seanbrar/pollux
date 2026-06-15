@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -49,35 +49,12 @@ class Message:
     tool_calls: list[ToolCall] | None = None
 
 
-@dataclass(frozen=True)
-class ProviderRequest:
-    """A unified request payload for a provider generation call."""
-
-    model: str
-    parts: list[Any]
-    system_instruction: str | None = None
-    cache_name: str | None = None
-    response_schema: dict[str, Any] | None = None
-    temperature: float | None = None
-    top_p: float | None = None
-    tools: list[dict[str, Any]] | None = None
-    tool_choice: Literal["auto", "required", "none"] | dict[str, Any] | None = None
-    reasoning_effort: str | None = None
-    reasoning_budget_tokens: int | None = None
-    history: list[Message] | None = None
-    previous_response_id: str | None = None
-    provider_state: dict[str, Any] | None = None
-    max_tokens: int | None = None
-    implicit_caching: bool = False
-    provider_options: dict[str, Any] | None = None
-
-
 def is_file_part(part: Any) -> bool:
     """Return True if *part* is a local-file placeholder awaiting upload.
 
-    File placeholders are built during planning and resolved to provider assets
+    File placeholders are built from sources and resolved to provider assets
     during execution and deferred submission. This predicate is the single
-    definition of that ``ProviderRequest.parts`` shape.
+    definition of that part shape.
     """
     return (
         isinstance(part, dict)

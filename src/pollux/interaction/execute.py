@@ -1,14 +1,12 @@
 """The v2 execution path: run interactions and assemble ``Output``.
 
-This is the v2 sibling of ``execute.execute_plan``. It owns the core-side
-orchestration concerns (capability validation, core-orchestrated file uploads
-with single-flight dedup, concurrency, and retry), calls the unchanged provider
-transport (``provider.generate``), and assembles immutable ``Output`` /
-``OutputCollection`` results. The provider request compilation and response
-extraction live in ``interaction/compile.py`` and ``interaction/extract.py``.
-
-The v1 ``run()``/``run_many()`` pipeline is untouched; this path is exercised by
-the v2 frontdoors (``interact()``/``run()``) in Slice 3.
+Core owns the orchestration concerns — capability validation, single-flight file
+uploads, persistent-cache resolution, concurrency, retry, continuation, and
+``Output`` assembly. It freezes the environment's prepared (uploaded) parts and
+resolved cache onto an :class:`EnvironmentSnapshot`, then hands the canonical
+primitives to ``Provider.generate``, which owns upstream request shaping and
+response parsing and returns provider response facets. Core then assembles the
+immutable ``Output`` / ``OutputCollection``.
 """
 
 from __future__ import annotations
@@ -21,20 +19,18 @@ from typing import TYPE_CHECKING
 from pollux.cache import create_cache_impl
 from pollux.continuation import build_conversation_state, history_text_from_parts
 from pollux.errors import APIError, InternalError, PolluxError
-from pollux.execute import (
-    _cleanup_uploads,
-    _substitute_upload_parts,
-    _validate_provider_request,
-)
+from pollux.interaction._uploads import cleanup_uploads, substitute_upload_parts
 from pollux.interaction.adapters import continuation_from_state, state_from_continuation
 from pollux.interaction.capabilities import resolve_capabilities
 from pollux.interaction.collection import OutputCollection
-from pollux.interaction.compile import compile_request
 from pollux.interaction.continuation import Continuation
 from pollux.interaction.environment import CachePolicy, EnvironmentSnapshot
 from pollux.interaction.extract import provider_response_to_output
 from pollux.interaction.validate import validate_interaction
-from pollux.providers.models import ProviderResponse
+from pollux.parts import build_shared_parts
+from pollux.providers import _compile
+from pollux.providers.base import FileUploadingProvider, ValidatingProvider
+from pollux.providers.models import ProviderResponse, is_file_part
 from pollux.retry import retry_async, should_retry_generate
 
 if TYPE_CHECKING:
@@ -125,6 +121,67 @@ async def resolve_persistent_cache(
     return handle.name
 
 
+async def _prepare_parts(
+    snapshot: EnvironmentSnapshot,
+    config: Config,
+    provider: Provider,
+    upload_cache: dict[tuple[str, str], ProviderFileAsset],
+) -> tuple[Any, ...]:
+    """Build the environment's shared source parts, uploading local files once."""
+    raw_parts = build_shared_parts(snapshot.sources, provider=config.provider)
+    if any(is_file_part(p) for p in raw_parts):
+        if not isinstance(provider, FileUploadingProvider):
+            raise InternalError(
+                "Provider advertises uploads but does not implement upload_file()",
+                hint="Implement FileUploadingProvider for this provider.",
+            )
+        # Uploads are resolved once upfront and shared across the fan-out; a
+        # failure here fails the whole batch, attributed to the first call.
+        raw_parts = await substitute_upload_parts(
+            raw_parts,
+            provider=provider,
+            call_idx=0,
+            upload_cache=upload_cache,
+            upload_inflight={},
+            upload_lock=asyncio.Lock(),
+            retry_policy=config.retry,
+        )
+    return tuple(raw_parts)
+
+
+async def _prepare_snapshot(
+    snapshot: EnvironmentSnapshot,
+    n_inputs: int,
+    config: Config,
+    provider: Provider,
+    caps: Any,
+    upload_cache: dict[tuple[str, str], ProviderFileAsset],
+) -> tuple[EnvironmentSnapshot, str]:
+    """Freeze resolved cache + uploaded parts onto the snapshot for ``generate``.
+
+    Returns the resolved snapshot and the cache mode reflected on ``Output``
+    metrics (``"persistent"`` / ``"implicit"`` / ``"none"``).
+    """
+    cache_name = await resolve_persistent_cache(snapshot, config, provider)
+    if cache_name is not None:
+        prepared_parts: tuple[Any, ...] = ()
+        implicit_caching = False
+        cache_mode = "persistent"
+    else:
+        prepared_parts = await _prepare_parts(snapshot, config, provider, upload_cache)
+        implicit_caching = (
+            caps.implicit_caching and n_inputs == 1 and snapshot.cache != "none"
+        )
+        cache_mode = "implicit" if implicit_caching else "none"
+    resolved = replace(
+        snapshot,
+        prepared_parts=prepared_parts,
+        cache_name=cache_name,
+        implicit_caching=implicit_caching,
+    )
+    return resolved, cache_mode
+
+
 async def execute_interactions(
     environment: Environment,
     inputs: Sequence[Input],
@@ -148,51 +205,33 @@ async def execute_interactions(
         requirements, inputs, snapshot, caps, cache_requested=persistent_requested
     )
 
-    cache_name = await resolve_persistent_cache(snapshot, config, provider)
-    if cache_name is not None:
-        cache_mode = "persistent"
-        implicit_caching = False
-    else:
-        implicit_caching = (
-            caps.implicit_caching and len(inputs) == 1 and snapshot.cache != "none"
-        )
-        cache_mode = "implicit" if implicit_caching else "none"
-
-    upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
-    upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]] = {}
-    upload_lock = asyncio.Lock()
     retry_policy = config.retry
+    upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
+
+    # Provider-owned model-specific validation runs before any upload or cache
+    # side effects so a rejected request never leaves remote artifacts behind.
+    if isinstance(provider, ValidatingProvider):
+        for inp in inputs:
+            await provider.validate_request(snapshot, inp, requirements, config)
+
+    snapshot, cache_mode = await _prepare_snapshot(
+        snapshot, len(inputs), config, provider, caps, upload_cache
+    )
+
     sem = asyncio.Semaphore(config.request_concurrency)
     user_contents: list[str | None] = [None] * len(inputs)
 
     async def _execute_call(call_idx: int) -> ProviderResponse:
         async with sem:
             try:
-                req = compile_request(
-                    snapshot,
-                    inputs[call_idx],
-                    requirements,
-                    config,
-                    cache_name=cache_name,
-                    implicit_caching=implicit_caching,
+                inp = inputs[call_idx]
+                user_contents[call_idx] = history_text_from_parts(
+                    _compile.request_parts(snapshot, inp)
                 )
-                user_contents[call_idx] = history_text_from_parts(req.parts)
-                await _validate_provider_request(provider, req)
-                parts = await _substitute_upload_parts(
-                    req.parts,
-                    provider=provider,
-                    call_idx=call_idx,
-                    upload_cache=upload_cache,
-                    upload_inflight=upload_inflight,
-                    upload_lock=upload_lock,
-                    retry_policy=retry_policy,
-                )
-                req = replace(req, parts=parts)
-
                 if retry_policy.max_attempts <= 1:
-                    return await provider.generate(req)
+                    return await provider.generate(snapshot, inp, requirements, config)
                 return await retry_async(
-                    lambda: provider.generate(req),
+                    lambda: provider.generate(snapshot, inp, requirements, config),
                     policy=retry_policy,
                     should_retry=should_retry_generate,
                 )
@@ -236,7 +275,7 @@ async def execute_interactions(
                 )
             responses.append(item)
     finally:
-        await _cleanup_uploads(upload_cache, provider)
+        await cleanup_uploads(upload_cache, provider)
 
     duration_s = time.perf_counter() - start_time
 

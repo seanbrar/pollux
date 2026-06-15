@@ -13,12 +13,12 @@ import pytest
 
 from pollux.config import Config, ProviderName
 from pollux.errors import ConfigurationError
-from pollux.interaction.compile import compile_request
 from pollux.interaction.environment import Environment, EnvironmentSnapshot
 from pollux.interaction.execute import execute_interaction
 from pollux.interaction.input import Input
 from pollux.interaction.requirements import OutputRequirements
 from pollux.interaction.tools import ToolDeclaration
+from pollux.providers import _compile
 from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.local import LocalProvider
 from pollux.providers.openai import OpenAIProvider
@@ -37,10 +37,9 @@ def _compiled_tools(provider_name: ProviderName) -> list[dict[str, Any]]:
     snapshot = EnvironmentSnapshot.from_environment(
         Environment(tools=[_TOOL]), provider=provider_name
     )
-    cfg = Config(provider=provider_name, model="m", use_mock=True)
-    req = compile_request(snapshot, Input(content="hi"), OutputRequirements(), cfg)
-    assert req.tools is not None
-    return req.tools
+    tools = _compile.tool_dicts(snapshot)
+    assert tools is not None
+    return tools
 
 
 def test_translates_to_anthropic_input_schema():

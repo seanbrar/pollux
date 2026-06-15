@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import httpx
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._openai_compat import (
     extract_error_message,
@@ -29,7 +30,6 @@ from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
     ToolCall,
 )
@@ -41,6 +41,11 @@ _OPENROUTER_REASONING_DETAILS_KEY = "openrouter_reasoning_details"
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
 
 
 @dataclass(frozen=True)
@@ -91,40 +96,45 @@ class OpenRouterProvider:
 
     async def generate(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> ProviderResponse:
         """Generate a response using OpenRouter chat completions."""
-        await self.validate_request(request)
+        await self.validate_request(snapshot, input, requirements, config)
 
-        _ = (
-            request.previous_response_id
-        )  # OpenRouter uses history replay, not ID-based continuation
+        # OpenRouter uses history replay, not ID-based continuation.
+        history, _previous_response_id, provider_state = _compile.prior_turns(input)
+        parts = _compile.request_parts(snapshot, input)
+        response_schema = requirements.output_schema_json()
+        tools = _compile.tool_dicts(snapshot)
 
         messages = _build_messages(
-            request.parts,
-            request.history,
-            request.provider_state,
-            system_instruction=request.system_instruction,
+            parts,
+            history or None,
+            provider_state,
+            system_instruction=_compile.system_instruction(snapshot),
         )
         payload: dict[str, Any] = {
-            "model": request.model,
+            "model": config.model,
             "messages": messages,
         }
-        if request.temperature is not None:
-            payload["temperature"] = request.temperature
-        if request.top_p is not None:
-            payload["top_p"] = request.top_p
-        if request.max_tokens is not None:
-            payload["max_tokens"] = request.max_tokens
-        if request.tools is not None:
-            payload["tools"] = self._normalize_tools(request.tools)
-            mapped_tool_choice = self._map_tool_choice(request.tool_choice)
+        if requirements.temperature is not None:
+            payload["temperature"] = requirements.temperature
+        if requirements.top_p is not None:
+            payload["top_p"] = requirements.top_p
+        if requirements.max_tokens is not None:
+            payload["max_tokens"] = requirements.max_tokens
+        if tools is not None:
+            payload["tools"] = self._normalize_tools(tools)
+            mapped_tool_choice = self._map_tool_choice(requirements.tool_choice)
             if mapped_tool_choice is not None:
                 payload["tool_choice"] = mapped_tool_choice
-        if request.reasoning_effort is not None:
-            payload["reasoning"] = {"effort": request.reasoning_effort}
-        if request.response_schema is not None:
-            strict_schema = to_strict_schema(request.response_schema)
+        if requirements.reasoning_effort is not None:
+            payload["reasoning"] = {"effort": requirements.reasoning_effort}
+        if response_schema is not None:
+            strict_schema = to_strict_schema(response_schema)
             payload["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
@@ -135,7 +145,7 @@ class OpenRouterProvider:
             }
         merge_provider_options(
             payload,
-            request.provider_options,
+            requirements.provider_options_for("openrouter"),
             provider="openrouter",
         )
 
@@ -166,7 +176,7 @@ class OpenRouterProvider:
                 phase="generate",
             )
 
-        return _parse_response(data, response_schema=request.response_schema)
+        return _parse_response(data, response_schema=response_schema)
 
     @staticmethod
     def _normalize_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -204,9 +214,15 @@ class OpenRouterProvider:
             }
         return None
 
-    async def validate_request(self, request: ProviderRequest) -> None:
+    async def validate_request(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> None:
         """Validate model-dependent OpenRouter behavior before dispatch."""
-        if request.reasoning_budget_tokens is not None:
+        if requirements.reasoning_budget_tokens is not None:
             raise ConfigurationError(
                 "Provider does not support reasoning_budget_tokens",
                 hint=(
@@ -215,44 +231,46 @@ class OpenRouterProvider:
                 ),
             )
 
-        metadata = await self._get_model_metadata(request.model)
-        _require_text_io(metadata, model=request.model)
+        model = config.model
+        metadata = await self._get_model_metadata(model)
+        _require_text_io(metadata, model=model)
 
-        if request.tools is not None:
+        tools = _compile.tool_dicts(snapshot)
+        if tools is not None:
             _require_supported_parameter(
                 metadata=metadata,
-                model=request.model,
+                model=model,
                 feature_name="tool calling",
                 parameter="tools",
             )
-        if request.tool_choice is not None:
+        if requirements.tool_choice is not None:
             _require_supported_parameter(
                 metadata=metadata,
-                model=request.model,
+                model=model,
                 feature_name="tool choice",
                 parameter="tool_choice",
             )
 
-        if request.response_schema is not None:
+        if requirements.output_schema_json() is not None:
             _require_supported_parameters_any(
                 metadata=metadata,
-                model=request.model,
+                model=model,
                 feature_name="structured outputs",
                 parameters={"structured_outputs", "response_format"},
             )
 
-        if request.reasoning_effort is not None:
+        if requirements.reasoning_effort is not None:
             _require_supported_parameters_any(
                 metadata=metadata,
-                model=request.model,
+                model=model,
                 feature_name="reasoning controls",
                 parameters={"reasoning", "reasoning_effort"},
             )
 
         _validate_input_modalities(
             metadata=metadata,
-            model=request.model,
-            parts=request.parts,
+            model=model,
+            parts=_compile.request_parts(snapshot, input),
         )
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:

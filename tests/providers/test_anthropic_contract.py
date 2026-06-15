@@ -8,16 +8,23 @@ from typing import Any
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.models import (
-    Message,
     ProviderFileAsset,
-    ProviderRequest,
-    ToolCall,
 )
 from tests.conftest import (
     ANTHROPIC_MODEL,
 )
+from tests.helpers import make_interaction
+
+
+def _anthropic(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    """Build the four primitives for an anthropic-provider generate() call."""
+    kwargs.setdefault("model", ANTHROPIC_MODEL)
+    return make_interaction(provider="anthropic", **kwargs)
+
 
 pytestmark = pytest.mark.contract
 
@@ -325,9 +332,8 @@ async def test_anthropic_generate_basic_request() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["What is 2+2?"],
+        *_anthropic(
+            content="What is 2+2?",
         )
     )
 
@@ -346,10 +352,9 @@ async def test_anthropic_generate_with_system_instruction() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Hello"],
-            system_instruction="Be concise.",
+        *_anthropic(
+            content="Hello",
+            instructions="Be concise.",
             implicit_caching=True,
         )
     )
@@ -365,10 +370,9 @@ async def test_anthropic_generate_with_implicit_caching_disabled() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Hello"],
-            system_instruction="Be concise.",
+        *_anthropic(
+            content="Hello",
+            instructions="Be concise.",
             implicit_caching=False,
         )
     )
@@ -384,9 +388,8 @@ async def test_anthropic_generate_with_tools() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["What's the weather?"],
+        *_anthropic(
+            content="What's the weather?",
             tools=[
                 {
                     "name": "get_weather",
@@ -427,9 +430,8 @@ async def test_anthropic_generate_with_structured_output() -> None:
     }
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Answer the question."],
+        *_anthropic(
+            content="Answer the question.",
             response_schema=schema,
         )
     )
@@ -450,9 +452,9 @@ async def test_anthropic_generate_maps_reasoning_to_output_effort_and_manual_thi
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
+        *_anthropic(
             model="claude-haiku-4-5",
-            parts=["Think."],
+            content="Think.",
             reasoning_effort="high",
         )
     )
@@ -474,9 +476,9 @@ async def test_anthropic_generate_maps_reasoning_to_adaptive_for_opus_and_sonnet
 
     for model in ("claude-opus-4-6-20260219", "claude-sonnet-4-6-20260219"):
         await provider.generate(
-            ProviderRequest(
+            *_anthropic(
                 model=model,
-                parts=["Think."],
+                content="Think.",
                 reasoning_effort="medium",
             )
         )
@@ -494,9 +496,9 @@ async def test_anthropic_generate_maps_reasoning_budget_tokens_to_thinking_budge
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
+        *_anthropic(
             model="claude-haiku-4-5",
-            parts=["Think."],
+            content="Think.",
             reasoning_budget_tokens=1024,
         )
     )
@@ -517,9 +519,9 @@ async def test_anthropic_generate_reasoning_with_tools_adds_interleaved_header_f
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
+        *_anthropic(
             model="claude-sonnet-4-5",
-            parts=["Need tool help."],
+            content="Need tool help.",
             reasoning_effort="low",
             tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
         )
@@ -539,9 +541,9 @@ async def test_anthropic_generate_reasoning_with_tools_omits_header_for_adaptive
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
+        *_anthropic(
             model="claude-sonnet-4-6-20260219",
-            parts=["Need tool help."],
+            content="Need tool help.",
             reasoning_effort="low",
             tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
         )
@@ -559,9 +561,9 @@ async def test_anthropic_generate_uses_adaptive_for_opus_4_7() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
+        *_anthropic(
             model="claude-opus-4-7",
-            parts=["Think."],
+            content="Think.",
             reasoning_effort="max",
         )
     )
@@ -577,10 +579,9 @@ async def test_anthropic_provider_options_merge_and_overlap() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Hello"],
-            provider_options={"metadata": {"user_id": "pollux-test"}},
+        *_anthropic(
+            content="Hello",
+            provider_options={"anthropic": {"metadata": {"user_id": "pollux-test"}}},
         )
     )
 
@@ -589,10 +590,9 @@ async def test_anthropic_provider_options_merge_and_overlap() -> None:
 
     with pytest.raises(ConfigurationError, match="overlap"):
         await provider.generate(
-            ProviderRequest(
-                model=ANTHROPIC_MODEL,
-                parts=["Hello"],
-                provider_options={"max_tokens": 64},
+            *_anthropic(
+                content="Hello",
+                provider_options={"anthropic": {"max_tokens": 64}},
             )
         )
 
@@ -604,9 +604,8 @@ async def test_anthropic_generate_rejects_unknown_reasoning_effort() -> None:
 
     with pytest.raises(APIError, match="Unsupported reasoning_effort"):
         await provider.generate(
-            ProviderRequest(
-                model=ANTHROPIC_MODEL,
-                parts=["Think."],
+            *_anthropic(
+                content="Think.",
                 reasoning_effort="16000",
             )
         )
@@ -621,9 +620,9 @@ async def test_anthropic_generate_rejects_max_effort_on_non_opus_4_6() -> None:
 
     with pytest.raises(ConfigurationError, match=r"supported on Claude Opus 4\.6\+"):
         await provider.generate(
-            ProviderRequest(
+            *_anthropic(
                 model="claude-sonnet-4-6",
-                parts=["Think."],
+                content="Think.",
                 reasoning_effort="max",
             )
         )
@@ -635,14 +634,12 @@ async def test_anthropic_generate_max_tokens_default_and_override() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     # Default
-    await provider.generate(ProviderRequest(model=ANTHROPIC_MODEL, parts=["Hello"]))
+    await provider.generate(*_anthropic(content="Hello"))
     assert messages.last_kwargs is not None
     assert messages.last_kwargs["max_tokens"] == 16384
 
     # Override
-    await provider.generate(
-        ProviderRequest(model=ANTHROPIC_MODEL, parts=["Hello"], max_tokens=25000)
-    )
+    await provider.generate(*_anthropic(content="Hello", max_tokens=25000))
     assert messages.last_kwargs is not None
     assert messages.last_kwargs["max_tokens"] == 25000
 
@@ -659,22 +656,21 @@ async def test_anthropic_generate_with_history() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Continue."],
+        *_anthropic(
+            content="Continue.",
             history=[
                 Message(role="user", content="Hi"),
                 Message(role="assistant", content="Hello!"),
                 Message(
                     role="assistant",
                     content="",
-                    tool_calls=[
-                        ToolCall(
+                    tool_calls=(
+                        ToolCall.from_text(
                             id="toolu_abc",
                             name="get_weather",
-                            arguments='{"location": "NYC"}',
-                        )
-                    ],
+                            arguments_text='{"location": "NYC"}',
+                        ),
+                    ),
                 ),
                 Message(
                     role="tool",
@@ -714,34 +710,36 @@ async def test_anthropic_generate_history_replays_preserved_thinking_blocks() ->
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=[],
-            history=[
-                Message(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ToolCall(id="toolu_abc", name="get_weather", arguments="{}")
-                    ],
+        *_anthropic(
+            continuation=Continuation(
+                messages=(
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="toolu_abc", name="get_weather", arguments_text="{}"
+                            ),
+                        ),
+                    ),
                 ),
-                Message(role="tool", tool_call_id="toolu_abc", content='{"temp": 72}'),
-            ],
-            provider_state={
-                "history": [
-                    {
-                        "anthropic_thinking_blocks": [
-                            {
-                                "type": "thinking",
-                                "thinking": "I should call the weather tool.",
-                                "signature": "sig_123",
-                            },
-                            {"type": "redacted_thinking", "data": "blob"},
-                        ]
-                    },
-                    None,
-                ]
-            },
+                provider_state={
+                    "history": [
+                        {
+                            "anthropic_thinking_blocks": [
+                                {
+                                    "type": "thinking",
+                                    "thinking": "I should call the weather tool.",
+                                    "signature": "sig_123",
+                                },
+                                {"type": "redacted_thinking", "data": "blob"},
+                            ]
+                        },
+                        None,
+                    ]
+                },
+            ),
+            tool_results=[ToolResult(call_id="toolu_abc", content='{"temp": 72}')],
         )
     )
 
@@ -762,18 +760,21 @@ async def test_anthropic_generate_parallel_tool_results_merged() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=["Summarize both."],
+        *_anthropic(
+            content="Summarize both.",
             history=[
                 Message(role="user", content="Weather and time?"),
                 Message(
                     role="assistant",
                     content="",
-                    tool_calls=[
-                        ToolCall(id="t1", name="get_weather", arguments="{}"),
-                        ToolCall(id="t2", name="get_time", arguments="{}"),
-                    ],
+                    tool_calls=(
+                        ToolCall.from_text(
+                            id="t1", name="get_weather", arguments_text="{}"
+                        ),
+                        ToolCall.from_text(
+                            id="t2", name="get_time", arguments_text="{}"
+                        ),
+                    ),
                 ),
                 Message(role="tool", tool_call_id="t1", content='{"temp": 72}'),
                 Message(role="tool", tool_call_id="t2", content='{"time": "3pm"}'),
@@ -801,20 +802,20 @@ async def test_anthropic_generate_continuation_no_prompt() -> None:
     provider, messages = _anthropic_provider_with_fake()
 
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=[],  # No prompt (continue_tool sends prompt=None → [])
+        *_anthropic(
             history=[
                 Message(role="user", content="What's the weather?"),
                 Message(
                     role="assistant",
                     content="",
-                    tool_calls=[
-                        ToolCall(id="t1", name="get_weather", arguments="{}"),
-                    ],
+                    tool_calls=(
+                        ToolCall.from_text(
+                            id="t1", name="get_weather", arguments_text="{}"
+                        ),
+                    ),
                 ),
-                Message(role="tool", tool_call_id="t1", content='{"temp": 72}'),
             ],
+            tool_results=[ToolResult(call_id="t1", content='{"temp": 72}')],
         )
     )
 
@@ -845,12 +846,12 @@ async def test_anthropic_validate_request_rejects_reasoning_on_claude_3(
 
     with pytest.raises(ConfigurationError, match="extended thinking"):
         await provider.validate_request(
-            ProviderRequest(model=model, parts=["Think hard."], reasoning_effort="high")
+            *_anthropic(model=model, content="Think hard.", reasoning_effort="high")
         )
     with pytest.raises(ConfigurationError, match="extended thinking"):
         await provider.validate_request(
-            ProviderRequest(
-                model=model, parts=["Think hard."], reasoning_budget_tokens=2048
+            *_anthropic(
+                model=model, content="Think hard.", reasoning_budget_tokens=2048
             )
         )
 
@@ -865,7 +866,7 @@ async def test_anthropic_validate_request_allows_reasoning_on_thinking_models(
 
     # Returns None (no raise) when the model supports extended thinking.
     await provider.validate_request(
-        ProviderRequest(model=model, parts=["Think hard."], reasoning_effort="high")
+        *_anthropic(model=model, content="Think hard.", reasoning_effort="high")
     )
 
 
@@ -875,7 +876,7 @@ async def test_anthropic_validate_request_allows_non_reasoning_on_claude_3() -> 
     provider = AnthropicProvider("test-key")
 
     await provider.validate_request(
-        ProviderRequest(model="claude-3-5-sonnet-20241022", parts=["Hello."])
+        *_anthropic(model="claude-3-5-sonnet-20241022", content="Hello.")
     )
 
 
@@ -960,17 +961,16 @@ async def test_anthropic_generate_resolves_file_assets() -> None:
 
     # Mix of image and pdf
     await provider.generate(
-        ProviderRequest(
-            model=ANTHROPIC_MODEL,
-            parts=[
+        *_anthropic(
+            prepared_parts=[
                 ProviderFileAsset(
                     file_id="abc", provider="anthropic", mime_type="image/jpeg"
                 ),
                 ProviderFileAsset(
                     file_id="xyz", provider="anthropic", mime_type="application/pdf"
                 ),
-                "Please describe both.",
             ],
+            content="Please describe both.",
         )
     )
 
