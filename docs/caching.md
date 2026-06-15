@@ -1,7 +1,7 @@
 <!-- Intent: Teach context caching mechanics: the redundant-context problem,
-     creating a cache, cache identity, TTL tuning, when caching pays off,
-     reading cache hit token counts from result["usage"]["cached_tokens"], and
-     the distinction between Pollux-controlled caching and provider-side
+     preparing a cached environment, cache identity, TTL tuning, when caching
+     pays off, reading cache hit token counts from output.usage.cached_tokens,
+     and the distinction between Pollux-controlled caching and provider-side
      automatic prompt caching. Do NOT cover source patterns or structured output
      in depth — link to those pages. Assumes the reader understands run_many()
      and fan-out workflows. Register: conceptual opening → guided applied. -->
@@ -13,13 +13,17 @@ turning redundant re-uploads into cheap cache references. Providers implement
 caching differently, and Pollux gives you different levels of control
 depending on the provider.
 
+Caching belongs to the **environment**: the stable instructions, sources, and
+tools around your interactions. You express a cache preference on an
+`Environment`, and Pollux derives cache identity from that environment's
+content.
+
 !!! info "Boundary"
-    **Pollux owns:** creating and reusing cached context via `create_cache()`
-    (Gemini), toggling Anthropic prompt caching via
-    `Options(implicit_caching=...)`, cache identity from content hashes,
-    single-flight deduplication, the `metrics.cache_used` signal, and
-    surfacing provider-reported cache hit counts in
-    `result["usage"]["cached_tokens"]`.
+    **Pollux owns:** creating and reusing cached context from an
+    `Environment` cache preference, provider-managed caching via `cache="auto"`
+    / `cache="none"`, cache identity from content hashes, single-flight
+    deduplication, the `metrics.cache_used` signal, and surfacing
+    provider-reported cache hit counts in `output.usage.cached_tokens`.
 
     **You own:** deciding when caching is worth the overhead, tuning TTL to
     match your reuse window, and accounting for billing differences by
@@ -82,33 +86,35 @@ More questions on the same content = greater savings.
 
 ## Three Caching Paths
 
-Pollux gives you two caching controls, and a third path exists at the
-provider level:
+Pollux exposes caching through the environment's `cache` preference, plus a
+third path that exists at the provider level:
 
-- **Explicit caching (Gemini):** You upload content once with
-  `create_cache()`, get a handle back, and pass that handle to later calls.
-- **Implicit caching (Anthropic):** Pollux maps
-  `Options(implicit_caching=...)` to Anthropic's automatic prompt caching
-  behavior.
+- **Persistent caching (Gemini):** Set `cache=CachePolicy(ttl_seconds=...)` on
+  an environment. Pollux uploads the environment's sources once, creates a
+  provider-side cache, and references it on every interaction over that
+  environment.
+- **Provider-managed caching (Anthropic):** With `cache="auto"` (the default)
+  Pollux lets the provider's automatic prompt caching apply. `cache="none"`
+  opts out.
 - **Automatic prompt caching (OpenAI, Gemini, OpenRouter):** These providers
   can discount repeated long prefixes on their own. Pollux does not control
   or configure this, but you can benefit from it without doing anything.
 
-`metrics.cache_used` only reflects explicit cache handles. If you need to
-verify automatic prompt caching, check provider-native usage or billing.
+`metrics.cache_used` is `True` for the persistent path. To verify provider
+automatic prompt caching, check `output.usage.cached_tokens` or provider-native
+billing.
 
-## Implicit Caching (Anthropic)
+## Provider-Managed Caching (Anthropic)
 
 Anthropic currently describes this provider feature as automatic prompt
-caching. Pollux calls the toggle `implicit_caching` to distinguish it from
-Gemini's explicit `create_cache()` handles. Anthropic caches shared prefixes
-from the top of the request downward: system instruction, tools, conversation
-history, and repeated prompt context. You do not create a cache object
-yourself. Pollux toggles this with `Options(implicit_caching=...)`.
+caching: it caches shared prefixes from the top of the request downward
+(system instruction, tools, conversation history, and repeated prompt
+context). You do not create a cache object yourself. In Pollux this is the
+default; set `cache="none"` on the environment to opt out.
 
 ### Cost Mechanics
 
-Unlike explicit caching, Anthropic changes token pricing per request:
+Unlike persistent caching, Anthropic changes token pricing per request:
 
 - **Cache writes:** +25% (1.25x standard cost)
 - **Cache reads:** -90% (0.10x standard cost)
@@ -119,10 +125,10 @@ caching, sending the same prefix twice costs 2.0x. With caching, it costs
 
 ### Default Behavior
 
-Because cache writes cost more, Pollux does not treat implicit caching as a
-blanket default:
+Because cache writes cost more, Pollux does not treat provider-managed caching
+as a blanket default:
 
-- **Single provider call:** Pollux enables implicit caching by default.
+- **Single provider call:** Pollux enables it by default.
 - **Multi-call fan-out:** Pollux disables it by default.
 
 This is a request-shape rule, not an API-entrypoint rule. `run()` always makes
@@ -134,17 +140,18 @@ The reason is cost. In a conversation, the write premium lands once and later
 turns benefit from cheap cache reads. In a wide fan-out, many identical calls
 arrive before the cache is warm, so you pay the write premium repeatedly.
 
-You can override the default when you need to:
+You opt out with the environment's cache preference:
 
 ```python
-from pollux import Options
+from pollux import Environment
 
-# Disable Anthropic implicit caching for a one-off call.
-options = Options(implicit_caching=False)
+# Disable provider-managed caching for this environment.
+environment = Environment(instructions="...", cache="none")
 ```
 
-Setting `implicit_caching=True` on a provider that does not support it raises
-`ConfigurationError`. Pollux does not silently ignore the request.
+Requesting persistent caching (`CachePolicy`) on a provider that does not
+support it raises `ConfigurationError`. Pollux does not silently ignore the
+request.
 
 ### Current Pollux Scope
 
@@ -152,79 +159,81 @@ Pollux currently exposes Anthropic's default ephemeral caching behavior. It
 does not expose Anthropic's 1-hour TTL or manual block-level cache breakpoints
 in the public API.
 
-## Explicit Caching (Gemini)
+## Persistent Caching (Gemini)
 
-For Gemini, use `create_cache()` to upload content to the provider once, then pass the
-returned handle to `run()` or `run_many()` via `Options(cache=handle)`:
+For Gemini, prepare an environment with a `CachePolicy`. Pollux uploads the
+environment's sources to the provider once, then references the cache on every
+`run()` / `run_many()` / `interact()` call over that environment:
 
 ```python
 import asyncio
-from pollux import Config, Options, Source, create_cache, run_many
+from pollux import CachePolicy, Config, Source, prepare_environment, run_many
 
 async def main() -> None:
     config = Config(
         provider="gemini",
         model="gemini-2.5-flash-lite",
     )
-    sources = [Source.from_text(
-        "ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), "
-        "operating margin 18.5%, guidance raised for Q4."
-    )]
-
-    handle = await create_cache(sources, config=config, ttl_seconds=3600)
+    environment = await prepare_environment(
+        sources=[Source.from_text(
+            "ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), "
+            "operating margin 18.5%, guidance raised for Q4."
+        )],
+        cache=CachePolicy(ttl_seconds=3600),
+        config=config,
+    )
 
     prompts = ["Summarize in one sentence.", "List 3 keywords."]
-    first = await run_many(prompts=prompts, config=config, options=Options(cache=handle))
-    second = await run_many(prompts=prompts, config=config, options=Options(cache=handle))
+    first = await run_many(prompts, environment=environment, config=config)
+    second = await run_many(prompts, environment=environment, config=config)
 
-    print("first:", first["status"])
-    print("second:", second["status"])
-    print("cache_used:", second.get("metrics", {}).get("cache_used"))
+    print("first:", first.status)
+    print("second:", second.status)
+    print("cache_used:", second.outputs[0].metrics.cache_used)
 
 asyncio.run(main())
 ```
 
 ### Step-by-Step Walkthrough
 
-1. **Call `create_cache()`.** Pass your sources, config, and a TTL. Pollux
-   uploads the content to the provider and returns a `CacheHandle`. If you
-   bake in `system_instruction` or `tools`, those become part of the cached
-   bundle too.
+1. **Call `prepare_environment()`.** Pass your sources, config, and a cache
+   policy. Pollux uploads the content to the provider, creates the cache, and
+   returns a reusable `Environment`. If you set `instructions` or `tools`,
+   those become part of the cached bundle too.
 
-2. **Set `ttl_seconds`.** The TTL controls how long the cached content lives on
-   the provider. Match it to your reuse window. 3600s (1 hour) is a
-   reasonable default for interactive sessions.
+2. **Set `ttl_seconds` on the `CachePolicy`.** The TTL controls how long the
+   cached content lives on the provider. Match it to your reuse window. 3600s
+   (1 hour) is a reasonable default for interactive sessions.
 
-3. **Pass the handle via `Options(cache=handle)`.** Each `run()` or `run_many()`
-   call that uses this handle references the cached content instead of
-   re-uploading it.
+3. **Pass the environment via `environment=`.** Each `run()` / `run_many()` /
+   `interact()` call over this environment references the cached content
+   instead of re-uploading it.
 
-4. **Verify with `metrics.cache_used`.** Check
-   `result["metrics"]["cache_used"]` on subsequent calls. `True` confirms
-   the provider served content from cache rather than re-uploading.
+4. **Verify with `metrics.cache_used`.** The example reads it per output
+   (`second.outputs[0].metrics.cache_used`); `run()` exposes it directly as
+   `output.metrics.cache_used`. `True` confirms the persistent cache was used.
 
-Pollux computes cache identity deterministically. Calls with the same handle
-reuse the cached context automatically.
+Pollux computes cache identity deterministically. Interactions over the same
+environment reuse the cached context automatically, even across separate calls
+in the same process.
 
-!!! warning "Options restricted when using a cache handle"
-    When `Options(cache=handle)` is set, the following fields **cannot** be
-    passed alongside it:
+!!! note "The environment is the cache"
+    When an environment carries a `CachePolicy`, its instructions, sources, and
+    tools are baked into the cache, so Pollux does not resend them on each
+    request. You do not pass them separately. They live on the `Environment`.
+    This mirrors a hard constraint in the Gemini API, where `cached_content`
+    cannot coexist with `system_instruction`, `tools`, or `tool_config` in the
+    same `GenerateContent` request.
 
-    - `system_instruction` — bake it into `create_cache(system_instruction=...)`
-      instead.
-    - `tools` — bake them into `create_cache(tools=...)` instead (when
-      supported).
-    - `tool_choice` — remove it when using cached content.
-    - `sources` — bake them into `create_cache()` instead.
-
-    Pollux raises `ConfigurationError` immediately if it detects these
-    conflicts.  This mirrors a hard constraint in the Gemini API, where
-    `cached_content` cannot coexist with `system_instruction`, `tools`, or
-    `tool_config` in the same `GenerateContent` request.
+!!! tip "Lazy preparation"
+    `prepare_environment()` front-loads the upload and cache creation so errors
+    surface early. If you would rather defer the work, construct
+    `Environment(..., cache=CachePolicy(...))` directly and pass it to a call.
+    Pollux creates the cache on first use and reuses it thereafter.
 
 ## Cache Identity
 
-For explicit caches, keys are deterministic:
+For persistent caches, keys are deterministic:
 `hash(model + provider + api_key + system_instruction + tools + source identity hashes)`.
 
 This means:
@@ -235,8 +244,8 @@ This means:
   for `gemini-2.5-flash-lite` won't be reused for `gemini-2.5-pro`, and a
   Gemini cache key won't collide with one from another provider.
 - **Different API keys** → different cache keys in the same Python process.
-  Pollux scopes explicit cache reuse to the provider account that created it.
-- **Different baked-in `system_instruction` or `tools`** → different cache
+  Pollux scopes persistent cache reuse to the provider account that created it.
+- **Different baked-in `instructions` or `tools`** → different cache
   keys. Changing the cached behavior contract creates a fresh cache entry.
 - **Different Gemini video settings** → different cache keys. Two sources with
   the same content but different clip windows or FPS do not collapse to the
@@ -247,17 +256,17 @@ This means:
 
 ## Single-Flight Protection
 
-When multiple concurrent calls target the same explicit cache key (common in fan-out
-workloads), Pollux deduplicates the creation call: only one coroutine performs
-the upload, and others await the same result. This eliminates duplicate uploads
-without requiring caller-side coordination.
+When multiple concurrent calls target the same persistent cache key (common in
+fan-out workloads), Pollux deduplicates the creation call: only one coroutine
+performs the upload, and others await the same result. This eliminates
+duplicate uploads without requiring caller-side coordination.
 
 ## Verifying Cache Reuse
 
-Check `metrics.cache_used` on subsequent calls:
+Check `metrics.cache_used` on the result:
 
-- `True` — provider confirmed cache hit (explicit cache handles only)
-- `False` — full upload, or cache expired
+- `True`: the persistent cache was used
+- `False`: full upload, provider-managed caching, or cache expired
 
 Keep prompts and sources stable between runs when comparing warm vs reuse
 behavior. Automatic prompt caching at the provider level can still reduce
@@ -265,34 +274,33 @@ costs even when `cache_used` is `False`.
 
 ## Observing Cache Hits
 
-`result["usage"]["cached_tokens"]` reports how many input tokens were served
-from cache. The key is absent when no provider call reported it; in a fan-out
-it is summed across all calls:
+`output.usage.cached_tokens` reports how many input tokens were served from
+cache. In a fan-out it is summed across all calls on the `OutputCollection`:
 
 ```python
-# result from any run() or run_many() call with caching active
-cached = result["usage"].get("cached_tokens", 0)
-total_input = result["usage"]["input_tokens"]
+# output from any run() call (or collection from run_many())
+cached = output.usage.cached_tokens
+total_input = output.usage.input_tokens
 print(f"{cached:,} / {total_input:,} input tokens served from cache")
 ```
 
 For a per-call breakdown in a fan-out:
 
 ```python
-for i, raw in enumerate(result["diagnostics"]["raw_responses"]):
-    hit = raw["usage"].get("cached_tokens", 0)
-    print(f"  prompt {i}: {hit:,} cached tokens")
+for i, out in enumerate(collection.outputs):
+    print(f"  prompt {i}: {out.usage.cached_tokens:,} cached tokens")
 ```
 
 **Anthropic billing differs from Gemini and OpenAI.** For Gemini and OpenAI,
-`cached_tokens` is a subset of `input_tokens` — cache reads are billed at a
+`cached_tokens` is a subset of `input_tokens`: cache reads are billed at a
 discount from the same pool. For Anthropic, `cached_tokens` is additive: the
 total billable input is `input_tokens + cached_tokens`.
 
-## Tuning Explicit Cache TTL
+## Tuning Persistent Cache TTL
 
-Pass `ttl_seconds` to `create_cache()` to control the explicit cache lifetime. The
-default is 3600 seconds (1 hour). Tune it to match your expected reuse window:
+Set `ttl_seconds` on the `CachePolicy` to control the persistent cache
+lifetime. The default is 3600 seconds (1 hour). Tune it to match your expected
+reuse window:
 
 - **Too short:** the cache expires before you reuse it, wasting the
   warm-up cost.
@@ -302,7 +310,7 @@ default is 3600 seconds (1 hour). Tune it to match your expected reuse window:
 For interactive workloads where you run a prompt set and then refine prompts
 within the same session, 3600s is a reasonable starting point. For one-shot
 scripts, shorter TTLs (300-600s) avoid lingering cache entries. Anthropic
-manages the lifetime of implicit caches on its side.
+manages the lifetime of its provider-managed caches on its side.
 
 ## When Caching Pays Off
 
@@ -310,21 +318,20 @@ Caching is most effective when:
 
 - **Sources are large:** video, long PDFs, multi-image sets
 - **Prompt sets are repeated:** fan-out workflows with 3+ prompts per source
-  using explicit caching
+  using persistent caching
 - **Conversations are deep:** multi-turn dialogues with large system prompts
-  using implicit caching
+  using provider-managed caching
 - **Prompt prefixes repeat across calls:** automatic prompt caching at the
-  provider level can help even without a Pollux cache handle
+  provider level can help even without a Pollux cache
 
 Caching adds overhead for single-prompt, small-source calls. Start without
 caching and enable it when you see repeated context in your workload.
 
 ## Provider Dependency
 
-Calling `create_cache()` with a provider that lacks explicit cache support
-raises an actionable error. `Options(implicit_caching=True)` raises in the
-same way on providers without implicit caching support. Automatic prompt
-caching at the provider level is separate and not gated by Pollux. See
+Requesting persistent caching (`CachePolicy`) on a provider that lacks support
+raises an actionable error. Automatic prompt caching at the provider level is
+separate and not gated by Pollux. See
 [Provider Capabilities](reference/provider-capabilities.md) for the full
 matrix.
 

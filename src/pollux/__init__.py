@@ -4,6 +4,7 @@ Public API:
     - run(): Single prompt execution
     - run_many(): Multi-prompt source-pattern execution
     - interact(): One explicit v2 interaction over an Environment and Input
+    - prepare_environment(): Build a reusable Environment, front-loading cache I/O
     - defer(): Single deferred request submission
     - defer_many(): Multi-prompt deferred submission
     - inspect_deferred(): Inspect a deferred job
@@ -47,8 +48,11 @@ from pollux.errors import (
     SourceError,
 )
 from pollux.interaction import (
+    CachePolicy,
+    CacheSetting,
     Continuation,
     Environment,
+    EnvironmentSnapshot,
     Input,
     Message,
     Output,
@@ -59,7 +63,11 @@ from pollux.interaction import (
     ToolDeclaration,
     ToolResult,
 )
-from pollux.interaction.execute import execute_interaction, execute_interactions
+from pollux.interaction.execute import (
+    execute_interaction,
+    execute_interactions,
+    resolve_persistent_cache,
+)
 from pollux.options import Options, ResponseSchemaInput
 from pollux.plan import build_plan
 from pollux.providers.base import CloseableProvider
@@ -118,6 +126,7 @@ async def run(
     source: Source | None = None,
     sources: Sequence[Source] = (),
     config: Config,
+    environment: Environment | None = None,
     instructions: str | None = None,
     output: ResponseSchemaInput | None = None,
     temperature: float | None = None,
@@ -141,6 +150,10 @@ async def run(
         source: A single source for context (convenience for ``sources=[source]``).
         sources: Stable sources for context.
         config: Configuration specifying provider and model.
+        environment: Optional prepared :class:`Environment` (e.g. from
+            :func:`prepare_environment`) carrying instructions, sources, tools,
+            and cache preference. Cannot be combined with inline
+            ``instructions``/``source``/``sources``/``tools``.
         instructions: Optional system-level instruction.
         output: Optional Pydantic model or JSON Schema for structured output.
         temperature: Optional sampling temperature.
@@ -161,11 +174,17 @@ async def run(
         result = await run("Summarize.", source=Source.from_file("doc.pdf"), config=config)
         print(result.text)
     """
+    if environment is not None and source is not None:
+        raise ConfigurationError(
+            "environment cannot be combined with inline source/sources",
+            hint="Build the Environment with the sources, or drop the environment.",
+        )
     all_sources = (source,) if source is not None else tuple(sources)
     collection = await run_many(
         prompt,
         sources=all_sources,
         config=config,
+        environment=environment,
         instructions=instructions,
         output=output,
         temperature=temperature,
@@ -270,6 +289,7 @@ async def run_many(
     *,
     sources: Sequence[Source] = (),
     config: Config,
+    environment: Environment | None = None,
     instructions: str | None = None,
     output: ResponseSchemaInput | None = None,
     temperature: float | None = None,
@@ -291,6 +311,10 @@ async def run_many(
         prompts: One or more prompts to run.
         sources: Stable sources shared across the prompts.
         config: Configuration specifying provider and model.
+        environment: Optional prepared :class:`Environment` (e.g. from
+            :func:`prepare_environment`) carrying instructions, sources, tools,
+            and cache preference. Cannot be combined with inline
+            ``instructions``/``sources``/``tools``.
         instructions: Optional system-level instruction.
         output: Optional Pydantic model or JSON Schema for structured output.
         temperature: Optional sampling temperature.
@@ -319,11 +343,20 @@ async def run_many(
     prompt_tuple = (
         (prompts,) if isinstance(prompts, (str, type(None))) else tuple(prompts)
     )
-    environment = Environment(
-        instructions=instructions,
-        sources=tuple(sources),
-        tools=tuple(tools) if tools else (),
-    )
+    if environment is not None:
+        if sources or instructions is not None or tools is not None:
+            raise ConfigurationError(
+                "environment cannot be combined with inline instructions/sources/tools",
+                hint="Put instructions, sources, and tools on the Environment, "
+                "or drop the environment argument.",
+            )
+        resolved_environment = environment
+    else:
+        resolved_environment = Environment(
+            instructions=instructions,
+            sources=tuple(sources),
+            tools=tuple(tools) if tools else (),
+        )
     inputs = [Input(content=prompt) for prompt in prompt_tuple]
     requirements = _build_requirements(
         output=output,
@@ -339,10 +372,68 @@ async def run_many(
     provider = _get_provider(config)
     try:
         return await execute_interactions(
-            environment, inputs, requirements, config, provider
+            resolved_environment, inputs, requirements, config, provider
         )
     finally:
         await _close_provider(provider)
+
+
+async def prepare_environment(
+    *,
+    sources: Sequence[Source] = (),
+    config: Config,
+    instructions: str | None = None,
+    tools: Sequence[ToolDeclaration] | None = None,
+    cache: CacheSetting = None,
+    metadata: dict[str, Any] | None = None,
+) -> Environment:
+    """Prepare a reusable :class:`Environment`, front-loading cache/upload I/O.
+
+    Build the stable model-facing setup once and reuse it across
+    :func:`interact`, :func:`run`, and :func:`run_many` calls. When ``cache`` is
+    a :class:`CachePolicy`, the persistent cache is created now (uploading
+    sources and surfacing capability errors early); later interactions over the
+    returned environment reuse it by identity.
+
+    Args:
+        sources: Stable sources to bake into the environment (and its cache).
+        config: Configuration specifying provider and model.
+        instructions: Optional system-level instruction.
+        tools: Optional tool declarations.
+        cache: Cache preference: a :class:`CachePolicy` for persistent caching,
+            ``"auto"`` for provider-managed caching, ``"none"`` to disable, or
+            ``None`` for the default.
+        metadata: Optional provider-neutral metadata for planning.
+
+    Returns:
+        The prepared :class:`Environment`.
+
+    Example:
+        environment = await prepare_environment(
+            sources=[Source.from_file("paper.pdf")],
+            instructions=system_prompt,
+            cache=CachePolicy(ttl_seconds=3600),
+            config=config,
+        )
+        results = await run_many(prompts, environment=environment, config=config)
+    """
+    environment = Environment(
+        instructions=instructions,
+        sources=tuple(sources),
+        tools=tuple(tools) if tools else (),
+        cache=cache,
+        metadata=metadata,
+    )
+    if isinstance(cache, CachePolicy):
+        provider = _get_provider(config)
+        try:
+            snapshot = EnvironmentSnapshot.from_environment(
+                environment, provider=config.provider
+            )
+            await resolve_persistent_cache(snapshot, config, provider)
+        finally:
+            await _close_provider(provider)
+    return environment
 
 
 async def defer_many(
@@ -558,6 +649,8 @@ def _resolve_deferred_provider(handle: DeferredHandle) -> Provider:
 __all__ = [
     "APIError",
     "CacheError",
+    "CachePolicy",
+    "CacheSetting",
     "Config",
     "ConfigurationError",
     "Continuation",
@@ -589,6 +682,7 @@ __all__ = [
     "defer_many",
     "inspect_deferred",
     "interact",
+    "prepare_environment",
     "run",
     "run_many",
 ]

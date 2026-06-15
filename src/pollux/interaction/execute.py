@@ -18,6 +18,7 @@ from dataclasses import replace
 import time
 from typing import TYPE_CHECKING
 
+from pollux.cache import create_cache_impl
 from pollux.continuation import build_conversation_state, history_text_from_parts
 from pollux.errors import APIError, InternalError, PolluxError
 from pollux.execute import (
@@ -30,7 +31,7 @@ from pollux.interaction.capabilities import resolve_capabilities
 from pollux.interaction.collection import OutputCollection
 from pollux.interaction.compile import compile_request
 from pollux.interaction.continuation import Continuation
-from pollux.interaction.environment import EnvironmentSnapshot
+from pollux.interaction.environment import CachePolicy, EnvironmentSnapshot
 from pollux.interaction.extract import provider_response_to_output
 from pollux.interaction.validate import validate_interaction
 from pollux.providers.models import ProviderResponse
@@ -87,6 +88,43 @@ def _build_continuation(
     return continuation_from_state(state) if state is not None else None
 
 
+#: Fallback TTL when a ``CachePolicy`` leaves ``ttl_seconds`` unset.
+_DEFAULT_CACHE_TTL_SECONDS = 3600
+
+
+async def resolve_persistent_cache(
+    snapshot: EnvironmentSnapshot,
+    config: Config,
+    provider: Provider,
+) -> str | None:
+    """Create or reuse a persistent cache for the environment's stable context.
+
+    Returns the provider cache name, or ``None`` when the environment does not
+    request a :class:`CachePolicy`. The cache is keyed by the environment's
+    instructions, sources, and tools (its identity), so concurrent or repeated
+    calls share one provider-side cache via the module registry's single-flight.
+    """
+    if not isinstance(snapshot.cache, CachePolicy):
+        return None
+    tools = [
+        {
+            "name": decl.name,
+            "description": decl.description,
+            "parameters": decl.parameters,
+        }
+        for decl in snapshot.tools
+    ] or None
+    handle = await create_cache_impl(
+        snapshot.sources,
+        provider=provider,
+        config=config,
+        system_instruction=snapshot.instructions,
+        tools=tools,
+        ttl_seconds=snapshot.cache.ttl_seconds or _DEFAULT_CACHE_TTL_SECONDS,
+    )
+    return handle.name
+
+
 async def execute_interactions(
     environment: Environment,
     inputs: Sequence[Input],
@@ -105,10 +143,20 @@ async def execute_interactions(
         environment, provider=config.provider
     )
     caps = resolve_capabilities(provider.capabilities, config.capabilities)
-    validate_interaction(requirements, inputs, snapshot, caps, cache_requested=False)
+    persistent_requested = isinstance(snapshot.cache, CachePolicy)
+    validate_interaction(
+        requirements, inputs, snapshot, caps, cache_requested=persistent_requested
+    )
 
-    implicit_caching = caps.implicit_caching and len(inputs) == 1
-    cache_mode = "implicit" if implicit_caching else "none"
+    cache_name = await resolve_persistent_cache(snapshot, config, provider)
+    if cache_name is not None:
+        cache_mode = "persistent"
+        implicit_caching = False
+    else:
+        implicit_caching = (
+            caps.implicit_caching and len(inputs) == 1 and snapshot.cache != "none"
+        )
+        cache_mode = "implicit" if implicit_caching else "none"
 
     upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
     upload_inflight: dict[tuple[str, str], asyncio.Future[ProviderFileAsset]] = {}
@@ -125,6 +173,7 @@ async def execute_interactions(
                     inputs[call_idx],
                     requirements,
                     config,
+                    cache_name=cache_name,
                     implicit_caching=implicit_caching,
                 )
                 user_contents[call_idx] = history_text_from_parts(req.parts)
@@ -191,10 +240,16 @@ async def execute_interactions(
 
     duration_s = time.perf_counter() - start_time
 
+    cache_used = cache_mode == "persistent"
     outputs: list[Output] = []
     for idx, response in enumerate(responses):
         cached = response.usage.get("cached_tokens", 0)
-        cache_hit = cache_mode == "implicit" and isinstance(cached, int) and cached > 0
+        if cache_mode == "persistent":
+            cache_hit = True
+        else:
+            cache_hit = (
+                cache_mode == "implicit" and isinstance(cached, int) and cached > 0
+            )
         continuation = _build_continuation(
             inputs[idx], response, user_contents[idx], config.provider
         )
@@ -203,7 +258,7 @@ async def execute_interactions(
                 response,
                 requirements=requirements,
                 duration_s=duration_s,
-                cache_used=False,
+                cache_used=cache_used,
                 cache_mode=cache_mode,
                 cache_hit=cache_hit,
                 continuation=continuation,

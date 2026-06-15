@@ -29,9 +29,8 @@ COOKBOOK_DIRNAME = "cookbook"
 EXCLUDE_DIRS = {"utils", "templates", "data", "__pycache__"}
 
 # Recipes pending migration to the v2 Output model (tracked v2 cookbook
-# follow-up). The heavy "projects/" recipes mutate the v1 result envelope and the
-# cache recipe depends on persistent caching, which returns in a later v2 change.
-SHELVED_V2 = {"projects", "optimization/cache-warming-and-ttl.py"}
+# follow-up). The heavy "projects/" recipes mutate the v1 result envelope.
+SHELVED_V2 = {"projects"}
 
 # Determines the "start here" recipe for bare invocation / --list display.
 START_HERE_DISPLAY = "getting-started/analyze-single-paper.py"
