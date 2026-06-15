@@ -776,6 +776,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-is-available-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is Available Now
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#as-the-design-settles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1119,6 +1130,19 @@ migration easier:</p>
   <code>defer_many()</code> only when provider-side deferred delivery is the workflow you
   want.</li>
 </ul>
+<h2 id="what-is-available-now">What Is Available Now<a class="headerlink" href="#what-is-available-now" title="Permanent link">&para;</a></h2>
+<p>The 2.0 interaction model is landing incrementally on <code>main</code>. The first frontdoor
+is live:</p>
+<ul>
+<li><code>interact(environment, input, *, config, **generation_kwargs) -&gt; Output</code> runs
+  one explicit interaction over an <code>Environment</code> and <code>Input</code>, returning an
+  <code>Output</code> with named facets (<code>text</code>, <code>structured</code>, <code>reasoning</code>, <code>tool_calls</code>,
+  <code>continuation</code>, <code>usage</code>, <code>metrics</code>, <code>diagnostics</code>). Continue a conversation or
+  tool loop by passing the prior <code>Output</code>'s <code>continuation</code> and any <code>tool_results</code>
+  in the next <code>Input</code> — this is the replacement for <code>continue_tool()</code>.</li>
+</ul>
+<p><code>run()</code> / <code>run_many()</code> / <code>defer()</code> keep their 1.x behavior for now and move onto
+the same model in later changes.</p>
 <h2 id="as-the-design-settles">As The Design Settles<a class="headerlink" href="#as-the-design-settles" title="Permanent link">&para;</a></h2>
 <p>This page will change as the 2.0 API moves from plan to release candidate. Use
 it as the public migration guide; exact replacement snippets will become more
