@@ -1022,9 +1022,8 @@ deferred collections, or reaches into result dictionaries.</p>
 <ul>
 <li><code>Options(...)</code> for output shape, tools, reasoning, caching, or provider
   controls.</li>
-<li>The removed <code>Options.delivery_mode</code> setting. In v1.8+, use <code>run()</code> /
-  <code>run_many()</code> for realtime calls and <code>defer()</code> / <code>defer_many()</code> for
-  provider-side deferred work.</li>
+<li>The removed <code>Options.delivery_mode</code> setting. Use <code>run()</code> /
+  <code>run_many()</code> for realtime calls and <code>defer()</code> for provider-side deferred work.</li>
 <li><code>continue_from</code>, <code>history</code>, <code>continue_tool()</code>, or persisted continuation
   blobs.</li>
 <li><code>create_cache(...)</code> and explicit cache handles.</li>
@@ -1126,9 +1125,8 @@ migration easier:</p>
   Store them, but do not inspect or mutate their internals.</li>
 <li>Keep tool execution policy in your application code: dispatch, approval,
   logging, retries, and stop conditions.</li>
-<li>Use <code>run()</code> and <code>run_many()</code> for realtime source patterns, and <code>defer()</code> /
-  <code>defer_many()</code> only when provider-side deferred delivery is the workflow you
-  want.</li>
+<li>Use <code>run()</code> and <code>run_many()</code> for realtime source patterns, and <code>defer()</code>
+  only when provider-side deferred delivery is the workflow you want.</li>
 </ul>
 <h2 id="what-is-available-now">What Is Available Now<a class="headerlink" href="#what-is-available-now" title="Permanent link">&para;</a></h2>
 <p>The 2.0 interaction model is landing incrementally on <code>main</code>:</p>
@@ -1145,9 +1143,10 @@ migration easier:</p>
   conversation or tool loop by passing the prior <code>Output</code>'s <code>continuation</code> and any
   <code>tool_results</code> in the next <code>Input</code> — the replacement for <code>continue_tool()</code>.</li>
 </ul>
-<p>Still in progress: <code>defer()</code> moves onto the same model, and persistent caching
-returns through environment preparation (it briefly steps back during the
-cutover). <code>create_cache()</code> and <code>Options</code> are removed from the realtime path.</p>
+<p><code>defer()</code> now follows the same model: it accepts one prompt or a collection,
+and <code>collect_deferred()</code> returns an <code>OutputCollection</code>. Persistent caching
+returns through <code>prepare_environment()</code> / <code>Environment(cache=...)</code>.
+<code>create_cache()</code>, <code>defer_many()</code>, and <code>Options</code> are removed.</p>
 <h2 id="as-the-design-settles">As The Design Settles<a class="headerlink" href="#as-the-design-settles" title="Permanent link">&para;</a></h2>
 <p>This page will change as the 2.0 API moves from plan to release candidate. Use
 it as the public migration guide; exact replacement snippets will become more

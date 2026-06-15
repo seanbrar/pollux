@@ -1272,7 +1272,7 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 </tr>
 <tr>
 <td>Non-urgent work you will collect later</td>
-<td><code>defer()</code> / <code>defer_many()</code></td>
+<td><code>defer()</code></td>
 <td>Background provider execution with a serializable handle</td>
 </tr>
 <tr>
@@ -1285,7 +1285,7 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 <p>Rule of thumb: if prompts or sources are plural and every prompt should receive
 the same shared context, reach for <code>run_many()</code>. If you need one result record
 per file, write the outer file loop yourself and call <code>run_many()</code> inside it.
-If the workload can wait, reach for <code>defer_many()</code>.</p>
+If the workload can wait, reach for <code>defer()</code>.</p>
 <p><code>continue_tool()</code> is a specialized entry point for agent loops. It takes a
 previous <code>ResultEnvelope</code> containing tool calls and your tool results, and
 returns the model's next response. See
@@ -1386,7 +1386,7 @@ provider.</p>
 <li>Conversation continuity (<code>history</code>, <code>continue_from</code>) works with one
   prompt per call. See
   <a href="../conversations-and-agents/">Continuing Conversations Across Turns</a>.</li>
-<li>Deferred work uses <code>defer()</code>, <code>defer_many()</code>, <code>inspect_deferred()</code>,
+<li>Deferred work uses <code>defer()</code>, <code>inspect_deferred()</code>,
   <code>collect_deferred()</code>, and <code>cancel_deferred()</code>.</li>
 <li>Deferred lifecycle calls take a <code>DeferredHandle</code>, not <code>Config</code>. Persist the
   handle and restore it later. See

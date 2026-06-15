@@ -974,7 +974,7 @@
      persist the handle, inspect status, and collect results later. Do NOT
      teach workflow engines, schedulers, queues, or multi-job orchestration.
      Assumes the reader already knows run(), run_many(), Source, Config, and
-     ResultEnvelope. Register: guided applied. -->
+     the Output/OutputCollection model. Register: guided applied. -->
 
 <h1 id="submitting-work-for-later-collection">Submitting Work for Later Collection<a class="headerlink" href="#submitting-work-for-later-collection" title="Permanent link">&para;</a></h1>
 <p>Some work does not need an answer in the next few seconds. A long fan-out over
@@ -989,9 +989,9 @@ to structure code around long-running provider jobs, read
 this page. This page stays focused on the lifecycle API itself.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
-<p><strong>Pollux owns:</strong> request normalization, provider submission, stable request
-ids, normalized status snapshots, ordered collection, and extraction into a
-standard <code>ResultEnvelope</code>.</p>
+<p><strong>Pollux owns:</strong> request compilation, provider submission, stable request
+ids, normalized status snapshots, ordered collection, and extraction into an
+<code>OutputCollection</code> (the same shape <code>run_many()</code> returns).</p>
 <p><strong>You own:</strong> handle persistence, polling cadence, scheduling, cross-job
 orchestration, and downstream storage.</p>
 </div>
@@ -1005,7 +1005,7 @@ orchestration, and downstream storage.</p>
     <span class="n">DeferredHandle</span><span class="p">,</span>
     <span class="n">Source</span><span class="p">,</span>
     <span class="n">collect_deferred</span><span class="p">,</span>
-    <span class="n">defer_many</span><span class="p">,</span>
+    <span class="n">defer</span><span class="p">,</span>
     <span class="n">inspect_deferred</span><span class="p">,</span>
 <span class="p">)</span>
 
@@ -1014,7 +1014,7 @@ orchestration, and downstream storage.</p>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">submit_job</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;openai&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5-nano&quot;</span><span class="p">)</span>
-    <span class="n">handle</span> <span class="o">=</span> <span class="k">await</span> <span class="n">defer_many</span><span class="p">(</span>
+    <span class="n">handle</span> <span class="o">=</span> <span class="k">await</span> <span class="n">defer</span><span class="p">(</span>
         <span class="p">[</span>
             <span class="s2">&quot;Summarize the report in five bullets.&quot;</span><span class="p">,</span>
             <span class="s2">&quot;List the three biggest execution risks.&quot;</span><span class="p">,</span>
@@ -1040,8 +1040,8 @@ orchestration, and downstream storage.</p>
         <span class="k">return</span>
 
     <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">collect_deferred</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
-    <span class="k">for</span> <span class="n">answer</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">status</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">answer</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">answers</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
 
 
@@ -1053,8 +1053,8 @@ orchestration, and downstream storage.</p>
 <code>outputs/deferred-job.json</code>. Run <code>collect_job()</code> later. <code>inspect_deferred()</code>
 normalizes the lifecycle into <code>queued</code>, <code>running</code>, <code>cancelling</code>, <code>completed</code>,
 <code>partial</code>, <code>failed</code>, <code>cancelled</code>, or <code>expired</code>. Once <code>snapshot.is_terminal</code>
-turns <code>True</code>, <code>collect_deferred()</code> returns the same <code>ResultEnvelope</code> shape that
-<code>run()</code> and <code>run_many()</code> return.</p>
+turns <code>True</code>, <code>collect_deferred()</code> returns an <code>OutputCollection</code> — the same
+shape <code>run_many()</code> returns.</p>
 <h3 id="why-this-example-is-shaped-this-way">Why this example is shaped this way<a class="headerlink" href="#why-this-example-is-shaped-this-way" title="Permanent link">&para;</a></h3>
 <ul>
 <li>The handle is the lifecycle record. Persist the full <code>handle.to_dict()</code>
@@ -1066,43 +1066,43 @@ turns <code>True</code>, <code>collect_deferred()</code> returns the same <code>
   one provider's raw status strings.</li>
 <li><code>collect_deferred()</code> is not a polling helper. If the job is still active, it
   raises <code>DeferredNotReadyError</code>.</li>
-<li>For a single prompt, use <code>defer()</code>. It wraps <code>defer_many()</code> the same way
-  <code>run()</code> wraps <code>run_many()</code>.</li>
+<li><code>defer()</code> submits one prompt or a source-pattern collection through a single
+  entry point, the same way <code>run_many()</code> accepts one or many prompts.</li>
 <li>Collection preserves prompt order. If you submitted two prompts, the first
   answer still maps to the first prompt.</li>
 </ul>
 <h2 id="structured-output-across-processes">Structured Output Across Processes<a class="headerlink" href="#structured-output-across-processes" title="Permanent link">&para;</a></h2>
 <p>Deferred collection can still return structured data. Submit with
-<code>Options(response_schema=YourModel)</code>, then pass the same schema back to
+<code>output=YourModel</code>, then pass the same schema back to
 <code>collect_deferred(handle, response_schema=YourModel)</code>.</p>
 <p>Pollux stores a schema fingerprint in the handle. If the schema changed between
 submit and collect, Pollux raises <code>ConfigurationError</code> instead of silently
-rehydrating into the wrong shape. If you omit <code>response_schema</code> at collect
-time, Pollux returns plain dicts in <code>result["structured"]</code> when the provider
-returned structured payloads.</p>
+rehydrating into the wrong shape. As with <code>run_many()</code>, structured output is
+only populated when you supply the schema at collect time; omitting it leaves
+<code>output.structured</code> unset even if the provider returned a structured payload.</p>
 <h2 id="current-scope">Current Scope<a class="headerlink" href="#current-scope" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Deferred delivery uses dedicated entry points: <code>defer()</code>, <code>defer_many()</code>,
+<li>Deferred delivery uses dedicated entry points: <code>defer()</code>,
   <code>inspect_deferred()</code>, <code>collect_deferred()</code>, and <code>cancel_deferred()</code>.</li>
 <li><code>run()</code> and <code>run_many()</code> remain realtime entry points.</li>
-<li>Deferred delivery does not support conversation continuity, tool calling,
-  persistent cache handles, or implicit caching.</li>
+<li>Deferred delivery does not support conversation continuity, tool calling, or
+  persistent caching.</li>
 <li><code>cancel_deferred(handle)</code> requests provider-side cancellation. Final status is
   still provider-driven.</li>
 </ul>
 <h2 id="deferred-results">Deferred Results<a class="headerlink" href="#deferred-results" title="Permanent link">&para;</a></h2>
-<p>Collected deferred jobs return a standard <code>ResultEnvelope</code> plus deferred
-diagnostics:</p>
+<p>Collected deferred jobs return an <code>OutputCollection</code>. Each <code>Output</code> carries the
+same facets as realtime results, plus per-item deferred provenance under
+<code>diagnostics.raw["deferred"]</code>:</p>
 <ul>
-<li><code>result["metrics"]["deferred"]</code> is <code>True</code></li>
-<li><code>result["diagnostics"]["deferred"]["job_id"]</code> identifies the remote job</li>
-<li><code>result["diagnostics"]["deferred"]["items"]</code> includes per-request status,
-  finish reason, provider status, and any item-level error text</li>
+<li><code>job_id</code> identifies the remote job</li>
+<li><code>request_id</code> and <code>status</code> identify the item and its terminal state</li>
+<li><code>finish_reason</code>, <code>provider_status</code>, and <code>error</code> capture the per-item outcome</li>
 </ul>
-<p>Those are deferred-only additions on top of the standard envelope shape
-documented in <a href="../sending-content/#resultenvelope-reference">ResultEnvelope Reference</a>.</p>
-<p>That keeps downstream code small. Your post-processing path can usually treat
-realtime and deferred results the same way.</p>
+<p>A failed item reports <code>metrics.completion_status == "error"</code>, and the
+collection's <code>status</code> is <code>partial</code> when only some items succeeded. That keeps
+downstream code small: your post-processing path can usually treat realtime and
+deferred results the same way.</p>
 <hr />
 <p>Next, read <a href="../building-with-deferred-delivery/">Building With Deferred Delivery</a>
 for the operating model and where deferred pays off. Then read

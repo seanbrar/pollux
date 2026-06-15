@@ -846,10 +846,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pollux.defer" class="md-nav__link">
+  <a href="#pollux.prepare_environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        defer
+        prepare_environment
       
     </span>
   </a>
@@ -857,10 +857,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pollux.defer_many" class="md-nav__link">
+  <a href="#pollux.defer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        defer_many
+        defer
       
     </span>
   </a>
@@ -1951,8 +1951,13 @@
 <td><a href="../../agent-loop/">Building an Agent Loop</a></td>
 </tr>
 <tr>
+<td>Prepare a reusable environment (and front-load cache/upload I/O)</td>
+<td><code>prepare_environment()</code> → <code>Environment</code></td>
+<td><a href="../../caching/">Reducing Costs with Context Caching</a></td>
+</tr>
+<tr>
 <td>Submit non-urgent work and collect it later</td>
-<td><code>defer()</code> / <code>defer_many()</code></td>
+<td><code>defer()</code> → <code>DeferredHandle</code></td>
 <td><a href="../../building-with-deferred-delivery/">Building With Deferred Delivery</a></td>
 </tr>
 <tr>
@@ -1963,10 +1968,12 @@
 </tbody>
 </table>
 <blockquote>
-<p><strong>2.0 cutover:</strong> <code>run()</code> / <code>run_many()</code> now return the <code>Output</code> / <code>OutputCollection</code>
+<p><strong>2.0 cutover:</strong> <code>run()</code> / <code>run_many()</code> return the <code>Output</code> / <code>OutputCollection</code>
 model (named facets, not dict envelopes). <code>continue_tool()</code> is replaced by
-<code>interact(environment, Input(continuation=..., tool_results=...))</code>, and persistent
-caching moves to environment preparation (a later 2.0 change).</p>
+<code>interact(environment, Input(continuation=..., tool_results=...))</code>; persistent
+caching moves to <code>prepare_environment()</code> / <code>Environment(cache=...)</code>; and <code>defer()</code>
+returns an <code>OutputCollection</code> from <code>collect_deferred()</code> (the single <code>defer_many()</code>
+entry point is removed).</p>
 </blockquote>
 <h2 id="entry-points">Entry Points<a class="headerlink" href="#entry-points" title="Permanent link">&para;</a></h2>
 <p>The primary execution functions are exported from <code>pollux</code>:</p>
@@ -2291,7 +2298,10 @@ print(result.text)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">123</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
 <span class="normal">124</span>
 <span class="normal">125</span>
 <span class="normal">126</span>
@@ -2365,10 +2375,7 @@ print(result.text)</p>
 <span class="normal">194</span>
 <span class="normal">195</span>
 <span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
+<span class="normal">197</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
     <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">source</span><span class="p">:</span> <span class="n">Source</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2759,65 +2766,7 @@ for answer in results.answers:
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">287</span>
-<span class="normal">288</span>
-<span class="normal">289</span>
-<span class="normal">290</span>
-<span class="normal">291</span>
-<span class="normal">292</span>
-<span class="normal">293</span>
-<span class="normal">294</span>
-<span class="normal">295</span>
-<span class="normal">296</span>
-<span class="normal">297</span>
-<span class="normal">298</span>
-<span class="normal">299</span>
-<span class="normal">300</span>
-<span class="normal">301</span>
-<span class="normal">302</span>
-<span class="normal">303</span>
-<span class="normal">304</span>
-<span class="normal">305</span>
-<span class="normal">306</span>
-<span class="normal">307</span>
-<span class="normal">308</span>
-<span class="normal">309</span>
-<span class="normal">310</span>
-<span class="normal">311</span>
-<span class="normal">312</span>
-<span class="normal">313</span>
-<span class="normal">314</span>
-<span class="normal">315</span>
-<span class="normal">316</span>
-<span class="normal">317</span>
-<span class="normal">318</span>
-<span class="normal">319</span>
-<span class="normal">320</span>
-<span class="normal">321</span>
-<span class="normal">322</span>
-<span class="normal">323</span>
-<span class="normal">324</span>
-<span class="normal">325</span>
-<span class="normal">326</span>
-<span class="normal">327</span>
-<span class="normal">328</span>
-<span class="normal">329</span>
-<span class="normal">330</span>
-<span class="normal">331</span>
-<span class="normal">332</span>
-<span class="normal">333</span>
-<span class="normal">334</span>
-<span class="normal">335</span>
-<span class="normal">336</span>
-<span class="normal">337</span>
-<span class="normal">338</span>
-<span class="normal">339</span>
-<span class="normal">340</span>
-<span class="normal">341</span>
-<span class="normal">342</span>
-<span class="normal">343</span>
-<span class="normal">344</span>
-<span class="normal">345</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">345</span>
 <span class="normal">346</span>
 <span class="normal">347</span>
 <span class="normal">348</span>
@@ -2850,7 +2799,65 @@ for answer in results.answers:
 <span class="normal">375</span>
 <span class="normal">376</span>
 <span class="normal">377</span>
-<span class="normal">378</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_many</span><span class="p">(</span>
+<span class="normal">378</span>
+<span class="normal">379</span>
+<span class="normal">380</span>
+<span class="normal">381</span>
+<span class="normal">382</span>
+<span class="normal">383</span>
+<span class="normal">384</span>
+<span class="normal">385</span>
+<span class="normal">386</span>
+<span class="normal">387</span>
+<span class="normal">388</span>
+<span class="normal">389</span>
+<span class="normal">390</span>
+<span class="normal">391</span>
+<span class="normal">392</span>
+<span class="normal">393</span>
+<span class="normal">394</span>
+<span class="normal">395</span>
+<span class="normal">396</span>
+<span class="normal">397</span>
+<span class="normal">398</span>
+<span class="normal">399</span>
+<span class="normal">400</span>
+<span class="normal">401</span>
+<span class="normal">402</span>
+<span class="normal">403</span>
+<span class="normal">404</span>
+<span class="normal">405</span>
+<span class="normal">406</span>
+<span class="normal">407</span>
+<span class="normal">408</span>
+<span class="normal">409</span>
+<span class="normal">410</span>
+<span class="normal">411</span>
+<span class="normal">412</span>
+<span class="normal">413</span>
+<span class="normal">414</span>
+<span class="normal">415</span>
+<span class="normal">416</span>
+<span class="normal">417</span>
+<span class="normal">418</span>
+<span class="normal">419</span>
+<span class="normal">420</span>
+<span class="normal">421</span>
+<span class="normal">422</span>
+<span class="normal">423</span>
+<span class="normal">424</span>
+<span class="normal">425</span>
+<span class="normal">426</span>
+<span class="normal">427</span>
+<span class="normal">428</span>
+<span class="normal">429</span>
+<span class="normal">430</span>
+<span class="normal">431</span>
+<span class="normal">432</span>
+<span class="normal">433</span>
+<span class="normal">434</span>
+<span class="normal">435</span>
+<span class="normal">436</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_many</span><span class="p">(</span>
     <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -3209,7 +3216,10 @@ while result.tool_calls:
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">203</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
 <span class="normal">204</span>
 <span class="normal">205</span>
 <span class="normal">206</span>
@@ -3275,10 +3285,7 @@ while result.tool_calls:
 <span class="normal">266</span>
 <span class="normal">267</span>
 <span class="normal">268</span>
-<span class="normal">269</span>
-<span class="normal">270</span>
-<span class="normal">271</span>
-<span class="normal">272</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">interact</span><span class="p">(</span>
+<span class="normal">269</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">interact</span><span class="p">(</span>
     <span class="n">environment</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
     <span class="nb">input</span><span class="p">:</span> <span class="n">Input</span><span class="p">,</span>  <span class="c1"># noqa: A002 - &quot;input&quot; is the canonical v2 primitive name</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3358,51 +3365,163 @@ while result.tool_calls:
 
 
 
-<a id="pollux.defer"></a>
+<a id="pollux.prepare_environment"></a>
     <div class="doc doc-contents first">
 
-        <p>Submit a single deferred request and return a serializable handle.</p>
+        <p>Prepare a reusable :class:<code>Environment</code>, front-loading cache/upload I/O.</p>
+<p>Build the stable model-facing setup once and reuse it across
+:func:<code>interact</code>, :func:<code>run</code>, and :func:<code>run_many</code> calls. When <code>cache</code> is
+a :class:<code>CachePolicy</code>, the persistent cache is created now (uploading
+sources and surfacing capability errors early); later interactions over the
+returned environment reuse it by identity.</p>
 
 
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">275</span>
-<span class="normal">276</span>
-<span class="normal">277</span>
-<span class="normal">278</span>
-<span class="normal">279</span>
-<span class="normal">280</span>
-<span class="normal">281</span>
-<span class="normal">282</span>
-<span class="normal">283</span>
-<span class="normal">284</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">defer</span><span class="p">(</span>
-    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">source</span><span class="p">:</span> <span class="n">Source</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
-    <span class="n">options</span><span class="p">:</span> <span class="n">Options</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeferredHandle</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Submit a single deferred request and return a serializable handle.&quot;&quot;&quot;</span>
-    <span class="n">sources</span> <span class="o">=</span> <span class="p">(</span><span class="n">source</span><span class="p">,)</span> <span class="k">if</span> <span class="n">source</span> <span class="k">else</span> <span class="p">()</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">defer_many</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sources</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<a class="autorefs autorefs-internal" title="pollux.source.Source" href="#pollux.Source">Source</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Stable sources to bake into the environment (and its cache).</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="pollux.config.Config" href="#pollux.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Configuration specifying provider and model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instructions</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional system-level instruction.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tools</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<a class="autorefs autorefs-internal" title="pollux.interaction.ToolDeclaration" href="#pollux.ToolDeclaration">ToolDeclaration</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional tool declarations.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cache</code>
+            </td>
+            <td>
+                  <code><span title="pollux.interaction.CacheSetting">CacheSetting</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Cache preference: a :class:<code>CachePolicy</code> for persistent caching,
+<code>"auto"</code> for provider-managed caching, <code>"none"</code> to disable, or
+<code>None</code> for the default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metadata</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional provider-neutral metadata for planning.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-</div>
 
-<div class="doc doc-object doc-function">
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="pollux.interaction.Environment" href="#pollux.Environment">Environment</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The prepared :class:<code>Environment</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
-
-<a id="pollux.defer_many"></a>
-    <div class="doc doc-contents first">
-
-        <p>Submit deferred work and return a handle for later inspection/collection.</p>
-<p>Planned for Pollux 2.0: deferred submission moves to one entry point that
-can submit a single interaction or a source-pattern collection. See the
-<em>Migrating to 2.0</em> guide.</p>
-
+<details class="example" open>
+  <summary>Example</summary>
+  <p>environment = await prepare_environment(
+    sources=[Source.from_file("paper.pdf")],
+    instructions=system_prompt,
+    cache=CachePolicy(ttl_seconds=3600),
+    config=config,
+)
+results = await run_many(prompts, environment=environment, config=config)</p>
+</details>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
@@ -3431,30 +3550,486 @@ can submit a single interaction or a source-pattern collection. See the
 <span class="normal">461</span>
 <span class="normal">462</span>
 <span class="normal">463</span>
-<span class="normal">464</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">defer_many</span><span class="p">(</span>
+<span class="normal">464</span>
+<span class="normal">465</span>
+<span class="normal">466</span>
+<span class="normal">467</span>
+<span class="normal">468</span>
+<span class="normal">469</span>
+<span class="normal">470</span>
+<span class="normal">471</span>
+<span class="normal">472</span>
+<span class="normal">473</span>
+<span class="normal">474</span>
+<span class="normal">475</span>
+<span class="normal">476</span>
+<span class="normal">477</span>
+<span class="normal">478</span>
+<span class="normal">479</span>
+<span class="normal">480</span>
+<span class="normal">481</span>
+<span class="normal">482</span>
+<span class="normal">483</span>
+<span class="normal">484</span>
+<span class="normal">485</span>
+<span class="normal">486</span>
+<span class="normal">487</span>
+<span class="normal">488</span>
+<span class="normal">489</span>
+<span class="normal">490</span>
+<span class="normal">491</span>
+<span class="normal">492</span>
+<span class="normal">493</span>
+<span class="normal">494</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prepare_environment</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
+    <span class="n">instructions</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tools</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">ToolDeclaration</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cache</span><span class="p">:</span> <span class="n">CacheSetting</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Environment</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Prepare a reusable :class:`Environment`, front-loading cache/upload I/O.</span>
+
+<span class="sd">    Build the stable model-facing setup once and reuse it across</span>
+<span class="sd">    :func:`interact`, :func:`run`, and :func:`run_many` calls. When ``cache`` is</span>
+<span class="sd">    a :class:`CachePolicy`, the persistent cache is created now (uploading</span>
+<span class="sd">    sources and surfacing capability errors early); later interactions over the</span>
+<span class="sd">    returned environment reuse it by identity.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sources: Stable sources to bake into the environment (and its cache).</span>
+<span class="sd">        config: Configuration specifying provider and model.</span>
+<span class="sd">        instructions: Optional system-level instruction.</span>
+<span class="sd">        tools: Optional tool declarations.</span>
+<span class="sd">        cache: Cache preference: a :class:`CachePolicy` for persistent caching,</span>
+<span class="sd">            ``&quot;auto&quot;`` for provider-managed caching, ``&quot;none&quot;`` to disable, or</span>
+<span class="sd">            ``None`` for the default.</span>
+<span class="sd">        metadata: Optional provider-neutral metadata for planning.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The prepared :class:`Environment`.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        environment = await prepare_environment(</span>
+<span class="sd">            sources=[Source.from_file(&quot;paper.pdf&quot;)],</span>
+<span class="sd">            instructions=system_prompt,</span>
+<span class="sd">            cache=CachePolicy(ttl_seconds=3600),</span>
+<span class="sd">            config=config,</span>
+<span class="sd">        )</span>
+<span class="sd">        results = await run_many(prompts, environment=environment, config=config)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">environment</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
+        <span class="n">instructions</span><span class="o">=</span><span class="n">instructions</span><span class="p">,</span>
+        <span class="n">sources</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">sources</span><span class="p">),</span>
+        <span class="n">tools</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">tools</span><span class="p">)</span> <span class="k">if</span> <span class="n">tools</span> <span class="k">else</span> <span class="p">(),</span>
+        <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">CachePolicy</span><span class="p">):</span>
+        <span class="n">provider</span> <span class="o">=</span> <span class="n">_get_provider</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">snapshot</span> <span class="o">=</span> <span class="n">EnvironmentSnapshot</span><span class="o">.</span><span class="n">from_environment</span><span class="p">(</span>
+                <span class="n">environment</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">provider</span>
+            <span class="p">)</span>
+            <span class="k">await</span> <span class="n">resolve_persistent_cache</span><span class="p">(</span><span class="n">snapshot</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">_close_provider</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">environment</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<a id="pollux.defer"></a>
+    <div class="doc doc-contents first">
+
+        <p>Submit one or more deferred requests and return a serializable handle.</p>
+<p>The v2 deferred frontdoor: submit a single interaction or a source-pattern
+collection on a provider-side timeline, then :func:<code>inspect_deferred</code> and
+:func:<code>collect_deferred</code> later. Collection returns an
+:class:<code>OutputCollection</code>, the same shape as :func:<code>run_many</code>.</p>
+<p>Tool calling, continuation, and persistent caching are out of scope for
+deferred delivery and are intentionally not part of this surface.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>prompts</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span> | None] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>One or more prompts to submit.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sources</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<a class="autorefs autorefs-internal" title="pollux.source.Source" href="#pollux.Source">Source</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Stable sources shared across the prompts.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="pollux.config.Config" href="#pollux.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Configuration specifying provider and model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instructions</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional system-level instruction.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>output</code>
+            </td>
+            <td>
+                  <code><span title="pollux.options.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional Pydantic model or JSON Schema for structured output.
+Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>temperature</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional sampling temperature.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>top_p</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional nucleus-sampling probability.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_tokens</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional hard cap on output tokens.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional sampling seed where supported.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reasoning_effort</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional qualitative reasoning effort.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reasoning_budget_tokens</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional explicit reasoning token budget.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>provider_options</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional raw provider-scoped generation options.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="pollux.deferred.DeferredHandle" href="#pollux.DeferredHandle">DeferredHandle</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A serializable :class:<code>DeferredHandle</code> for the submitted job.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pollux/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span>
+<span class="normal">341</span>
+<span class="normal">342</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">defer</span><span class="p">(</span>
     <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
-    <span class="n">options</span><span class="p">:</span> <span class="n">Options</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">instructions</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">output</span><span class="p">:</span> <span class="n">ResponseSchemaInput</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">reasoning_effort</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">reasoning_budget_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">provider_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeferredHandle</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Submit deferred work and return a handle for later inspection/collection.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Submit one or more deferred requests and return a serializable handle.</span>
 
-<span class="sd">    Planned for Pollux 2.0: deferred submission moves to one entry point that</span>
-<span class="sd">    can submit a single interaction or a source-pattern collection. See the</span>
-<span class="sd">    *Migrating to 2.0* guide.</span>
+<span class="sd">    The v2 deferred frontdoor: submit a single interaction or a source-pattern</span>
+<span class="sd">    collection on a provider-side timeline, then :func:`inspect_deferred` and</span>
+<span class="sd">    :func:`collect_deferred` later. Collection returns an</span>
+<span class="sd">    :class:`OutputCollection`, the same shape as :func:`run_many`.</span>
+
+<span class="sd">    Tool calling, continuation, and persistent caching are out of scope for</span>
+<span class="sd">    deferred delivery and are intentionally not part of this surface.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prompts: One or more prompts to submit.</span>
+<span class="sd">        sources: Stable sources shared across the prompts.</span>
+<span class="sd">        config: Configuration specifying provider and model.</span>
+<span class="sd">        instructions: Optional system-level instruction.</span>
+<span class="sd">        output: Optional Pydantic model or JSON Schema for structured output.</span>
+<span class="sd">            Pass the same schema to :func:`collect_deferred` to rehydrate.</span>
+<span class="sd">        temperature: Optional sampling temperature.</span>
+<span class="sd">        top_p: Optional nucleus-sampling probability.</span>
+<span class="sd">        max_tokens: Optional hard cap on output tokens.</span>
+<span class="sd">        seed: Optional sampling seed where supported.</span>
+<span class="sd">        reasoning_effort: Optional qualitative reasoning effort.</span>
+<span class="sd">        reasoning_budget_tokens: Optional explicit reasoning token budget.</span>
+<span class="sd">        provider_options: Optional raw provider-scoped generation options.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A serializable :class:`DeferredHandle` for the submitted job.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">request</span> <span class="o">=</span> <span class="n">normalize_request</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">prompts</span><span class="p">:</span>
+    <span class="n">prompt_tuple</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">prompts</span><span class="p">,)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="kc">None</span><span class="p">)))</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prompts</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prompt_tuple</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-            <span class="s2">&quot;defer_many() requires at least one prompt&quot;</span><span class="p">,</span>
-            <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass one or more prompts, or use run_many(prompts=[]) for a realtime no-op.&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;defer() requires at least one prompt&quot;</span><span class="p">,</span>
+            <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass one or more prompts to submit for deferred collection.&quot;</span><span class="p">,</span>
         <span class="p">)</span>
-    <span class="n">plan</span> <span class="o">=</span> <span class="n">build_plan</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-    <span class="n">provider</span> <span class="o">=</span> <span class="n">_get_provider</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
-
+    <span class="n">environment</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">instructions</span><span class="o">=</span><span class="n">instructions</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">sources</span><span class="p">))</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">prompt</span><span class="p">)</span> <span class="k">for</span> <span class="n">prompt</span> <span class="ow">in</span> <span class="n">prompt_tuple</span><span class="p">]</span>
+    <span class="n">requirements</span> <span class="o">=</span> <span class="n">_build_requirements</span><span class="p">(</span>
+        <span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">,</span>
+        <span class="n">top_p</span><span class="o">=</span><span class="n">top_p</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="n">max_tokens</span><span class="p">,</span>
+        <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span>
+        <span class="n">reasoning_effort</span><span class="o">=</span><span class="n">reasoning_effort</span><span class="p">,</span>
+        <span class="n">reasoning_budget_tokens</span><span class="o">=</span><span class="n">reasoning_budget_tokens</span><span class="p">,</span>
+        <span class="n">tool_choice</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">provider_options</span><span class="o">=</span><span class="n">provider_options</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">provider</span> <span class="o">=</span> <span class="n">_get_provider</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">return</span> <span class="k">await</span> <span class="n">submit_deferred</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">submit_deferred</span><span class="p">(</span>
+            <span class="n">environment</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">requirements</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">provider</span>
+        <span class="p">)</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="k">await</span> <span class="n">_close_provider</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -3475,15 +4050,15 @@ can submit a single interaction or a source-pattern collection. See the
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">467</span>
-<span class="normal">468</span>
-<span class="normal">469</span>
-<span class="normal">470</span>
-<span class="normal">471</span>
-<span class="normal">472</span>
-<span class="normal">473</span>
-<span class="normal">474</span>
-<span class="normal">475</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inspect_deferred</span><span class="p">(</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">497</span>
+<span class="normal">498</span>
+<span class="normal">499</span>
+<span class="normal">500</span>
+<span class="normal">501</span>
+<span class="normal">502</span>
+<span class="normal">503</span>
+<span class="normal">504</span>
+<span class="normal">505</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inspect_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeferredSnapshot</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Inspect the current state of a deferred job.&quot;&quot;&quot;</span>
@@ -3505,7 +4080,10 @@ can submit a single interaction or a source-pattern collection. See the
 <a id="pollux.collect_deferred"></a>
     <div class="doc doc-contents first">
 
-        <p>Collect a terminal deferred job into the standard ResultEnvelope.</p>
+        <p>Collect a terminal deferred job into an :class:<code>OutputCollection</code>.</p>
+<p>Returns the same shape as :func:<code>run_many</code>: one :class:<code>Output</code> per
+submitted request, in submission order. Each output's
+<code>diagnostics.raw["deferred"]</code> carries the job id and per-item status.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3528,7 +4106,7 @@ can submit a single interaction or a source-pattern collection. See the
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The deferred handle returned by <code>defer()</code> / <code>defer_many()</code>.</p>
+                <p>The deferred handle returned by :func:<code>defer</code>.</p>
               </div>
             </td>
             <td>
@@ -3558,35 +4136,43 @@ output rehydration. Must match the schema used at submission time.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">478</span>
-<span class="normal">479</span>
-<span class="normal">480</span>
-<span class="normal">481</span>
-<span class="normal">482</span>
-<span class="normal">483</span>
-<span class="normal">484</span>
-<span class="normal">485</span>
-<span class="normal">486</span>
-<span class="normal">487</span>
-<span class="normal">488</span>
-<span class="normal">489</span>
-<span class="normal">490</span>
-<span class="normal">491</span>
-<span class="normal">492</span>
-<span class="normal">493</span>
-<span class="normal">494</span>
-<span class="normal">495</span>
-<span class="normal">496</span>
-<span class="normal">497</span>
-<span class="normal">498</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect_deferred</span><span class="p">(</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">508</span>
+<span class="normal">509</span>
+<span class="normal">510</span>
+<span class="normal">511</span>
+<span class="normal">512</span>
+<span class="normal">513</span>
+<span class="normal">514</span>
+<span class="normal">515</span>
+<span class="normal">516</span>
+<span class="normal">517</span>
+<span class="normal">518</span>
+<span class="normal">519</span>
+<span class="normal">520</span>
+<span class="normal">521</span>
+<span class="normal">522</span>
+<span class="normal">523</span>
+<span class="normal">524</span>
+<span class="normal">525</span>
+<span class="normal">526</span>
+<span class="normal">527</span>
+<span class="normal">528</span>
+<span class="normal">529</span>
+<span class="normal">530</span>
+<span class="normal">531</span>
+<span class="normal">532</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">response_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultEnvelope</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collect a terminal deferred job into the standard ResultEnvelope.</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OutputCollection</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collect a terminal deferred job into an :class:`OutputCollection`.</span>
+
+<span class="sd">    Returns the same shape as :func:`run_many`: one :class:`Output` per</span>
+<span class="sd">    submitted request, in submission order. Each output&#39;s</span>
+<span class="sd">    ``diagnostics.raw[&quot;deferred&quot;]`` carries the job id and per-item status.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        handle: The deferred handle returned by ``defer()`` / ``defer_many()``.</span>
+<span class="sd">        handle: The deferred handle returned by :func:`defer`.</span>
 <span class="sd">        response_schema: Optional Pydantic model or JSON Schema for structured</span>
 <span class="sd">            output rehydration. Must match the schema used at submission time.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -3617,15 +4203,15 @@ output rehydration. Must match the schema used at submission time.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">501</span>
-<span class="normal">502</span>
-<span class="normal">503</span>
-<span class="normal">504</span>
-<span class="normal">505</span>
-<span class="normal">506</span>
-<span class="normal">507</span>
-<span class="normal">508</span>
-<span class="normal">509</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_deferred</span><span class="p">(</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">535</span>
+<span class="normal">536</span>
+<span class="normal">537</span>
+<span class="normal">538</span>
+<span class="normal">539</span>
+<span class="normal">540</span>
+<span class="normal">541</span>
+<span class="normal">542</span>
+<span class="normal">543</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Request provider-side cancellation for a deferred job.&quot;&quot;&quot;</span>
@@ -5598,14 +6184,7 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/deferred.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">50</span>
-<span class="normal">51</span>
-<span class="normal">52</span>
-<span class="normal">53</span>
-<span class="normal">54</span>
-<span class="normal">55</span>
-<span class="normal">56</span>
-<span class="normal">57</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">57</span>
 <span class="normal">58</span>
 <span class="normal">59</span>
 <span class="normal">60</span>
@@ -5633,7 +6212,14 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 <span class="normal">82</span>
 <span class="normal">83</span>
 <span class="normal">84</span>
-<span class="normal">85</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">DeferredHandle</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Serializable Pollux handle for a deferred job.&quot;&quot;&quot;</span>
 
@@ -5703,9 +6289,9 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/deferred.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">62</span>
-<span class="normal">63</span>
-<span class="normal">64</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Serialize the handle for persistence.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">asdict</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
@@ -5736,14 +6322,7 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/deferred.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">66</span>
-<span class="normal">67</span>
-<span class="normal">68</span>
-<span class="normal">69</span>
-<span class="normal">70</span>
-<span class="normal">71</span>
-<span class="normal">72</span>
-<span class="normal">73</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">73</span>
 <span class="normal">74</span>
 <span class="normal">75</span>
 <span class="normal">76</span>
@@ -5755,7 +6334,14 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 <span class="normal">82</span>
 <span class="normal">83</span>
 <span class="normal">84</span>
-<span class="normal">85</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">DeferredHandle</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rebuild a handle from serialized data.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
@@ -5809,14 +6395,7 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/deferred.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 88</span>
-<span class="normal"> 89</span>
-<span class="normal"> 90</span>
-<span class="normal"> 91</span>
-<span class="normal"> 92</span>
-<span class="normal"> 93</span>
-<span class="normal"> 94</span>
-<span class="normal"> 95</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 95</span>
 <span class="normal"> 96</span>
 <span class="normal"> 97</span>
 <span class="normal"> 98</span>
@@ -5829,7 +6408,14 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 <span class="normal">105</span>
 <span class="normal">106</span>
 <span class="normal">107</span>
-<span class="normal">108</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">DeferredSnapshot</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalized snapshot of a deferred job lifecycle.&quot;&quot;&quot;</span>
 
