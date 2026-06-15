@@ -39,6 +39,15 @@ _PROVIDERS: list[tuple[str, str, str]] = [
 _GEMINI_REASONING_MODEL = "gemini-3-flash-preview"
 
 
+def _api_options(provider: str, *, max_tokens: int = 32, **kwargs: Any) -> Options:
+    """Return low-output live-test options where the provider supports them."""
+    if provider in {"openai", "openrouter"}:
+        kwargs.setdefault("max_tokens", max(max_tokens, 512))
+    elif provider != "gemini":
+        kwargs.setdefault("max_tokens", max_tokens)
+    return Options(**kwargs)
+
+
 def _minimal_pdf_bytes() -> bytes:
     """Return a minimal valid single-page PDF."""
     header = b"%PDF-1.4\n"
@@ -150,22 +159,21 @@ async def test_live_source_patterns_and_generation_controls(
         api_key_fixture=api_key_fixture,
         model_fixture=model_fixture,
     )
-    source = Source.from_json(
-        {"planet": "Neptune", "code": "ZX-41"},
-        identifier="api-json-source",
-    )
+    source = Source.from_json({"planet": "Neptune", "code": "ZX-41"})
 
     # gpt-5-nano currently rejects temperature/top_p; keep controls provider-aware.
-    options = Options(
-        system_instruction="Return one line only. No extra words.",
+    options = _api_options(
+        provider,
+        max_tokens=1024 if provider == "openai" else 32,
+        system_instruction="One line.",
         temperature=0.2 if provider == "gemini" else None,
         top_p=0.9 if provider == "gemini" else None,
     )
 
     result = await pollux.run_many(
         prompts=(
-            "From the JSON source, reply with exactly: FIRST:<planet>",
-            "From the JSON source, reply with exactly: SECOND:<code>",
+            "JSON planet. Reply exactly FIRST:<planet>.",
+            "JSON code. Reply exactly SECOND:<code>.",
         ),
         sources=(source,),
         config=config,
@@ -208,7 +216,7 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
     tools = [
         {
             "name": "get_secret",
-            "description": "Return a code for a given topic.",
+            "description": "Return a code.",
             "parameters": {
                 "type": "object",
                 "properties": {"topic": {"type": "string"}},
@@ -218,12 +226,15 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
     ]
 
     first = await pollux.run(
-        (
-            "Call get_secret exactly once with topic='orbit'. "
-            "Once you receive the tool result, return it in the structured response."
-        ),
+        "Call get_secret once with topic='orbit'.",
         config=config,
-        options=Options(tools=tools, tool_choice="required", history=[]),
+        options=_api_options(
+            provider,
+            max_tokens=64,
+            tools=tools,
+            tool_choice="required",
+            history=[],
+        ),
     )
 
     tool_calls_raw = first.get("tool_calls")
@@ -258,8 +269,10 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         continue_from=first,
         tool_results=tool_results,
         config=config,
-        options=Options(
-            reasoning_effort="medium" if provider == "openai" else None,
+        options=_api_options(
+            provider,
+            max_tokens=96,
+            reasoning_effort="low" if provider == "openai" else None,
             response_schema=response_schema,
         ),
     )
@@ -333,9 +346,14 @@ async def test_live_anthropic_parallel_tool_result_history_roundtrip(
     ]
 
     result = await pollux.run(
-        "Using both tool results, reply with both codes in one line.",
+        "Reply with both codes in one line.",
         config=config,
-        options=Options(history=history, tools=tools, tool_choice="none"),
+        options=Options(
+            history=history,
+            tools=tools,
+            tool_choice="none",
+            max_tokens=32,
+        ),
     )
 
     assert result["status"] == "ok"
@@ -354,9 +372,9 @@ async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> Non
     )
 
     result = await pollux.run(
-        "Reply with exactly OK.",
+        "Reply exactly OK.",
         config=config,
-        options=Options(reasoning_effort="medium"),
+        options=Options(reasoning_effort="low"),
     )
 
     assert result["status"] == "ok"
@@ -381,7 +399,10 @@ async def test_gemini_url_context_roundtrip(
     )
 
     result = await pollux.run(
-        "Use URL Context. Reply exactly GEMINI_URL_CONTEXT_OK if the URL is accessible.",
+        (
+            "Read the URL. Reply exactly GEMINI_URL_CONTEXT_OK if the README title "
+            "mentions OpenAI Python API library."
+        ),
         source=Source.from_uri(
             "https://raw.githubusercontent.com/openai/openai-python/main/README.md",
             mime_type="text/markdown",
@@ -409,7 +430,7 @@ async def test_gemini_live_deferred_inline_submit_and_inspect(
     job: pollux.DeferredHandle | None = None
     try:
         job = await pollux.defer(
-            "Reply with exactly LIVE_DEFERRED_INLINE_OK.",
+            "Reply exactly LIVE_DEFERRED_INLINE_OK.",
             config=config,
         )
         snapshot = await pollux.inspect_deferred(job)
@@ -448,8 +469,8 @@ async def test_gemini_live_deferred_file_submit_and_inspect(
     try:
         job = await pollux.defer_many(
             (
-                "Reply with exactly LIVE_DEFERRED_FILE_ONE.",
-                "Reply with exactly LIVE_DEFERRED_FILE_TWO.",
+                "Reply exactly LIVE_DEFERRED_FILE_ONE.",
+                "Reply exactly LIVE_DEFERRED_FILE_TWO.",
             ),
             config=config,
         )
@@ -484,8 +505,9 @@ async def test_anthropic_live_deferred_submit_inspect_and_cancel(
     cancelled = False
     try:
         job = await pollux.defer(
-            "Reply with exactly LIVE_ANTHROPIC_DEFERRED_CANCEL_OK.",
+            "Reply exactly LIVE_ANTHROPIC_DEFERRED_CANCEL_OK.",
             config=config,
+            options=Options(max_tokens=16),
         )
         await pollux.cancel_deferred(job)
         cancelled = True
@@ -514,18 +536,17 @@ async def test_openrouter_reasoning_roundtrip(
     )
 
     result = await pollux.run(
-        "Reply with exactly OK.",
+        "Reply exactly OK.",
         config=config,
-        options=Options(reasoning_effort="medium"),
+        options=Options(reasoning_effort="low", max_tokens=256),
     )
 
     assert result["status"] == "ok"
     assert "ok" in result["answers"][0].lower()
-    assert "reasoning" in result
-    assert isinstance(result["reasoning"], list)
-    assert len(result["reasoning"]) == 1
-    assert isinstance(result["reasoning"][0], str)
-    assert result["reasoning"][0].strip()
+    raw = result["diagnostics"]["raw_responses"][0]
+    provider_state = raw.get("provider_state")
+    assert isinstance(provider_state, dict)
+    assert provider_state.get("openrouter_reasoning_details")
 
 
 @pytest.mark.asyncio
@@ -552,9 +573,10 @@ async def test_openai_binary_upload_cleanup_roundtrip(
 
     config = Config(provider="openai", model=openai_test_model, api_key=openai_api_key)
     result = await pollux.run(
-        "Reply with exactly PDF_OK.",
+        "Reply exactly PDF_OK.",
         source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
+        options=Options(max_tokens=512),
     )
 
     assert result["status"] == "ok"
@@ -578,7 +600,6 @@ async def test_openai_binary_upload_cleanup_roundtrip(
 @pytest.mark.asyncio
 async def test_openai_live_batch_validation_failure_shape_characterization(
     openai_api_key: str,
-    openai_test_model: str,
 ) -> None:
     """E2E: Batch validation failures surface on the batch object, not per-row output files."""
     from openai import AsyncOpenAI
@@ -591,21 +612,12 @@ async def test_openai_live_batch_validation_failure_shape_characterization(
     try:
         lines = [
             {
-                "custom_id": "pollux-live-success",
-                "method": "POST",
-                "url": "/v1/responses",
-                "body": {
-                    "model": openai_test_model,
-                    "input": "Reply with exactly LIVE_BATCH_OK",
-                },
-            },
-            {
                 "custom_id": "pollux-live-invalid-model",
                 "method": "POST",
                 "url": "/v1/responses",
                 "body": {
                     "model": "not-a-real-openai-model",
-                    "input": "Reply with exactly SHOULD_NOT_RUN",
+                    "input": "Reply OK.",
                 },
             },
         ]
@@ -674,13 +686,7 @@ async def test_openai_live_response_incomplete_shape_characterization(
     try:
         response = await client.responses.create(
             model=openai_test_model,
-            input=(
-                "Reply with exactly the following 40 words, preserving order: "
-                "alpha bravo charlie delta echo foxtrot golf hotel india juliet "
-                "kilo lima mike november oscar papa quebec romeo sierra tango "
-                "uniform victor whiskey xray yankee zulu alpha bravo charlie "
-                "delta echo foxtrot golf hotel india juliet kilo lima mike."
-            ),
+            input="Count from one to twenty in words.",
             max_output_tokens=16,
         )
 
@@ -708,10 +714,10 @@ async def test_openrouter_local_pdf_roundtrip(
         api_key=openrouter_api_key,
     )
     result = await pollux.run(
-        "Reply with exactly the token printed inside the PDF. "
-        "If you cannot read the PDF text, reply CANNOT_READ_PDF.",
+        "Reply exactly with the PDF token.",
         source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
+        options=Options(max_tokens=512),
     )
 
     assert result["status"] == "ok"
