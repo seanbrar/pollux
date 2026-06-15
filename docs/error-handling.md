@@ -70,7 +70,7 @@ Use this order when debugging. Most failures resolve by step 2.
 
 3. **Unsupported feature.** Compare your options against
    [Provider Capabilities](reference/provider-capabilities.md).
-   Deferred work uses `defer()` / `defer_many()` rather than `run()` /
+   Deferred work uses `defer()` rather than `run()` /
    `run_many()`. Conversation continuity and tool calling are
    provider-dependent.
 

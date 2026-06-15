@@ -9,15 +9,13 @@ from pydantic import BaseModel
 import pytest
 
 import pollux
-import pollux.cache
-from pollux.cache import CacheHandle
 from pollux.config import Config
 from pollux.deferred import DeferredHandle
 from pollux.errors import (
     ConfigurationError,
     DeferredNotReadyError,
 )
-from pollux.options import Options
+from pollux.interaction.collection import OutputCollection
 from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.base import (
     ProviderDeferredItem,
@@ -33,6 +31,18 @@ from tests.conftest import (
 from tests.helpers import InMemoryDeferredProvider, RejectingValidatingDeferredProvider
 
 pytestmark = pytest.mark.integration
+
+#: Per-item deferred fields each collected output exposes under
+#: ``diagnostics.raw["deferred"]``, projected for order-preserving assertions.
+_ITEM_FIELDS = ("request_id", "status", "error", "provider_status", "finish_reason")
+
+
+def _deferred_items(collection: OutputCollection) -> list[dict[str, Any]]:
+    """Project each output's deferred provenance to the comparable subset."""
+    return [
+        {field: output.diagnostics.raw["deferred"][field] for field in _ITEM_FIELDS}  # type: ignore[index]
+        for output in collection.outputs
+    ]
 
 
 def test_deferred_handle_round_trip_serialization() -> None:
@@ -51,7 +61,7 @@ def test_deferred_handle_round_trip_serialization() -> None:
 
 
 @pytest.mark.asyncio
-async def test_defer_many_requires_at_least_one_prompt(
+async def test_defer_requires_at_least_one_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Deferred jobs should not allow the realtime no-op prompt shape."""
@@ -60,7 +70,7 @@ async def test_defer_many_requires_at_least_one_prompt(
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
     with pytest.raises(ConfigurationError, match="requires at least one prompt"):
-        await pollux.defer_many([], config=cfg)
+        await pollux.defer([], config=cfg)
 
 
 @pytest.mark.asyncio
@@ -76,7 +86,7 @@ async def test_deferred_provider_validation_runs_before_uploads(
 
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
     with pytest.raises(ConfigurationError, match="validation failed"):
-        await pollux.defer_many(
+        await pollux.defer(
             ("Q1?",),
             sources=(Source.from_file(file_path, mime_type="application/pdf"),),
             config=cfg,
@@ -93,7 +103,7 @@ async def test_defer_rejects_global_mock_provider() -> None:
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with pytest.raises(ConfigurationError, match="does not support deferred delivery"):
-        await pollux.defer_many(
+        await pollux.defer(
             ("Summarize this text", "List two risks"),
             sources=(Source.from_text("shared context"),),
             config=cfg,
@@ -109,7 +119,7 @@ async def test_defer_collect_smoke_without_lifecycle_config(
     monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(
+    job = await pollux.defer(
         ("Q1?", "Q2?"),
         sources=(Source.from_text("shared"),),
         config=cfg,
@@ -124,10 +134,12 @@ async def test_defer_collect_smoke_without_lifecycle_config(
 
     assert snapshot.is_terminal is True
     assert snapshot.status == "completed"
-    assert result["answers"] == ["ok:Q1?", "ok:Q2?"]
-    assert result["metrics"]["deferred"] is True
-    assert result["diagnostics"]["deferred"]["job_id"] == job.job_id
-    assert [item["status"] for item in result["diagnostics"]["deferred"]["items"]] == [
+    assert isinstance(result, OutputCollection)
+    assert result.answers == ["ok:Q1?", "ok:Q2?"]
+    raw = result.outputs[0].diagnostics.raw
+    assert raw is not None
+    assert raw["deferred"]["job_id"] == job.job_id
+    assert [item["status"] for item in _deferred_items(result)] == [
         "succeeded",
         "succeeded",
     ]
@@ -167,21 +179,17 @@ async def test_collect_deferred_validates_schema_fingerprint(
     monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer(
-        "Q1?",
-        config=cfg,
-        options=Options(response_schema=SubmitSchema),
-    )
+    job = await pollux.defer("Q1?", config=cfg, output=SubmitSchema)
 
     with pytest.raises(ConfigurationError, match="does not match"):
         await pollux.collect_deferred(job, response_schema=OtherSchema)
 
 
 @pytest.mark.asyncio
-async def test_collect_deferred_without_schema_returns_plain_structured_dicts(
+async def test_collect_deferred_without_schema_does_not_rehydrate_structured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Omitting response_schema at collect time should return plain dicts."""
+    """Without a collect-time schema, structured stays unset (realtime parity)."""
 
     class SubmitSchema(BaseModel):
         title: str
@@ -204,14 +212,45 @@ async def test_collect_deferred_without_schema_returns_plain_structured_dicts(
     monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer(
-        "Q1?",
-        config=cfg,
-        options=Options(response_schema=SubmitSchema),
-    )
+    job = await pollux.defer("Q1?", config=cfg, output=SubmitSchema)
     result = await pollux.collect_deferred(job)
 
-    assert result["structured"] == [{"title": "A"}]
+    assert result.structured == [None]
+    assert result.answers == ['{"title":"A"}']
+
+
+@pytest.mark.asyncio
+async def test_collect_deferred_with_schema_rehydrates_structured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Passing the submission schema at collect time rehydrates structured output."""
+
+    class SubmitSchema(BaseModel):
+        title: str
+
+    fake = InMemoryDeferredProvider(
+        item_overrides={
+            "pollux-000000": ProviderDeferredItem(
+                request_id="pollux-000000",
+                status="succeeded",
+                response={
+                    "text": '{"title":"A"}',
+                    "structured": {"title": "A"},
+                    "usage": {"total_tokens": 1},
+                },
+                provider_status="succeeded",
+                finish_reason="stop",
+            )
+        }
+    )
+    monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
+    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
+
+    job = await pollux.defer("Q1?", config=cfg, output=SubmitSchema)
+    result = await pollux.collect_deferred(job, response_schema=SubmitSchema)
+
+    assert isinstance(result.outputs[0].structured, SubmitSchema)
+    assert result.outputs[0].structured.title == "A"
 
 
 @pytest.mark.asyncio
@@ -234,12 +273,12 @@ async def test_deferred_partial_failures_preserve_order_and_diagnostics(
     monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    job = await pollux.defer(("Q1?", "Q2?"), config=cfg)
     result = await pollux.collect_deferred(job)
 
-    assert result["status"] == "partial"
-    assert result["answers"] == ["ok:Q1?", ""]
-    assert result["diagnostics"]["deferred"]["items"] == [
+    assert result.status == "partial"
+    assert result.answers == ["ok:Q1?", ""]
+    assert _deferred_items(result) == [
         {
             "request_id": "pollux-000000",
             "status": "succeeded",
@@ -255,47 +294,7 @@ async def test_deferred_partial_failures_preserve_order_and_diagnostics(
             "finish_reason": "error",
         },
     ]
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("options", "match"),
-    [
-        (
-            Options(cache=CacheHandle("c", "openai", OPENAI_MODEL, 9999999999.0)),
-            "cache",
-        ),
-        (
-            Options(history=[{"role": "user", "content": "hi"}]),
-            "Conversation continuity",
-        ),
-        (
-            Options(tools=[{"type": "function", "function": {"name": "x"}}]),
-            "Tool calling",
-        ),
-        (Options(implicit_caching=True), "implicit_caching"),
-        (Options(implicit_caching=False), "implicit_caching"),
-    ],
-    ids=[
-        "cache",
-        "history",
-        "tools",
-        "implicit_caching_true",
-        "implicit_caching_false",
-    ],
-)
-async def test_defer_rejects_out_of_scope_options(
-    monkeypatch: pytest.MonkeyPatch,
-    options: Options,
-    match: str,
-) -> None:
-    """Deferred APIs should reject options that are explicitly out of scope."""
-    fake = InMemoryDeferredProvider()
-    monkeypatch.setattr(pollux, "_create_provider", lambda *_a, **_kw: fake)
-    cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
-
-    with pytest.raises(ConfigurationError, match=match):
-        await pollux.defer("Q1?", config=cfg, options=options)
+    assert result.outputs[1].metrics.completion_status == "error"
 
 
 @pytest.mark.asyncio
@@ -409,15 +408,15 @@ async def test_openai_deferred_backend_integrates_with_public_api(
     monkeypatch.setattr(pollux, "_create_provider", _make_provider)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    job = await pollux.defer(("Q1?", "Q2?"), config=cfg)
     snapshot = await pollux.inspect_deferred(job)
     result = await pollux.collect_deferred(job)
     await pollux.cancel_deferred(job)
 
     assert snapshot.status == "partial"
-    assert result["status"] == "partial"
-    assert result["answers"] == ["", "Answer 2"]
-    assert result["diagnostics"]["deferred"]["items"] == [
+    assert result.status == "partial"
+    assert result.answers == ["", "Answer 2"]
+    assert _deferred_items(result) == [
         {
             "request_id": "pollux-000000",
             "status": "failed",
@@ -516,7 +515,7 @@ async def test_openai_deferred_partial_cancel_returns_partial_result(
     monkeypatch.setattr(pollux, "_create_provider", _make_provider)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    job = await pollux.defer(("Q1?", "Q2?"), config=cfg)
     snapshot = await pollux.inspect_deferred(job)
     result = await pollux.collect_deferred(job)
 
@@ -525,9 +524,9 @@ async def test_openai_deferred_partial_cancel_returns_partial_result(
     assert snapshot.succeeded == 1
     assert snapshot.failed == 1
     assert snapshot.pending == 0
-    assert result["status"] == "partial"
-    assert result["answers"] == ["Answer 1", ""]
-    assert result["diagnostics"]["deferred"]["items"] == [
+    assert result.status == "partial"
+    assert result.answers == ["Answer 1", ""]
+    assert _deferred_items(result) == [
         {
             "request_id": "pollux-000000",
             "status": "succeeded",
@@ -628,8 +627,8 @@ async def test_openai_deferred_collection_does_not_invent_structured_without_sch
     job = await pollux.defer('Return {"plain":true}', config=cfg)
     result = await pollux.collect_deferred(job)
 
-    assert result["answers"] == ['{"plain":true}']
-    assert "structured" not in result
+    assert result.answers == ['{"plain":true}']
+    assert result.structured == [None]
 
 
 @pytest.mark.asyncio
@@ -690,7 +689,7 @@ async def test_openai_deferred_batch_level_failure_returns_error_envelope(
     monkeypatch.setattr(pollux, "_create_provider", _make_provider)
     cfg = Config(provider="openai", model=OPENAI_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    job = await pollux.defer(("Q1?", "Q2?"), config=cfg)
     snapshot = await pollux.inspect_deferred(job)
     result = await pollux.collect_deferred(job)
 
@@ -698,9 +697,9 @@ async def test_openai_deferred_batch_level_failure_returns_error_envelope(
     assert snapshot.request_count == 2
     assert snapshot.failed == 2
     assert snapshot.pending == 0
-    assert result["status"] == "error"
-    assert result["answers"] == ["", ""]
-    assert result["diagnostics"]["deferred"]["items"] == [
+    assert result.status == "error"
+    assert result.answers == ["", ""]
+    assert _deferred_items(result) == [
         {
             "request_id": "pollux-000000",
             "status": "failed",
@@ -799,15 +798,15 @@ async def test_gemini_deferred_backend_integrates_with_public_api(
     monkeypatch.setattr(pollux, "_create_provider", _make_provider)
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    job = await pollux.defer(("Q1?", "Q2?"), config=cfg)
     snapshot = await pollux.inspect_deferred(job)
     result = await pollux.collect_deferred(job)
     await pollux.cancel_deferred(job)
 
     assert snapshot.status == "partial"
-    assert result["status"] == "partial"
-    assert result["answers"] == ["", "Answer 2"]
-    assert result["diagnostics"]["deferred"]["items"] == [
+    assert result.status == "partial"
+    assert result.answers == ["", "Answer 2"]
+    assert _deferred_items(result) == [
         {
             "request_id": "pollux-000000",
             "status": "failed",
@@ -965,15 +964,15 @@ async def test_anthropic_deferred_backend_integrates_with_public_api(
     monkeypatch.setattr(pollux, "_create_provider", _make_provider)
     cfg = Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
 
-    job = await pollux.defer_many(("Q1?", "Q2?"), config=cfg)
+    job = await pollux.defer(("Q1?", "Q2?"), config=cfg)
     snapshot = await pollux.inspect_deferred(job)
     result = await pollux.collect_deferred(job)
     await pollux.cancel_deferred(job)
 
     assert snapshot.status == "partial"
-    assert result["status"] == "partial"
-    assert result["answers"] == ["", "Answer 2"]
-    assert result["diagnostics"]["deferred"]["items"] == [
+    assert result.status == "partial"
+    assert result.answers == ["", "Answer 2"]
+    assert _deferred_items(result) == [
         {
             "request_id": "pollux-000000",
             "status": "cancelled",

@@ -17,13 +17,16 @@ For provider-level feature differences, see [Provider Capabilities](provider-cap
 | Ask one prompt about one source (or no source) | `run()` → `Output` | [Sending Content to Models](../sending-content.md) |
 | Ask many prompts against shared sources | `run_many()` → `OutputCollection` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
 | Run one explicit interaction (environment + input), incl. tools/continuation | `interact()` | [Building an Agent Loop](../agent-loop.md) |
-| Submit non-urgent work and collect it later | `defer()` / `defer_many()` | [Building With Deferred Delivery](../building-with-deferred-delivery.md) |
+| Prepare a reusable environment (and front-load cache/upload I/O) | `prepare_environment()` → `Environment` | [Reducing Costs with Context Caching](../caching.md) |
+| Submit non-urgent work and collect it later | `defer()` → `DeferredHandle` | [Building With Deferred Delivery](../building-with-deferred-delivery.md) |
 | Check deferred job status or collect terminal results | `inspect_deferred()` / `collect_deferred()` / `cancel_deferred()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
 
-> **2.0 cutover:** `run()` / `run_many()` now return the `Output` / `OutputCollection`
+> **2.0 cutover:** `run()` / `run_many()` return the `Output` / `OutputCollection`
 > model (named facets, not dict envelopes). `continue_tool()` is replaced by
-> `interact(environment, Input(continuation=..., tool_results=...))`, and persistent
-> caching moves to environment preparation (a later 2.0 change).
+> `interact(environment, Input(continuation=..., tool_results=...))`; persistent
+> caching moves to `prepare_environment()` / `Environment(cache=...)`; and `defer()`
+> returns an `OutputCollection` from `collect_deferred()` (the single `defer_many()`
+> entry point is removed).
 
 ## Entry Points
 
@@ -35,9 +38,9 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.interact
 
-::: pollux.defer
+::: pollux.prepare_environment
 
-::: pollux.defer_many
+::: pollux.defer
 
 ::: pollux.inspect_deferred
 

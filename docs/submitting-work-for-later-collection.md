@@ -2,7 +2,7 @@
      persist the handle, inspect status, and collect results later. Do NOT
      teach workflow engines, schedulers, queues, or multi-job orchestration.
      Assumes the reader already knows run(), run_many(), Source, Config, and
-     ResultEnvelope. Register: guided applied. -->
+     the Output/OutputCollection model. Register: guided applied. -->
 
 # Submitting Work for Later Collection
 
@@ -20,9 +20,9 @@ to structure code around long-running provider jobs, read
 this page. This page stays focused on the lifecycle API itself.
 
 !!! info "Boundary"
-    **Pollux owns:** request normalization, provider submission, stable request
-    ids, normalized status snapshots, ordered collection, and extraction into a
-    standard `ResultEnvelope`.
+    **Pollux owns:** request compilation, provider submission, stable request
+    ids, normalized status snapshots, ordered collection, and extraction into an
+    `OutputCollection` (the same shape `run_many()` returns).
 
     **You own:** handle persistence, polling cadence, scheduling, cross-job
     orchestration, and downstream storage.
@@ -39,7 +39,7 @@ from pollux import (
     DeferredHandle,
     Source,
     collect_deferred,
-    defer_many,
+    defer,
     inspect_deferred,
 )
 
@@ -48,7 +48,7 @@ JOB_PATH = Path("outputs/deferred-job.json")
 
 async def submit_job() -> None:
     config = Config(provider="openai", model="gpt-5-nano")
-    handle = await defer_many(
+    handle = await defer(
         [
             "Summarize the report in five bullets.",
             "List the three biggest execution risks.",
@@ -74,8 +74,8 @@ async def collect_job() -> None:
         return
 
     result = await collect_deferred(handle)
-    print(result["status"])
-    for answer in result["answers"]:
+    print(result.status)
+    for answer in result.answers:
         print(answer)
 
 
@@ -88,8 +88,8 @@ Run `submit_job()` once. You should see a provider job id and a JSON file at
 `outputs/deferred-job.json`. Run `collect_job()` later. `inspect_deferred()`
 normalizes the lifecycle into `queued`, `running`, `cancelling`, `completed`,
 `partial`, `failed`, `cancelled`, or `expired`. Once `snapshot.is_terminal`
-turns `True`, `collect_deferred()` returns the same `ResultEnvelope` shape that
-`run()` and `run_many()` return.
+turns `True`, `collect_deferred()` returns an `OutputCollection` — the same
+shape `run_many()` returns.
 
 ### Why this example is shaped this way
 
@@ -102,48 +102,47 @@ turns `True`, `collect_deferred()` returns the same `ResultEnvelope` shape that
   one provider's raw status strings.
 - `collect_deferred()` is not a polling helper. If the job is still active, it
   raises `DeferredNotReadyError`.
-- For a single prompt, use `defer()`. It wraps `defer_many()` the same way
-  `run()` wraps `run_many()`.
+- `defer()` submits one prompt or a source-pattern collection through a single
+  entry point, the same way `run_many()` accepts one or many prompts.
 - Collection preserves prompt order. If you submitted two prompts, the first
   answer still maps to the first prompt.
 
 ## Structured Output Across Processes
 
 Deferred collection can still return structured data. Submit with
-`Options(response_schema=YourModel)`, then pass the same schema back to
+`output=YourModel`, then pass the same schema back to
 `collect_deferred(handle, response_schema=YourModel)`.
 
 Pollux stores a schema fingerprint in the handle. If the schema changed between
 submit and collect, Pollux raises `ConfigurationError` instead of silently
-rehydrating into the wrong shape. If you omit `response_schema` at collect
-time, Pollux returns plain dicts in `result["structured"]` when the provider
-returned structured payloads.
+rehydrating into the wrong shape. As with `run_many()`, structured output is
+only populated when you supply the schema at collect time; omitting it leaves
+`output.structured` unset even if the provider returned a structured payload.
 
 ## Current Scope
 
-- Deferred delivery uses dedicated entry points: `defer()`, `defer_many()`,
+- Deferred delivery uses dedicated entry points: `defer()`,
   `inspect_deferred()`, `collect_deferred()`, and `cancel_deferred()`.
 - `run()` and `run_many()` remain realtime entry points.
-- Deferred delivery does not support conversation continuity, tool calling,
-  persistent cache handles, or implicit caching.
+- Deferred delivery does not support conversation continuity, tool calling, or
+  persistent caching.
 - `cancel_deferred(handle)` requests provider-side cancellation. Final status is
   still provider-driven.
 
 ## Deferred Results
 
-Collected deferred jobs return a standard `ResultEnvelope` plus deferred
-diagnostics:
+Collected deferred jobs return an `OutputCollection`. Each `Output` carries the
+same facets as realtime results, plus per-item deferred provenance under
+`diagnostics.raw["deferred"]`:
 
-- `result["metrics"]["deferred"]` is `True`
-- `result["diagnostics"]["deferred"]["job_id"]` identifies the remote job
-- `result["diagnostics"]["deferred"]["items"]` includes per-request status,
-  finish reason, provider status, and any item-level error text
+- `job_id` identifies the remote job
+- `request_id` and `status` identify the item and its terminal state
+- `finish_reason`, `provider_status`, and `error` capture the per-item outcome
 
-Those are deferred-only additions on top of the standard envelope shape
-documented in [ResultEnvelope Reference](sending-content.md#resultenvelope-reference).
-
-That keeps downstream code small. Your post-processing path can usually treat
-realtime and deferred results the same way.
+A failed item reports `metrics.completion_status == "error"`, and the
+collection's `status` is `partial` when only some items succeeded. That keeps
+downstream code small: your post-processing path can usually treat realtime and
+deferred results the same way.
 
 ---
 
