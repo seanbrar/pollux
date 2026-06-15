@@ -10,8 +10,13 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from pollux.errors import APIError
-from pollux.providers.base import ProviderCapabilities
+from pollux.errors import APIError, ConfigurationError
+from pollux.providers.base import (
+    ProviderCapabilities,
+    ProviderDeferredHandle,
+    ProviderDeferredItem,
+    ProviderDeferredSnapshot,
+)
 from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
 from tests.conftest import FakeProvider
 
@@ -118,3 +123,131 @@ class GateProvider(FakeProvider):
                 phase="cache",
             )
         return "cachedContents/test"
+
+
+@dataclass
+class InMemoryDeferredProvider(FakeProvider):
+    """In-memory deferred provider for public API boundary tests."""
+
+    _capabilities: ProviderCapabilities = field(
+        default_factory=lambda: ProviderCapabilities(
+            persistent_cache=False,
+            uploads=True,
+            structured_outputs=True,
+            reasoning=True,
+            deferred_delivery=True,
+            conversation=False,
+        )
+    )
+    inspect_status: str = "completed"
+    provider_status: str | None = None
+    item_overrides: dict[str, ProviderDeferredItem] = field(default_factory=dict)
+    submitted_requests: dict[str, list[ProviderRequest]] = field(default_factory=dict)
+    submitted_ids: dict[str, list[str]] = field(default_factory=dict)
+    cancelled_jobs: list[str] = field(default_factory=list)
+    submitted_at: float = 100.0
+    completed_at: float | None = 125.0
+
+    async def submit_deferred(
+        self,
+        requests: list[ProviderRequest],
+        *,
+        request_ids: list[str],
+    ) -> ProviderDeferredHandle:
+        job_id = f"job-{len(self.submitted_requests)}"
+        self.submitted_requests[job_id] = list(requests)
+        self.submitted_ids[job_id] = list(request_ids)
+        return ProviderDeferredHandle(
+            job_id=job_id,
+            submitted_at=self.submitted_at,
+            provider_state={"request_ids": list(request_ids)},
+        )
+
+    async def inspect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> ProviderDeferredSnapshot:
+        job_id = handle.job_id
+        request_ids = self.submitted_ids[job_id]
+        items = self._collected_items(job_id)
+        if self.inspect_status in {"queued", "running", "cancelling"}:
+            succeeded = 0
+            failed = 0
+            pending = len(request_ids)
+        else:
+            succeeded = sum(1 for item in items if item.status == "succeeded")
+            failed = len(items) - succeeded
+            pending = 0
+        return ProviderDeferredSnapshot(
+            status=self.inspect_status,
+            provider_status=self.provider_status or self.inspect_status,
+            request_count=len(request_ids),
+            succeeded=succeeded,
+            failed=failed,
+            pending=pending,
+            submitted_at=self.submitted_at,
+            completed_at=self.completed_at if pending == 0 else None,
+        )
+
+    async def collect_deferred(
+        self, handle: ProviderDeferredHandle
+    ) -> list[ProviderDeferredItem]:
+        return self._collected_items(handle.job_id)
+
+    async def cancel_deferred(self, handle: ProviderDeferredHandle) -> None:
+        self.cancelled_jobs.append(handle.job_id)
+
+    def _collected_items(self, job_id: str) -> list[ProviderDeferredItem]:
+        requests = self.submitted_requests[job_id]
+        request_ids = self.submitted_ids[job_id]
+        items: list[ProviderDeferredItem] = []
+        for request_id, request in zip(request_ids, requests, strict=True):
+            override = self.item_overrides.get(request_id)
+            if override is not None:
+                items.append(override)
+                continue
+            prompt = (
+                request.parts[-1]
+                if request.parts and isinstance(request.parts[-1], str)
+                else ""
+            )
+            items.append(
+                ProviderDeferredItem(
+                    request_id=request_id,
+                    status="succeeded",
+                    response={
+                        "text": f"ok:{prompt}",
+                        "usage": {"total_tokens": 1},
+                    },
+                    provider_status="succeeded",
+                    finish_reason="stop",
+                )
+            )
+        return items
+
+
+@dataclass
+class RejectingValidatingProvider(FakeProvider):
+    """Provider double that fails validation before uploads begin."""
+
+    validation_calls: list[ProviderRequest] = field(default_factory=list)
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        self.validation_calls.append(request)
+        raise ConfigurationError(
+            "validation failed",
+            hint="Validation should run before uploads.",
+        )
+
+
+@dataclass
+class RejectingValidatingDeferredProvider(InMemoryDeferredProvider):
+    """Deferred provider double that fails validation before submission side effects."""
+
+    validation_calls: list[ProviderRequest] = field(default_factory=list)
+
+    async def validate_request(self, request: ProviderRequest) -> None:
+        self.validation_calls.append(request)
+        raise ConfigurationError(
+            "validation failed",
+            hint="Validation should run before deferred uploads.",
+        )
