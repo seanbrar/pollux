@@ -4530,10 +4530,7 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/config.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 51</span>
-<span class="normal"> 52</span>
-<span class="normal"> 53</span>
-<span class="normal"> 54</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 54</span>
 <span class="normal"> 55</span>
 <span class="normal"> 56</span>
 <span class="normal"> 57</span>
@@ -4624,7 +4621,15 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 <span class="normal">142</span>
 <span class="normal">143</span>
 <span class="normal">144</span>
-<span class="normal">145</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Immutable configuration for Pollux execution.</span>
 
@@ -4650,6 +4655,11 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
     <span class="n">use_mock</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">request_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span>
     <span class="n">retry</span><span class="p">:</span> <span class="n">RetryPolicy</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">)</span>
+    <span class="c1">#: Optional capability declarations that override the provider&#39;s static</span>
+    <span class="c1">#: capabilities for this config (v2 interaction path). A declared capability</span>
+    <span class="c1">#: wins over the provider&#39;s static value; undeclared capabilities fall back to</span>
+    <span class="c1">#: it. Useful for local OpenAI-compatible servers whose support varies.</span>
+    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Auto-resolve credentials and validate configuration.&quot;&quot;&quot;</span>
