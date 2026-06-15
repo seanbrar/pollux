@@ -219,13 +219,13 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 | Same question across shared sources | `run_many()` | Fan-in analysis |
 | Many questions against the same shared source set | `run_many()` | Fan-out over a combined context |
 | Many questions per file in a collection | Outer loop + `run_many()` | Broadcast pattern; see [Source Patterns](source-patterns.md) |
-| Non-urgent work you will collect later | `defer()` / `defer_many()` | Background provider execution with a serializable handle |
+| Non-urgent work you will collect later | `defer()` | Background provider execution with a serializable handle |
 | Returning tool results to the model | `continue_tool()` | Feeds tool outputs back into the conversation |
 
 Rule of thumb: if prompts or sources are plural and every prompt should receive
 the same shared context, reach for `run_many()`. If you need one result record
 per file, write the outer file loop yourself and call `run_many()` inside it.
-If the workload can wait, reach for `defer_many()`.
+If the workload can wait, reach for `defer()`.
 
 `continue_tool()` is a specialized entry point for agent loops. It takes a
 previous `ResultEnvelope` containing tool calls and your tool results, and
@@ -275,7 +275,7 @@ Example of a complete envelope:
 - Conversation continuity (`history`, `continue_from`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
-- Deferred work uses `defer()`, `defer_many()`, `inspect_deferred()`,
+- Deferred work uses `defer()`, `inspect_deferred()`,
   `collect_deferred()`, and `cancel_deferred()`.
 - Deferred lifecycle calls take a `DeferredHandle`, not `Config`. Persist the
   handle and restore it later. See

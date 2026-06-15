@@ -5,8 +5,7 @@ Public API:
     - run_many(): Multi-prompt source-pattern execution
     - interact(): One explicit v2 interaction over an Environment and Input
     - prepare_environment(): Build a reusable Environment, front-loading cache I/O
-    - defer(): Single deferred request submission
-    - defer_many(): Multi-prompt deferred submission
+    - defer(): Deferred submission of one or more interactions
     - inspect_deferred(): Inspect a deferred job
     - collect_deferred(): Collect terminal deferred results
     - cancel_deferred(): Cancel a deferred job
@@ -69,9 +68,7 @@ from pollux.interaction.execute import (
     resolve_persistent_cache,
 )
 from pollux.options import Options, ResponseSchemaInput
-from pollux.plan import build_plan
 from pollux.providers.base import CloseableProvider
-from pollux.request import normalize_request
 from pollux.result import ResultEnvelope
 from pollux.retry import RetryPolicy
 from pollux.source import Source
@@ -273,15 +270,76 @@ async def interact(
 
 
 async def defer(
-    prompt: str | None = None,
+    prompts: str | Sequence[str | None] | None = None,
     *,
-    source: Source | None = None,
+    sources: Sequence[Source] = (),
     config: Config,
-    options: Options | None = None,
+    instructions: str | None = None,
+    output: ResponseSchemaInput | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_budget_tokens: int | None = None,
+    provider_options: dict[str, dict[str, Any]] | None = None,
 ) -> DeferredHandle:
-    """Submit a single deferred request and return a serializable handle."""
-    sources = (source,) if source else ()
-    return await defer_many(prompt, sources=sources, config=config, options=options)
+    """Submit one or more deferred requests and return a serializable handle.
+
+    The v2 deferred frontdoor: submit a single interaction or a source-pattern
+    collection on a provider-side timeline, then :func:`inspect_deferred` and
+    :func:`collect_deferred` later. Collection returns an
+    :class:`OutputCollection`, the same shape as :func:`run_many`.
+
+    Tool calling, continuation, and persistent caching are out of scope for
+    deferred delivery and are intentionally not part of this surface.
+
+    Args:
+        prompts: One or more prompts to submit.
+        sources: Stable sources shared across the prompts.
+        config: Configuration specifying provider and model.
+        instructions: Optional system-level instruction.
+        output: Optional Pydantic model or JSON Schema for structured output.
+            Pass the same schema to :func:`collect_deferred` to rehydrate.
+        temperature: Optional sampling temperature.
+        top_p: Optional nucleus-sampling probability.
+        max_tokens: Optional hard cap on output tokens.
+        seed: Optional sampling seed where supported.
+        reasoning_effort: Optional qualitative reasoning effort.
+        reasoning_budget_tokens: Optional explicit reasoning token budget.
+        provider_options: Optional raw provider-scoped generation options.
+
+    Returns:
+        A serializable :class:`DeferredHandle` for the submitted job.
+    """
+    prompt_tuple = (
+        (prompts,) if isinstance(prompts, (str, type(None))) else tuple(prompts)
+    )
+    if not prompt_tuple:
+        raise ConfigurationError(
+            "defer() requires at least one prompt",
+            hint="Pass one or more prompts to submit for deferred collection.",
+        )
+    environment = Environment(instructions=instructions, sources=tuple(sources))
+    inputs = [Input(content=prompt) for prompt in prompt_tuple]
+    requirements = _build_requirements(
+        output=output,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=None,
+        provider_options=provider_options,
+    )
+    provider = _get_provider(config)
+    try:
+        return await submit_deferred(
+            environment, inputs, requirements, config, provider
+        )
+    finally:
+        await _close_provider(provider)
 
 
 async def run_many(
@@ -436,34 +494,6 @@ async def prepare_environment(
     return environment
 
 
-async def defer_many(
-    prompts: str | Sequence[str | None] | None = None,
-    *,
-    sources: Sequence[Source] = (),
-    config: Config,
-    options: Options | None = None,
-) -> DeferredHandle:
-    """Submit deferred work and return a handle for later inspection/collection.
-
-    Planned for Pollux 2.0: deferred submission moves to one entry point that
-    can submit a single interaction or a source-pattern collection. See the
-    *Migrating to 2.0* guide.
-    """
-    request = normalize_request(prompts, sources, config, options=options)
-    if not request.prompts:
-        raise ConfigurationError(
-            "defer_many() requires at least one prompt",
-            hint="Pass one or more prompts, or use run_many(prompts=[]) for a realtime no-op.",
-        )
-    plan = build_plan(request)
-    provider = _get_provider(request.config)
-
-    try:
-        return await submit_deferred(plan, provider)
-    finally:
-        await _close_provider(provider)
-
-
 async def inspect_deferred(
     handle: DeferredHandle,
 ) -> DeferredSnapshot:
@@ -479,11 +509,15 @@ async def collect_deferred(
     handle: DeferredHandle,
     *,
     response_schema: type[Any] | dict[str, Any] | None = None,
-) -> ResultEnvelope:
-    """Collect a terminal deferred job into the standard ResultEnvelope.
+) -> OutputCollection:
+    """Collect a terminal deferred job into an :class:`OutputCollection`.
+
+    Returns the same shape as :func:`run_many`: one :class:`Output` per
+    submitted request, in submission order. Each output's
+    ``diagnostics.raw["deferred"]`` carries the job id and per-item status.
 
     Args:
-        handle: The deferred handle returned by ``defer()`` / ``defer_many()``.
+        handle: The deferred handle returned by :func:`defer`.
         response_schema: Optional Pydantic model or JSON Schema for structured
             output rehydration. Must match the schema used at submission time.
     """
@@ -679,7 +713,6 @@ __all__ = [
     "cancel_deferred",
     "collect_deferred",
     "defer",
-    "defer_many",
     "inspect_deferred",
     "interact",
     "prepare_environment",

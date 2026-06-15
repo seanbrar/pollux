@@ -26,9 +26,8 @@ You should read this page if your 1.x code uses any of these:
 
 - `Options(...)` for output shape, tools, reasoning, caching, or provider
   controls.
-- The removed `Options.delivery_mode` setting. In v1.8+, use `run()` /
-  `run_many()` for realtime calls and `defer()` / `defer_many()` for
-  provider-side deferred work.
+- The removed `Options.delivery_mode` setting. Use `run()` /
+  `run_many()` for realtime calls and `defer()` for provider-side deferred work.
 - `continue_from`, `history`, `continue_tool()`, or persisted continuation
   blobs.
 - `create_cache(...)` and explicit cache handles.
@@ -119,9 +118,8 @@ migration easier:
   Store them, but do not inspect or mutate their internals.
 - Keep tool execution policy in your application code: dispatch, approval,
   logging, retries, and stop conditions.
-- Use `run()` and `run_many()` for realtime source patterns, and `defer()` /
-  `defer_many()` only when provider-side deferred delivery is the workflow you
-  want.
+- Use `run()` and `run_many()` for realtime source patterns, and `defer()`
+  only when provider-side deferred delivery is the workflow you want.
 
 ## What Is Available Now
 
@@ -139,9 +137,10 @@ The 2.0 interaction model is landing incrementally on `main`:
   conversation or tool loop by passing the prior `Output`'s `continuation` and any
   `tool_results` in the next `Input` — the replacement for `continue_tool()`.
 
-Still in progress: `defer()` moves onto the same model, and persistent caching
-returns through environment preparation (it briefly steps back during the
-cutover). `create_cache()` and `Options` are removed from the realtime path.
+`defer()` now follows the same model: it accepts one prompt or a collection,
+and `collect_deferred()` returns an `OutputCollection`. Persistent caching
+returns through `prepare_environment()` / `Environment(cache=...)`.
+`create_cache()`, `defer_many()`, and `Options` are removed.
 
 ## As The Design Settles
 

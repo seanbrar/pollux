@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import time
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from pollux.errors import ConfigurationError, DeferredNotReadyError, InternalError
+from pollux.interaction.capabilities import resolve_capabilities
+from pollux.interaction.collection import OutputCollection
+from pollux.interaction.compile import compile_request
+from pollux.interaction.environment import EnvironmentSnapshot
+from pollux.interaction.extract import provider_response_to_output
+from pollux.interaction.output import Diagnostics, Output
+from pollux.interaction.requirements import OutputRequirements
+from pollux.interaction.validate import validate_interaction
 from pollux.options import (
     ResponseSchemaInput,
     response_schema_hash,
@@ -23,15 +31,14 @@ from pollux.providers.models import (
     ProviderRequest,
     ProviderResponse,
     ToolCall,
-    is_file_part,
 )
-from pollux.result import build_result_from_responses
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
-    from pollux.plan import Plan
-    from pollux.result import ResultEnvelope
+    from pollux.config import Config
+    from pollux.interaction.environment import Environment
+    from pollux.interaction.input import Input
 
 DeferredStatus = Literal[
     "queued",
@@ -144,87 +151,6 @@ def _provider_handle_from_handle(handle: DeferredHandle) -> ProviderDeferredHand
     )
 
 
-def _validate_deferred_plan(plan: Plan, provider: Provider) -> None:
-    options = plan.request.options
-    caps = provider.capabilities
-
-    _get_deferred_provider(provider)
-    if options.cache is not None:
-        raise ConfigurationError(
-            "Persistent cache handles are not supported with deferred delivery",
-            hint="Remove options.cache for deferred requests.",
-        )
-    if options.history is not None or options.continue_from is not None:
-        raise ConfigurationError(
-            "Conversation continuity is not supported with deferred delivery",
-            hint="Remove history/continue_from or use run().",
-        )
-    if options.tools is not None or options.tool_choice is not None:
-        raise ConfigurationError(
-            "Tool calling is not supported with deferred delivery",
-            hint="Remove tools/tool_choice or use run().",
-        )
-    if options.implicit_caching is not None:
-        raise ConfigurationError(
-            "implicit_caching is not supported with deferred delivery",
-            hint="Remove implicit_caching for deferred requests.",
-        )
-    if options.response_schema is not None and not caps.structured_outputs:
-        raise ConfigurationError(
-            "Provider does not support structured outputs",
-            hint="Remove response_schema or choose a provider with schema support.",
-        )
-    if options.reasoning_effort is not None and not caps.reasoning:
-        raise ConfigurationError(
-            "Provider does not support reasoning controls",
-            hint=(
-                "Remove reasoning_effort or choose a provider with reasoning "
-                "controls. Some providers may still surface model-native "
-                "reasoning output without this option."
-            ),
-        )
-    if options.reasoning_budget_tokens is not None and not caps.reasoning_budget_tokens:
-        raise ConfigurationError(
-            "Provider does not support reasoning_budget_tokens",
-            hint=(
-                "Use reasoning_effort, or choose a provider that accepts "
-                "an explicit reasoning token budget."
-            ),
-        )
-    if (not caps.uploads) and any(is_file_part(part) for part in plan.shared_parts):
-        raise ConfigurationError(
-            "Provider does not support file uploads",
-            hint="Choose a provider with uploads support, or remove file sources.",
-        )
-
-
-def _build_provider_requests(plan: Plan) -> list[ProviderRequest]:
-    options = plan.request.options
-    schema = options.response_schema_json()
-    requests: list[ProviderRequest] = []
-    for prompt in plan.request.prompts:
-        parts = list(plan.shared_parts)
-        if prompt is not None:
-            parts.append(prompt)
-        requests.append(
-            ProviderRequest(
-                model=plan.request.config.model,
-                parts=parts,
-                system_instruction=options.system_instruction,
-                response_schema=schema,
-                temperature=options.temperature,
-                top_p=options.top_p,
-                reasoning_effort=options.reasoning_effort,
-                reasoning_budget_tokens=options.reasoning_budget_tokens,
-                max_tokens=options.max_tokens,
-                provider_options=options.provider_options_for(
-                    plan.request.config.provider
-                ),
-            )
-        )
-    return requests
-
-
 async def _validate_provider_requests(
     provider: Provider,
     requests: list[ProviderRequest],
@@ -238,13 +164,35 @@ async def _validate_provider_requests(
         await provider.validate_request(request)
 
 
-async def submit_deferred(plan: Plan, provider: Provider) -> DeferredHandle:
-    """Submit provider-backed deferred work and return the Pollux handle."""
-    _validate_deferred_plan(plan, provider)
-    requests = _build_provider_requests(plan)
-    await _validate_provider_requests(provider, requests)
+async def submit_deferred(
+    environment: Environment,
+    inputs: Sequence[Input],
+    requirements: OutputRequirements,
+    config: Config,
+    provider: Provider,
+) -> DeferredHandle:
+    """Submit provider-backed deferred work and return the Pollux handle.
+
+    Compiles the v2 interaction primitives into provider requests and submits
+    them to the provider's deferred lifecycle. Tool calling, continuation, and
+    persistent caching are out of scope for deferred delivery and are not part
+    of the ``defer()`` surface; capability gaps (uploads, structured outputs,
+    reasoning) are rejected by :func:`validate_interaction` before submission.
+    """
+    # Gate on deferred support first so an unsupported provider fails with the
+    # clearest message before any compilation or capability checks.
     deferred_provider = _get_deferred_provider(provider)
-    request_ids = _request_ids(len(plan.request.prompts))
+    inputs = tuple(inputs)
+    snapshot = EnvironmentSnapshot.from_environment(
+        environment, provider=config.provider
+    )
+    caps = resolve_capabilities(provider.capabilities, config.capabilities)
+    validate_interaction(requirements, inputs, snapshot, caps, cache_requested=False)
+
+    requests = [compile_request(snapshot, inp, requirements, config) for inp in inputs]
+    await _validate_provider_requests(provider, requests)
+
+    request_ids = _request_ids(len(inputs))
     provider_handle = await deferred_provider.submit_deferred(
         requests,
         request_ids=request_ids,
@@ -256,11 +204,11 @@ async def submit_deferred(plan: Plan, provider: Provider) -> DeferredHandle:
     )
     return DeferredHandle(
         job_id=provider_handle.job_id,
-        provider=plan.request.config.provider,
-        model=plan.request.config.model,
-        request_count=len(plan.request.prompts),
+        provider=config.provider,
+        model=config.model,
+        request_count=len(inputs),
         submitted_at=submitted_at,
-        schema_hash=plan.request.options.response_schema_hash(),
+        schema_hash=requirements.output_schema_hash(),
         provider_state=(
             dict(provider_handle.provider_state)
             if isinstance(provider_handle.provider_state, dict)
@@ -326,15 +274,6 @@ def _validate_collect_schema(
         )
 
 
-def _aggregate_usage(responses: list[ProviderResponse]) -> dict[str, int]:
-    total_usage: dict[str, int] = {}
-    for response in responses:
-        for key, value in response.usage.items():
-            if isinstance(value, int):
-                total_usage[key] = total_usage.get(key, 0) + value
-    return total_usage
-
-
 def _response_from_item(item: ProviderDeferredItem) -> ProviderResponse:
     if item.status != "succeeded":
         return ProviderResponse(text="", usage={}, finish_reason=item.finish_reason)
@@ -369,13 +308,60 @@ def _response_from_item(item: ProviderDeferredItem) -> ProviderResponse:
     )
 
 
+def _deferred_diagnostics(
+    handle: DeferredHandle,
+    snapshot: DeferredSnapshot,
+    item: ProviderDeferredItem,
+) -> dict[str, Any]:
+    """Per-item deferred provenance attached to an output's diagnostics."""
+    return {
+        "job_id": handle.job_id,
+        "request_id": item.request_id,
+        "status": item.status,
+        "error": item.error,
+        "provider_status": item.provider_status,
+        "finish_reason": item.finish_reason,
+        "submitted_at": snapshot.submitted_at,
+        "completed_at": snapshot.completed_at,
+    }
+
+
+def _output_from_item(
+    item: ProviderDeferredItem,
+    *,
+    handle: DeferredHandle,
+    snapshot: DeferredSnapshot,
+    requirements: OutputRequirements,
+    duration_s: float,
+) -> Output:
+    """Assemble one v2 ``Output`` from a collected deferred item."""
+    response = _response_from_item(item)
+    # A failed item carries no usable completion, so mark it as an error rather
+    # than letting an empty finish reason read as a clean stop.
+    error_category = None if item.status == "succeeded" else (item.error or "failed")
+    output = provider_response_to_output(
+        response,
+        requirements=requirements,
+        duration_s=duration_s,
+        error_category=error_category,
+    )
+    raw = dict(output.diagnostics.raw or {})
+    raw["deferred"] = _deferred_diagnostics(handle, snapshot, item)
+    return replace(output, diagnostics=Diagnostics(raw=raw))
+
+
 async def collect_deferred_handle(
     handle: DeferredHandle,
     provider: Provider,
     *,
     response_schema: ResponseSchemaInput | None = None,
-) -> ResultEnvelope:
-    """Collect a terminal deferred job into a standard ResultEnvelope."""
+) -> OutputCollection:
+    """Collect a terminal deferred job into an :class:`OutputCollection`.
+
+    Deferred work returns the same shape as ``run_many()``: one ``Output`` per
+    submitted request, in submission order. Each output's
+    ``diagnostics.raw["deferred"]`` carries the job id and per-item status.
+    """
     deferred_provider = _get_deferred_provider(provider)
     _validate_collect_schema(handle, response_schema)
 
@@ -396,58 +382,31 @@ async def collect_deferred_handle(
             )
         items_by_id[item.request_id] = item
 
-    request_ids = _request_ids(handle.request_count)
-    responses: list[ProviderResponse] = []
-    deferred_items: list[dict[str, Any]] = []
-    for request_id in request_ids:
+    requirements = OutputRequirements(output_schema=response_schema)
+    duration_s = time.perf_counter() - start_time
+
+    outputs: list[Output] = []
+    for request_id in _request_ids(handle.request_count):
         collected_item = items_by_id.get(request_id)
         if collected_item is None:
             raise InternalError(
                 f"Deferred provider did not return item {request_id!r}",
                 hint="Deferred providers must return one item for every submitted request id.",
             )
-        responses.append(_response_from_item(collected_item))
-        deferred_items.append(
-            {
-                "request_id": request_id,
-                "status": collected_item.status,
-                "error": collected_item.error,
-                "provider_status": collected_item.provider_status,
-                "finish_reason": collected_item.finish_reason,
-            }
+        outputs.append(
+            _output_from_item(
+                collected_item,
+                handle=handle,
+                snapshot=snapshot,
+                requirements=requirements,
+                duration_s=duration_s,
+            )
         )
 
-    usage = _aggregate_usage(responses)
-    duration_s = time.perf_counter() - start_time
-
-    result = build_result_from_responses(
-        responses,
-        schema=response_schema,
-        duration_s=duration_s,
-        usage=usage,
-        n_calls=handle.request_count,
+    return OutputCollection(
+        outputs=tuple(outputs),
+        prompt_indexes=tuple(range(handle.request_count)),
     )
-
-    # When no schema was provided at collect time but providers returned
-    # structured payloads, surface them as plain dicts.
-    if response_schema is None and any(
-        response.structured is not None for response in responses
-    ):
-        result["structured"] = [response.structured for response in responses]
-
-    result["metrics"]["deferred"] = True
-    result["diagnostics"]["deferred"] = {
-        "job_id": handle.job_id,
-        "submitted_at": snapshot.submitted_at,
-        "completed_at": snapshot.completed_at,
-        "elapsed_s": (
-            None
-            if snapshot.completed_at is None
-            else snapshot.completed_at - snapshot.submitted_at
-        ),
-        "items": deferred_items,
-    }
-    return result
 
 
 async def cancel_deferred_handle(handle: DeferredHandle, provider: Provider) -> None:
