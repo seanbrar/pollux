@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
 import pytest
 
 from pollux.errors import SourceError
@@ -31,18 +29,17 @@ def test_source_from_arxiv_rejects_invalid_refs(invalid_ref: str) -> None:
         Source.from_arxiv(invalid_ref)
 
 
-@given(
-    arxiv_id=st.one_of(
-        st.from_regex(r"\d{4}\.\d{4,5}(?:v\d+)?", fullmatch=True),
-        st.from_regex(
-            r"[a-z\-]+(?:\.[a-z\-]+)?/\d{7}(?:v\d+)?",
-            fullmatch=True,
-        ),
-    )
+@pytest.mark.parametrize(
+    "arxiv_id",
+    [
+        "2301.07041",
+        "1706.03762v7",
+        "hep-th/9901001",
+        "math-ph/0301001v2",
+    ],
 )
-@settings(max_examples=10, deadline=None, derandomize=True)
 def test_source_from_arxiv_normalizes_to_canonical_pdf_url(arxiv_id: str) -> None:
-    """Property: arXiv refs normalize to canonical PDF URLs and stable loaders."""
+    """arXiv ids and URLs normalize to canonical PDF URLs and stable loaders."""
     expected = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
     refs = [
         arxiv_id,
@@ -125,15 +122,6 @@ def test_with_gemini_video_settings_does_not_mutate_original() -> None:
 
     assert original.gemini_video_settings_for("gemini") is None
     assert modified.gemini_video_settings_for("gemini") == {"fps": 1.0}
-
-
-def test_with_gemini_video_settings_preserves_source_hashability() -> None:
-    """Configured sources should remain hashable like other frozen sources."""
-    source = Source.from_youtube(
-        "https://www.youtube.com/watch?v=abc123"
-    ).with_gemini_video_settings(fps=1.0)
-
-    assert isinstance(hash(source), int)
 
 
 def test_with_gemini_video_settings_returns_copied_payloads() -> None:

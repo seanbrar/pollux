@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -18,6 +19,11 @@ from tests.conftest import (
 )
 
 pytestmark = pytest.mark.contract
+
+
+def _obj(**attrs: Any) -> Any:
+    """Create a strict SDK-like object for parser tests."""
+    return SimpleNamespace(**attrs)
 
 
 # =============================================================================
@@ -114,25 +120,16 @@ def test_gemini_parse_response_extracts_reasoning_from_thought_parts() -> None:
     """Characterize extraction of thinking content from thought-flagged parts."""
     provider = GeminiProvider("test-key")
 
-    thought_part = MagicMock()
-    thought_part.thought = True
-    thought_part.text = "Let me reason about this..."
-
-    answer_part = MagicMock()
-    answer_part.thought = False
-    answer_part.text = "The answer is 42."
-
-    fake_content = MagicMock()
-    fake_content.parts = [thought_part, answer_part]
-
-    fake_candidate = MagicMock()
-    fake_candidate.content = fake_content
-
-    fake_response = MagicMock()
-    fake_response.text = "The answer is 42."
-    fake_response.parsed = None
-    fake_response.usage_metadata = None
-    fake_response.candidates = [fake_candidate]
+    thought_part = _obj(thought=True, text="Let me reason about this...")
+    answer_part = _obj(thought=False, text="The answer is 42.")
+    fake_response = _obj(
+        text="The answer is 42.",
+        parsed=None,
+        usage_metadata=None,
+        candidates=[
+            _obj(content=_obj(parts=[thought_part, answer_part])),
+        ],
+    )
 
     result = provider._parse_response(fake_response)
 
@@ -156,13 +153,12 @@ def test_gemini_parse_response_extracts_url_context_artifacts() -> None:
             }
 
     metadata = UrlContextMetadata()
-    fake_candidate = MagicMock()
-    fake_candidate.url_context_metadata = metadata
-    fake_response = MagicMock()
-    fake_response.text = "ok"
-    fake_response.parsed = None
-    fake_response.usage_metadata = None
-    fake_response.candidates = [fake_candidate]
+    fake_response = _obj(
+        text="ok",
+        parsed=None,
+        usage_metadata=None,
+        candidates=[_obj(url_context_metadata=metadata)],
+    )
 
     result = provider._parse_response(fake_response)
 
@@ -182,29 +178,17 @@ def test_gemini_parse_response_joins_multiple_thought_parts() -> None:
     """Multiple thought parts should be joined with double newlines."""
     provider = GeminiProvider("test-key")
 
-    thought_1 = MagicMock()
-    thought_1.thought = True
-    thought_1.text = "First, consider X."
-
-    thought_2 = MagicMock()
-    thought_2.thought = True
-    thought_2.text = "Then, consider Y."
-
-    answer = MagicMock()
-    answer.thought = False
-    answer.text = "Result."
-
-    fake_content = MagicMock()
-    fake_content.parts = [thought_1, thought_2, answer]
-
-    fake_candidate = MagicMock()
-    fake_candidate.content = fake_content
-
-    fake_response = MagicMock()
-    fake_response.text = "Result."
-    fake_response.parsed = None
-    fake_response.usage_metadata = None
-    fake_response.candidates = [fake_candidate]
+    thought_1 = _obj(thought=True, text="First, consider X.")
+    thought_2 = _obj(thought=True, text="Then, consider Y.")
+    answer = _obj(thought=False, text="Result.")
+    fake_response = _obj(
+        text="Result.",
+        parsed=None,
+        usage_metadata=None,
+        candidates=[
+            _obj(content=_obj(parts=[thought_1, thought_2, answer])),
+        ],
+    )
 
     result = provider._parse_response(fake_response)
 
@@ -278,21 +262,13 @@ def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
     """No thought-flagged parts should produce no reasoning key."""
     provider = GeminiProvider("test-key")
 
-    answer_part = MagicMock()
-    answer_part.thought = False
-    answer_part.text = "Just an answer."
-
-    fake_content = MagicMock()
-    fake_content.parts = [answer_part]
-
-    fake_candidate = MagicMock()
-    fake_candidate.content = fake_content
-
-    fake_response = MagicMock()
-    fake_response.text = "Just an answer."
-    fake_response.parsed = None
-    fake_response.usage_metadata = None
-    fake_response.candidates = [fake_candidate]
+    answer_part = _obj(thought=False, text="Just an answer.")
+    fake_response = _obj(
+        text="Just an answer.",
+        parsed=None,
+        usage_metadata=None,
+        candidates=[_obj(content=_obj(parts=[answer_part]))],
+    )
 
     result = provider._parse_response(fake_response)
 
@@ -301,22 +277,18 @@ def test_gemini_parse_response_omits_reasoning_when_no_thought_parts() -> None:
 
 def test_gemini_parse_response_extracts_finish_reason() -> None:
     """Characterize finish_reason extraction and normalization from Gemini."""
-    from google.genai import types as genai_types
-
     provider = GeminiProvider("test-key")
 
     def _with_finish_reason(reason: Any) -> Any:
-        fake_candidate = MagicMock()
-        fake_candidate.content = MagicMock(parts=[])
-        fake_candidate.finish_reason = reason
-        fake_response = MagicMock()
-        fake_response.text = "ok"
-        fake_response.parsed = None
-        fake_response.usage_metadata = None
-        fake_response.candidates = [fake_candidate]
+        fake_response = _obj(
+            text="ok",
+            parsed=None,
+            usage_metadata=None,
+            candidates=[_obj(content=_obj(parts=[]), finish_reason=reason)],
+        )
         return provider._parse_response(fake_response)
 
-    assert _with_finish_reason(genai_types.FinishReason.STOP).finish_reason == "stop"
+    assert _with_finish_reason(_obj(value="STOP")).finish_reason == "stop"
     assert _with_finish_reason("MAX_TOKENS").finish_reason == "max_tokens"
 
 
