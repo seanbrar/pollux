@@ -1360,7 +1360,7 @@ provider.</p>
 <td><code>metrics</code></td>
 <td><code>dict[str, Any]</code></td>
 <td>Yes</td>
-<td><code>duration_s</code>, <code>n_calls</code>, <code>cache_used</code> (<a href="../caching/#explicit-caching-gemini">explicit caching</a> only), <code>finish_reasons</code> (per-prompt, e.g. <code>"stop"</code>, <code>"max_tokens"</code>). Deferred results also add <code>metrics["deferred"] = True</code>.</td>
+<td><code>duration_s</code>, <code>n_calls</code>, <code>cache_used</code> (<a href="../caching/#persistent-caching-gemini">persistent caching</a> only), <code>finish_reasons</code> (per-prompt, e.g. <code>"stop"</code>, <code>"max_tokens"</code>). Deferred results also add <code>metrics["deferred"] = True</code>.</td>
 </tr>
 <tr>
 <td><code>diagnostics</code></td>

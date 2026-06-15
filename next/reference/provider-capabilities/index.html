@@ -1212,22 +1212,22 @@ before dispatch or the provider page below calls out why it is out of scope.</p>
 </thead>
 <tbody>
 <tr>
-<td>Explicit caching (<code>create_cache</code>)</td>
+<td>Persistent caching (<code>CachePolicy</code>)</td>
 <td>✅</td>
 <td>❌</td>
 <td>❌</td>
 <td>❌</td>
 <td>❌</td>
-<td>Persistent cache handles are Gemini-only</td>
+<td>Persistent caches are Gemini-only</td>
 </tr>
 <tr>
-<td>Implicit caching (<code>Options.implicit_caching</code>)</td>
+<td>Provider-managed caching (<code>cache</code>)</td>
 <td>❌</td>
 <td>❌</td>
 <td>✅</td>
 <td>❌</td>
 <td>❌</td>
-<td>Anthropic-only; see <a href="../../caching/#implicit-caching-anthropic">caching docs</a></td>
+<td>Anthropic-only; see <a href="../../caching/#provider-managed-caching-anthropic">caching docs</a></td>
 </tr>
 <tr>
 <td>Automatic prompt caching (provider-side)</td>
@@ -1324,7 +1324,7 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
 <h2 id="provider-specific-notes">Provider-Specific Notes<a class="headerlink" href="#provider-specific-notes" title="Permanent link">&para;</a></h2>
 <h3 id="gemini">Gemini<a class="headerlink" href="#gemini" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Explicit caching uses the Gemini Files API.</li>
+<li>Persistent caching uses the Gemini Files API.</li>
 <li>Deferred delivery uses the Gemini Batch API through Pollux's deferred entry
   points.</li>
 <li>Video sources can carry Gemini-specific clipping and FPS controls via
@@ -1332,7 +1332,7 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
 <li>HTTP(S) URI sources can opt into Gemini URL Context via
   <code>Source.from_uri(...).with_gemini_url_context()</code>. This performs request-time
   retrieval, surfaces URL retrieval metadata in diagnostics, and cannot be used
-  with explicit cache handles.</li>
+  with persistent caching.</li>
 <li>Those controls are intentionally not normalized across providers. Pollux
   keeps them explicit so portability decisions stay in caller code.</li>
 <li>Gemini also caches repeated long prefixes automatically. Pollux does not
@@ -1382,9 +1382,9 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
 <li>Deferred delivery uses the Anthropic Message Batches API through Pollux's
   deferred entry points.</li>
 <li>Remote URL support is intentionally narrow: images and PDFs only.</li>
-<li>Implicit caching is enabled with <code>Options(implicit_caching=True)</code>.
-  Pollux defaults it on for single-call workloads and off for multi-call
-  fan-out. Requesting it on unsupported providers raises <code>ConfigurationError</code>.</li>
+<li>Provider-managed (automatic prompt) caching is on by default for single-call
+  workloads and off for multi-call fan-out. Set <code>cache="none"</code> on the
+  <code>Environment</code> to opt out.</li>
 <li>See <a href="../../caching/#current-pollux-scope">current caching scope</a> for what
   Pollux exposes from Anthropic's caching surface.</li>
 <li>Reasoning: thinking text appears in <code>ResultEnvelope.reasoning</code>.
@@ -1436,7 +1436,7 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
   downloading the PDF locally and sending it with <code>Source.from_file()</code>.</li>
 <li>Unsupported OpenRouter file types fail fast. For example, local CSV uploads
   raise <code>ConfigurationError</code>.</li>
-<li>Persistent cache handles remain unsupported on OpenRouter in the current release.</li>
+<li>Persistent caching remains unsupported on OpenRouter in the current release.</li>
 <li>OpenRouter supports automatic prompt caching on many routed providers.
   Pollux does not expose OpenRouter-specific cache controls.</li>
 <li>Reasoning: works on OpenRouter models that support reasoning. Thinking text
@@ -1479,18 +1479,20 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
 scope, Pollux raises <code>ConfigurationError</code> or <code>APIError</code> with a concrete hint,
 instead of degrading silently.</p>
 <p>For example, creating a persistent cache with OpenAI:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">create_cache</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">CachePolicy</span><span class="p">,</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">prepare_environment</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;openai&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5-nano&quot;</span><span class="p">)</span>
 <span class="c1"># This raises immediately:</span>
 <span class="c1"># ConfigurationError: Provider &#39;openai&#39; does not support persistent caching</span>
 <span class="c1"># hint: &quot;Use a provider that supports persistent_cache (e.g. Gemini).&quot;</span>
-<span class="n">handle</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_cache</span><span class="p">(</span>
-    <span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)],</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span>
+<span class="n">environment</span> <span class="o">=</span> <span class="k">await</span> <span class="n">prepare_environment</span><span class="p">(</span>
+    <span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)],</span>
+    <span class="n">cache</span><span class="o">=</span><span class="n">CachePolicy</span><span class="p">(),</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>The error is raised at <code>create_cache()</code> call time because persistent caching
-is a provider capability checked before the upload attempt.</p>
+<p>The error is raised at <code>prepare_environment()</code> call time because persistent
+caching is a provider capability checked before the upload attempt.</p>
 <p>For the deferred lifecycle contract and out-of-scope options, see
 <a href="../../submitting-work-for-later-collection/">Submitting Work for Later Collection</a>.</p>
 

@@ -635,15 +635,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#implicit-caching-anthropic" class="md-nav__link">
+  <a href="#provider-managed-caching-anthropic" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Implicit Caching (Anthropic)
+        Provider-Managed Caching (Anthropic)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Implicit Caching (Anthropic)">
+    <nav class="md-nav" aria-label="Provider-Managed Caching (Anthropic)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -685,15 +685,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#explicit-caching-gemini" class="md-nav__link">
+  <a href="#persistent-caching-gemini" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Explicit Caching (Gemini)
+        Persistent Caching (Gemini)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Explicit Caching (Gemini)">
+    <nav class="md-nav" aria-label="Persistent Caching (Gemini)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -757,10 +757,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tuning-explicit-cache-ttl" class="md-nav__link">
+  <a href="#tuning-persistent-cache-ttl" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tuning Explicit Cache TTL
+        Tuning Persistent Cache TTL
       
     </span>
   </a>
@@ -1098,9 +1098,9 @@
 
 
 <!-- Intent: Teach context caching mechanics: the redundant-context problem,
-     creating a cache, cache identity, TTL tuning, when caching pays off,
-     reading cache hit token counts from result["usage"]["cached_tokens"], and
-     the distinction between Pollux-controlled caching and provider-side
+     preparing a cached environment, cache identity, TTL tuning, when caching
+     pays off, reading cache hit token counts from output.usage.cached_tokens,
+     and the distinction between Pollux-controlled caching and provider-side
      automatic prompt caching. Do NOT cover source patterns or structured output
      in depth — link to those pages. Assumes the reader understands run_many()
      and fan-out workflows. Register: conceptual opening → guided applied. -->
@@ -1110,14 +1110,17 @@
 turning redundant re-uploads into cheap cache references. Providers implement
 caching differently, and Pollux gives you different levels of control
 depending on the provider.</p>
+<p>Caching belongs to the <strong>environment</strong>: the stable instructions, sources, and
+tools around your interactions. You express a cache preference on an
+<code>Environment</code>, and Pollux derives cache identity from that environment's
+content.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
-<p><strong>Pollux owns:</strong> creating and reusing cached context via <code>create_cache()</code>
-(Gemini), toggling Anthropic prompt caching via
-<code>Options(implicit_caching=...)</code>, cache identity from content hashes,
-single-flight deduplication, the <code>metrics.cache_used</code> signal, and
-surfacing provider-reported cache hit counts in
-<code>result["usage"]["cached_tokens"]</code>.</p>
+<p><strong>Pollux owns:</strong> creating and reusing cached context from an
+<code>Environment</code> cache preference, provider-managed caching via <code>cache="auto"</code>
+/ <code>cache="none"</code>, cache identity from content hashes, single-flight
+deduplication, the <code>metrics.cache_used</code> signal, and surfacing
+provider-reported cache hit counts in <code>output.usage.cached_tokens</code>.</p>
 <p><strong>You own:</strong> deciding when caching is worth the overhead, tuning TTL to
 match your reuse window, and accounting for billing differences by
 provider when interpreting <code>cached_tokens</code>.</p>
@@ -1165,29 +1168,31 @@ question. Savings compound with each additional prompt.</p>
 </code></pre></div>
 <p>More questions on the same content = greater savings.</p>
 <h2 id="three-caching-paths">Three Caching Paths<a class="headerlink" href="#three-caching-paths" title="Permanent link">&para;</a></h2>
-<p>Pollux gives you two caching controls, and a third path exists at the
-provider level:</p>
+<p>Pollux exposes caching through the environment's <code>cache</code> preference, plus a
+third path that exists at the provider level:</p>
 <ul>
-<li><strong>Explicit caching (Gemini):</strong> You upload content once with
-  <code>create_cache()</code>, get a handle back, and pass that handle to later calls.</li>
-<li><strong>Implicit caching (Anthropic):</strong> Pollux maps
-  <code>Options(implicit_caching=...)</code> to Anthropic's automatic prompt caching
-  behavior.</li>
+<li><strong>Persistent caching (Gemini):</strong> Set <code>cache=CachePolicy(ttl_seconds=...)</code> on
+  an environment. Pollux uploads the environment's sources once, creates a
+  provider-side cache, and references it on every interaction over that
+  environment.</li>
+<li><strong>Provider-managed caching (Anthropic):</strong> With <code>cache="auto"</code> (the default)
+  Pollux lets the provider's automatic prompt caching apply. <code>cache="none"</code>
+  opts out.</li>
 <li><strong>Automatic prompt caching (OpenAI, Gemini, OpenRouter):</strong> These providers
   can discount repeated long prefixes on their own. Pollux does not control
   or configure this, but you can benefit from it without doing anything.</li>
 </ul>
-<p><code>metrics.cache_used</code> only reflects explicit cache handles. If you need to
-verify automatic prompt caching, check provider-native usage or billing.</p>
-<h2 id="implicit-caching-anthropic">Implicit Caching (Anthropic)<a class="headerlink" href="#implicit-caching-anthropic" title="Permanent link">&para;</a></h2>
+<p><code>metrics.cache_used</code> is <code>True</code> for the persistent path. To verify provider
+automatic prompt caching, check <code>output.usage.cached_tokens</code> or provider-native
+billing.</p>
+<h2 id="provider-managed-caching-anthropic">Provider-Managed Caching (Anthropic)<a class="headerlink" href="#provider-managed-caching-anthropic" title="Permanent link">&para;</a></h2>
 <p>Anthropic currently describes this provider feature as automatic prompt
-caching. Pollux calls the toggle <code>implicit_caching</code> to distinguish it from
-Gemini's explicit <code>create_cache()</code> handles. Anthropic caches shared prefixes
-from the top of the request downward: system instruction, tools, conversation
-history, and repeated prompt context. You do not create a cache object
-yourself. Pollux toggles this with <code>Options(implicit_caching=...)</code>.</p>
+caching: it caches shared prefixes from the top of the request downward
+(system instruction, tools, conversation history, and repeated prompt
+context). You do not create a cache object yourself. In Pollux this is the
+default; set <code>cache="none"</code> on the environment to opt out.</p>
 <h3 id="cost-mechanics">Cost Mechanics<a class="headerlink" href="#cost-mechanics" title="Permanent link">&para;</a></h3>
-<p>Unlike explicit caching, Anthropic changes token pricing per request:</p>
+<p>Unlike persistent caching, Anthropic changes token pricing per request:</p>
 <ul>
 <li><strong>Cache writes:</strong> +25% (1.25x standard cost)</li>
 <li><strong>Cache reads:</strong> -90% (0.10x standard cost)</li>
@@ -1196,10 +1201,10 @@ yourself. Pollux toggles this with <code>Options(implicit_caching=...)</code>.</
 caching, sending the same prefix twice costs 2.0x. With caching, it costs
 1.35x.</p>
 <h3 id="default-behavior">Default Behavior<a class="headerlink" href="#default-behavior" title="Permanent link">&para;</a></h3>
-<p>Because cache writes cost more, Pollux does not treat implicit caching as a
-blanket default:</p>
+<p>Because cache writes cost more, Pollux does not treat provider-managed caching
+as a blanket default:</p>
 <ul>
-<li><strong>Single provider call:</strong> Pollux enables implicit caching by default.</li>
+<li><strong>Single provider call:</strong> Pollux enables it by default.</li>
 <li><strong>Multi-call fan-out:</strong> Pollux disables it by default.</li>
 </ul>
 <p>This is a request-shape rule, not an API-entrypoint rule. <code>run()</code> always makes
@@ -1209,91 +1214,95 @@ makes one provider call, so the default is on there too.</p>
 <p>The reason is cost. In a conversation, the write premium lands once and later
 turns benefit from cheap cache reads. In a wide fan-out, many identical calls
 arrive before the cache is warm, so you pay the write premium repeatedly.</p>
-<p>You can override the default when you need to:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Options</span>
+<p>You opt out with the environment's cache preference:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span>
 
-<span class="c1"># Disable Anthropic implicit caching for a one-off call.</span>
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">implicit_caching</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="c1"># Disable provider-managed caching for this environment.</span>
+<span class="n">environment</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">instructions</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Setting <code>implicit_caching=True</code> on a provider that does not support it raises
-<code>ConfigurationError</code>. Pollux does not silently ignore the request.</p>
+<p>Requesting persistent caching (<code>CachePolicy</code>) on a provider that does not
+support it raises <code>ConfigurationError</code>. Pollux does not silently ignore the
+request.</p>
 <h3 id="current-pollux-scope">Current Pollux Scope<a class="headerlink" href="#current-pollux-scope" title="Permanent link">&para;</a></h3>
 <p>Pollux currently exposes Anthropic's default ephemeral caching behavior. It
 does not expose Anthropic's 1-hour TTL or manual block-level cache breakpoints
 in the public API.</p>
-<h2 id="explicit-caching-gemini">Explicit Caching (Gemini)<a class="headerlink" href="#explicit-caching-gemini" title="Permanent link">&para;</a></h2>
-<p>For Gemini, use <code>create_cache()</code> to upload content to the provider once, then pass the
-returned handle to <code>run()</code> or <code>run_many()</code> via <code>Options(cache=handle)</code>:</p>
+<h2 id="persistent-caching-gemini">Persistent Caching (Gemini)<a class="headerlink" href="#persistent-caching-gemini" title="Permanent link">&para;</a></h2>
+<p>For Gemini, prepare an environment with a <code>CachePolicy</code>. Pollux uploads the
+environment's sources to the provider once, then references the cache on every
+<code>run()</code> / <code>run_many()</code> / <code>interact()</code> call over that environment:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">create_cache</span><span class="p">,</span> <span class="n">run_many</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">CachePolicy</span><span class="p">,</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">prepare_environment</span><span class="p">,</span> <span class="n">run_many</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span>
         <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span>
         <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">sources</span> <span class="o">=</span> <span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span>
-        <span class="s2">&quot;ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), &quot;</span>
-        <span class="s2">&quot;operating margin 18.5%, guidance raised for Q4.&quot;</span>
-    <span class="p">)]</span>
-
-    <span class="n">handle</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_cache</span><span class="p">(</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">ttl_seconds</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+    <span class="n">environment</span> <span class="o">=</span> <span class="k">await</span> <span class="n">prepare_environment</span><span class="p">(</span>
+        <span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span>
+            <span class="s2">&quot;ACME Corp Q3 2025 earnings: revenue $4.2B (+12% YoY), &quot;</span>
+            <span class="s2">&quot;operating margin 18.5%, guidance raised for Q4.&quot;</span>
+        <span class="p">)],</span>
+        <span class="n">cache</span><span class="o">=</span><span class="n">CachePolicy</span><span class="p">(</span><span class="n">ttl_seconds</span><span class="o">=</span><span class="mi">3600</span><span class="p">),</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="p">)</span>
 
     <span class="n">prompts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Summarize in one sentence.&quot;</span><span class="p">,</span> <span class="s2">&quot;List 3 keywords.&quot;</span><span class="p">]</span>
-    <span class="n">first</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="o">=</span><span class="n">prompts</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="n">handle</span><span class="p">))</span>
-    <span class="n">second</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="o">=</span><span class="n">prompts</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="n">handle</span><span class="p">))</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="n">environment</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">second</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="n">environment</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;first:&quot;</span><span class="p">,</span> <span class="n">first</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;second:&quot;</span><span class="p">,</span> <span class="n">second</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;cache_used:&quot;</span><span class="p">,</span> <span class="n">second</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;metrics&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cache_used&quot;</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;first:&quot;</span><span class="p">,</span> <span class="n">first</span><span class="o">.</span><span class="n">status</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;second:&quot;</span><span class="p">,</span> <span class="n">second</span><span class="o">.</span><span class="n">status</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;cache_used:&quot;</span><span class="p">,</span> <span class="n">second</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">cache_used</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 <h3 id="step-by-step-walkthrough">Step-by-Step Walkthrough<a class="headerlink" href="#step-by-step-walkthrough" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
-<p><strong>Call <code>create_cache()</code>.</strong> Pass your sources, config, and a TTL. Pollux
-   uploads the content to the provider and returns a <code>CacheHandle</code>. If you
-   bake in <code>system_instruction</code> or <code>tools</code>, those become part of the cached
-   bundle too.</p>
+<p><strong>Call <code>prepare_environment()</code>.</strong> Pass your sources, config, and a cache
+   policy. Pollux uploads the content to the provider, creates the cache, and
+   returns a reusable <code>Environment</code>. If you set <code>instructions</code> or <code>tools</code>,
+   those become part of the cached bundle too.</p>
 </li>
 <li>
-<p><strong>Set <code>ttl_seconds</code>.</strong> The TTL controls how long the cached content lives on
-   the provider. Match it to your reuse window. 3600s (1 hour) is a
-   reasonable default for interactive sessions.</p>
+<p><strong>Set <code>ttl_seconds</code> on the <code>CachePolicy</code>.</strong> The TTL controls how long the
+   cached content lives on the provider. Match it to your reuse window. 3600s
+   (1 hour) is a reasonable default for interactive sessions.</p>
 </li>
 <li>
-<p><strong>Pass the handle via <code>Options(cache=handle)</code>.</strong> Each <code>run()</code> or <code>run_many()</code>
-   call that uses this handle references the cached content instead of
-   re-uploading it.</p>
+<p><strong>Pass the environment via <code>environment=</code>.</strong> Each <code>run()</code> / <code>run_many()</code> /
+   <code>interact()</code> call over this environment references the cached content
+   instead of re-uploading it.</p>
 </li>
 <li>
-<p><strong>Verify with <code>metrics.cache_used</code>.</strong> Check
-   <code>result["metrics"]["cache_used"]</code> on subsequent calls. <code>True</code> confirms
-   the provider served content from cache rather than re-uploading.</p>
+<p><strong>Verify with <code>metrics.cache_used</code>.</strong> The example reads it per output
+   (<code>second.outputs[0].metrics.cache_used</code>); <code>run()</code> exposes it directly as
+   <code>output.metrics.cache_used</code>. <code>True</code> confirms the persistent cache was used.</p>
 </li>
 </ol>
-<p>Pollux computes cache identity deterministically. Calls with the same handle
-reuse the cached context automatically.</p>
-<div class="admonition warning">
-<p class="admonition-title">Options restricted when using a cache handle</p>
-<p>When <code>Options(cache=handle)</code> is set, the following fields <strong>cannot</strong> be
-passed alongside it:</p>
-<ul>
-<li><code>system_instruction</code> — bake it into <code>create_cache(system_instruction=...)</code>
-  instead.</li>
-<li><code>tools</code> — bake them into <code>create_cache(tools=...)</code> instead (when
-  supported).</li>
-<li><code>tool_choice</code> — remove it when using cached content.</li>
-<li><code>sources</code> — bake them into <code>create_cache()</code> instead.</li>
-</ul>
-<p>Pollux raises <code>ConfigurationError</code> immediately if it detects these
-conflicts.  This mirrors a hard constraint in the Gemini API, where
-<code>cached_content</code> cannot coexist with <code>system_instruction</code>, <code>tools</code>, or
-<code>tool_config</code> in the same <code>GenerateContent</code> request.</p>
+<p>Pollux computes cache identity deterministically. Interactions over the same
+environment reuse the cached context automatically, even across separate calls
+in the same process.</p>
+<div class="admonition note">
+<p class="admonition-title">The environment is the cache</p>
+<p>When an environment carries a <code>CachePolicy</code>, its instructions, sources, and
+tools are baked into the cache, so Pollux does not resend them on each
+request. You do not pass them separately. They live on the <code>Environment</code>.
+This mirrors a hard constraint in the Gemini API, where <code>cached_content</code>
+cannot coexist with <code>system_instruction</code>, <code>tools</code>, or <code>tool_config</code> in the
+same <code>GenerateContent</code> request.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Lazy preparation</p>
+<p><code>prepare_environment()</code> front-loads the upload and cache creation so errors
+surface early. If you would rather defer the work, construct
+<code>Environment(..., cache=CachePolicy(...))</code> directly and pass it to a call.
+Pollux creates the cache on first use and reuses it thereafter.</p>
 </div>
 <h2 id="cache-identity">Cache Identity<a class="headerlink" href="#cache-identity" title="Permanent link">&para;</a></h2>
-<p>For explicit caches, keys are deterministic:
+<p>For persistent caches, keys are deterministic:
 <code>hash(model + provider + api_key + system_instruction + tools + source identity hashes)</code>.</p>
 <p>This means:</p>
 <ul>
@@ -1303,8 +1312,8 @@ conflicts.  This mirrors a hard constraint in the Gemini API, where
   for <code>gemini-2.5-flash-lite</code> won't be reused for <code>gemini-2.5-pro</code>, and a
   Gemini cache key won't collide with one from another provider.</li>
 <li><strong>Different API keys</strong> → different cache keys in the same Python process.
-  Pollux scopes explicit cache reuse to the provider account that created it.</li>
-<li><strong>Different baked-in <code>system_instruction</code> or <code>tools</code></strong> → different cache
+  Pollux scopes persistent cache reuse to the provider account that created it.</li>
+<li><strong>Different baked-in <code>instructions</code> or <code>tools</code></strong> → different cache
   keys. Changing the cached behavior contract creates a fresh cache entry.</li>
 <li><strong>Different Gemini video settings</strong> → different cache keys. Two sources with
   the same content but different clip windows or FPS do not collapse to the
@@ -1314,40 +1323,39 @@ conflicts.  This mirrors a hard constraint in the Gemini API, where
   cache entry.</li>
 </ul>
 <h2 id="single-flight-protection">Single-Flight Protection<a class="headerlink" href="#single-flight-protection" title="Permanent link">&para;</a></h2>
-<p>When multiple concurrent calls target the same explicit cache key (common in fan-out
-workloads), Pollux deduplicates the creation call: only one coroutine performs
-the upload, and others await the same result. This eliminates duplicate uploads
-without requiring caller-side coordination.</p>
+<p>When multiple concurrent calls target the same persistent cache key (common in
+fan-out workloads), Pollux deduplicates the creation call: only one coroutine
+performs the upload, and others await the same result. This eliminates
+duplicate uploads without requiring caller-side coordination.</p>
 <h2 id="verifying-cache-reuse">Verifying Cache Reuse<a class="headerlink" href="#verifying-cache-reuse" title="Permanent link">&para;</a></h2>
-<p>Check <code>metrics.cache_used</code> on subsequent calls:</p>
+<p>Check <code>metrics.cache_used</code> on the result:</p>
 <ul>
-<li><code>True</code> — provider confirmed cache hit (explicit cache handles only)</li>
-<li><code>False</code> — full upload, or cache expired</li>
+<li><code>True</code>: the persistent cache was used</li>
+<li><code>False</code>: full upload, provider-managed caching, or cache expired</li>
 </ul>
 <p>Keep prompts and sources stable between runs when comparing warm vs reuse
 behavior. Automatic prompt caching at the provider level can still reduce
 costs even when <code>cache_used</code> is <code>False</code>.</p>
 <h2 id="observing-cache-hits">Observing Cache Hits<a class="headerlink" href="#observing-cache-hits" title="Permanent link">&para;</a></h2>
-<p><code>result["usage"]["cached_tokens"]</code> reports how many input tokens were served
-from cache. The key is absent when no provider call reported it; in a fan-out
-it is summed across all calls:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># result from any run() or run_many() call with caching active</span>
-<span class="n">cached</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;usage&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cached_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<span class="n">total_input</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;usage&quot;</span><span class="p">][</span><span class="s2">&quot;input_tokens&quot;</span><span class="p">]</span>
+<p><code>output.usage.cached_tokens</code> reports how many input tokens were served from
+cache. In a fan-out it is summed across all calls on the <code>OutputCollection</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># output from any run() call (or collection from run_many())</span>
+<span class="n">cached</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">usage</span><span class="o">.</span><span class="n">cached_tokens</span>
+<span class="n">total_input</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">usage</span><span class="o">.</span><span class="n">input_tokens</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cached</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">total_input</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> input tokens served from cache&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>For a per-call breakdown in a fan-out:</p>
-<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;diagnostics&quot;</span><span class="p">][</span><span class="s2">&quot;raw_responses&quot;</span><span class="p">]):</span>
-    <span class="n">hit</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="s2">&quot;usage&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cached_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  prompt </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">hit</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> cached tokens&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">out</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">collection</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  prompt </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">out</span><span class="o">.</span><span class="n">usage</span><span class="o">.</span><span class="n">cached_tokens</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> cached tokens&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p><strong>Anthropic billing differs from Gemini and OpenAI.</strong> For Gemini and OpenAI,
-<code>cached_tokens</code> is a subset of <code>input_tokens</code> — cache reads are billed at a
+<code>cached_tokens</code> is a subset of <code>input_tokens</code>: cache reads are billed at a
 discount from the same pool. For Anthropic, <code>cached_tokens</code> is additive: the
 total billable input is <code>input_tokens + cached_tokens</code>.</p>
-<h2 id="tuning-explicit-cache-ttl">Tuning Explicit Cache TTL<a class="headerlink" href="#tuning-explicit-cache-ttl" title="Permanent link">&para;</a></h2>
-<p>Pass <code>ttl_seconds</code> to <code>create_cache()</code> to control the explicit cache lifetime. The
-default is 3600 seconds (1 hour). Tune it to match your expected reuse window:</p>
+<h2 id="tuning-persistent-cache-ttl">Tuning Persistent Cache TTL<a class="headerlink" href="#tuning-persistent-cache-ttl" title="Permanent link">&para;</a></h2>
+<p>Set <code>ttl_seconds</code> on the <code>CachePolicy</code> to control the persistent cache
+lifetime. The default is 3600 seconds (1 hour). Tune it to match your expected
+reuse window:</p>
 <ul>
 <li><strong>Too short:</strong> the cache expires before you reuse it, wasting the
   warm-up cost.</li>
@@ -1357,25 +1365,24 @@ default is 3600 seconds (1 hour). Tune it to match your expected reuse window:</
 <p>For interactive workloads where you run a prompt set and then refine prompts
 within the same session, 3600s is a reasonable starting point. For one-shot
 scripts, shorter TTLs (300-600s) avoid lingering cache entries. Anthropic
-manages the lifetime of implicit caches on its side.</p>
+manages the lifetime of its provider-managed caches on its side.</p>
 <h2 id="when-caching-pays-off">When Caching Pays Off<a class="headerlink" href="#when-caching-pays-off" title="Permanent link">&para;</a></h2>
 <p>Caching is most effective when:</p>
 <ul>
 <li><strong>Sources are large:</strong> video, long PDFs, multi-image sets</li>
 <li><strong>Prompt sets are repeated:</strong> fan-out workflows with 3+ prompts per source
-  using explicit caching</li>
+  using persistent caching</li>
 <li><strong>Conversations are deep:</strong> multi-turn dialogues with large system prompts
-  using implicit caching</li>
+  using provider-managed caching</li>
 <li><strong>Prompt prefixes repeat across calls:</strong> automatic prompt caching at the
-  provider level can help even without a Pollux cache handle</li>
+  provider level can help even without a Pollux cache</li>
 </ul>
 <p>Caching adds overhead for single-prompt, small-source calls. Start without
 caching and enable it when you see repeated context in your workload.</p>
 <h2 id="provider-dependency">Provider Dependency<a class="headerlink" href="#provider-dependency" title="Permanent link">&para;</a></h2>
-<p>Calling <code>create_cache()</code> with a provider that lacks explicit cache support
-raises an actionable error. <code>Options(implicit_caching=True)</code> raises in the
-same way on providers without implicit caching support. Automatic prompt
-caching at the provider level is separate and not gated by Pollux. See
+<p>Requesting persistent caching (<code>CachePolicy</code>) on a provider that lacks support
+raises an actionable error. Automatic prompt caching at the provider level is
+separate and not gated by Pollux. See
 <a href="../reference/provider-capabilities/">Provider Capabilities</a> for the full
 matrix.</p>
 <hr />
