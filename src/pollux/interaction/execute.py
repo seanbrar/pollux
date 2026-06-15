@@ -26,6 +26,7 @@ from pollux.execute import (
     _validate_provider_request,
 )
 from pollux.interaction.adapters import continuation_from_state, state_from_continuation
+from pollux.interaction.capabilities import resolve_capabilities
 from pollux.interaction.collection import OutputCollection
 from pollux.interaction.compile import compile_request
 from pollux.interaction.continuation import Continuation
@@ -103,7 +104,7 @@ async def execute_interactions(
     snapshot = EnvironmentSnapshot.from_environment(
         environment, provider=config.provider
     )
-    caps = provider.capabilities
+    caps = resolve_capabilities(provider.capabilities, config.capabilities)
     validate_interaction(requirements, inputs, snapshot, caps, cache_requested=False)
 
     implicit_caching = caps.implicit_caching and len(inputs) == 1
