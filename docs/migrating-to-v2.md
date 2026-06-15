@@ -125,18 +125,23 @@ migration easier:
 
 ## What Is Available Now
 
-The 2.0 interaction model is landing incrementally on `main`. The first frontdoor
-is live:
+The 2.0 interaction model is landing incrementally on `main`:
 
+- `run()` and `run_many()` now return the 2.0 result model: `run()` returns an
+  `Output` (named facets `text`, `structured`, `reasoning`, `tool_calls`,
+  `continuation`, `usage`, `metrics`, `diagnostics`); `run_many()` returns an
+  `OutputCollection` (`.answers`, `.structured`, `.status`, `.usage`). They take
+  first-class keyword arguments (`instructions=`, `output=`, `temperature=`,
+  `max_tokens=`, `tools=`, …) instead of an `Options` object. Read facets
+  (`result.text`) rather than dictionary keys (`result["answers"][0]`).
 - `interact(environment, input, *, config, **generation_kwargs) -> Output` runs
-  one explicit interaction over an `Environment` and `Input`, returning an
-  `Output` with named facets (`text`, `structured`, `reasoning`, `tool_calls`,
-  `continuation`, `usage`, `metrics`, `diagnostics`). Continue a conversation or
-  tool loop by passing the prior `Output`'s `continuation` and any `tool_results`
-  in the next `Input` — this is the replacement for `continue_tool()`.
+  one explicit interaction over an `Environment` and `Input`. Continue a
+  conversation or tool loop by passing the prior `Output`'s `continuation` and any
+  `tool_results` in the next `Input` — the replacement for `continue_tool()`.
 
-`run()` / `run_many()` / `defer()` keep their 1.x behavior for now and move onto
-the same model in later changes.
+Still in progress: `defer()` moves onto the same model, and persistent caching
+returns through environment preparation (it briefly steps back during the
+cutover). `create_cache()` and `Options` are removed from the realtime path.
 
 ## As The Design Settles
 

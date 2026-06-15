@@ -28,6 +28,11 @@ if TYPE_CHECKING:
 COOKBOOK_DIRNAME = "cookbook"
 EXCLUDE_DIRS = {"utils", "templates", "data", "__pycache__"}
 
+# Recipes pending migration to the v2 Output model (tracked v2 cookbook
+# follow-up). The heavy "projects/" recipes mutate the v1 result envelope and the
+# cache recipe depends on persistent caching, which returns in a later v2 change.
+SHELVED_V2 = {"projects", "optimization/cache-warming-and-ttl.py"}
+
 # Determines the "start here" recipe for bare invocation / --list display.
 START_HERE_DISPLAY = "getting-started/analyze-single-paper.py"
 
@@ -82,6 +87,8 @@ def list_recipes() -> list[RecipeSpec]:
         if not is_recipe_file(path):
             continue
         rel = path.relative_to(root)
+        if rel.parts[0] in SHELVED_V2 or str(rel) in SHELVED_V2:
+            continue
         results.append(RecipeSpec(path=path, display=str(rel)))
     results.sort(key=lambda s: s.display)
     return results

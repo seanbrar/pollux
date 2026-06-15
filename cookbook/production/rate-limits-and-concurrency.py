@@ -27,7 +27,7 @@ import asyncio
 from dataclasses import replace
 from pathlib import Path
 import statistics
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from cookbook.utils.demo_inputs import (
     DEFAULT_TEXT_DEMO_DIR,
@@ -44,19 +44,15 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Source, run_many
-
-if TYPE_CHECKING:
-    from pollux.result import ResultEnvelope
+from pollux import Config, OutputCollection, Source, run_many
 
 SUPPORTED_EXTS = [".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg"]
 
 
-def duration_s(envelope: ResultEnvelope) -> object:
+def duration_s(result: OutputCollection) -> object:
     """Extract duration metric when available."""
-    metrics = envelope.get("metrics")
-    if isinstance(metrics, dict):
-        return metrics.get("duration_s", "n/a")
+    if result.outputs:
+        return result.outputs[0].metrics.duration_s
     return "n/a"
 
 
@@ -98,15 +94,11 @@ async def run_trial(
         return {"ok": False, "status": "error", "duration_s": None, "error": str(exc)}
 
     d = as_float(duration_s(env))
-    metrics = env.get("metrics")
-    n_calls = None
-    if isinstance(metrics, dict):
-        n_calls = metrics.get("n_calls")
     return {
-        "ok": env.get("status", "ok") == "ok",
-        "status": env.get("status", "ok"),
+        "ok": env.status == "ok",
+        "status": env.status,
         "duration_s": d,
-        "n_calls": n_calls,
+        "n_calls": len(env.outputs),
     }
 
 

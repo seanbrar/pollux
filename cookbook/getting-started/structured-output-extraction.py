@@ -62,7 +62,7 @@ async def main_async(path: Path, *, config: Config) -> None:
             config=config,
             options=Options(response_schema=KeyPoints),
         )
-        structured = envelope.get("structured")
+        structured = envelope.structured
         parsed = None
         if isinstance(structured, list) and structured:
             raw = structured[0]
@@ -71,13 +71,13 @@ async def main_async(path: Path, *, config: Config) -> None:
     print_section("Result")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.metrics.completion_status),
             ("Source", path),
         ]
     )
 
     if parsed is None:
-        answers = [str(a) for a in envelope.get("answers", [])]
+        answers = [envelope.text]
         if answers:
             print_excerpt("Raw excerpt", answers[0], limit=400)
         print_usage(envelope)
@@ -135,7 +135,7 @@ async def main_async(path: Path, *, config: Config) -> None:
     else:
         print_kv_rows([("structured[0] type", type(parsed).__name__)])
 
-    answers = [str(a) for a in envelope.get("answers", [])]
+    answers = [envelope.text]
     if answers:
         print_excerpt("Raw answer excerpt", answers[0], limit=260)
     print_usage(envelope)

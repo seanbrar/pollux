@@ -193,16 +193,16 @@ async def main_async(
         envelope = await run_many(
             [prompt], sources=sources, config=config, options=options
         )
-        structured = envelope.get("structured") or []
+        structured = envelope.structured or []
         first = structured[0] if structured else None
         synthesis = first if isinstance(first, VideoSynthesis) else None
 
-    answer = str((envelope.get("answers") or [""])[0])
+    answer = str((envelope.answers or [""])[0])
 
     print_section("Multi-video synthesis")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.status),
             ("Sources", len(sources)),
         ]
     )

@@ -63,8 +63,8 @@ DEFAULT_PROMPT = "Summarize the passage in 2 sentences."
 async def main_async(context: str, prompt: str, *, config: Config) -> None:
     envelope = await run(prompt, source=Source.from_text(context), config=config)
 
-    status = envelope.get("status", "ok")
-    answers = envelope.get("answers", [])
+    status = envelope.metrics.completion_status
+    answers = [envelope.text]
     answer = str(answers[0]) if answers else ""
 
     print_section("Result")

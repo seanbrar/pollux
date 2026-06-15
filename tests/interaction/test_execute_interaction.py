@@ -1,8 +1,7 @@
 """Integration tests for the v2 execution path.
 
 These run the v2 `execute_interaction(s)` path through provider doubles and assert
-it produces `Output`/`OutputCollection` natively, with parity to the v1 `run()`
-pipeline for the same scripted provider.
+it produces `Output`/`OutputCollection` natively.
 """
 
 from __future__ import annotations
@@ -11,10 +10,10 @@ import pytest
 
 import pollux
 from pollux.config import Config
-from pollux.interaction.adapters import output_from_envelope
 from pollux.interaction.environment import Environment
 from pollux.interaction.execute import execute_interaction, execute_interactions
 from pollux.interaction.input import Input
+from pollux.interaction.output import Output
 from pollux.interaction.requirements import OutputRequirements
 from pollux.providers.models import ProviderResponse, ToolCall
 from tests.conftest import ANTHROPIC_MODEL, FakeProvider
@@ -51,28 +50,24 @@ async def test_execute_interaction_produces_output():
 
 
 @pytest.mark.asyncio
-async def test_v2_output_matches_v1_envelope(monkeypatch):
-    script = [
-        ProviderResponse(
-            text="The answer.",
-            usage={"input_tokens": 3, "total_tokens": 8},
-            finish_reason="stop",
-        )
-    ]
-    fake_v1 = ScriptedProvider(script=list(script))
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake_v1)
-    envelope = await pollux.run("Q", config=_cfg())
-    expected = output_from_envelope(envelope)
-
-    fake_v2 = ScriptedProvider(script=list(script))
-    out = await execute_interaction(
-        Environment(), Input(content="Q"), OutputRequirements(), _cfg(), fake_v2
+async def test_run_frontdoor_returns_output(monkeypatch):
+    fake = ScriptedProvider(
+        script=[
+            ProviderResponse(
+                text="The answer.",
+                usage={"input_tokens": 3, "total_tokens": 8},
+                finish_reason="stop",
+            )
+        ]
     )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: fake)
 
-    assert out.text == expected.text
-    assert out.usage.to_jsonable() == expected.usage.to_jsonable()
-    assert out.metrics.finish_reason == expected.metrics.finish_reason
-    assert out.metrics.completion_status == expected.metrics.completion_status
+    out = await pollux.run("Q", config=_cfg())
+
+    assert isinstance(out, Output)
+    assert out.text == "The answer."
+    assert out.usage.total_tokens == 8
+    assert out.metrics.completion_status == "clean"
 
 
 @pytest.mark.asyncio

@@ -74,11 +74,11 @@ async def main_async(
         envelope = await run_many(
             prompts, sources=[Source.from_file(path)], config=config
         )
-        status = str(envelope.get("status", "ok"))
+        status = str(envelope.status)
         status_counts[status] = status_counts.get(status, 0) + 1
         total_tokens += int(usage_tokens(envelope) or 0)
 
-        answers = [str(answer) for answer in envelope.get("answers", [])]
+        answers = [str(answer) for answer in envelope.answers]
         print_kv_rows(
             [
                 ("File", f"[{idx}/{len(files)}] {path.name}"),

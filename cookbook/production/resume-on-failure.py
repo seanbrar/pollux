@@ -101,27 +101,26 @@ def build_items(directory: Path, prompt: str, limit: int) -> list[WorkItem]:
 
 async def process_item(item: WorkItem, *, config: Config, output_dir: Path) -> WorkItem:
     """Execute one item and write a per-item result artifact."""
-    envelope = await run(
+    result = await run(
         item.prompt, source=Source.from_file(item.source_path), config=config
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     result_file = output_dir / f"{item.id}.json"
+    metrics = result.metrics.to_jsonable()
     result_payload = {
         "source_path": item.source_path,
-        "status": envelope.get("status", "ok"),
-        "answers": envelope.get("answers", []),
-        "usage": envelope.get("usage", {}),
-        "metrics": envelope.get("metrics", {}),
+        "status": result.metrics.completion_status,
+        "answers": [result.text],
+        "usage": result.usage.to_jsonable(),
+        "metrics": metrics,
     }
     result_file.write_text(json.dumps(result_payload, indent=2))
 
-    item.status = str(envelope.get("status", "ok"))
+    item.status = result.metrics.completion_status
     item.output_path = str(result_file)
     item.error = None
-    item.metrics = (
-        envelope.get("metrics") if isinstance(envelope.get("metrics"), dict) else {}
-    )
+    item.metrics = metrics
     return item
 
 

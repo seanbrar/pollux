@@ -40,8 +40,8 @@ async def main_async(directory: Path, *, limit: int, config: Config) -> None:
     print_section("Result")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
-            ("Answers", len(envelope.get("answers", []))),
+            ("Status", envelope.status),
+            ("Answers", len(envelope.answers)),
         ]
     )
     print_learning_hints(

@@ -44,26 +44,24 @@ DEFAULT_PROMPT = "Summarize the key ideas and contributions in 5 bullets."
 
 
 async def main_async(path: Path, prompt: str, *, config: Config) -> None:
-    envelope = await run(prompt, source=Source.from_file(path), config=config)
+    result = await run(prompt, source=Source.from_file(path), config=config)
 
-    status = envelope.get("status", "ok")
-    answers = envelope.get("answers", [])
-    answer = str(answers[0]) if answers else ""
+    answer = result.text
 
     print_section("Result")
     print_kv_rows(
         [
-            ("Status", status),
+            ("Status", result.metrics.completion_status),
             ("Source", path),
         ]
     )
     print_excerpt("Answer excerpt", answer, limit=600)
-    print_usage(envelope)
+    print_usage(result)
     hints = [
         (
             "Next: tighten `--prompt` with explicit output format (bullets/table/JSON)."
-            if status == "ok"
-            else "Next: resolve non-ok status before scaling this prompt to more sources."
+            if result.metrics.completion_status == "clean"
+            else "Next: resolve non-clean completion before scaling this prompt."
         ),
         (
             "Next: add stronger task constraints to improve answer specificity."

@@ -25,7 +25,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
 async def test_run_and_run_many_smoke() -> None:
-    """Smoke: public API returns stable envelope shapes."""
+    """Smoke: public API returns Output / OutputCollection."""
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
 
     with_source = await pollux.run(
@@ -34,13 +34,11 @@ async def test_run_and_run_many_smoke() -> None:
         config=cfg,
     )
 
-    assert with_source["status"] == "ok"
-    assert with_source["answers"] == ["echo: hello world"]
-    assert with_source["metrics"]["n_calls"] == 1
+    assert with_source.text == "echo: hello world"
+    assert with_source.metrics.completion_status == "clean"
 
     prompt_only = await pollux.run("What is 2+2?", config=cfg)
-    assert prompt_only["status"] == "ok"
-    assert len(prompt_only["answers"]) == 1
+    assert prompt_only.text
 
     many = await pollux.run_many(
         prompts=("Q1?", "Q2?"),
@@ -48,14 +46,13 @@ async def test_run_and_run_many_smoke() -> None:
         config=cfg,
     )
 
-    assert many["status"] == "ok"
-    assert len(many["answers"]) == 2
-    assert many["metrics"]["n_calls"] == 2
+    assert many.status == "ok"
+    assert len(many.outputs) == 2
 
     empty = await pollux.run_many(prompts=[], config=cfg)
-    assert empty["status"] == "ok"
-    assert empty["answers"] == []
-    assert empty["metrics"]["n_calls"] == 0
+    assert empty.status == "ok"
+    assert empty.answers == []
+    assert len(empty.outputs) == 0
 
 
 # =============================================================================
@@ -122,26 +119,11 @@ async def test_provider_options_are_forwarded_for_active_provider(
     await pollux.run(
         "Hello",
         config=cfg,
-        options=Options(
-            provider_options={
-                "openai": {"seed": 123},
-                "gemini": {"seed": 456},
-            }
-        ),
+        provider_options={
+            "openai": {"seed": 123},
+            "gemini": {"seed": 456},
+        },
     )
 
     assert fake.last_generate_kwargs is not None
     assert fake.last_generate_kwargs["provider_options"] == {"seed": 123}
-
-
-@pytest.mark.asyncio
-async def test_create_cache_rejects_gemini_url_context_sources() -> None:
-    """URL Context is request-time retrieval and should not enter explicit caches."""
-    cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-    source = Source.from_uri(
-        "https://example.com/page",
-        mime_type="text/html",
-    ).with_gemini_url_context()
-
-    with pytest.raises(ConfigurationError, match="URL Context"):
-        await pollux.create_cache((source,), config=cfg)

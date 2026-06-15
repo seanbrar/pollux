@@ -14,13 +14,16 @@ For provider-level feature differences, see [Provider Capabilities](provider-cap
 
 | If you want to... | Use | Learn the workflow in... |
 |---|---|---|
-| Ask one prompt about one source (or no source) | `run()` | [Sending Content to Models](../sending-content.md) |
-| Ask many prompts against shared sources | `run_many()` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
-| Run one explicit interaction (environment + input), incl. tools/continuation | `interact()` (2.0) | [Building an Agent Loop](../agent-loop.md) |
+| Ask one prompt about one source (or no source) | `run()` → `Output` | [Sending Content to Models](../sending-content.md) |
+| Ask many prompts against shared sources | `run_many()` → `OutputCollection` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Run one explicit interaction (environment + input), incl. tools/continuation | `interact()` | [Building an Agent Loop](../agent-loop.md) |
 | Submit non-urgent work and collect it later | `defer()` / `defer_many()` | [Building With Deferred Delivery](../building-with-deferred-delivery.md) |
 | Check deferred job status or collect terminal results | `inspect_deferred()` / `collect_deferred()` / `cancel_deferred()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
-| Feed tool results back into a conversation turn | `continue_tool()` | [Building an Agent Loop](../agent-loop.md) |
-| Reuse Gemini context across later calls | `create_cache()` | [Reducing Costs with Context Caching](../caching.md) |
+
+> **2.0 cutover:** `run()` / `run_many()` now return the `Output` / `OutputCollection`
+> model (named facets, not dict envelopes). `continue_tool()` is replaced by
+> `interact(environment, Input(continuation=..., tool_results=...))`, and persistent
+> caching moves to environment preparation (a later 2.0 change).
 
 ## Entry Points
 
@@ -42,10 +45,6 @@ The primary execution functions are exported from `pollux`:
 
 ::: pollux.cancel_deferred
 
-::: pollux.continue_tool
-
-::: pollux.create_cache
-
 ## Core Types
 
 `Source` includes both the generic source constructors and narrow
@@ -53,8 +52,6 @@ provider-specific helpers such as `Source.with_gemini_video_settings(...)` and
 `Source.with_gemini_url_context()`.
 
 ::: pollux.Source
-
-::: pollux.CacheHandle
 
 ::: pollux.Config
 
