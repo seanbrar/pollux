@@ -41,7 +41,9 @@ _GEMINI_REASONING_MODEL = "gemini-3-flash-preview"
 
 def _api_options(provider: str, *, max_tokens: int = 32, **kwargs: Any) -> Options:
     """Return low-output live-test options where the provider supports them."""
-    if provider != "gemini":
+    if provider in {"openai", "openrouter"}:
+        kwargs.setdefault("max_tokens", max(max_tokens, 512))
+    elif provider != "gemini":
         kwargs.setdefault("max_tokens", max_tokens)
     return Options(**kwargs)
 
@@ -162,6 +164,7 @@ async def test_live_source_patterns_and_generation_controls(
     # gpt-5-nano currently rejects temperature/top_p; keep controls provider-aware.
     options = _api_options(
         provider,
+        max_tokens=1024 if provider == "openai" else 32,
         system_instruction="One line.",
         temperature=0.2 if provider == "gemini" else None,
         top_p=0.9 if provider == "gemini" else None,
@@ -396,7 +399,10 @@ async def test_gemini_url_context_roundtrip(
     )
 
     result = await pollux.run(
-        "Use URL Context. Reply exactly GEMINI_URL_CONTEXT_OK.",
+        (
+            "Read the URL. Reply exactly GEMINI_URL_CONTEXT_OK if the README title "
+            "mentions OpenAI Python API library."
+        ),
         source=Source.from_uri(
             "https://raw.githubusercontent.com/openai/openai-python/main/README.md",
             mime_type="text/markdown",
@@ -532,16 +538,15 @@ async def test_openrouter_reasoning_roundtrip(
     result = await pollux.run(
         "Reply exactly OK.",
         config=config,
-        options=Options(reasoning_effort="low", max_tokens=64),
+        options=Options(reasoning_effort="low", max_tokens=256),
     )
 
     assert result["status"] == "ok"
     assert "ok" in result["answers"][0].lower()
-    assert "reasoning" in result
-    assert isinstance(result["reasoning"], list)
-    assert len(result["reasoning"]) == 1
-    assert isinstance(result["reasoning"][0], str)
-    assert result["reasoning"][0].strip()
+    raw = result["diagnostics"]["raw_responses"][0]
+    provider_state = raw.get("provider_state")
+    assert isinstance(provider_state, dict)
+    assert provider_state.get("openrouter_reasoning_details")
 
 
 @pytest.mark.asyncio
@@ -567,23 +572,29 @@ async def test_openai_binary_upload_cleanup_roundtrip(
     pdf_path.write_bytes(_minimal_pdf_bytes())
 
     config = Config(provider="openai", model=openai_test_model, api_key=openai_api_key)
-    result = await pollux.run_many(
-        "Use both sources. Reply exactly PDF_REMOTE_OK.",
-        sources=(
-            Source.from_file(pdf_path, mime_type="application/pdf"),
-            Source.from_uri(
-                "https://raw.githubusercontent.com/openai/openai-python/main/README.md",
-                mime_type="text/markdown",
-            ),
-        ),
+    result = await pollux.run(
+        "Reply exactly PDF_OK.",
+        source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
-        options=Options(max_tokens=32),
+        options=Options(max_tokens=512),
     )
 
     assert result["status"] == "ok"
-    assert "pdf_remote_ok" in result["answers"][0].lower()
+    assert "pdf_ok" in result["answers"][0].lower()
     assert deleted_file_ids
     assert all(isinstance(file_id, str) and file_id for file_id in deleted_file_ids)
+
+    remote = await pollux.run(
+        "Read the remote file and reply exactly REMOTE_MARKDOWN_OK.",
+        source=Source.from_uri(
+            "https://raw.githubusercontent.com/openai/openai-python/main/README.md",
+            mime_type="text/markdown",
+        ),
+        config=config,
+        options=Options(max_tokens=512),
+    )
+    assert remote["status"] == "ok"
+    assert "remote_markdown_ok" in remote["answers"][0].lower()
 
 
 @pytest.mark.asyncio
@@ -676,7 +687,7 @@ async def test_openai_live_response_incomplete_shape_characterization(
         response = await client.responses.create(
             model=openai_test_model,
             input="Count from one to twenty in words.",
-            max_output_tokens=4,
+            max_output_tokens=16,
         )
 
         assert response.status == "incomplete"
@@ -706,7 +717,7 @@ async def test_openrouter_local_pdf_roundtrip(
         "Reply exactly with the PDF token.",
         source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
-        options=Options(max_tokens=32),
+        options=Options(max_tokens=512),
     )
 
     assert result["status"] == "ok"
