@@ -1131,18 +1131,23 @@ migration easier:</p>
   want.</li>
 </ul>
 <h2 id="what-is-available-now">What Is Available Now<a class="headerlink" href="#what-is-available-now" title="Permanent link">&para;</a></h2>
-<p>The 2.0 interaction model is landing incrementally on <code>main</code>. The first frontdoor
-is live:</p>
+<p>The 2.0 interaction model is landing incrementally on <code>main</code>:</p>
 <ul>
+<li><code>run()</code> and <code>run_many()</code> now return the 2.0 result model: <code>run()</code> returns an
+  <code>Output</code> (named facets <code>text</code>, <code>structured</code>, <code>reasoning</code>, <code>tool_calls</code>,
+  <code>continuation</code>, <code>usage</code>, <code>metrics</code>, <code>diagnostics</code>); <code>run_many()</code> returns an
+  <code>OutputCollection</code> (<code>.answers</code>, <code>.structured</code>, <code>.status</code>, <code>.usage</code>). They take
+  first-class keyword arguments (<code>instructions=</code>, <code>output=</code>, <code>temperature=</code>,
+  <code>max_tokens=</code>, <code>tools=</code>, …) instead of an <code>Options</code> object. Read facets
+  (<code>result.text</code>) rather than dictionary keys (<code>result["answers"][0]</code>).</li>
 <li><code>interact(environment, input, *, config, **generation_kwargs) -&gt; Output</code> runs
-  one explicit interaction over an <code>Environment</code> and <code>Input</code>, returning an
-  <code>Output</code> with named facets (<code>text</code>, <code>structured</code>, <code>reasoning</code>, <code>tool_calls</code>,
-  <code>continuation</code>, <code>usage</code>, <code>metrics</code>, <code>diagnostics</code>). Continue a conversation or
-  tool loop by passing the prior <code>Output</code>'s <code>continuation</code> and any <code>tool_results</code>
-  in the next <code>Input</code> — this is the replacement for <code>continue_tool()</code>.</li>
+  one explicit interaction over an <code>Environment</code> and <code>Input</code>. Continue a
+  conversation or tool loop by passing the prior <code>Output</code>'s <code>continuation</code> and any
+  <code>tool_results</code> in the next <code>Input</code> — the replacement for <code>continue_tool()</code>.</li>
 </ul>
-<p><code>run()</code> / <code>run_many()</code> / <code>defer()</code> keep their 1.x behavior for now and move onto
-the same model in later changes.</p>
+<p>Still in progress: <code>defer()</code> moves onto the same model, and persistent caching
+returns through environment preparation (it briefly steps back during the
+cutover). <code>create_cache()</code> and <code>Options</code> are removed from the realtime path.</p>
 <h2 id="as-the-design-settles">As The Design Settles<a class="headerlink" href="#as-the-design-settles" title="Permanent link">&para;</a></h2>
 <p>This page will change as the 2.0 API moves from plan to release candidate. Use
 it as the public migration guide; exact replacement snippets will become more
