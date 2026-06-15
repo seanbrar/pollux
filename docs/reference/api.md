@@ -16,6 +16,7 @@ For provider-level feature differences, see [Provider Capabilities](provider-cap
 |---|---|---|
 | Ask one prompt about one source (or no source) | `run()` | [Sending Content to Models](../sending-content.md) |
 | Ask many prompts against shared sources | `run_many()` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
+| Run one explicit interaction (environment + input), incl. tools/continuation | `interact()` (2.0) | [Building an Agent Loop](../agent-loop.md) |
 | Submit non-urgent work and collect it later | `defer()` / `defer_many()` | [Building With Deferred Delivery](../building-with-deferred-delivery.md) |
 | Check deferred job status or collect terminal results | `inspect_deferred()` / `collect_deferred()` / `cancel_deferred()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
 | Feed tool results back into a conversation turn | `continue_tool()` | [Building an Agent Loop](../agent-loop.md) |
@@ -28,6 +29,8 @@ The primary execution functions are exported from `pollux`:
 ::: pollux.run
 
 ::: pollux.run_many
+
+::: pollux.interact
 
 ::: pollux.defer
 
@@ -64,6 +67,30 @@ provider-specific helpers such as `Source.with_gemini_video_settings(...)` and
 ::: pollux.RetryPolicy
 
 ::: pollux.ResultEnvelope
+
+## Interaction Types (2.0)
+
+The canonical v2 interaction model. `interact()` takes an `Environment` and an
+`Input` and returns an `Output`; `OutputCollection` is the source-pattern
+aggregate. These coexist with the 1.x types during the 2.0 cutover.
+
+::: pollux.Environment
+
+::: pollux.Input
+
+::: pollux.Output
+
+::: pollux.OutputCollection
+
+::: pollux.OutputRequirements
+
+::: pollux.Continuation
+
+::: pollux.ToolDeclaration
+
+::: pollux.ToolCall
+
+::: pollux.ToolResult
 
 ## Error Types
 

@@ -123,6 +123,21 @@ migration easier:
   `defer_many()` only when provider-side deferred delivery is the workflow you
   want.
 
+## What Is Available Now
+
+The 2.0 interaction model is landing incrementally on `main`. The first frontdoor
+is live:
+
+- `interact(environment, input, *, config, **generation_kwargs) -> Output` runs
+  one explicit interaction over an `Environment` and `Input`, returning an
+  `Output` with named facets (`text`, `structured`, `reasoning`, `tool_calls`,
+  `continuation`, `usage`, `metrics`, `diagnostics`). Continue a conversation or
+  tool loop by passing the prior `Output`'s `continuation` and any `tool_results`
+  in the next `Input` — this is the replacement for `continue_tool()`.
+
+`run()` / `run_many()` / `defer()` keep their 1.x behavior for now and move onto
+the same model in later changes.
+
 ## As The Design Settles
 
 This page will change as the 2.0 API moves from plan to release candidate. Use

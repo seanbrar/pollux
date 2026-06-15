@@ -3,6 +3,7 @@
 Public API:
     - run(): Single prompt execution
     - run_many(): Multi-prompt source-pattern execution
+    - interact(): One explicit v2 interaction over an Environment and Input
     - defer(): Single deferred request submission
     - defer_many(): Multi-prompt deferred submission
     - inspect_deferred(): Inspect a deferred job
@@ -49,7 +50,21 @@ from pollux.errors import (
     SourceError,
 )
 from pollux.execute import execute_plan
-from pollux.options import Options
+from pollux.interaction import (
+    Continuation,
+    Environment,
+    Input,
+    Message,
+    Output,
+    OutputCollection,
+    OutputRequirements,
+    ToolCall,
+    ToolChoice,
+    ToolDeclaration,
+    ToolResult,
+)
+from pollux.interaction.execute import execute_interaction
+from pollux.options import Options, ResponseSchemaInput
 from pollux.plan import build_plan
 from pollux.providers.base import CloseableProvider
 from pollux.request import normalize_request
@@ -101,6 +116,78 @@ async def run(
     """
     sources = (source,) if source else ()
     return await run_many(prompt, sources=sources, config=config, options=options)
+
+
+async def interact(
+    environment: Environment,
+    input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+    *,
+    config: Config,
+    output: ResponseSchemaInput | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_budget_tokens: int | None = None,
+    tool_choice: ToolChoice | None = None,
+    provider_options: dict[str, dict[str, Any]] | None = None,
+) -> Output:
+    """Run one explicit v2 interaction over an environment and input.
+
+    The v2 interaction facade: build an :class:`Environment` once (instructions,
+    sources, tools, cache preference), then send :class:`Input` turns. Returns an
+    :class:`Output` with named facets (``text``, ``structured``, ``reasoning``,
+    ``tool_calls``, ``continuation``, ``usage``, ``metrics``, ``diagnostics``).
+    Continue by passing the prior output's ``continuation`` and any
+    ``tool_results`` in the next ``Input``.
+
+    Args:
+        environment: Reusable model-facing setup for the interaction.
+        input: The per-turn payload (user content, continuation, tool results).
+        config: Configuration specifying provider and model.
+        output: Optional Pydantic model or JSON Schema for structured output.
+        temperature: Optional sampling temperature.
+        top_p: Optional nucleus-sampling probability.
+        max_tokens: Optional hard cap on output tokens.
+        seed: Optional sampling seed where supported.
+        reasoning_effort: Optional qualitative reasoning effort.
+        reasoning_budget_tokens: Optional explicit reasoning token budget.
+        tool_choice: Optional tool-choice control.
+        provider_options: Optional raw provider-scoped generation options.
+
+    Returns:
+        The completed :class:`Output` for the interaction.
+
+    Example:
+        environment = Environment(instructions=system_prompt, tools=tool_decls)
+        result = await interact(environment, Input("Inspect the repo."), config=cfg)
+        while result.tool_calls:
+            results = [ToolResult(call_id=c.id, content=run_tool(c)) for c in result.tool_calls]
+            result = await interact(
+                environment,
+                Input(continuation=result.continuation, tool_results=results),
+                config=cfg,
+            )
+    """
+    requirements = OutputRequirements(
+        output_schema=output,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=tool_choice,
+        provider_options=provider_options,
+    )
+    provider = _get_provider(config)
+    try:
+        return await execute_interaction(
+            environment, input, requirements, config, provider
+        )
+    finally:
+        await _close_provider(provider)
 
 
 async def defer(
@@ -478,11 +565,18 @@ __all__ = [
     "CacheHandle",
     "Config",
     "ConfigurationError",
+    "Continuation",
     "DeferredHandle",
     "DeferredNotReadyError",
     "DeferredSnapshot",
+    "Environment",
+    "Input",
     "InternalError",
+    "Message",
     "Options",
+    "Output",
+    "OutputCollection",
+    "OutputRequirements",
     "PlanningError",
     "PolluxError",
     "RateLimitError",
@@ -490,6 +584,10 @@ __all__ = [
     "RetryPolicy",
     "Source",
     "SourceError",
+    "ToolCall",
+    "ToolChoice",
+    "ToolDeclaration",
+    "ToolResult",
     "cancel_deferred",
     "collect_deferred",
     "continue_tool",
@@ -497,6 +595,7 @@ __all__ = [
     "defer",
     "defer_many",
     "inspect_deferred",
+    "interact",
     "run",
     "run_many",
 ]
