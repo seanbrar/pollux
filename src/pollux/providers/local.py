@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, cast
 import httpx
 
 from pollux.errors import APIError, ConfigurationError, walk_exception_chain
+from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._openai_compat import (
     extract_error_message,
@@ -32,12 +33,16 @@ from pollux.providers.base import ProviderCapabilities
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
 
 _LOCAL_TIMEOUT_S = 300.0
 
@@ -93,14 +98,20 @@ class LocalProvider:
             )
         return cast("httpx.AsyncClient", self._client)
 
-    async def validate_request(self, request: ProviderRequest) -> None:
+    async def validate_request(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,  # noqa: ARG002
+    ) -> None:
         """Fail fast on features the local provider does not support."""
-        if request.reasoning_budget_tokens is not None:
+        if requirements.reasoning_budget_tokens is not None:
             raise ConfigurationError(
                 "Local provider does not support reasoning_budget_tokens",
                 hint="Remove reasoning_budget_tokens.",
             )
-        if request.reasoning_effort is not None:
+        if requirements.reasoning_effort is not None:
             raise ConfigurationError(
                 "Local provider does not support reasoning_effort controls",
                 hint=(
@@ -109,7 +120,7 @@ class LocalProvider:
                     "reasoning controls. Remove reasoning_effort."
                 ),
             )
-        if request.tools is not None or request.tool_choice is not None:
+        if snapshot.tools or requirements.tool_choice is not None:
             raise ConfigurationError(
                 "Local provider does not support tool calling",
                 hint=(
@@ -117,22 +128,22 @@ class LocalProvider:
                     "Use OpenAI, Gemini, or OpenRouter for tool use."
                 ),
             )
-        if request.history is not None:
-            for item in request.history:
-                if (
-                    item.role == "tool"
-                    or item.tool_call_id is not None
-                    or item.tool_calls is not None
-                ):
-                    raise ConfigurationError(
-                        "Local provider does not support tool-call history",
-                        hint=(
-                            "Start a fresh text-only local conversation, summarize "
-                            "tool results into plain text, or use a provider with "
-                            "tool calling."
-                        ),
-                    )
-        for part in request.parts:
+        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
+        for item in history:
+            if (
+                item.role == "tool"
+                or item.tool_call_id is not None
+                or item.tool_calls is not None
+            ):
+                raise ConfigurationError(
+                    "Local provider does not support tool-call history",
+                    hint=(
+                        "Start a fresh text-only local conversation, summarize "
+                        "tool results into plain text, or use a provider with "
+                        "tool calling."
+                    ),
+                )
+        for part in _compile.request_parts(snapshot, input):
             if not _is_text_part(part):
                 raise ConfigurationError(
                     "Local provider does not support file or multimodal input",
@@ -142,27 +153,35 @@ class LocalProvider:
                     ),
                 )
 
-    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+    async def generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> ProviderResponse:
         """Generate a response via OpenAI-compatible Chat Completions."""
-        await self.validate_request(request)
+        await self.validate_request(snapshot, input, requirements, config)
 
+        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
+        response_schema = requirements.output_schema_json()
         messages = _build_messages(
-            request.parts,
-            request.history,
-            system_instruction=request.system_instruction,
+            _compile.request_parts(snapshot, input),
+            history or None,
+            system_instruction=_compile.system_instruction(snapshot),
         )
         payload: dict[str, Any] = {
-            "model": request.model,
+            "model": config.model,
             "messages": messages,
         }
-        if request.temperature is not None:
-            payload["temperature"] = request.temperature
-        if request.top_p is not None:
-            payload["top_p"] = request.top_p
-        if request.max_tokens is not None:
-            payload["max_tokens"] = request.max_tokens
-        if request.response_schema is not None:
-            strict_schema = to_strict_schema(request.response_schema)
+        if requirements.temperature is not None:
+            payload["temperature"] = requirements.temperature
+        if requirements.top_p is not None:
+            payload["top_p"] = requirements.top_p
+        if requirements.max_tokens is not None:
+            payload["max_tokens"] = requirements.max_tokens
+        if response_schema is not None:
+            strict_schema = to_strict_schema(response_schema)
             # Servers that support Chat Completions JSON schema mode can map this
             # to their own constrained decoding implementation.
             payload["response_format"] = {
@@ -175,7 +194,7 @@ class LocalProvider:
             }
         merge_provider_options(
             payload,
-            request.provider_options,
+            requirements.provider_options_for("local"),
             provider="local",
         )
 
@@ -210,7 +229,7 @@ class LocalProvider:
                 hint="Check your server's logs; the response shape is unexpected.",
             )
 
-        return _parse_response(data, response_schema=request.response_schema)
+        return _parse_response(data, response_schema=response_schema)
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Reject uploads because local provider takes inline content only."""

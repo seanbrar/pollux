@@ -7,20 +7,28 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.gemini import GeminiProvider
-from pollux.providers.models import (
-    Message,
-    ProviderRequest,
-    ToolCall,
-)
 from pollux.providers.openai import OpenAIProvider
 from tests.conftest import (
     GEMINI_MODEL,
     OPENAI_MODEL,
 )
+from tests.helpers import make_interaction
 from tests.providers.helpers import FakeResponses
 
 pytestmark = pytest.mark.contract
+
+
+def _openai(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    kwargs.setdefault("model", OPENAI_MODEL)
+    return make_interaction(provider="openai", **kwargs)
+
+
+def _gemini(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    kwargs.setdefault("model", GEMINI_MODEL)
+    return make_interaction(provider="gemini", **kwargs)
 
 
 # =============================================================================
@@ -38,24 +46,25 @@ async def test_openai_maps_tool_history_to_responses_api_format() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Continue the conversation"],
-            history=[
-                Message(role="user", content="What's the weather?"),
-                Message(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            id="call_abc",
-                            name="get_weather",
-                            arguments='{"location": "NYC"}',
-                        )
-                    ],
+        *_openai(
+            content="Continue the conversation",
+            continuation=Continuation(
+                messages=(
+                    Message(role="user", content="What's the weather?"),
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_abc",
+                                name="get_weather",
+                                arguments_text='{"location": "NYC"}',
+                            ),
+                        ),
+                    ),
                 ),
-                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
-            ],
+            ),
+            tool_results=[ToolResult(call_id="call_abc", content='{"temp": 72}')],
         )
     )
 
@@ -93,18 +102,21 @@ async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Continue"],
-            history=[
-                Message(
-                    role="assistant",
-                    content="Let me check that tool.",
-                    tool_calls=[
-                        ToolCall(id="call_abc", name="get_weather", arguments="{}")
-                    ],
-                )
-            ],
+        *_openai(
+            content="Continue",
+            continuation=Continuation(
+                messages=(
+                    Message(
+                        role="assistant",
+                        content="Let me check that tool.",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_abc", name="get_weather", arguments_text="{}"
+                            ),
+                        ),
+                    ),
+                ),
+            ),
         )
     )
 
@@ -128,21 +140,24 @@ async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> N
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Continue"],
-            previous_response_id="resp_prev",
-            history=[
-                Message(role="user", content="What's the weather?"),
-                Message(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ToolCall(id="call_abc", name="get_weather", arguments="{}")
-                    ],
+        *_openai(
+            content="Continue",
+            continuation=Continuation(
+                response_id="resp_prev",
+                messages=(
+                    Message(role="user", content="What's the weather?"),
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_abc", name="get_weather", arguments_text="{}"
+                            ),
+                        ),
+                    ),
                 ),
-                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
-            ],
+            ),
+            tool_results=[ToolResult(call_id="call_abc", content='{"temp": 72}')],
         )
     )
 
@@ -185,24 +200,25 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=["Continue the conversation"],
-            history=[
-                Message(role="user", content="What's the weather?"),
-                Message(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            id="call_abc",
-                            name="get_weather",
-                            arguments='{"location": "NYC"}',
-                        )
-                    ],
+        *_gemini(
+            content="Continue the conversation",
+            continuation=Continuation(
+                messages=(
+                    Message(role="user", content="What's the weather?"),
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_abc",
+                                name="get_weather",
+                                arguments_text='{"location": "NYC"}',
+                            ),
+                        ),
+                    ),
                 ),
-                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
-            ],
+            ),
+            tool_results=[ToolResult(call_id="call_abc", content='{"temp": 72}')],
         )
     )
 
@@ -255,24 +271,25 @@ async def test_gemini_merges_prompt_into_tool_response_content() -> None:
     provider._client.aio = fake_aio
 
     await provider.generate(
-        ProviderRequest(
-            model=GEMINI_MODEL,
-            parts=["Proceed."],
-            history=[
-                Message(role="user", content="What's the weather?"),
-                Message(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            id="call_abc",
-                            name="get_weather",
-                            arguments='{"location": "NYC"}',
-                        )
-                    ],
+        *_gemini(
+            content="Proceed.",
+            continuation=Continuation(
+                messages=(
+                    Message(role="user", content="What's the weather?"),
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_abc",
+                                name="get_weather",
+                                arguments_text='{"location": "NYC"}',
+                            ),
+                        ),
+                    ),
                 ),
-                Message(role="tool", tool_call_id="call_abc", content='{"temp": 72}'),
-            ],
+            ),
+            tool_results=[ToolResult(call_id="call_abc", content='{"temp": 72}')],
         )
     )
 

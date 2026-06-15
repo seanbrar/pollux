@@ -15,9 +15,9 @@ from pollux.errors import (
     ConfigurationError,
     PlanningError,
 )
+from pollux.providers import _compile
 from pollux.providers.models import (
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
 )
 from pollux.retry import RetryPolicy
@@ -39,8 +39,10 @@ async def test_generate_error_attributes_provider_and_call_index(
 
     @dataclass
     class _Provider(FakeProvider):
-        async def generate(self, request: ProviderRequest) -> ProviderResponse:
-            parts = request.parts
+        async def generate(
+            self, snapshot: Any, input: Any, requirements: Any, config: Any
+        ) -> ProviderResponse:
+            parts = _compile.request_parts(snapshot, input)
             prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
             if prompt == "Q2":
                 raise APIError(

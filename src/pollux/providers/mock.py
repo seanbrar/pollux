@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from pollux.providers import _compile
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderFileAsset, ProviderResponse
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
 
 
 def _echo_text(parts: list[Any]) -> str:
@@ -38,15 +44,22 @@ class MockProvider:
             implicit_caching=False,
         )
 
-    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+    async def generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,  # noqa: ARG002
+        config: Config,  # noqa: ARG002
+    ) -> ProviderResponse:
         """Return a deterministic mock response.
 
         Echo the first non-empty string part, falling back to the last string
         part (typically the prompt). This keeps file-based recipes informative
         in mock mode.
         """
+        parts = _compile.request_parts(snapshot, input)
         return ProviderResponse(
-            text=f"echo: {_echo_text(request.parts)[:100]}",
+            text=f"echo: {_echo_text(parts)[:100]}",
             usage={"input_tokens": 10, "total_tokens": 20},
         )
 

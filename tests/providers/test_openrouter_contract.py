@@ -9,11 +9,8 @@ import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
-from pollux.providers.models import (
-    Message,
-    ProviderRequest,
-    ToolCall,
-)
+from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.openrouter import (
     OpenRouterProvider,
     _extract_error_message,
@@ -22,6 +19,14 @@ from pollux.providers.openrouter import (
 from tests.conftest import (
     OPENROUTER_MODEL,
 )
+from tests.helpers import make_interaction
+
+
+def _openrouter(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    """Build the four primitives for an openrouter-provider generate() call."""
+    kwargs.setdefault("model", OPENROUTER_MODEL)
+    return make_interaction(provider="openrouter", **kwargs)
+
 
 pytestmark = pytest.mark.contract
 
@@ -137,10 +142,9 @@ async def test_openrouter_generate_builds_text_and_history_messages() -> None:
     provider._client = fake_client
 
     result = await provider.generate(
-        ProviderRequest(
-            model=OPENROUTER_MODEL,
-            parts=["Current prompt"],
-            system_instruction="Be concise.",
+        *_openrouter(
+            content="Current prompt",
+            instructions="Be concise.",
             history=[
                 Message(role="user", content="Earlier question"),
                 Message(role="assistant", content="Earlier answer"),
@@ -195,10 +199,9 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
     pdf_asset = await provider.upload_file(pdf_path, "application/pdf")
 
     await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="openai/gpt-4.1-mini",
-            parts=[
-                "Summarize these assets.",
+            prepared_parts=[
                 {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
                 {
                     "uri": "https://example.com/report.pdf",
@@ -207,6 +210,7 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
                 image_asset,
                 pdf_asset,
             ],
+            content="Summarize these assets.",
         )
     )
 
@@ -216,7 +220,6 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Summarize these assets."},
                     {
                         "type": "image_url",
                         "image_url": {"url": "https://example.com/photo.jpg"},
@@ -239,6 +242,7 @@ async def test_openrouter_generate_characterizes_image_and_pdf_request_shape(
                             "file_data": pdf_asset.file_id,
                         },
                     },
+                    {"type": "text", "text": "Summarize these assets."},
                 ],
             }
         ],
@@ -258,42 +262,42 @@ async def test_openrouter_generate_characterizes_tool_history_and_schema_shape()
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="openai/gpt-4.1-mini",
-            parts=["Use the tool result to answer."],
-            history=[
-                Message(role="user", content="Need orbit code."),
-                Message(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            id="call_orbit",
-                            name="get_secret",
-                            arguments='{"topic":"orbit"}',
-                        )
-                    ],
+            continuation=Continuation(
+                messages=(
+                    Message(role="user", content="Need orbit code."),
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_orbit",
+                                name="get_secret",
+                                arguments_text='{"topic":"orbit"}',
+                            ),
+                        ),
+                    ),
                 ),
-                Message(
-                    role="tool",
-                    tool_call_id="call_orbit",
-                    content='{"code":"K9-ORBIT"}',
-                ),
+                provider_state={
+                    "history": [
+                        None,
+                        {
+                            "openrouter_reasoning_details": [
+                                {
+                                    "type": "reasoning.text",
+                                    "text": "Need the tool result before answering.",
+                                }
+                            ]
+                        },
+                        None,
+                    ]
+                },
+            ),
+            tool_results=[
+                ToolResult(call_id="call_orbit", content='{"code":"K9-ORBIT"}')
             ],
-            provider_state={
-                "history": [
-                    None,
-                    {
-                        "openrouter_reasoning_details": [
-                            {
-                                "type": "reasoning.text",
-                                "text": "Need the tool result before answering.",
-                            }
-                        ]
-                    },
-                    None,
-                ]
-            },
+            content="Use the tool result to answer.",
             tools=[
                 {
                     "name": "get_secret",
@@ -429,9 +433,9 @@ async def test_openrouter_generate_maps_reasoning_effort_and_extracts_reasoning_
     provider._client = fake_client
 
     result = await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="openai/gpt-5-nano",
-            parts=["Reply with exactly OK."],
+            content="Reply with exactly OK.",
             reasoning_effort="medium",
         )
     )
@@ -467,19 +471,21 @@ async def test_openrouter_generate_replays_reasoning_only_history() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="openai/gpt-4.1-mini",
-            parts=["Continue."],
-            history=[
-                Message(role="user", content="Think first."),
-                Message(role="assistant", content=""),
-            ],
-            provider_state={
-                "history": [
-                    None,
-                    {"openrouter_reasoning": "The model thought briefly."},
-                ]
-            },
+            content="Continue.",
+            continuation=Continuation(
+                messages=(
+                    Message(role="user", content="Think first."),
+                    Message(role="assistant", content=""),
+                ),
+                provider_state={
+                    "history": [
+                        None,
+                        {"openrouter_reasoning": "The model thought briefly."},
+                    ]
+                },
+            ),
         )
     )
 
@@ -509,9 +515,8 @@ async def test_openrouter_generate_rejects_tools_when_model_lacks_support() -> N
 
     with pytest.raises(ConfigurationError, match="does not support tool calling"):
         await provider.generate(
-            ProviderRequest(
-                model=OPENROUTER_MODEL,
-                parts=["Hello"],
+            *_openrouter(
+                content="Hello",
                 tools=[{"name": "get_weather"}],
             )
         )
@@ -528,9 +533,8 @@ async def test_openrouter_generate_rejects_structured_outputs_when_model_lacks_s
 
     with pytest.raises(ConfigurationError, match="does not support structured outputs"):
         await provider.generate(
-            ProviderRequest(
-                model=OPENROUTER_MODEL,
-                parts=["Hello"],
+            *_openrouter(
+                content="Hello",
                 response_schema={
                     "type": "object",
                     "properties": {"answer": {"type": "string"}},
@@ -583,9 +587,9 @@ async def test_openrouter_parse_response_extracts_tool_calls_and_reasoning_state
     provider._client = fake_client
 
     result = await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="openai/gpt-4.1-mini",
-            parts=["Need orbit code."],
+            content="Need orbit code.",
             tools=[{"name": "get_secret"}],
         )
     )
@@ -688,9 +692,9 @@ async def test_openrouter_parse_response_extracts_structured_output() -> None:
     provider._client = fake_client
 
     result = await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="openai/gpt-4.1-mini",
-            parts=["Need orbit code."],
+            content="Need orbit code.",
             response_schema={
                 "type": "object",
                 "properties": {"secret_code": {"type": "string"}},
@@ -714,9 +718,8 @@ async def test_openrouter_generate_rejects_tool_choice_when_model_lacks_support(
 
     with pytest.raises(ConfigurationError, match="does not support tool choice"):
         await provider.generate(
-            ProviderRequest(
-                model=OPENROUTER_MODEL,
-                parts=["Hello"],
+            *_openrouter(
+                content="Hello",
                 tool_choice="required",
             )
         )
@@ -733,14 +736,14 @@ async def test_openrouter_generate_rejects_image_inputs_when_model_lacks_support
 
     with pytest.raises(ConfigurationError, match="does not support image input"):
         await provider.generate(
-            ProviderRequest(
-                model=OPENROUTER_MODEL,
-                parts=[
+            *_openrouter(
+                prepared_parts=[
                     {
                         "uri": "https://example.com/photo.jpg",
                         "mime_type": "image/jpeg",
                     }
                 ],
+                content="prompt",
             )
         )
 
@@ -755,14 +758,15 @@ async def test_openrouter_generate_allows_pdf_inputs_when_openrouter_parses_them
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
+        *_openrouter(
             model="google/gemma-3-4b-it",
-            parts=[
+            prepared_parts=[
                 {
                     "uri": "https://example.com/report.pdf",
                     "mime_type": "application/pdf",
                 }
             ],
+            content="prompt",
         )
     )
 
@@ -778,7 +782,11 @@ async def test_openrouter_generate_allows_pdf_inputs_when_openrouter_parses_them
                             "filename": "report.pdf",
                             "file_data": "https://example.com/report.pdf",
                         },
-                    }
+                    },
+                    {
+                        "type": "text",
+                        "text": "prompt",
+                    },
                 ],
             }
         ],
@@ -794,14 +802,15 @@ async def test_openrouter_generate_rejects_non_pdf_file_inputs() -> None:
 
     with pytest.raises(ConfigurationError, match="Unsupported OpenRouter input type"):
         await provider.generate(
-            ProviderRequest(
+            *_openrouter(
                 model="openai/gpt-4.1-mini",
-                parts=[
+                prepared_parts=[
                     {
                         "uri": "https://example.com/data.csv",
                         "mime_type": "text/csv",
                     }
                 ],
+                content="prompt",
             )
         )
 
@@ -814,9 +823,7 @@ async def test_openrouter_generate_attributes_non_object_payload_errors() -> Non
     provider._client = fake_client
 
     with pytest.raises(APIError, match="non-object response") as exc:
-        await provider.generate(
-            ProviderRequest(model=OPENROUTER_MODEL, parts=["Hello"])
-        )
+        await provider.generate(*_openrouter(content="Hello"))
 
     err = exc.value
     assert err.provider == "openrouter"
@@ -832,7 +839,7 @@ async def test_openrouter_validate_request_rejects_unknown_model() -> None:
 
     with pytest.raises(ConfigurationError, match="model not found"):
         await provider.validate_request(
-            ProviderRequest(model="missing/model", parts=["Hello"])
+            *_openrouter(model="missing/model", content="Hello")
         )
 
 
@@ -852,11 +859,7 @@ async def test_openrouter_validate_request_rejects_reasoning_budget_tokens(
         ConfigurationError, match="Provider does not support reasoning_budget_tokens"
     ):
         await provider.validate_request(
-            ProviderRequest(
-                model=OPENROUTER_MODEL,
-                parts=["Hello"],
-                reasoning_budget_tokens=0,
-            )
+            *_openrouter(content="Hello", reasoning_budget_tokens=0)
         )
 
 
@@ -867,8 +870,8 @@ async def test_openrouter_validate_request_reuses_cached_metadata() -> None:
     provider = OpenRouterProvider("test-key")
     provider._client = fake_client
 
-    await provider.validate_request(ProviderRequest(model=OPENROUTER_MODEL, parts=[]))
-    await provider.validate_request(ProviderRequest(model=OPENROUTER_MODEL, parts=[]))
+    await provider.validate_request(*_openrouter(content="prompt"))
+    await provider.validate_request(*_openrouter(content="prompt"))
 
     assert fake_client.get_calls == 1
 
@@ -883,9 +886,7 @@ async def test_openrouter_validate_request_attributes_non_object_metadata_errors
     provider._client = fake_client
 
     with pytest.raises(APIError, match="non-object response") as exc:
-        await provider.validate_request(
-            ProviderRequest(model=OPENROUTER_MODEL, parts=["Hello"])
-        )
+        await provider.validate_request(*_openrouter(content="Hello"))
 
     err = exc.value
     assert err.provider == "openrouter"
@@ -900,9 +901,7 @@ async def test_openrouter_validate_request_attributes_invalid_metadata_errors() 
     provider._client = fake_client
 
     with pytest.raises(APIError, match="invalid payload") as exc:
-        await provider.validate_request(
-            ProviderRequest(model=OPENROUTER_MODEL, parts=["Hello"])
-        )
+        await provider.validate_request(*_openrouter(content="Hello"))
 
     err = exc.value
     assert err.provider == "openrouter"

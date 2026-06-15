@@ -8,10 +8,12 @@ import io
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.parts import build_shared_parts
+from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import (
     jsonable_provider_artifact,
@@ -27,12 +29,17 @@ from pollux.providers.base import (
 )
 from pollux.providers.models import (
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
     ToolCall,
     is_file_part,
     provider_response_to_dict,
 )
+
+if TYPE_CHECKING:
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +113,9 @@ class OpenAIProvider:
         return None
 
     @staticmethod
-    def _validate_request_features(request: ProviderRequest) -> None:
+    def _validate_request_features(requirements: OutputRequirements) -> None:
         """Reject unsupported request features before any provider side effects."""
-        if request.reasoning_budget_tokens is not None:
+        if requirements.reasoning_budget_tokens is not None:
             raise ConfigurationError(
                 "Provider does not support reasoning_budget_tokens",
                 hint=(
@@ -117,9 +124,15 @@ class OpenAIProvider:
                 ),
             )
 
-    async def validate_request(self, request: ProviderRequest) -> None:
+    async def validate_request(
+        self,
+        snapshot: EnvironmentSnapshot,  # noqa: ARG002
+        input: Input,  # noqa: A002, ARG002
+        requirements: OutputRequirements,
+        config: Config,  # noqa: ARG002
+    ) -> None:
         """Validate OpenAI-specific request constraints."""
-        self._validate_request_features(request)
+        self._validate_request_features(requirements)
 
     @staticmethod
     def _build_input(
@@ -286,7 +299,10 @@ class OpenAIProvider:
 
     async def submit_deferred(
         self,
-        requests: list[ProviderRequest],
+        snapshot: EnvironmentSnapshot,
+        inputs: list[Input],
+        requirements: OutputRequirements,
+        config: Config,
         *,
         request_ids: list[str],
     ) -> ProviderDeferredHandle:
@@ -296,9 +312,12 @@ class OpenAIProvider:
         try:
             lines: list[str] = []
             upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
-            for request_id, request in zip(request_ids, requests, strict=True):
+            for request_id, inp in zip(request_ids, inputs, strict=True):
                 body = await self._build_batch_request_body(
-                    request,
+                    snapshot,
+                    inp,
+                    requirements,
+                    config,
                     upload_cache=upload_cache,
                 )
                 lines.append(
@@ -322,13 +341,14 @@ class OpenAIProvider:
                 purpose="batch",
             )
             batch_file_id = _field(batch_file, "id")
+            has_schema = "1" if requirements.output_schema_json() is not None else "0"
             batch = await client.batches.create(
                 input_file_id=batch_file.id,
                 endpoint="/v1/responses",
                 completion_window="24h",
                 metadata={
-                    "pollux_request_count": str(len(requests)),
-                    "pollux_has_response_schema": _batch_has_response_schema(requests),
+                    "pollux_request_count": str(len(inputs)),
+                    "pollux_has_response_schema": has_schema,
                 },
             )
             return ProviderDeferredHandle(
@@ -487,15 +507,22 @@ class OpenAIProvider:
 
     async def generate(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> ProviderResponse:
         """Generate a response using OpenAI's responses endpoint."""
-        _ = request.cache_name
         client = self._get_client()
-        create_kwargs = self._build_responses_create_kwargs(request)
+        parts = _compile.request_parts(snapshot, input)
+        create_kwargs = self._build_responses_create_kwargs(
+            parts, snapshot, input, requirements, config
+        )
 
         response = await client.responses.create(**create_kwargs)
-        return self._parse_response(response, response_schema=request.response_schema)
+        return self._parse_response(
+            response, response_schema=requirements.output_schema_json()
+        )
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a local file and return an asset."""
@@ -577,43 +604,50 @@ class OpenAIProvider:
                 logger.debug("OpenAI deferred cleanup failed for file_id=%s", file_id)
 
     def _build_responses_create_kwargs(
-        self, request: ProviderRequest
+        self,
+        parts: list[Any],
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> dict[str, Any]:
         """Build the raw `/v1/responses` request body."""
-        self._validate_request_features(request)
+        self._validate_request_features(requirements)
 
-        input_messages = self._build_input(
-            request.parts, request.history, request.previous_response_id
-        )
+        history, previous_response_id, _provider_state = _compile.prior_turns(input)
+        input_messages = self._build_input(parts, history, previous_response_id)
 
         create_kwargs: dict[str, Any] = {
-            "model": request.model,
+            "model": config.model,
             "input": input_messages,
         }
-        if request.temperature is not None:
-            create_kwargs["temperature"] = request.temperature
-        if request.top_p is not None:
-            create_kwargs["top_p"] = request.top_p
-        if request.max_tokens is not None:
-            create_kwargs["max_output_tokens"] = request.max_tokens
+        if requirements.temperature is not None:
+            create_kwargs["temperature"] = requirements.temperature
+        if requirements.top_p is not None:
+            create_kwargs["top_p"] = requirements.top_p
+        if requirements.max_tokens is not None:
+            create_kwargs["max_output_tokens"] = requirements.max_tokens
 
-        if request.tools is not None:
-            create_kwargs["tools"] = self._normalize_tools(request.tools)
-            mapped = self._map_tool_choice(request.tool_choice)
+        tools = _compile.tool_dicts(snapshot)
+        if tools is not None:
+            create_kwargs["tools"] = self._normalize_tools(tools)
+            mapped = self._map_tool_choice(requirements.tool_choice)
             if mapped is not None:
                 create_kwargs["tool_choice"] = mapped
 
-        if request.system_instruction:
-            create_kwargs["instructions"] = request.system_instruction
-        if request.previous_response_id:
-            create_kwargs["previous_response_id"] = request.previous_response_id
-        if request.reasoning_effort is not None:
+        system_instruction = _compile.system_instruction(snapshot)
+        if system_instruction:
+            create_kwargs["instructions"] = system_instruction
+        if previous_response_id:
+            create_kwargs["previous_response_id"] = previous_response_id
+        if requirements.reasoning_effort is not None:
             create_kwargs["reasoning"] = {
-                "effort": request.reasoning_effort,
+                "effort": requirements.reasoning_effort,
                 "summary": "auto",
             }
-        if request.response_schema is not None:
-            strict_schema = to_strict_schema(request.response_schema)
+        response_schema = requirements.output_schema_json()
+        if response_schema is not None:
+            strict_schema = to_strict_schema(response_schema)
             create_kwargs["text"] = {
                 "format": {
                     "type": "json_schema",
@@ -625,21 +659,29 @@ class OpenAIProvider:
 
         merge_provider_options(
             create_kwargs,
-            request.provider_options,
+            requirements.provider_options_for("openai"),
             provider="openai",
         )
         return create_kwargs
 
     async def _build_batch_request_body(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
         *,
         upload_cache: dict[tuple[str, str], ProviderFileAsset],
     ) -> dict[str, Any]:
-        """Build one OpenAI Batch API line body for `/v1/responses`."""
-        self._validate_request_features(request)
+        """Build one OpenAI Batch API line body for `/v1/responses`.
+
+        Deferred submission resolves source uploads here (the snapshot is not
+        pre-prepared for the batch path), then reuses the realtime request
+        builder with the resolved parts.
+        """
+        self._validate_request_features(requirements)
         resolved_parts: list[Any] = []
-        for part in request.parts:
+        for part in build_shared_parts(snapshot.sources, provider=config.provider):
             if is_file_part(part):
                 file_path = part["file_path"]
                 mime_type = part["mime_type"]
@@ -651,27 +693,12 @@ class OpenAIProvider:
                 resolved_parts.append(asset)
             else:
                 resolved_parts.append(part)
+        if input.content is not None:
+            resolved_parts.append(input.content)
 
-        resolved_request = ProviderRequest(
-            model=request.model,
-            parts=resolved_parts,
-            system_instruction=request.system_instruction,
-            cache_name=request.cache_name,
-            response_schema=request.response_schema,
-            temperature=request.temperature,
-            top_p=request.top_p,
-            tools=request.tools,
-            tool_choice=request.tool_choice,
-            reasoning_effort=request.reasoning_effort,
-            reasoning_budget_tokens=request.reasoning_budget_tokens,
-            history=request.history,
-            previous_response_id=request.previous_response_id,
-            provider_state=request.provider_state,
-            max_tokens=request.max_tokens,
-            implicit_caching=request.implicit_caching,
-            provider_options=request.provider_options,
+        return self._build_responses_create_kwargs(
+            resolved_parts, snapshot, input, requirements, config
         )
-        return self._build_responses_create_kwargs(resolved_request)
 
     def _parse_batch_output_file(
         self,
@@ -933,13 +960,6 @@ def _provider_handle_owned_file_ids(handle: ProviderDeferredHandle) -> list[str]
         if isinstance(value, str) and value:
             file_ids.append(value)
     return file_ids
-
-
-def _batch_has_response_schema(requests: list[ProviderRequest]) -> str:
-    """Persist whether this batch was submitted with structured outputs enabled."""
-    return (
-        "1" if any(request.response_schema is not None for request in requests) else "0"
-    )
 
 
 def _batch_metadata_flag(metadata: Any, *, key: str) -> bool:

@@ -10,8 +10,9 @@ from typing import Any
 
 import pytest
 
+from pollux.providers import _compile
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderFileAsset, ProviderRequest, ProviderResponse
+from pollux.providers.models import ProviderFileAsset, ProviderResponse
 
 GEMINI_MODEL = "gemini-2.0-flash"
 OPENAI_MODEL = "gpt-5-nano"
@@ -47,28 +48,32 @@ class FakeProvider:
     def capabilities(self) -> ProviderCapabilities:
         return self._capabilities
 
-    async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        self.last_parts = request.parts
+    async def generate(
+        self,
+        snapshot: Any,
+        input: Any,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: Any,
+        config: Any,
+    ) -> ProviderResponse:
+        parts = _compile.request_parts(snapshot, input)
+        history, previous_response_id, provider_state = _compile.prior_turns(input)
+        self.last_parts = parts
         self.last_generate_kwargs = {
-            "system_instruction": request.system_instruction,
-            "response_schema": request.response_schema,
-            "temperature": request.temperature,
-            "top_p": request.top_p,
-            "tools": request.tools,
-            "tool_choice": request.tool_choice,
-            "reasoning_effort": request.reasoning_effort,
-            "reasoning_budget_tokens": request.reasoning_budget_tokens,
-            "history": request.history,
-            "previous_response_id": request.previous_response_id,
-            "provider_state": request.provider_state,
-            "implicit_caching": request.implicit_caching,
-            "provider_options": request.provider_options,
+            "system_instruction": _compile.system_instruction(snapshot),
+            "response_schema": requirements.output_schema_json(),
+            "temperature": requirements.temperature,
+            "top_p": requirements.top_p,
+            "tools": _compile.tool_dicts(snapshot),
+            "tool_choice": requirements.tool_choice,
+            "reasoning_effort": requirements.reasoning_effort,
+            "reasoning_budget_tokens": requirements.reasoning_budget_tokens,
+            "history": history or None,
+            "previous_response_id": previous_response_id,
+            "provider_state": provider_state,
+            "implicit_caching": snapshot.implicit_caching,
+            "provider_options": requirements.provider_options_for(config.provider),
         }
-        prompt = (
-            request.parts[-1]
-            if request.parts and isinstance(request.parts[-1], str)
-            else ""
-        )
+        prompt = parts[-1] if parts and isinstance(parts[-1], str) else ""
         return ProviderResponse(text=f"ok:{prompt}", usage={"total_tokens": 1})
 
     async def upload_file(self, path: Any, mime_type: str) -> ProviderFileAsset:

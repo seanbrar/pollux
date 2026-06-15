@@ -28,6 +28,7 @@ class ToolDeclaration:
     name: str
     description: str = ""
     parameters: dict[str, Any] = field(default_factory=dict)
+    strict: bool = True
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ToolDeclaration:
@@ -45,10 +46,12 @@ class ToolDeclaration:
             )
         description = payload.get("description", "")
         parameters = payload.get("parameters", {})
+        strict = payload.get("strict", True)
         return cls(
             name=name,
             description=str(description) if description is not None else "",
             parameters=dict(parameters) if isinstance(parameters, dict) else {},
+            strict=strict if isinstance(strict, bool) else True,
         )
 
 

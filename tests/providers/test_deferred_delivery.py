@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 import json
 from typing import TYPE_CHECKING, Any
@@ -9,19 +10,19 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.input import Input
 from pollux.providers import gemini as gemini_module
 from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.base import ProviderDeferredHandle, ProviderDeferredItem
 from pollux.providers.gemini import GeminiProvider
-from pollux.providers.models import (
-    ProviderRequest,
-)
 from pollux.providers.openai import OpenAIProvider
+from pollux.source import Source
 from tests.conftest import (
     ANTHROPIC_MODEL,
     GEMINI_MODEL,
     OPENAI_MODEL,
 )
+from tests.helpers import make_interaction
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -97,25 +98,29 @@ async def test_openai_submit_deferred_characterizes_batch_request(
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="openai",
+        model=OPENAI_MODEL,
+        response_schema={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+        },
+        reasoning_effort="high",
+        content="prompt",
+    )
+    snapshot = replace(
+        snapshot, sources=(Source.from_file(pdf_path, mime_type="application/pdf"),)
+    )
+    inputs = [
+        Input(content="Summarize this"),
+        Input(content="Answer the question"),
+    ]
+
     handle = await provider.submit_deferred(
-        [
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=["Summarize this"],
-                response_schema={
-                    "type": "object",
-                    "properties": {"summary": {"type": "string"}},
-                },
-            ),
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=[
-                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                    "Answer the question",
-                ],
-                reasoning_effort="high",
-            ),
-        ],
+        snapshot,
+        inputs,
+        requirements,
+        config,
         request_ids=["pollux-000000", "pollux-000001"],
     )
 
@@ -172,23 +177,24 @@ async def test_openai_submit_deferred_reuses_shared_file_uploads(
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="openai",
+        model=OPENAI_MODEL,
+        content="prompt",
+    )
+    snapshot = replace(
+        snapshot, sources=(Source.from_file(pdf_path, mime_type="application/pdf"),)
+    )
+    inputs = [
+        Input(content="Question 1"),
+        Input(content="Question 2"),
+    ]
+
     await provider.submit_deferred(
-        [
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=[
-                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                    "Question 1",
-                ],
-            ),
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=[
-                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                    "Question 2",
-                ],
-            ),
-        ],
+        snapshot,
+        inputs,
+        requirements,
+        config,
         request_ids=["pollux-000000", "pollux-000001"],
     )
 
@@ -217,20 +223,25 @@ async def test_openai_submit_deferred_rejects_reasoning_budget_tokens_before_upl
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="openai",
+        model=OPENAI_MODEL,
+        reasoning_budget_tokens=0,
+        content="prompt",
+    )
+    snapshot = replace(
+        snapshot, sources=(Source.from_file(pdf_path, mime_type="application/pdf"),)
+    )
+    inputs = [Input(content="Question")]
+
     with pytest.raises(
         ConfigurationError, match="Provider does not support reasoning_budget_tokens"
     ):
         await provider.submit_deferred(
-            [
-                ProviderRequest(
-                    model=OPENAI_MODEL,
-                    parts=[
-                        {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                        "Question",
-                    ],
-                    reasoning_budget_tokens=0,
-                )
-            ],
+            snapshot,
+            inputs,
+            requirements,
+            config,
             request_ids=["pollux-000000"],
         )
 
@@ -258,19 +269,24 @@ async def test_openai_submit_deferred_preserves_remote_artifacts_on_failure(
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"files": files, "batches": batches})()
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="openai",
+        model=OPENAI_MODEL,
+        content="prompt",
+    )
+    snapshot = replace(
+        snapshot, sources=(Source.from_file(pdf_path, mime_type="application/pdf"),)
+    )
+    inputs = [Input(content="Question")]
+
     with pytest.raises(
         APIError, match="OpenAI batch submit failed: batch create failed"
     ):
         await provider.submit_deferred(
-            [
-                ProviderRequest(
-                    model=OPENAI_MODEL,
-                    parts=[
-                        {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                        "Question",
-                    ],
-                )
-            ],
+            snapshot,
+            inputs,
+            requirements,
+            config,
             request_ids=["pollux-000000"],
         )
 
@@ -922,24 +938,28 @@ async def test_gemini_submit_deferred_characterizes_inlined_batch_request(
     provider = GeminiProvider("test-key")
     provider._client = _make_gemini_client(files=files, batches=batches)
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="gemini",
+        model=GEMINI_MODEL,
+        response_schema={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+        },
+        content="prompt",
+    )
+    snapshot = replace(
+        snapshot, sources=(Source.from_file(pdf_path, mime_type="application/pdf"),)
+    )
+    inputs = [
+        Input(content="Summarize this"),
+        Input(content="Answer the question"),
+    ]
+
     handle = await provider.submit_deferred(
-        [
-            ProviderRequest(
-                model=GEMINI_MODEL,
-                parts=["Summarize this"],
-                response_schema={
-                    "type": "object",
-                    "properties": {"summary": {"type": "string"}},
-                },
-            ),
-            ProviderRequest(
-                model=GEMINI_MODEL,
-                parts=[
-                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                    "Answer the question",
-                ],
-            ),
-        ],
+        snapshot,
+        inputs,
+        requirements,
+        config,
         request_ids=["pollux-000000", "pollux-000001"],
     )
 
@@ -978,26 +998,26 @@ async def test_gemini_submit_deferred_preserves_video_settings(
     provider = GeminiProvider("test-key")
     provider._client = _make_gemini_client(files=files, batches=batches)
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="gemini",
+        model=GEMINI_MODEL,
+        content="prompt",
+    )
+    video_source = Source.from_file(
+        video_path, mime_type="video/mp4"
+    ).with_gemini_video_settings(
+        start_offset="40s",
+        end_offset="80s",
+        fps=1.0,
+    )
+    snapshot = replace(snapshot, sources=(video_source,))
+    inputs = [Input(content="Describe this clip")]
+
     await provider.submit_deferred(
-        [
-            ProviderRequest(
-                model=GEMINI_MODEL,
-                parts=[
-                    {
-                        "file_path": str(video_path),
-                        "mime_type": "video/mp4",
-                        "provider_hints": {
-                            "video_metadata": {
-                                "start_offset": "40s",
-                                "end_offset": "80s",
-                                "fps": 1.0,
-                            },
-                        },
-                    },
-                    "Describe this clip",
-                ],
-            ),
-        ],
+        snapshot,
+        inputs,
+        requirements,
+        config,
         request_ids=["pollux-000000"],
     )
 
@@ -1026,17 +1046,21 @@ async def test_gemini_submit_deferred_switches_to_file_input_when_inline_too_lar
     provider = GeminiProvider("test-key")
     provider._client = _make_gemini_client(files=files, batches=batches)
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="gemini",
+        model=GEMINI_MODEL,
+        content="prompt",
+    )
+    inputs = [
+        Input(content="Summarize this"),
+        Input(content="Answer the question"),
+    ]
+
     handle = await provider.submit_deferred(
-        [
-            ProviderRequest(
-                model=GEMINI_MODEL,
-                parts=["Summarize this"],
-            ),
-            ProviderRequest(
-                model=GEMINI_MODEL,
-                parts=["Answer the question"],
-            ),
-        ],
+        snapshot,
+        inputs,
+        requirements,
+        config,
         request_ids=["pollux-000000", "pollux-000001"],
     )
 
@@ -1347,24 +1371,28 @@ async def test_anthropic_submit_deferred_characterizes_message_batch_request(
     provider = AnthropicProvider("test-key")
     provider._client = _make_anthropic_client(files=files, batches=batches)
 
+    snapshot, _, requirements, config = make_interaction(
+        provider="anthropic",
+        model=ANTHROPIC_MODEL,
+        response_schema={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+        },
+        content="prompt",
+    )
+    snapshot = replace(
+        snapshot, sources=(Source.from_file(pdf_path, mime_type="application/pdf"),)
+    )
+    inputs = [
+        Input(content="Summarize this"),
+        Input(content="Answer the question"),
+    ]
+
     handle = await provider.submit_deferred(
-        [
-            ProviderRequest(
-                model=ANTHROPIC_MODEL,
-                parts=["Summarize this"],
-                response_schema={
-                    "type": "object",
-                    "properties": {"summary": {"type": "string"}},
-                },
-            ),
-            ProviderRequest(
-                model=ANTHROPIC_MODEL,
-                parts=[
-                    {"file_path": str(pdf_path), "mime_type": "application/pdf"},
-                    "Answer the question",
-                ],
-            ),
-        ],
+        snapshot,
+        inputs,
+        requirements,
+        config,
         request_ids=["pollux-000000", "pollux-000001"],
     )
 

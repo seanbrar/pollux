@@ -10,6 +10,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.parts import build_shared_parts
+from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._utils import (
     jsonable_provider_artifact,
@@ -26,7 +28,6 @@ from pollux.providers.base import (
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
     ToolCall,
     is_file_part,
@@ -35,6 +36,11 @@ from pollux.providers.models import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
 
 _ANTHROPIC_DEFAULT_MAX_TOKENS = 16384
 logger = logging.getLogger(__name__)
@@ -237,86 +243,88 @@ class AnthropicProvider:
 
         return messages
 
-    def _build_messages_create_kwargs(self, request: ProviderRequest) -> dict[str, Any]:
+    def _build_messages_create_kwargs(
+        self,
+        parts: list[Any],
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> dict[str, Any]:
         """Build the raw Anthropic Messages API request body."""
-        # No Anthropic equivalents or deferred features.
-        _ = request.cache_name
-        _ = request.previous_response_id
-
-        messages = self._build_messages(
-            request.parts,
-            request.history,
-            request.provider_state,
-        )
+        model = config.model
+        history, _previous_response_id, provider_state = _compile.prior_turns(input)
+        messages = self._build_messages(parts, history or None, provider_state)
+        system_instruction = _compile.system_instruction(snapshot)
+        tools = _compile.tool_dicts(snapshot)
+        response_schema = requirements.output_schema_json()
 
         default_max_tokens = _ANTHROPIC_DEFAULT_MAX_TOKENS
-        if "claude-3-" in request.model:
+        if "claude-3-" in model:
             # claude-3-haiku, claude-3-sonnet, claude-3-opus only support 4096
             default_max_tokens = 4096
-            if "claude-3-5" in request.model:
+            if "claude-3-5" in model:
                 default_max_tokens = 8192
 
         create_kwargs: dict[str, Any] = {
-            "model": request.model,
+            "model": model,
             "messages": messages,
             "max_tokens": (
-                request.max_tokens
-                if request.max_tokens is not None
+                requirements.max_tokens
+                if requirements.max_tokens is not None
                 else default_max_tokens
             ),
         }
 
-        if request.implicit_caching:
+        if snapshot.implicit_caching:
             create_kwargs["cache_control"] = {"type": "ephemeral"}
 
-        if request.system_instruction:
-            create_kwargs["system"] = request.system_instruction
+        if system_instruction:
+            create_kwargs["system"] = system_instruction
 
-        if request.temperature is not None:
-            create_kwargs["temperature"] = request.temperature
-        if request.top_p is not None:
-            create_kwargs["top_p"] = request.top_p
+        if requirements.temperature is not None:
+            create_kwargs["temperature"] = requirements.temperature
+        if requirements.top_p is not None:
+            create_kwargs["top_p"] = requirements.top_p
 
-        if request.tools is not None:
-            anthropic_tools = self._normalize_tools(request.tools)
+        if tools is not None:
+            anthropic_tools = self._normalize_tools(tools)
             if anthropic_tools:
                 create_kwargs["tools"] = anthropic_tools
 
-            mapped = self._map_tool_choice(request.tool_choice)
+            mapped = self._map_tool_choice(requirements.tool_choice)
             if mapped is not None:
                 create_kwargs["tool_choice"] = mapped
 
         output_config: dict[str, Any] = {}
 
-        if request.response_schema is not None:
-            strict_schema = to_strict_schema(request.response_schema)
+        if response_schema is not None:
+            strict_schema = to_strict_schema(response_schema)
             output_config["format"] = {
                 "type": "json_schema",
                 "schema": strict_schema,
             }
 
-        if request.reasoning_effort is not None:
-            effort = _normalize_reasoning_effort(
-                request.reasoning_effort, request.model
-            )
+        if requirements.reasoning_effort is not None:
+            effort = _normalize_reasoning_effort(requirements.reasoning_effort, model)
             output_config["effort"] = effort
-            if _supports_adaptive_thinking(request.model):
+            if _supports_adaptive_thinking(model):
                 create_kwargs["thinking"] = {"type": "adaptive"}
             else:
                 create_kwargs["thinking"] = {
                     "type": "enabled",
                     "budget_tokens": _MANUAL_THINKING_BUDGETS[effort],
                 }
-                if request.tools:
+                if tools:
                     create_kwargs["extra_headers"] = {
                         "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
                     }
-        elif request.reasoning_budget_tokens is not None:
+        elif requirements.reasoning_budget_tokens is not None:
             create_kwargs["thinking"] = {
                 "type": "enabled",
-                "budget_tokens": request.reasoning_budget_tokens,
+                "budget_tokens": requirements.reasoning_budget_tokens,
             }
-            if request.tools:
+            if tools:
                 create_kwargs["extra_headers"] = {
                     "anthropic-beta": _INTERLEAVED_THINKING_BETA_HEADER
                 }
@@ -334,14 +342,17 @@ class AnthropicProvider:
 
         merge_provider_options(
             create_kwargs,
-            request.provider_options,
+            requirements.provider_options_for("anthropic"),
             provider="anthropic",
         )
         return create_kwargs
 
     async def submit_deferred(
         self,
-        requests: list[ProviderRequest],
+        snapshot: EnvironmentSnapshot,
+        inputs: list[Input],
+        requirements: OutputRequirements,
+        config: Config,
         *,
         request_ids: list[str],
     ) -> ProviderDeferredHandle:
@@ -351,12 +362,16 @@ class AnthropicProvider:
         try:
             upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
             batch_requests: list[dict[str, Any]] = []
-            for request_id, request in zip(request_ids, requests, strict=True):
-                resolved_request = await self._resolve_deferred_request(
-                    request,
+            for request_id, inp in zip(request_ids, inputs, strict=True):
+                parts = await self._resolve_deferred_parts(
+                    snapshot,
+                    inp,
+                    config,
                     upload_cache=upload_cache,
                 )
-                create_kwargs = self._build_messages_create_kwargs(resolved_request)
+                create_kwargs = self._build_messages_create_kwargs(
+                    parts, snapshot, inp, requirements, config
+                )
                 create_kwargs.pop("extra_headers", None)
                 batch_requests.append(
                     {
@@ -375,7 +390,8 @@ class AnthropicProvider:
                 provider_state={
                     "request_ids": list(request_ids),
                     "owned_file_ids": _owned_deferred_file_ids(upload_cache),
-                    "has_response_schema": _requests_have_response_schema(requests),
+                    "has_response_schema": requirements.output_schema_json()
+                    is not None,
                 },
             )
         except asyncio.CancelledError:
@@ -518,7 +534,13 @@ class AnthropicProvider:
                 message="Anthropic batch cancel failed",
             ) from e
 
-    async def validate_request(self, request: ProviderRequest) -> None:
+    async def validate_request(
+        self,
+        snapshot: EnvironmentSnapshot,  # noqa: ARG002
+        input: Input,  # noqa: A002, ARG002
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> None:
         """Pre-flight model-specific rejections before any network call.
 
         Implements the :class:`ValidatingProvider` hook. The provider-level
@@ -528,12 +550,12 @@ class AnthropicProvider:
         error instead.
         """
         wants_reasoning = (
-            request.reasoning_effort is not None
-            or request.reasoning_budget_tokens is not None
+            requirements.reasoning_effort is not None
+            or requirements.reasoning_budget_tokens is not None
         )
-        if wants_reasoning and _model_lacks_extended_thinking(request.model):
+        if wants_reasoning and _model_lacks_extended_thinking(config.model):
             raise ConfigurationError(
-                f"Model {request.model!r} does not support extended thinking",
+                f"Model {config.model!r} does not support extended thinking",
                 hint=(
                     "Remove reasoning_effort/reasoning_budget_tokens, or use a "
                     "model with extended thinking (Claude 3.7 or 4.x)."
@@ -542,15 +564,23 @@ class AnthropicProvider:
 
     async def generate(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> ProviderResponse:
         """Generate a response using Anthropic's Messages API."""
         client = self._get_client()
-        create_kwargs = self._build_messages_create_kwargs(request)
+        parts = _compile.request_parts(snapshot, input)
+        create_kwargs = self._build_messages_create_kwargs(
+            parts, snapshot, input, requirements, config
+        )
 
         try:
             response = await client.messages.create(**create_kwargs)
-            return _parse_response(response, response_schema=request.response_schema)
+            return _parse_response(
+                response, response_schema=requirements.output_schema_json()
+            )
         except asyncio.CancelledError:
             raise
         except APIError:
@@ -564,15 +594,20 @@ class AnthropicProvider:
                 message="Anthropic generate failed",
             ) from e
 
-    async def _resolve_deferred_request(
+    async def _resolve_deferred_parts(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        config: Config,
         *,
         upload_cache: dict[tuple[str, str], ProviderFileAsset],
-    ) -> ProviderRequest:
-        """Resolve local file parts into provider assets for deferred submission."""
+    ) -> list[Any]:
+        """Resolve an environment's source parts into assets for deferred submission.
+
+        The deferred path is not pre-prepared by core, so uploads happen here.
+        """
         resolved_parts: list[Any] = []
-        for part in request.parts:
+        for part in build_shared_parts(snapshot.sources, provider=config.provider):
             if is_file_part(part):
                 file_path = part["file_path"]
                 mime_type = part["mime_type"]
@@ -586,26 +621,9 @@ class AnthropicProvider:
                 resolved_parts.append(asset)
             else:
                 resolved_parts.append(part)
-
-        return ProviderRequest(
-            model=request.model,
-            parts=resolved_parts,
-            system_instruction=request.system_instruction,
-            cache_name=request.cache_name,
-            response_schema=request.response_schema,
-            temperature=request.temperature,
-            top_p=request.top_p,
-            tools=request.tools,
-            tool_choice=request.tool_choice,
-            reasoning_effort=request.reasoning_effort,
-            reasoning_budget_tokens=request.reasoning_budget_tokens,
-            history=request.history,
-            previous_response_id=request.previous_response_id,
-            provider_state=request.provider_state,
-            max_tokens=request.max_tokens,
-            implicit_caching=request.implicit_caching,
-            provider_options=request.provider_options,
-        )
+        if input.content is not None:
+            resolved_parts.append(input.content)
+        return resolved_parts
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a local file using the Anthropic Files API."""
@@ -840,11 +858,6 @@ def _owned_deferred_file_ids(
         if asset.file_id
     }
     return sorted(file_ids)
-
-
-def _requests_have_response_schema(requests: list[ProviderRequest]) -> bool:
-    """Persist whether structured outputs were enabled at submission time."""
-    return any(request.response_schema is not None for request in requests)
 
 
 def _batch_request_count(batch: Any, *, handle: ProviderDeferredHandle) -> int:

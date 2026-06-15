@@ -7,17 +7,24 @@ from typing import Any
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.continuation import Continuation, Message
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.models import (
-    Message,
     ProviderFileAsset,
-    ProviderRequest,
 )
 from pollux.providers.openai import OpenAIProvider
 from tests.conftest import (
     OPENAI_MODEL,
 )
+from tests.helpers import make_interaction
 from tests.providers.helpers import FakeResponses, async_return
+
+
+def _openai(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
+    """Build the four primitives for an openai-provider generate() call."""
+    kwargs.setdefault("model", OPENAI_MODEL)
+    return make_interaction(provider="openai", **kwargs)
+
 
 pytestmark = pytest.mark.contract
 
@@ -79,9 +86,8 @@ async def test_openai_normalizes_tool_parameters_for_strict_mode() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Pick a color"],
+        *_openai(
+            content="Pick a color",
             tools=[
                 {
                     "name": "pick_color",
@@ -117,9 +123,8 @@ async def test_openai_skips_normalization_when_strict_is_false() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Pick a color"],
+        *_openai(
+            content="Pick a color",
             tools=[
                 {
                     "name": "pick_color",
@@ -152,10 +157,9 @@ async def test_openai_provider_options_merge_and_overlap() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Search if needed."],
-            provider_options={"tools": [{"type": "web_search_preview"}]},
+        *_openai(
+            content="Search if needed.",
+            provider_options={"openai": {"tools": [{"type": "web_search_preview"}]}},
         )
     )
 
@@ -164,11 +168,12 @@ async def test_openai_provider_options_merge_and_overlap() -> None:
 
     with pytest.raises(ConfigurationError, match="overlap"):
         await provider.generate(
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=["Search if needed."],
+            *_openai(
+                content="Search if needed.",
                 tools=[{"name": "get_weather", "parameters": {"type": "object"}}],
-                provider_options={"tools": [{"type": "web_search_preview"}]},
+                provider_options={
+                    "openai": {"tools": [{"type": "web_search_preview"}]}
+                },
             )
         )
 
@@ -191,10 +196,8 @@ async def test_openai_generate_characterizes_multimodal_request_shape(
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=[
-                "Summarize these assets.",
+        *_openai(
+            prepared_parts=[
                 {
                     "uri": "https://example.com/report.pdf",
                     "mime_type": "application/pdf",
@@ -212,6 +215,7 @@ async def test_openai_generate_characterizes_multimodal_request_shape(
                     is_inline_fallback=True,
                 ),
             ],
+            content="Summarize these assets.",
         )
     )
 
@@ -229,10 +233,9 @@ async def test_openai_generate_forwards_conversation_and_instructions() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["What did I just ask?"],
-            system_instruction="Be concise.",
+        *_openai(
+            content="What did I just ask?",
+            instructions="Be concise.",
             history=[Message(role="user", content="Say hello.")],
         )
     )
@@ -247,11 +250,12 @@ async def test_openai_generate_forwards_conversation_and_instructions() -> None:
     assert responses.last_kwargs["input"][1]["role"] == "user"
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["And now?"],
-            history=[Message(role="user", content="This should be skipped.")],
-            previous_response_id="resp_123",
+        *_openai(
+            content="And now?",
+            continuation=Continuation(
+                response_id="resp_123",
+                messages=(Message(role="user", content="This should be skipped."),),
+            ),
         )
     )
 
@@ -272,11 +276,11 @@ async def test_openai_rejects_unsupported_remote_mime_type() -> None:
 
     with pytest.raises(APIError, match="Unsupported remote mime type"):
         await provider.generate(
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=[
+            *_openai(
+                prepared_parts=[
                     {"uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}
                 ],
+                content="prompt",
             )
         )
 
@@ -291,15 +295,15 @@ async def test_openai_accepts_remote_text_like_mime_types() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=[
+        *_openai(
+            prepared_parts=[
                 {"uri": "https://example.com/data.csv", "mime_type": "text/csv"},
                 {
                     "uri": "https://example.com/notes.md",
                     "mime_type": "text/markdown",
                 },
             ],
+            content="prompt",
         )
     )
 
@@ -308,6 +312,7 @@ async def test_openai_accepts_remote_text_like_mime_types() -> None:
     assert content == [
         {"type": "input_file", "file_url": "https://example.com/data.csv"},
         {"type": "input_file", "file_url": "https://example.com/notes.md"},
+        {"type": "input_text", "text": "prompt"},
     ]
 
 
@@ -321,9 +326,8 @@ async def test_openai_generate_forwards_reasoning_effort_and_summary() -> None:
     provider._client = fake_client
 
     await provider.generate(
-        ProviderRequest(
-            model=OPENAI_MODEL,
-            parts=["Think about this."],
+        *_openai(
+            content="Think about this.",
             reasoning_effort="high",
         )
     )
@@ -348,9 +352,8 @@ async def test_openai_generate_rejects_reasoning_budget_tokens() -> None:
         ConfigurationError, match="Provider does not support reasoning_budget_tokens"
     ):
         await provider.generate(
-            ProviderRequest(
-                model=OPENAI_MODEL,
-                parts=["Think about this."],
+            *_openai(
+                content="Think about this.",
                 reasoning_budget_tokens=0,
             )
         )
@@ -386,7 +389,7 @@ async def test_openai_extracts_reasoning_summary_from_response() -> None:
     provider._client = type("Client", (), {"responses": responses})()
 
     result = await provider.generate(
-        ProviderRequest(model=OPENAI_MODEL, parts=["Think."], reasoning_effort="medium")
+        *_openai(content="Think.", reasoning_effort="medium")
     )
 
     assert result.reasoning == "The model considered..."
@@ -445,9 +448,7 @@ async def test_openai_extracts_reasoning_tokens_from_usage() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"responses": responses})()
 
-    result = await provider.generate(
-        ProviderRequest(model=OPENAI_MODEL, parts=["Test"])
-    )
+    result = await provider.generate(*_openai(content="Test"))
 
     assert result.usage["reasoning_tokens"] == 1024
     assert result.usage["input_tokens"] == 50
@@ -480,9 +481,7 @@ async def test_openai_extracts_cached_tokens_from_usage() -> None:
     provider = OpenAIProvider("test-key")
     provider._client = type("Client", (), {"responses": responses})()
 
-    result = await provider.generate(
-        ProviderRequest(model=OPENAI_MODEL, parts=["Test"])
-    )
+    result = await provider.generate(*_openai(content="Test"))
 
     assert result.usage["cached_tokens"] == 8_000
     assert result.usage["input_tokens"] == 10_000
@@ -569,9 +568,7 @@ async def test_openai_extracts_finish_reason() -> None:
         provider = OpenAIProvider("test-key")
         provider._client = fake_client
 
-        result = await provider.generate(
-            ProviderRequest(model=OPENAI_MODEL, parts=["Hello"])
-        )
+        result = await provider.generate(*_openai(content="Hello"))
 
         assert result.finish_reason == expected, f"status={status}"
 

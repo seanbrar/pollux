@@ -8,9 +8,12 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from pollux.config import Config
+    from pollux.interaction.environment import EnvironmentSnapshot
+    from pollux.interaction.input import Input
+    from pollux.interaction.requirements import OutputRequirements
     from pollux.providers.models import (
         ProviderFileAsset,
-        ProviderRequest,
         ProviderResponse,
     )
 
@@ -70,18 +73,42 @@ class ProviderDeferredItem:
 
 @runtime_checkable
 class Provider(Protocol):
-    """Minimal provider protocol: generate, upload, create_cache."""
+    """Minimal provider protocol: compile primitives and generate a response.
+
+    ``generate`` receives the canonical v2 primitives and owns the upstream
+    request shaping and response parsing. File uploads and persistent caching
+    are optional capabilities expressed through the :class:`FileUploadingProvider`
+    and :class:`CachingProvider` structural protocols, detected via ``isinstance``.
+    """
 
     async def generate(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> ProviderResponse:
-        """Generate content from the model."""
+        """Compile one interaction turn and return the provider response facets."""
         ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        """Feature capabilities for strict option validation."""
+        ...
+
+
+@runtime_checkable
+class FileUploadingProvider(Protocol):
+    """Optional provider hook for uploading local files to provider storage."""
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a file and return its asset representation."""
         ...
+
+
+@runtime_checkable
+class CachingProvider(Protocol):
+    """Optional provider hook for creating persistent context caches."""
 
     async def create_cache(
         self,
@@ -93,11 +120,6 @@ class Provider(Protocol):
         ttl_seconds: int = 3600,
     ) -> str:
         """Create a cache and return its name."""
-        ...
-
-    @property
-    def capabilities(self) -> ProviderCapabilities:
-        """Feature capabilities for strict option validation."""
         ...
 
 
@@ -123,12 +145,12 @@ class FileDeletingProvider(Protocol):
 class ValidatingProvider(Protocol):
     """Optional provider hook for request validation before side effects."""
 
-    # TODO: Gemini and Anthropic could adopt this to pre-flight model-specific
-    # rejections (e.g. gemini-2.5 refusing reasoning_effort) instead of
-    # deferring to upstream errors.
     async def validate_request(
         self,
-        request: ProviderRequest,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
     ) -> None:
         """Fail fast on unsupported model- or request-specific features."""
         ...
@@ -140,7 +162,10 @@ class DeferredProvider(Protocol):
 
     async def submit_deferred(
         self,
-        requests: list[ProviderRequest],
+        snapshot: EnvironmentSnapshot,
+        inputs: list[Input],
+        requirements: OutputRequirements,
+        config: Config,
         *,
         request_ids: list[str],
     ) -> ProviderDeferredHandle:

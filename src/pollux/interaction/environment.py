@@ -56,13 +56,30 @@ class Environment:
 
 @dataclass(frozen=True, slots=True)
 class EnvironmentSnapshot:
-    """The planned, immutable provider-facing environment for one interaction."""
+    """The planned, immutable provider-facing environment for one interaction.
+
+    ``instructions``/``sources``/``tools``/``cache``/``provider`` describe the
+    environment's identity (and back :meth:`fingerprint`). The remaining fields
+    are core-populated transport state, frozen onto the snapshot by the execution
+    path just before ``Provider.generate`` so adapters compile from primitives:
+
+    - ``prepared_parts``: the environment's shared source parts with local files
+      already uploaded (single-flight, once per fan-out); empty when a persistent
+      cache bakes the sources in.
+    - ``cache_name``: the resolved provider persistent-cache name, if any.
+    - ``implicit_caching``: whether provider-managed implicit caching is enabled.
+
+    These derived fields are intentionally excluded from :meth:`fingerprint`.
+    """
 
     instructions: str | None = None
     sources: tuple[Source, ...] = ()
     tools: tuple[ToolDeclaration, ...] = ()
     cache: CacheSetting = None
     provider: str | None = None
+    prepared_parts: tuple[Any, ...] | None = None
+    cache_name: str | None = None
+    implicit_caching: bool = False
 
     def fingerprint(self) -> str:
         """Return a stable hash of the provider-facing environment identity.

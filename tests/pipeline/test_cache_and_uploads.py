@@ -18,7 +18,6 @@ from pollux.errors import (
 )
 from pollux.providers.models import (
     ProviderFileAsset,
-    ProviderRequest,
     ProviderResponse,
 )
 from pollux.retry import RetryPolicy
@@ -312,7 +311,9 @@ async def test_openai_upload_cleanup_runs_even_when_generate_fails(
                 mime_type=mime_type,
             )
 
-        async def generate(self, request: ProviderRequest) -> ProviderResponse:  # noqa: ARG002
+        async def generate(
+            self, snapshot: Any, input: Any, requirements: Any, config: Any
+        ) -> ProviderResponse:
             raise APIError("boom", retryable=False)
 
         async def delete_file(self, file_id: str) -> None:
