@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
-from typing import Literal, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 import dotenv
 
 from pollux.errors import ConfigurationError
 from pollux.retry import RetryPolicy
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 ProviderName = Literal["gemini", "openai", "anthropic", "openrouter", "local"]
 
@@ -74,6 +77,11 @@ class Config:
     use_mock: bool = False
     request_concurrency: int = 6
     retry: RetryPolicy = field(default_factory=RetryPolicy)
+    #: Optional capability declarations that override the provider's static
+    #: capabilities for this config (v2 interaction path). A declared capability
+    #: wins over the provider's static value; undeclared capabilities fall back to
+    #: it. Useful for local OpenAI-compatible servers whose support varies.
+    capabilities: Mapping[str, bool] | None = None
 
     def __post_init__(self) -> None:
         """Auto-resolve credentials and validate configuration."""
