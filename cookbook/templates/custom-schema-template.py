@@ -63,20 +63,20 @@ async def main_async(path: Path, *, config: Config) -> None:
             config=config,
             options=Options(response_schema=MySchema),
         )
-        structured = envelope.get("structured") or []
+        structured = envelope.structured or []
         first = structured[0] if structured else None
         parsed = first if isinstance(first, MySchema) else None
 
     print_section("Schema extraction")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.metrics.completion_status),
             ("Source", path),
         ]
     )
 
     if not isinstance(parsed, MySchema):
-        answer = str((envelope.get("answers") or [""])[0])
+        answer = envelope.text
         print_kv_rows([("Structured output", "No validated object returned")])
         print_excerpt("Raw excerpt", answer, limit=400)
         print_usage(envelope)

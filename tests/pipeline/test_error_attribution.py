@@ -23,7 +23,6 @@ from pollux.providers.models import (
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 from tests.conftest import (
-    CACHE_MODEL,
     GEMINI_MODEL,
     OPENAI_MODEL,
     FakeProvider,
@@ -147,44 +146,6 @@ async def test_upload_configuration_errors_propagate_without_internal_wrap(
             source=Source.from_file(file_path, mime_type="text/csv"),
             config=cfg,
         )
-
-
-@pytest.mark.asyncio
-async def test_cache_error_attributes_provider_without_call_index(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cache failures from create_cache() should carry provider and phase."""
-
-    @dataclass
-    class _Provider(FakeProvider):
-        async def create_cache(self, **kwargs: Any) -> str:
-            _ = kwargs
-            raise APIError(
-                "cache failed",
-                retryable=False,
-                provider="gemini",
-                phase="cache",
-            )
-
-    fake = _Provider()
-    monkeypatch.setattr(pollux, "_get_provider", lambda _config, _p=fake: _p)
-
-    cfg = Config(
-        provider="gemini",
-        model=CACHE_MODEL,
-        use_mock=True,
-        retry=RetryPolicy(max_attempts=1),
-    )
-
-    with pytest.raises(APIError) as exc:
-        await pollux.create_cache(
-            (Source.from_text("cache me"),),
-            config=cfg,
-        )
-
-    err = exc.value
-    assert err.provider == "gemini"
-    assert err.phase == "cache"
 
 
 @pytest.mark.asyncio

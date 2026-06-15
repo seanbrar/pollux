@@ -50,7 +50,7 @@ async def main_async(
     async def run_one(path: Path) -> dict[str, str]:
         async with semaphore:
             envelope = await run(prompt, source=Source.from_file(path), config=config)
-            status = str(envelope.get("status", "ok"))
+            status = str(envelope.metrics.completion_status)
             return {"path": str(path), "status": status}
 
     results = await asyncio.gather(*(run_one(path) for path in files))

@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING
 from cookbook.utils.runtime import print_run_mode
 
 if TYPE_CHECKING:
-    from pollux import Config
-    from pollux.result import ResultEnvelope
+    from pollux import Config, Output, OutputCollection
 
 
 def _display_path(path: Path) -> str:
@@ -67,22 +66,16 @@ def print_excerpt(title: str, text: str, *, limit: int = 400) -> None:
         print(f"  {line}")
 
 
-def print_usage(envelope: ResultEnvelope) -> None:
+def print_usage(result: Output | OutputCollection) -> None:
     """Print token usage when available."""
-    usage = envelope.get("usage")
-    if not isinstance(usage, dict):
-        return
-    total = usage.get("total_tokens")
-    prompt = usage.get("input_tokens")
-    completion = usage.get("output_tokens")
-
+    usage = result.usage
     rows: list[tuple[str, object]] = []
-    if isinstance(total, int):
-        rows.append(("Total tokens", total))
-    if isinstance(prompt, int):
-        rows.append(("Prompt tokens", prompt))
-    if isinstance(completion, int):
-        rows.append(("Completion tokens", completion))
+    if usage.total_tokens:
+        rows.append(("Total tokens", usage.total_tokens))
+    if usage.input_tokens:
+        rows.append(("Prompt tokens", usage.input_tokens))
+    if usage.output_tokens:
+        rows.append(("Completion tokens", usage.output_tokens))
 
     if not rows:
         return

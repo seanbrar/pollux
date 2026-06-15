@@ -89,16 +89,16 @@ async def main_async(paths: list[Path], *, config: Config) -> None:
         envelope = await run_many(
             [PROMPT], sources=sources, config=config, options=options
         )
-        structured = envelope.get("structured") or []
+        structured = envelope.structured or []
         first = structured[0] if structured else None
         brief = first if isinstance(first, ComparisonBrief) else None
 
-    answer = str((envelope.get("answers") or [""])[0])
+    answer = str((envelope.answers or [""])[0])
 
     print_section("Comparison brief")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.status),
             ("Sources", ", ".join(str(path) for path in paths)),
         ]
     )

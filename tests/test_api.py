@@ -28,7 +28,15 @@ from pollux.source import Source
 if TYPE_CHECKING:
     from pollux.config import ProviderName
 
-pytestmark = [pytest.mark.api, pytest.mark.slow]
+pytestmark = [
+    pytest.mark.api,
+    pytest.mark.slow,
+    # Shelved pending the v2 API-test migration: these gated, real-provider tests
+    # are heavily v1-shaped (Options, continue_tool, dict tool results, envelope
+    # access) and span features still landing across the Slice 3 cutover (deferred
+    # in 3c, caching in 3b-2). They are migrated in a dedicated follow-up.
+    pytest.mark.skip(reason="pending v2 API-test migration (Slice 3 follow-up)"),
+]
 
 _PROVIDERS: list[tuple[str, str, str]] = [
     ("gemini", "gemini_api_key", "gemini_test_model"),

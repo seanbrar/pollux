@@ -24,7 +24,6 @@ import argparse
 import asyncio
 from pathlib import Path
 import time
-from typing import TYPE_CHECKING, cast
 
 from cookbook.utils.demo_inputs import DEFAULT_TEXT_DEMO_DIR, resolve_file_or_exit
 from cookbook.utils.presentation import (
@@ -36,10 +35,7 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
-from pollux import Config, Source, run, run_many
-
-if TYPE_CHECKING:
-    from pollux.result import ResultEnvelope
+from pollux import Config, OutputCollection, Source, run, run_many
 
 PROMPTS = [
     "Summarize the key ideas in 3 bullets.",
@@ -119,12 +115,11 @@ async def main_async(path: Path, *, config: Config) -> None:
     )
 
     result_obj = vectorized.get("result")
-    if isinstance(result_obj, dict):
-        result = result_obj  # runtime TypedDict is a dict
-        answers = [str(a) for a in result.get("answers", [])]
+    if isinstance(result_obj, OutputCollection):
+        answers = list(result_obj.answers)
         if answers:
             print_excerpt("Vectorized first answer excerpt", answers[0], limit=320)
-        print_usage(cast("ResultEnvelope", result_obj))
+        print_usage(result_obj)
 
     print_learning_hints(
         [

@@ -91,12 +91,12 @@ async def main_async(path: Path, *, config: Config) -> None:
         initial_delay=1.0,
         backoff=1.8,
     )
-    answers = [str(a) for a in envelope.get("answers", [])]
+    answers = list(envelope.answers)
 
     print_section("Media result")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.status),
             ("Kind", kind),
             ("Source", path),
             ("Prompts", len(prompts)),

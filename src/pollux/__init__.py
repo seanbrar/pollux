@@ -9,7 +9,6 @@ Public API:
     - inspect_deferred(): Inspect a deferred job
     - collect_deferred(): Collect terminal deferred results
     - cancel_deferred(): Cancel a deferred job
-    - create_cache(): Create a persistent context cache
     - Source: Explicit input types
     - Config: Configuration dataclass
 """
@@ -17,11 +16,10 @@ Public API:
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from pollux.cache import CacheHandle
 from pollux.config import (
     _API_KEY_ENV_VARS,
     _LOCAL_BASE_URL_ENV_VAR,
@@ -29,7 +27,6 @@ from pollux.config import (
     ProviderName,
     resolve_api_key,
 )
-from pollux.continuation import ConversationState
 from pollux.deferred import (
     DeferredHandle,
     DeferredSnapshot,
@@ -49,7 +46,6 @@ from pollux.errors import (
     RateLimitError,
     SourceError,
 )
-from pollux.execute import execute_plan
 from pollux.interaction import (
     Continuation,
     Environment,
@@ -63,12 +59,12 @@ from pollux.interaction import (
     ToolDeclaration,
     ToolResult,
 )
-from pollux.interaction.execute import execute_interaction
+from pollux.interaction.execute import execute_interaction, execute_interactions
 from pollux.options import Options, ResponseSchemaInput
 from pollux.plan import build_plan
 from pollux.providers.base import CloseableProvider
 from pollux.request import normalize_request
-from pollux.result import ResultEnvelope, build_result
+from pollux.result import ResultEnvelope
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 
@@ -90,32 +86,99 @@ logging.getLogger("pollux").addHandler(logging.NullHandler())
 logger = logging.getLogger(__name__)
 
 
+def _build_requirements(
+    *,
+    output: ResponseSchemaInput | None,
+    temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
+    reasoning_budget_tokens: int | None,
+    tool_choice: ToolChoice | None,
+    provider_options: dict[str, dict[str, Any]] | None,
+) -> OutputRequirements:
+    """Assemble OutputRequirements from the friendly first-class kwargs."""
+    return OutputRequirements(
+        output_schema=output,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=tool_choice,
+        provider_options=provider_options,
+    )
+
+
 async def run(
     prompt: str | None = None,
     *,
     source: Source | None = None,
+    sources: Sequence[Source] = (),
     config: Config,
-    options: Options | None = None,
-) -> ResultEnvelope:
-    """Run a single prompt, optionally with a source for context.
+    instructions: str | None = None,
+    output: ResponseSchemaInput | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_budget_tokens: int | None = None,
+    tool_choice: ToolChoice | None = None,
+    tools: Sequence[ToolDeclaration] | None = None,
+    provider_options: dict[str, dict[str, Any]] | None = None,
+) -> Output:
+    """Run a single prompt, optionally with sources for context.
+
+    The simple v2 facade: returns an :class:`Output` with named facets
+    (``text``, ``structured``, ``reasoning``, ``usage``, ``metrics``, …). For
+    stable environments, continuation, or tool loops, use :func:`interact`.
 
     Args:
         prompt: The prompt to run.
-        source: Optional source for context (file, text, URL).
+        source: A single source for context (convenience for ``sources=[source]``).
+        sources: Stable sources for context.
         config: Configuration specifying provider and model.
-        options: Optional additive features such as schema or reasoning controls.
+        instructions: Optional system-level instruction.
+        output: Optional Pydantic model or JSON Schema for structured output.
+        temperature: Optional sampling temperature.
+        top_p: Optional nucleus-sampling probability.
+        max_tokens: Optional hard cap on output tokens.
+        seed: Optional sampling seed where supported.
+        reasoning_effort: Optional qualitative reasoning effort.
+        reasoning_budget_tokens: Optional explicit reasoning token budget.
+        tool_choice: Optional tool-choice control.
+        tools: Optional tool declarations.
+        provider_options: Optional raw provider-scoped generation options.
 
     Returns:
-        ResultEnvelope with answers and metrics.
+        The completed :class:`Output`.
 
     Example:
-        config = Config(provider="gemini", model="gemini-2.0-flash")
-        result = await run("Summarize this document", source=Source.from_file("doc.pdf"), config=config)
-        first_answer = next(iter(result["answers"]), "")
-        print(first_answer)
+        config = Config(provider="anthropic", model="claude-haiku-4-5")
+        result = await run("Summarize.", source=Source.from_file("doc.pdf"), config=config)
+        print(result.text)
     """
-    sources = (source,) if source else ()
-    return await run_many(prompt, sources=sources, config=config, options=options)
+    all_sources = (source,) if source is not None else tuple(sources)
+    collection = await run_many(
+        prompt,
+        sources=all_sources,
+        config=config,
+        instructions=instructions,
+        output=output,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=tool_choice,
+        tools=tools,
+        provider_options=provider_options,
+    )
+    return collection.outputs[0]
 
 
 async def interact(
@@ -170,8 +233,8 @@ async def interact(
                 config=cfg,
             )
     """
-    requirements = OutputRequirements(
-        output_schema=output,
+    requirements = _build_requirements(
+        output=output,
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
@@ -207,39 +270,79 @@ async def run_many(
     *,
     sources: Sequence[Source] = (),
     config: Config,
-    options: Options | None = None,
-) -> ResultEnvelope:
+    instructions: str | None = None,
+    output: ResponseSchemaInput | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_budget_tokens: int | None = None,
+    tool_choice: ToolChoice | None = None,
+    tools: Sequence[ToolDeclaration] | None = None,
+    provider_options: dict[str, dict[str, Any]] | None = None,
+) -> OutputCollection:
     """Run multiple prompts with shared sources for source-pattern execution.
+
+    Returns an :class:`OutputCollection` whose ``outputs`` preserve input order;
+    ``.answers`` / ``.structured`` give ergonomic per-prompt lists.
 
     Args:
         prompts: One or more prompts to run.
-        sources: Optional sources for shared context.
+        sources: Stable sources shared across the prompts.
         config: Configuration specifying provider and model.
-        options: Optional additive features such as schema or reasoning controls.
+        instructions: Optional system-level instruction.
+        output: Optional Pydantic model or JSON Schema for structured output.
+        temperature: Optional sampling temperature.
+        top_p: Optional nucleus-sampling probability.
+        max_tokens: Optional hard cap on output tokens.
+        seed: Optional sampling seed where supported.
+        reasoning_effort: Optional qualitative reasoning effort.
+        reasoning_budget_tokens: Optional explicit reasoning token budget.
+        tool_choice: Optional tool-choice control.
+        tools: Optional tool declarations.
+        provider_options: Optional raw provider-scoped generation options.
 
     Returns:
-        ResultEnvelope with answers (one per prompt) and metrics.
+        The :class:`OutputCollection` for the source pattern.
 
     Example:
-        config = Config(provider="gemini", model="gemini-2.0-flash")
-        result = await run_many(
+        config = Config(provider="anthropic", model="claude-haiku-4-5")
+        results = await run_many(
             ["Question 1?", "Question 2?"],
             sources=[Source.from_text("Context...")],
             config=config,
         )
-        for answer in result["answers"]:
+        for answer in results.answers:
             print(answer)
     """
-    request = normalize_request(prompts, sources, config, options=options)
-    plan = build_plan(request)
-    provider = _get_provider(request.config)
-
+    prompt_tuple = (
+        (prompts,) if isinstance(prompts, (str, type(None))) else tuple(prompts)
+    )
+    environment = Environment(
+        instructions=instructions,
+        sources=tuple(sources),
+        tools=tuple(tools) if tools else (),
+    )
+    inputs = [Input(content=prompt) for prompt in prompt_tuple]
+    requirements = _build_requirements(
+        output=output,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=tool_choice,
+        provider_options=provider_options,
+    )
+    provider = _get_provider(config)
     try:
-        trace = await execute_plan(plan, provider)
+        return await execute_interactions(
+            environment, inputs, requirements, config, provider
+        )
     finally:
         await _close_provider(provider)
-
-    return build_result(plan, trace)
 
 
 async def defer_many(
@@ -311,113 +414,6 @@ async def cancel_deferred(
     provider = _resolve_deferred_provider(handle)
     try:
         await cancel_deferred_handle(handle, provider)
-    finally:
-        await _close_provider(provider)
-
-
-async def continue_tool(
-    continue_from: ResultEnvelope,
-    tool_results: list[dict[str, Any]],
-    *,
-    config: Config,
-    options: Options | None = None,
-) -> ResultEnvelope:
-    """Continue a conversation with the results of tool calls.
-
-    Planned for Pollux 2.0: continuation and tool-result replay become core
-    interaction semantics, expressed as something like
-    ``interact(environment, Input(continuation=..., tool_results=...))`` rather
-    than a dedicated helper. See the *Migrating to 2.0* guide.
-
-    Args:
-        continue_from: The previous ResultEnvelope containing tool calls.
-        tool_results: List of tool results as dicts (must provide 'role': 'tool',
-            'tool_call_id', and 'content').
-        config: Configuration specifying provider and model.
-        options: Optional additive features.
-
-    Returns:
-        ResultEnvelope with the model's next response.
-    """
-    import copy
-
-    prior = ConversationState.from_envelope(continue_from) or ConversationState(
-        history=[]
-    )
-    new_state = replace(prior, history=[*prior.history, *tool_results])
-
-    # Deep-copy the serialized state so the synthetic envelope never aliases the
-    # caller's _conversation_state (its nested history/provider_state objects).
-    # cast: TypedDict construction needs a literal key, but ENVELOPE_KEY stays
-    # the single owner of the key string.
-    synthetic_envelope = cast(
-        "ResultEnvelope",
-        {ConversationState.ENVELOPE_KEY: copy.deepcopy(new_state.to_dict())},
-    )
-
-    # Merge options, favoring the synthetic continue_from
-    # Do not mutate the caller's options object
-    if options is None:
-        merged_options = Options(continue_from=synthetic_envelope)
-    else:
-        merged_options = replace(
-            options,
-            history=None,
-            continue_from=synthetic_envelope,
-        )
-
-    return await run(prompt=None, config=config, options=merged_options)
-
-
-async def create_cache(
-    sources: Sequence[Source],
-    *,
-    config: Config,
-    system_instruction: str | None = None,
-    tools: list[dict[str, Any]] | list[Any] | None = None,
-    ttl_seconds: int = 3600,
-) -> CacheHandle:
-    """Create a persistent context cache for use with ``run()`` / ``run_many()``.
-
-    Planned for Pollux 2.0: context caching moves into environment preparation,
-    where cache identity is part of a prepared environment rather than a
-    standalone handle. See the *Migrating to 2.0* guide.
-
-    Args:
-        sources: Content to cache (files, text, URLs).
-        config: Configuration specifying provider and model.
-        system_instruction: Optional system-level instruction baked into the cache.
-        tools: Optional tools to bake into the cache.
-        ttl_seconds: Time-to-live in seconds (must be ≥ 1).
-
-    Returns:
-        A ``CacheHandle`` that can be passed via ``Options(cache=handle)``.
-
-    Raises:
-        ConfigurationError: If the provider does not support persistent caching
-            or *ttl_seconds* is invalid.
-
-    Example:
-        cfg = Config(provider="gemini", model="gemini-2.5-flash")
-        handle = await create_cache(
-            [Source.from_file("book.pdf")],
-            config=cfg,
-            ttl_seconds=3600,
-        )
-        result = await run("Summarize.", config=cfg, options=Options(cache=handle))
-    """
-    from pollux.cache import create_cache_impl
-
-    provider = _get_provider(config)
-    try:
-        return await create_cache_impl(
-            sources,
-            provider=provider,
-            config=config,
-            system_instruction=system_instruction,
-            tools=tools,
-            ttl_seconds=ttl_seconds,
-        )
     finally:
         await _close_provider(provider)
 
@@ -562,7 +558,6 @@ def _resolve_deferred_provider(handle: DeferredHandle) -> Provider:
 __all__ = [
     "APIError",
     "CacheError",
-    "CacheHandle",
     "Config",
     "ConfigurationError",
     "Continuation",
@@ -590,8 +585,6 @@ __all__ = [
     "ToolResult",
     "cancel_deferred",
     "collect_deferred",
-    "continue_tool",
-    "create_cache",
     "defer",
     "defer_many",
     "inspect_deferred",

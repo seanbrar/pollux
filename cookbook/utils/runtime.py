@@ -10,6 +10,7 @@ from pollux import Config
 from pollux.errors import ConfigurationError
 
 if TYPE_CHECKING:
+    from pollux import Output, OutputCollection
     from pollux.result import ResultEnvelope
 
 DEFAULT_PROVIDER = "gemini"
@@ -74,18 +75,18 @@ def print_run_mode(config: Config) -> None:
     print(f"Mode: {mode} | provider={config.provider} | model={config.model}{extra}")
 
 
-def usage_tokens(envelope: ResultEnvelope) -> int | None:
-    """Return total token count when available in envelope usage."""
-    usage = envelope.get("usage")
-    if isinstance(usage, dict):
-        raw = usage.get("total_tokens")
-        if isinstance(raw, int):
-            return raw
-    return None
+def usage_tokens(result: Output | OutputCollection) -> int | None:
+    """Return total token count when available."""
+    total = result.usage.total_tokens
+    return total or None
 
 
 def merged_usage(*envelopes: ResultEnvelope) -> ResultEnvelope:
-    """Merge usage blocks from multiple Pollux calls."""
+    """Merge usage blocks from multiple Pollux calls.
+
+    Note: pending migration to the v2 Output model (used only by the project
+    recipes, which are shelved for the v2 cookbook follow-up).
+    """
     usage: dict[str, int] = {}
     for envelope in envelopes:
         raw = envelope.get("usage")

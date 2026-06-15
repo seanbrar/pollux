@@ -9,7 +9,6 @@ import pytest
 
 import pollux
 import pollux.cache
-from pollux.cache import CacheHandle, CacheRegistry
 from pollux.config import Config
 from pollux.errors import (
     APIError,
@@ -22,7 +21,6 @@ from pollux.providers.models import (
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 from tests.conftest import (
-    CACHE_MODEL,
     GEMINI_MODEL,
     FakeProvider,
 )
@@ -71,58 +69,9 @@ async def test_provider_is_closed_on_success(monkeypatch: pytest.MonkeyPatch) ->
                 await pollux.run("Q", config=cfg)
         else:
             result = await pollux.run("Q", config=cfg)
-            assert result["status"] == "ok"
+            assert result.metrics.completion_status == "clean"
 
         assert fake.closed == 1, name
-
-
-@pytest.mark.asyncio
-async def test_create_cache_closes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """create_cache should close provider resources on success and failure."""
-
-    @dataclass
-    class _Provider(FakeProvider):
-        closed: int = 0
-        fail_cache: bool = False
-
-        async def create_cache(
-            self,
-            *,
-            model: str,
-            parts: list[Any],
-            system_instruction: str | None = None,
-            tools: list[dict[str, Any]] | list[Any] | None = None,
-            ttl_seconds: int = 3600,
-        ) -> str:
-            if self.fail_cache:
-                raise APIError("cache failed", provider="gemini", phase="cache")
-            return await super().create_cache(
-                model=model,
-                parts=parts,
-                system_instruction=system_instruction,
-                tools=tools,
-                ttl_seconds=ttl_seconds,
-            )
-
-        async def aclose(self) -> None:
-            self.closed += 1
-
-    cfg = Config(provider="gemini", model=CACHE_MODEL, use_mock=True)
-    for fail_cache in (False, True):
-        fake = _Provider(fail_cache=fail_cache)
-        monkeypatch.setattr(pollux, "_get_provider", lambda _config, _fake=fake: _fake)
-        monkeypatch.setattr(pollux.cache, "_registry", CacheRegistry())
-
-        if fail_cache:
-            with pytest.raises(APIError, match="cache failed"):
-                await pollux.create_cache((Source.from_text("cache me"),), config=cfg)
-        else:
-            handle = await pollux.create_cache(
-                (Source.from_text("cache me"),), config=cfg
-            )
-            assert isinstance(handle, CacheHandle)
-
-        assert fake.closed == 1
 
 
 # =============================================================================
@@ -211,7 +160,7 @@ async def test_retry_matrix(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> N
 
         if expect_ok:
             result = await coro
-            assert result["answers"] == ["ok"]
+            assert result.text == "ok"
         else:
             with pytest.raises(APIError):
                 await coro

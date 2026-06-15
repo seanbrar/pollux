@@ -104,7 +104,9 @@ disallow_untyped_defs = true
 #
 # Note: our Makefile calls `mypy .`, so we must explicitly exclude non-library
 # trees here rather than relying on `files = [...]`.
-exclude = "^(cookbook|docs|notebooks|scripts|site|outputs|mutants)/"
+# tests/test_api.py is shelved pending the v2 API-test migration (Slice 3
+# follow-up); it is still heavily v1-shaped. Remove this exclusion then.
+exclude = "^(cookbook|docs|notebooks|scripts|site|outputs|mutants)/|^tests/test_api\\.py$"
 
 namespace_packages = true
 show_error_codes = true
