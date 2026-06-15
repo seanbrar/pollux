@@ -7,9 +7,12 @@ Problem:
 
 Pattern:
     - Keep prompts and sources fixed.
-    - Create a persistent cache via ``create_cache()``.
-    - Run once to warm and once to reuse (back-to-back).
-    - Compare tokens and cache signal.
+    - Prepare an environment with a ``CachePolicy`` to create a persistent cache.
+    - Run once to warm and once to reuse (back-to-back) over that environment.
+    - Compare tokens and the cache signal.
+
+Persistent caching is a provider capability (e.g. Gemini). Run with ``--mock``
+for an offline smoke test, or ``--provider gemini`` against a real key.
 """
 
 from __future__ import annotations
@@ -27,10 +30,10 @@ from cookbook.utils.presentation import (
     print_section,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, usage_tokens
-from pollux import Config, Options, Source, create_cache, run_many
+from pollux import CachePolicy, Config, Source, prepare_environment, run_many
 
 if TYPE_CHECKING:
-    from pollux.result import ResultEnvelope
+    from pollux import OutputCollection
 
 PROMPTS = (
     "List 5 key concepts with one-sentence explanations.",
@@ -38,16 +41,14 @@ PROMPTS = (
 )
 
 
-def describe(run_name: str, envelope: ResultEnvelope) -> None:
+def describe(run_name: str, collection: OutputCollection) -> None:
     """Print compact run diagnostics."""
-    metrics = envelope.get("metrics")
-    cache_used = None
-    if isinstance(metrics, dict):
-        cache_used = metrics.get("cache_used")
-
+    cache_used = (
+        collection.outputs[0].metrics.cache_used if collection.outputs else None
+    )
     print(
-        f"- {run_name}: status={envelope.get('status', 'ok')} "
-        f"cache_used={cache_used} tokens={usage_tokens(envelope) or 'n/a'}"
+        f"- {run_name}: status={collection.status} "
+        f"cache_used={cache_used} tokens={usage_tokens(collection) or 'n/a'}"
     )
 
 
@@ -58,10 +59,14 @@ async def main_async(directory: Path, *, limit: int, config: Config, ttl: int) -
 
     sources = [Source.from_file(path) for path in files]
 
-    handle = await create_cache(sources, config=config, ttl_seconds=ttl)
+    environment = await prepare_environment(
+        sources=sources,
+        cache=CachePolicy(ttl_seconds=ttl),
+        config=config,
+    )
 
-    warm = await run_many(PROMPTS, config=config, options=Options(cache=handle))
-    reuse = await run_many(PROMPTS, config=config, options=Options(cache=handle))
+    warm = await run_many(PROMPTS, environment=environment, config=config)
+    reuse = await run_many(PROMPTS, environment=environment, config=config)
     warm_tokens = usage_tokens(warm)
     reuse_tokens = usage_tokens(reuse)
     saved = None

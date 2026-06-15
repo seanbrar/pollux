@@ -46,8 +46,8 @@ before dispatch or the provider page below calls out why it is out of scope.
 
 | Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
 |---|---|---|---|---|---|---|
-| Explicit caching (`create_cache`) | ✅ | ❌ | ❌ | ❌ | ❌ | Persistent cache handles are Gemini-only |
-| Implicit caching (`Options.implicit_caching`) | ❌ | ❌ | ✅ | ❌ | ❌ | Anthropic-only; see [caching docs](../caching.md#implicit-caching-anthropic) |
+| Persistent caching (`CachePolicy`) | ✅ | ❌ | ❌ | ❌ | ❌ | Persistent caches are Gemini-only |
+| Provider-managed caching (`cache`) | ❌ | ❌ | ✅ | ❌ | ❌ | Anthropic-only; see [caching docs](../caching.md#provider-managed-caching-anthropic) |
 | Automatic prompt caching (provider-side) | ✅ | ✅ | ❌ | ⚠️ route-dependent | ⚠️ server-dependent | Provider behavior, not a Pollux API; see [caching docs](../caching.md#three-caching-paths) |
 
 ### Reasoning And Agents
@@ -69,7 +69,7 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 
 ### Gemini
 
-- Explicit caching uses the Gemini Files API.
+- Persistent caching uses the Gemini Files API.
 - Deferred delivery uses the Gemini Batch API through Pollux's deferred entry
   points.
 - Video sources can carry Gemini-specific clipping and FPS controls via
@@ -77,7 +77,7 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - HTTP(S) URI sources can opt into Gemini URL Context via
   `Source.from_uri(...).with_gemini_url_context()`. This performs request-time
   retrieval, surfaces URL retrieval metadata in diagnostics, and cannot be used
-  with explicit cache handles.
+  with persistent caching.
 - Those controls are intentionally not normalized across providers. Pollux
   keeps them explicit so portability decisions stay in caller code.
 - Gemini also caches repeated long prefixes automatically. Pollux does not
@@ -127,9 +127,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - Deferred delivery uses the Anthropic Message Batches API through Pollux's
   deferred entry points.
 - Remote URL support is intentionally narrow: images and PDFs only.
-- Implicit caching is enabled with `Options(implicit_caching=True)`.
-  Pollux defaults it on for single-call workloads and off for multi-call
-  fan-out. Requesting it on unsupported providers raises `ConfigurationError`.
+- Provider-managed (automatic prompt) caching is on by default for single-call
+  workloads and off for multi-call fan-out. Set `cache="none"` on the
+  `Environment` to opt out.
 - See [current caching scope](../caching.md#current-pollux-scope) for what
   Pollux exposes from Anthropic's caching surface.
 - Reasoning: thinking text appears in `ResultEnvelope.reasoning`.
@@ -181,7 +181,7 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   downloading the PDF locally and sending it with `Source.from_file()`.
 - Unsupported OpenRouter file types fail fast. For example, local CSV uploads
   raise `ConfigurationError`.
-- Persistent cache handles remain unsupported on OpenRouter in the current release.
+- Persistent caching remains unsupported on OpenRouter in the current release.
 - OpenRouter supports automatic prompt caching on many routed providers.
   Pollux does not expose OpenRouter-specific cache controls.
 - Reasoning: works on OpenRouter models that support reasoning. Thinking text
@@ -228,19 +228,21 @@ instead of degrading silently.
 For example, creating a persistent cache with OpenAI:
 
 ```python
-from pollux import Config, Source, create_cache
+from pollux import CachePolicy, Config, Source, prepare_environment
 
 config = Config(provider="openai", model="gpt-5-nano")
 # This raises immediately:
 # ConfigurationError: Provider 'openai' does not support persistent caching
 # hint: "Use a provider that supports persistent_cache (e.g. Gemini)."
-handle = await create_cache(
-    [Source.from_text("hello")], config=config
+environment = await prepare_environment(
+    sources=[Source.from_text("hello")],
+    cache=CachePolicy(),
+    config=config,
 )
 ```
 
-The error is raised at `create_cache()` call time because persistent caching
-is a provider capability checked before the upload attempt.
+The error is raised at `prepare_environment()` call time because persistent
+caching is a provider capability checked before the upload attempt.
 
 For the deferred lifecycle contract and out-of-scope options, see
 [Submitting Work for Later Collection](../submitting-work-for-later-collection.md).

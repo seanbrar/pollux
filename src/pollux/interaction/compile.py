@@ -101,31 +101,41 @@ def compile_request(
     cache_name: str | None = None,
     implicit_caching: bool = False,
 ) -> ProviderRequest:
-    """Compile v2 primitives into a ``ProviderRequest`` (file parts unresolved)."""
+    """Compile v2 primitives into a ``ProviderRequest`` (file parts unresolved).
+
+    When ``cache_name`` is set, the snapshot's sources, instructions, and tools
+    are baked into the persistent cache, so they are dropped from the request:
+    providers (e.g. Gemini) reject resending content that the cache already
+    carries. The cache *is* the environment identity in the v2 model.
+    """
+    cached = cache_name is not None
     shared_parts = (
-        []
-        if cache_name is not None
-        else build_shared_parts(snapshot.sources, provider=config.provider)
+        [] if cached else build_shared_parts(snapshot.sources, provider=config.provider)
     )
     parts = (
         [*shared_parts, input.content] if input.content is not None else shared_parts
     )
 
-    tools = [
-        {
-            "name": decl.name,
-            "description": decl.description,
-            "parameters": decl.parameters,
-        }
-        for decl in snapshot.tools
-    ] or None
+    tools = (
+        None
+        if cached
+        else [
+            {
+                "name": decl.name,
+                "description": decl.description,
+                "parameters": decl.parameters,
+            }
+            for decl in snapshot.tools
+        ]
+        or None
+    )
 
     history, previous_response_id, provider_state = _resolve_prior_turns(input)
 
     return ProviderRequest(
         model=config.model,
         parts=parts,
-        system_instruction=snapshot.instructions,
+        system_instruction=None if cached else snapshot.instructions,
         cache_name=cache_name,
         response_schema=requirements.output_schema_json(),
         temperature=requirements.temperature,
