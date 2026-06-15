@@ -1,6 +1,6 @@
 # Pollux Testing Guide
 
-**Based on Minimal Tests, Maximum Trust v0.1.0**
+**Based on Minimal Tests, Maximum Trust v0.2.0**
 
 A testing standard that prioritizes signal over coverage, architecture over assertion, and clarity over volume.
 
@@ -187,19 +187,23 @@ High coverage with low-signal tests provides false confidence. Moderate coverage
 
 ## Part II: Testing Structure (Recommended)
 
-This section describes an organizational approach called **Boundary-First Flat Structure**. It complements the testing philosophy but is not required. Projects with different organizational needs may adopt Part I without Part II.
+This section describes an organizational approach called **Boundary-First Structure**. It complements the testing philosophy but is not required. Projects with different organizational needs may adopt Part I without Part II.
 
 ---
 
 ### Tenets
 
-#### 1. One file per boundary
+#### 1. One primary home per boundary
 
-A boundary is where user input enters, output leaves, or subsystems integrate. Each boundary gets one test file—not one per source module, not one per test category.
+A boundary is where user input enters, output leaves, or subsystems integrate. Each boundary gets one primary test home—not one per source module, not one per test category.
 
-#### 2. Flat over nested
+For small and medium boundaries, the primary home should be a single file. When that file becomes too large to navigate confidently, split it by named sub-boundary while preserving the same boundary responsibility.
 
-No directory hierarchy mirroring source structure. To find tests for a module, search by boundary responsibility, not by path.
+#### 2. Flat by default
+
+Avoid directory hierarchy unless a boundary has outgrown a single file. To find tests for a module, search by boundary responsibility, not by path.
+
+If directories are introduced, they must reflect boundary families or sub-boundaries, not source structure. A test tree that mirrors the implementation tree has deviated from this structure.
 
 #### 3. Markers over directories
 
@@ -209,6 +213,26 @@ Test *type* (unit, integration, contract, api) is expressed via test framework m
 
 Handlers, adapters, and internal logic are tested through their boundary. A bug in an interior module surfaces in the boundary test that exercises it.
 
+#### 5. Split large boundaries before they become archives
+
+A large boundary file is not more compliant because it is flat. Once a boundary file stops being easy to scan, split it into smaller files with names that describe observable responsibilities.
+
+Valid split dimensions:
+
+- Provider, protocol, or external system contract
+- User-facing capability or workflow
+- Lifecycle phase when phases are independently meaningful
+- Regression cluster with a clear behavioral theme
+
+Invalid split dimensions:
+
+- Source module path
+- Class or function under test
+- Test type alone
+- Chronological accumulation
+
+Splitting a boundary file is an organizational change, not a signal to add more tests. Apply the same evaluation criteria before and after the split.
+
 ---
 
 ### Defining Boundaries
@@ -217,14 +241,14 @@ Boundaries are specific to each project. Pollux adopts the following boundaries.
 
 <!-- BEGIN CUSTOMIZATION: Replace this table with your project's boundaries -->
 
-| Boundary | Test File | Responsibility |
-|----------|-----------|----------------|
-| Configuration | `test_config.py` | Config resolution, validation, API key handling, redaction |
-| Source construction | `test_source.py` | Source factory methods, input validation, normalization |
-| Pipeline + Public API | `test_pipeline.py` | `run()`, `run_many()`, request normalization, caching, uploads, options forwarding |
-| Provider internals | `test_providers.py` | Request/response shape characterization for each provider |
-| External APIs | `test_api.py` | Real API integration (Gemini, OpenAI) with live credentials |
-| Cookbook CLI | `test_cookbook.py`, `test_cookbook_contract.py` | Recipe resolution and execution, docs/recipe contracts |
+| Boundary | Primary Home | Responsibility |
+|----------|--------------|----------------|
+| Configuration and CLI | `tests/test_config.py` | Config resolution, validation, API key handling, redaction, and `pollux-config` output |
+| Source construction | `tests/test_source.py` | Source factory methods, input validation, and normalization |
+| Pipeline execution | `tests/pipeline/` | Public API execution, request normalization, caching, uploads, options forwarding, deferred execution, conversations, and result envelopes |
+| Provider contracts | `tests/providers/` | Shared provider behavior, request/response shape characterization, provider-specific capability contracts, and provider deferred-delivery contracts without live network calls |
+| External APIs | `tests/test_api.py` | Real provider API integration with live credentials |
+| Cookbook CLI | `tests/test_cookbook.py`, `tests/test_cookbook_contract.py` | Recipe resolution and execution, docs/recipe contracts |
 
 <!-- END CUSTOMIZATION -->
 
@@ -239,20 +263,29 @@ For any new test, determine placement by boundary responsibility.
 <!-- BEGIN CUSTOMIZATION: Replace with your project's test placement guide -->
 
 ```
-Does this test Config creation, API key resolution, or redaction?
+Does this test configuration or CLI behavior?
   → tests/test_config.py
 
-Does this test Source factory methods, validation, or normalization?
+Does this test Source construction, validation, or normalization?
   → tests/test_source.py
 
-Does this test public API entry points (run, run_many) or request handling?
-  → tests/test_pipeline.py
+Does this test run/run_many smoke behavior or public API validation?
+  → tests/pipeline/test_public_api.py
 
-Does this test provider-specific request/response shaping?
-  → tests/test_providers.py (characterization tests)
+Does this test pipeline error attribution, retries, provider lifecycle, caching, uploads, or options?
+  → tests/pipeline/test_{workflow}.py
 
-Does this require a real external API call?
-  → tests/test_api.py (marked @pytest.mark.api, requires ENABLE_API_TESTS=1)
+Does this test deferred execution, conversation/tool-call continuity, or result envelopes?
+  → tests/pipeline/test_{workflow}.py
+
+Does this test shared provider error mapping or schema/tool-history helpers?
+  → tests/providers/test_{contract}.py
+
+Does this test provider-specific request/response shaping or capability behavior?
+  → tests/providers/test_{provider}_contract.py
+
+Does this test provider deferred-delivery request, inspect, collect, or cancel behavior?
+  → tests/providers/test_deferred_delivery.py
 
 Does this test cookbook CLI behavior?
   → tests/test_cookbook.py
@@ -260,8 +293,11 @@ Does this test cookbook CLI behavior?
 Does this test cookbook recipe docs/contract consistency?
   → tests/test_cookbook_contract.py
 
+Does this require a real external service?
+  → tests/test_api.py, marked `api` and gated by ENABLE_API_TESTS
+
 None of the above?
-  → Probably belongs in test_pipeline.py.
+  → Probably belongs in an existing boundary home.
      If genuinely new, justify the new boundary.
 ```
 
@@ -273,12 +309,43 @@ None of the above?
 
 <!-- BEGIN CUSTOMIZATION: Add your project's conventions -->
 
-- Boundary tests live in `tests/test_{boundary}.py` at the repo root (flat structure).
+- Boundary tests live in `tests/test_{boundary}.py` until a boundary outgrows one file.
+- Large boundary families may use one directory under `tests/`, named for the boundary responsibility.
+- Boundary directories must not mirror `src/pollux/`; file names describe behavior, not implementation modules.
 - Use module-level markers (`pytestmark`) to declare the primary test type.
 - Provider characterization tests verify request/response shapes without network calls.
-- External API tests are marked `@pytest.mark.api` and require `ENABLE_API_TESTS=1`.
+- External-service tests must be marked `api` and require an explicit enable flag plus API credentials.
 - API fixtures (`gemini_api_key`, `openai_api_key`) skip tests when credentials are unavailable.
-- Shared fixtures live in `tests/conftest.py` with autouse isolation fixtures.
+- Shared fixtures and helpers remain centralized in `tests/conftest.py` and `tests/helpers.py`.
+
+Pollux uses these boundary homes:
+
+```
+tests/
+  test_config.py
+  test_source.py
+  test_api.py
+  test_cookbook.py
+  test_cookbook_contract.py
+  providers/
+    test_errors.py
+    test_gemini_contract.py
+    test_openai_contract.py
+    test_anthropic_contract.py
+    test_openrouter_contract.py
+    test_local_contract.py
+    test_deferred_delivery.py
+    test_tool_history.py
+  pipeline/
+    test_public_api.py
+    test_error_attribution.py
+    test_retry_and_lifecycle.py
+    test_cache_and_uploads.py
+    test_options.py
+    test_deferred.py
+    test_conversation.py
+    test_result_envelope.py
+```
 
 <!-- END CUSTOMIZATION -->
 
@@ -286,7 +353,7 @@ None of the above?
 
 ### Known Limitations
 
-**Scale**: The flat structure is designed for small-to-medium projects with well-defined boundaries. Large projects with many boundaries may find that one file per boundary becomes unwieldy. Part II is optional for this reason—such projects may adopt Part I while organizing tests differently.
+**Scale**: Flat files are the default, not the goal. Large projects or dense boundary families may use boundary directories or multiple files per boundary when a single file becomes hard to navigate. The organizing principle remains responsibility, not source layout.
 
 ---
 
@@ -309,7 +376,7 @@ The Minimal Tests, Maximum Trust specification is designed to be adopted by proj
 **Part I (Testing Philosophy)** — Preserve unchanged. These principles define what it means to follow this standard. The sections from "Purpose" through "On Coverage Metrics" are normative.
 
 **Part II (Testing Structure)** — If adopting Part II:
-- **Tenets**: Preserve unchanged. These define the Boundary-First Flat Structure approach.
+- **Tenets**: Preserve unchanged. These define the Boundary-First Structure approach.
 - **Defining Boundaries**: Replace the example table with your project's actual boundaries.
 - **Test Placement**: Replace the example decision tree with one tailored to your boundaries.
 - **Project Conventions**: Add your project-specific guidance here (optional).
@@ -324,18 +391,23 @@ Sentences guiding the adoption process (e.g., "replace the table below," "adapt 
 
 ### Version Reference
 
-Preserve the version number (`v0.1.0`) in your adopted document. This indicates which iteration of the standard your project follows.
+Preserve the version number (`v0.2.0`) in your adopted document. This indicates which iteration of the standard your project follows.
 
 If you customize the document title, include the version reference in the header:
 
 > # [Project Name] Testing Guide
-> **Based on Minimal Tests, Maximum Trust v0.1.0**
+> **Based on Minimal Tests, Maximum Trust v0.2.0**
 
 When the specification is updated, you may choose to update your adoption or remain on the previous version.
 
 ---
 
 ## Changelog
+
+### v0.2.0
+
+- Adopted Boundary-First Structure scale guidance
+- Established provider and pipeline boundary homes for Pollux's dense boundary families
 
 ### v0.1.0
 
