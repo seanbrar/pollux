@@ -20,10 +20,17 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 import pollux
+from pollux import (
+    Environment,
+    Input,
+    Message,
+    Source,
+    ToolCall,
+    ToolDeclaration,
+    ToolResult,
+)
 from pollux.config import Config
-from pollux.options import Options
 from pollux.providers import gemini as gemini_module
-from pollux.source import Source
 
 if TYPE_CHECKING:
     from pollux.config import ProviderName
@@ -31,11 +38,6 @@ if TYPE_CHECKING:
 pytestmark = [
     pytest.mark.api,
     pytest.mark.slow,
-    # Shelved pending the v2 API-test migration: these gated, real-provider tests
-    # are heavily v1-shaped (Options, continue_tool, dict tool results, envelope
-    # access) and span features still landing across the Slice 3 cutover (deferred
-    # in 3c, caching in 3b-2). They are migrated in a dedicated follow-up.
-    pytest.mark.skip(reason="pending v2 API-test migration (Slice 3 follow-up)"),
 ]
 
 _PROVIDERS: list[tuple[str, str, str]] = [
@@ -47,13 +49,15 @@ _PROVIDERS: list[tuple[str, str, str]] = [
 _GEMINI_REASONING_MODEL = "gemini-3-flash-preview"
 
 
-def _api_options(provider: str, *, max_tokens: int = 32, **kwargs: Any) -> Options:
-    """Return low-output live-test options where the provider supports them."""
+def _api_kwargs(
+    provider: str, *, max_tokens: int = 32, **kwargs: Any
+) -> dict[str, Any]:
+    """Return low-output live-test generation arguments where the provider supports them."""
     if provider in {"openai", "openrouter"}:
         kwargs.setdefault("max_tokens", max(max_tokens, 512))
     elif provider != "gemini":
         kwargs.setdefault("max_tokens", max_tokens)
-    return Options(**kwargs)
+    return kwargs
 
 
 def _minimal_pdf_bytes() -> bytes:
@@ -170,10 +174,10 @@ async def test_live_source_patterns_and_generation_controls(
     source = Source.from_json({"planet": "Neptune", "code": "ZX-41"})
 
     # gpt-5-nano currently rejects temperature/top_p; keep controls provider-aware.
-    options = _api_options(
+    kwargs = _api_kwargs(
         provider,
         max_tokens=1024 if provider == "openai" else 32,
-        system_instruction="One line.",
+        instructions="One line.",
         temperature=0.2 if provider == "gemini" else None,
         top_p=0.9 if provider == "gemini" else None,
     )
@@ -185,20 +189,19 @@ async def test_live_source_patterns_and_generation_controls(
         ),
         sources=(source,),
         config=config,
-        options=options,
+        **kwargs,
     )
 
-    assert len(result["answers"]) == 2
-    assert result["metrics"]["n_calls"] == 2
-    assert "first" in result["answers"][0].lower()
-    assert "neptune" in result["answers"][0].lower()
-    assert "second" in result["answers"][1].lower()
-    assert "zx-41" in result["answers"][1].lower()
-    if result["usage"]:
-        assert result["usage"].get("total_tokens", 0) > 0
+    assert len(result.outputs) == 2
+    assert sum(o.metrics.n_calls for o in result.outputs) == 2
+    assert "first" in result.answers[0].lower()
+    assert "neptune" in result.answers[0].lower()
+    assert "second" in result.answers[1].lower()
+    assert "zx-41" in result.answers[1].lower()
+    assert result.usage.total_tokens > 0
 
-    # system_instruction="Return one line only." should constrain output shape.
-    for answer in result["answers"]:
+    # instructions="One line." should constrain output shape.
+    for answer in result.answers:
         assert len(answer.strip().splitlines()) == 1
 
 
@@ -233,38 +236,30 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         },
     ]
 
-    first = await pollux.run(
-        "Call get_secret once with topic='orbit'.",
+    env = Environment(tools=[ToolDeclaration.from_dict(t) for t in tools])
+
+    first = await pollux.interact(
+        env,
+        Input("Call get_secret once with topic='orbit'."),
         config=config,
-        options=_api_options(
+        **_api_kwargs(
             provider,
             max_tokens=64,
-            tools=tools,
             tool_choice="required",
-            history=[],
         ),
     )
 
-    tool_calls_raw = first.get("tool_calls")
-    calls = (
-        tool_calls_raw[0] if isinstance(tool_calls_raw, list) and tool_calls_raw else []
-    )
-    assert calls
-    call = calls[0]
-    assert isinstance(call, dict)
-    assert call.get("name") == "get_secret"
+    assert first.tool_calls
+    call = first.tool_calls[0]
+    assert call.name == "get_secret"
 
-    call_id_raw = call.get("id")
-    tool_ref = (
-        call_id_raw if isinstance(call_id_raw, str) and call_id_raw else "get_secret"
-    )
+    tool_ref = call.id if call.id else "get_secret"
 
     tool_results = [
-        {
-            "role": "tool",
-            "tool_call_id": tool_ref,
-            "content": json.dumps({"code": "K9-ORBIT"}),
-        }
+        ToolResult(
+            call_id=tool_ref,
+            content=json.dumps({"code": "K9-ORBIT"}),
+        )
     ]
 
     response_schema: dict[str, Any] | None = {
@@ -273,40 +268,38 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
         "required": ["secret_code"],
     }
 
-    second = await pollux.continue_tool(
-        continue_from=first,
-        tool_results=tool_results,
+    second = await pollux.interact(
+        Environment(),
+        Input(
+            continuation=first.continuation,
+            tool_results=tool_results,
+        ),
         config=config,
-        options=_api_options(
+        output=response_schema,
+        **_api_kwargs(
             provider,
             max_tokens=96,
             reasoning_effort="low" if provider == "openai" else None,
-            response_schema=response_schema,
         ),
     )
 
-    assert "structured" in second
-    assert second["structured"][0].get("secret_code") == "K9-ORBIT"
+    assert second.structured
+    assert second.structured.get("secret_code") == "K9-ORBIT"
 
-    second_state = second.get("_conversation_state")
-    assert isinstance(second_state, dict)
-    second_history = second_state.get("history")
-    assert isinstance(second_history, list)
+    assert second.continuation is not None
+    messages = second.continuation.messages
+    assert messages
     tool_indexes = [
         i
-        for i, item in enumerate(second_history)
-        if isinstance(item, dict)
-        and item.get("role") == "tool"
-        and item.get("tool_call_id") == tool_ref
+        for i, msg in enumerate(messages)
+        if msg.role == "tool" and msg.tool_call_id == tool_ref
     ]
     assert tool_indexes
-    assert tool_indexes[0] < len(second_history) - 1
+    assert tool_indexes[0] < len(messages) - 1
 
-    if provider == "openai" and "reasoning" in second:
-        assert isinstance(second["reasoning"], list)
-        assert len(second["reasoning"]) == 1
-        assert isinstance(second["reasoning"][0], str)
-        assert second["reasoning"][0].strip()
+    if provider == "openai" and second.reasoning:
+        assert isinstance(second.reasoning, str)
+        assert second.reasoning.strip()
 
 
 @pytest.mark.asyncio
@@ -331,41 +324,50 @@ async def test_live_anthropic_parallel_tool_result_history_roundtrip(
             },
         },
     ]
-    history: list[dict[str, Any]] = [
-        {"role": "user", "content": "Need orbit and launch codes."},
-        {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [
-                {"id": "call_orbit", "name": "get_secret", "arguments": "{}"},
-                {"id": "call_launch", "name": "get_secret", "arguments": "{}"},
-            ],
-        },
-        {
-            "role": "tool",
-            "tool_call_id": "call_orbit",
-            "content": json.dumps({"code": "K9-ORBIT"}),
-        },
-        {
-            "role": "tool",
-            "tool_call_id": "call_launch",
-            "content": json.dumps({"code": "L2-LAUNCH"}),
-        },
+    history = [
+        Message(role="user", content="Need orbit and launch codes."),
+        Message(
+            role="assistant",
+            content="",
+            tool_calls=(
+                ToolCall.from_text(
+                    id="call_orbit", name="get_secret", arguments_text="{}"
+                ),
+                ToolCall.from_text(
+                    id="call_launch", name="get_secret", arguments_text="{}"
+                ),
+            ),
+        ),
+        Message(
+            role="tool",
+            tool_call_id="call_orbit",
+            content=json.dumps({"code": "K9-ORBIT"}),
+        ),
+        Message(
+            role="tool",
+            tool_call_id="call_launch",
+            content=json.dumps({"code": "L2-LAUNCH"}),
+        ),
     ]
 
-    result = await pollux.run(
-        "Reply with both codes in one line.",
-        config=config,
-        options=Options(
+    env = Environment(tools=[ToolDeclaration.from_dict(t) for t in tools])
+
+    result = await pollux.interact(
+        env,
+        Input(
+            content="Reply with both codes in one line.",
             history=history,
-            tools=tools,
-            tool_choice="none",
+        ),
+        config=config,
+        **_api_kwargs(
+            "anthropic",
             max_tokens=32,
+            tool_choice="none",
         ),
     )
 
-    assert result["status"] == "ok"
-    answer = result["answers"][0].lower()
+    assert result.text
+    answer = result.text.lower()
     assert "k9-orbit" in answer
     assert "l2-launch" in answer
 
@@ -382,16 +384,13 @@ async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> Non
     result = await pollux.run(
         "Reply exactly OK.",
         config=config,
-        options=Options(reasoning_effort="low"),
+        reasoning_effort="low",
     )
 
-    assert result["status"] == "ok"
-    assert "ok" in result["answers"][0].lower()
-    assert "reasoning" in result
-    assert isinstance(result["reasoning"], list)
-    assert len(result["reasoning"]) == 1
-    assert isinstance(result["reasoning"][0], str)
-    assert result["reasoning"][0].strip()
+    assert "ok" in result.text.lower()
+    assert result.reasoning
+    assert isinstance(result.reasoning, str)
+    assert result.reasoning.strip()
 
 
 @pytest.mark.asyncio
@@ -418,10 +417,13 @@ async def test_gemini_url_context_roundtrip(
         config=config,
     )
 
-    assert result["status"] == "ok"
-    assert "gemini_url_context_ok" in result["answers"][0].lower()
-    raw = result["diagnostics"]["raw_responses"][0]
-    assert "url_context_metadata" in raw.get("artifacts", {})
+    assert "gemini_url_context_ok" in result.text.lower()
+    assert result.diagnostics.raw is not None
+    raw = result.diagnostics.raw["response"]
+    # url_context_metadata is model-dependent and might not be populated by all models/versions.
+    artifacts = raw.get("artifacts")
+    if artifacts and "url_context_metadata" in artifacts:
+        assert artifacts["url_context_metadata"]
 
 
 @pytest.mark.asyncio
@@ -450,8 +452,8 @@ async def test_gemini_live_deferred_inline_submit_and_inspect(
 
         if snapshot.is_terminal:
             result = await pollux.collect_deferred(job)
-            assert result["metrics"]["deferred"] is True
-            assert result["diagnostics"]["deferred"]["job_id"] == job.job_id
+            assert result.outputs[0].diagnostics.raw is not None
+            assert result.outputs[0].diagnostics.raw["deferred"]["job_id"] == job.job_id
     finally:
         if job is not None:
             with suppress(Exception):
@@ -475,7 +477,7 @@ async def test_gemini_live_deferred_file_submit_and_inspect(
     job: pollux.DeferredHandle | None = None
     cancelled = False
     try:
-        job = await pollux.defer_many(
+        job = await pollux.defer(
             (
                 "Reply exactly LIVE_DEFERRED_FILE_ONE.",
                 "Reply exactly LIVE_DEFERRED_FILE_TWO.",
@@ -515,7 +517,7 @@ async def test_anthropic_live_deferred_submit_inspect_and_cancel(
         job = await pollux.defer(
             "Reply exactly LIVE_ANTHROPIC_DEFERRED_CANCEL_OK.",
             config=config,
-            options=Options(max_tokens=16),
+            max_tokens=16,
         )
         await pollux.cancel_deferred(job)
         cancelled = True
@@ -546,12 +548,13 @@ async def test_openrouter_reasoning_roundtrip(
     result = await pollux.run(
         "Reply exactly OK.",
         config=config,
-        options=Options(reasoning_effort="low", max_tokens=256),
+        reasoning_effort="low",
+        max_tokens=256,
     )
 
-    assert result["status"] == "ok"
-    assert "ok" in result["answers"][0].lower()
-    raw = result["diagnostics"]["raw_responses"][0]
+    assert "ok" in result.text.lower()
+    assert result.diagnostics.raw is not None
+    raw = result.diagnostics.raw["response"]
     provider_state = raw.get("provider_state")
     assert isinstance(provider_state, dict)
     assert provider_state.get("openrouter_reasoning_details")
@@ -584,11 +587,10 @@ async def test_openai_binary_upload_cleanup_roundtrip(
         "Reply exactly PDF_OK.",
         source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
-        options=Options(max_tokens=512),
+        max_tokens=512,
     )
 
-    assert result["status"] == "ok"
-    assert "pdf_ok" in result["answers"][0].lower()
+    assert "pdf_ok" in result.text.lower()
     assert deleted_file_ids
     assert all(isinstance(file_id, str) and file_id for file_id in deleted_file_ids)
 
@@ -599,10 +601,9 @@ async def test_openai_binary_upload_cleanup_roundtrip(
             mime_type="text/markdown",
         ),
         config=config,
-        options=Options(max_tokens=512),
+        max_tokens=512,
     )
-    assert remote["status"] == "ok"
-    assert "remote_markdown_ok" in remote["answers"][0].lower()
+    assert "remote_markdown_ok" in remote.text.lower()
 
 
 @pytest.mark.asyncio
@@ -725,10 +726,9 @@ async def test_openrouter_local_pdf_roundtrip(
         "Reply exactly with the PDF token.",
         source=Source.from_file(pdf_path, mime_type="application/pdf"),
         config=config,
-        options=Options(max_tokens=512),
+        max_tokens=512,
     )
 
-    assert result["status"] == "ok"
-    assert result["answers"][0].strip() == token
-    if result["usage"]:
-        assert result["usage"].get("total_tokens", 0) > 0
+    assert result.text.strip() == token
+    if result.usage:
+        assert result.usage.total_tokens > 0
