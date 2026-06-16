@@ -28,12 +28,14 @@ Success check:
     - Each reward has a best-fit recipient, reveal text, and caveats.
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 from dataclasses import dataclass
 import json
 import re
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -47,8 +49,20 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
-from pollux import Config, Options, Source, run, run_many
-from pollux.result import ResultEnvelope
+from pollux import (
+    Config,
+    Environment,
+    Input,
+    Source,
+    ToolDeclaration,
+    interact,
+    run,
+)
+
+if TYPE_CHECKING:
+    from pollux import Output
+    from pollux.interaction import ToolCall
+
 
 API_BASE = "https://www.dnd5eapi.co/api/2014"
 PARTY_MIN_SIZE = 2
@@ -484,27 +498,16 @@ def build_packet_prompt(reward_mood: str, tone: str) -> str:
     )
 
 
-def parse_tool_arguments(raw: object) -> dict[str, Any]:
-    """Parse provider-normalized tool-call arguments."""
-    if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
-
-
 def first_valid_selection(
     slot: str,
-    tool_calls: list[dict[str, Any]],
+    tool_calls: tuple[ToolCall, ...],
     allowed: set[tuple[str, str]],
 ) -> tuple[str, str] | None:
     """Return the first valid category/index pair from tool calls."""
     for call in tool_calls:
-        args = parse_tool_arguments(call.get("arguments"))
+        args = call.arguments
+        if not isinstance(args, dict):
+            continue
         if args.get("slot") != slot:
             continue
         category = str(args.get("category", "")).strip()
@@ -861,8 +864,8 @@ async def select_rewards(
     reward_mood: str,
     config: Config,
     available: dict[str, dict[str, str]],
-) -> tuple[list[RewardSeed], ResultEnvelope]:
-    """Use fan-out tool calls to choose one reward for each slot."""
+) -> tuple[list[RewardSeed], list[Output]]:
+    """Use tool calls to choose one reward for each slot."""
     candidates_by_slot, seed_lookup = build_candidate_catalog(
         party, reward_mood=reward_mood, available=available
     )
@@ -881,17 +884,30 @@ async def select_rewards(
             for slot in SLOT_ORDER
         ],
     }
-    selection_env = await run_many(
-        [slot_prompt(slot) for slot in SLOT_ORDER],
-        sources=[Source.from_json(context, identifier="treasure-catalog")],
-        config=config,
-        options=Options(tools=[LOOKUP_TOOL], tool_choice={"name": "lookup_reward"}),
+
+    lookup_decl = ToolDeclaration(
+        name=LOOKUP_TOOL["name"],
+        description=LOOKUP_TOOL["description"],
+        parameters=LOOKUP_TOOL["parameters"],
     )
 
-    raw_tool_calls = selection_env.get("tool_calls", [])
+    async def run_slot(slot: str) -> Output:
+        env = Environment(
+            tools=[lookup_decl],
+            sources=[Source.from_json(context, identifier="treasure-catalog")],
+        )
+        return await interact(
+            env,
+            Input(content=slot_prompt(slot)),
+            config=config,
+            tool_choice={"name": "lookup_reward"},
+        )
+
+    outputs = await asyncio.gather(*[run_slot(slot) for slot in SLOT_ORDER])
+
     chosen: list[RewardSeed] = []
     for idx, slot in enumerate(SLOT_ORDER):
-        slot_calls = raw_tool_calls[idx] if idx < len(raw_tool_calls) else []
+        slot_calls = outputs[idx].tool_calls
         allowed = {
             (str(item["category"]), str(item["index"]))
             for item in candidates_by_slot[slot]
@@ -902,11 +918,7 @@ async def select_rewards(
             picked = str(fallback["category"]), str(fallback["index"])
         chosen.append(seed_lookup[picked])
 
-    selection_env.setdefault("metrics", {})
-    selection_env["metrics"]["tool_calls_seen"] = sum(
-        len(calls) for calls in raw_tool_calls if isinstance(calls, list)
-    )
-    return chosen, selection_env
+    return chosen, list(outputs)
 
 
 async def run_mock_flow(
@@ -916,7 +928,7 @@ async def run_mock_flow(
     tone: str,
     reward_mood: str,
     config: Config,
-) -> tuple[TreasurePacket, list[dict[str, Any]], ResultEnvelope]:
+) -> tuple[TreasurePacket, list[dict[str, Any]], Output]:
     """Exercise the bounded flow with deterministic mock rewards."""
     available = mock_catalogs()
     selected, selection_env = await select_rewards(
@@ -940,7 +952,16 @@ async def run_mock_flow(
         reward_mood=reward_mood,
         reward_facts=reward_facts,
     )
-    return packet, reward_facts, selection_env
+    combined_usage = merged_usage(*selection_env)
+    from pollux.interaction.output import Diagnostics, Metrics, Output
+
+    tool_calls_seen = sum(len(o.tool_calls) for o in selection_env)
+    mock_envelope = Output(
+        usage=combined_usage,
+        metrics=Metrics(completion_status="clean"),
+        diagnostics=Diagnostics(raw={"tool_calls_seen": tool_calls_seen}),
+    )
+    return packet, reward_facts, mock_envelope
 
 
 async def run_real_flow(
@@ -950,7 +971,7 @@ async def run_real_flow(
     tone: str,
     reward_mood: str,
     config: Config,
-) -> tuple[TreasurePacket, list[dict[str, Any]], ResultEnvelope]:
+) -> tuple[TreasurePacket, list[dict[str, Any]], Output]:
     """Run live selection and synthesis against the SRD API."""
     available = await load_live_catalogs()
     selected, selection_env = await select_rewards(
@@ -986,9 +1007,9 @@ async def run_real_flow(
             identifier="treasure-facts",
         ),
         config=config,
-        options=Options(response_schema=TreasurePacket),
+        output=TreasurePacket,
     )
-    structured = packet_env.get("structured", [])
+    structured = packet_env.structured or []
     first = structured[0] if isinstance(structured, list) and structured else None
     packet = (
         first
@@ -1001,13 +1022,36 @@ async def run_real_flow(
             reward_facts=reward_facts,
         )
     )
-    combined = merged_usage(selection_env, packet_env)
-    combined.setdefault("metrics", {})
-    combined["metrics"]["tool_calls_seen"] = selection_env.get("metrics", {}).get(
-        "tool_calls_seen", 0
+    combined_usage = merged_usage(*selection_env, packet_env)
+    tool_calls_seen = sum(len(o.tool_calls) for o in selection_env)
+
+    import dataclasses
+
+    from pollux.interaction.output import Diagnostics, Metrics
+
+    merged_m = Metrics(
+        duration_s=sum(o.metrics.duration_s for o in selection_env)
+        + packet_env.metrics.duration_s,
+        n_calls=sum(o.metrics.n_calls for o in selection_env)
+        + packet_env.metrics.n_calls,
+        cache_used=any(o.metrics.cache_used for o in selection_env)
+        or packet_env.metrics.cache_used,
+        cache_mode=packet_env.metrics.cache_mode,
+        cache_hit=any(o.metrics.cache_hit for o in selection_env)
+        or packet_env.metrics.cache_hit,
+        finish_reason=packet_env.metrics.finish_reason,
+        completion_status=packet_env.metrics.completion_status,
     )
-    combined["metrics"]["reward_count"] = len(reward_facts)
-    return packet, reward_facts, combined
+
+    packet_env = dataclasses.replace(
+        packet_env,
+        usage=combined_usage,
+        metrics=merged_m,
+        diagnostics=Diagnostics(
+            raw={"tool_calls_seen": tool_calls_seen, "reward_count": len(reward_facts)}
+        ),
+    )
+    return packet, reward_facts, packet_env
 
 
 def print_party_snapshot(party: list[PartyMember], *, summary: str, tone: str) -> None:
@@ -1082,19 +1126,24 @@ async def main_async(
             config=config,
         )
 
+    tool_lookups = 0
+    if envelope.diagnostics and envelope.diagnostics.raw:
+        tool_lookups = envelope.diagnostics.raw.get("tool_calls_seen", 0)
+
     print_party_snapshot(party, summary=summary, tone=tone)
     print_section("Treasure snapshot")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.metrics.completion_status),
             ("Reward mood", reward_mood),
             ("Rewards", len(reward_facts)),
-            ("Tool lookups", envelope.get("metrics", {}).get("tool_calls_seen", 0)),
+            ("Tool lookups", tool_lookups),
         ]
     )
     print_reward_facts(reward_facts)
     print_packet(packet)
     print_usage(envelope)
+
     print_learning_hints(
         [
             "Next: swap the session summary and watch the signature reward change.",

@@ -45,11 +45,18 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
-from pollux import Config, Options, Source, create_cache, run_many
+from pollux import (
+    CachePolicy,
+    Config,
+    Environment,
+    Source,
+    prepare_environment,
+    run_many,
+)
 
 if TYPE_CHECKING:
-    from pollux.cache import CacheHandle
-    from pollux.result import ResultEnvelope
+    from pollux import OutputCollection
+
 
 DEFAULT_AUDIENCE = "reading group"
 
@@ -245,18 +252,22 @@ async def build_packet(
     config: Config,
     ttl: int,
     wants_cache: bool,
-) -> tuple[WorkshopKit, ResultEnvelope, ResultEnvelope, str]:
+) -> tuple[WorkshopKit, OutputCollection, OutputCollection, str]:
     """Build the workshop packet from one paper source."""
     prompts = build_prompts(audience)
     use_cache, cache_label = should_use_cache(config, wants_cache=wants_cache)
-    cache_handle: CacheHandle | None = None
+    env: Environment | None = None
 
     if use_cache:
-        cache_handle = await create_cache([source], config=config, ttl_seconds=ttl)
+        env = await prepare_environment(
+            sources=[source],
+            config=config,
+            cache=CachePolicy(ttl_seconds=ttl),
+        )
         section_env = await run_many(
             [prompt for _, prompt in prompts],
             config=config,
-            options=Options(cache=cache_handle),
+            environment=env,
         )
     else:
         section_env = await run_many(
@@ -267,15 +278,16 @@ async def build_packet(
 
     section_answers = [
         (label, str(answer))
-        for (label, _), answer in zip(
-            prompts, section_env.get("answers", []), strict=False
-        )
+        for (label, _), answer in zip(prompts, section_env.answers, strict=False)
     ]
     notes = build_notes(section_answers)
 
     if config.use_mock:
         packet = mock_packet(source_label=source_label, audience=audience)
-        return packet, section_env, {"usage": {}}, cache_label
+        from pollux.interaction.collection import OutputCollection
+
+        mock_collection = OutputCollection(outputs=())
+        return packet, section_env, mock_collection, cache_label
 
     final_prompt = (
         f"Build a compact workshop packet for a {audience}. "
@@ -284,11 +296,12 @@ async def build_packet(
         f"{notes}"
     )
 
-    if cache_handle is not None:
+    if env is not None:
         packet_env = await run_many(
             [final_prompt],
             config=config,
-            options=Options(cache=cache_handle, response_schema=WorkshopKit),
+            environment=env,
+            output=WorkshopKit,
         )
     else:
         packet_env = await run_many(
@@ -298,10 +311,10 @@ async def build_packet(
                 Source.from_text(notes, identifier="draft-workshop-notes"),
             ],
             config=config,
-            options=Options(response_schema=WorkshopKit),
+            output=WorkshopKit,
         )
 
-    structured = packet_env.get("structured", [])
+    structured = packet_env.structured or []
     first = structured[0] if isinstance(structured, list) and structured else None
     packet = (
         first
@@ -333,10 +346,14 @@ async def main_async(
     objection_count = len(packet.skeptical_objections)
     action_count = len(packet.action_items)
 
+    status = section_env.status
+    if not config.use_mock:
+        status = packet_env.status
+
     print_section("Workshop packet")
     print_kv_rows(
         [
-            ("Status", packet_env.get("status", section_env.get("status", "ok"))),
+            ("Status", status),
             ("Source", source_label),
             ("Audience", audience),
             ("Cache", cache_label),
@@ -353,7 +370,12 @@ async def main_async(
     print_items("Discussion questions", packet.discussion_questions)
     print_objections(packet.skeptical_objections)
     print_items("Next-week actions", packet.action_items)
-    print_usage(merged_usage(section_env, packet_env))
+
+    if config.use_mock:
+        print_usage(section_env)
+    else:
+        print_usage(merged_usage(*section_env.outputs, *packet_env.outputs))
+
     print_learning_hints(
         [
             "Next: swap the audience to see how the packet changes for a different room.",

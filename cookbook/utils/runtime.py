@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pollux import Config
 from pollux.errors import ConfigurationError
@@ -12,9 +12,7 @@ from pollux.errors import ConfigurationError
 if TYPE_CHECKING:
     from pollux import Output, OutputCollection
 
-#: The v1 result-envelope dict shape. Retained only for ``merged_usage``, which
-#: the shelved project recipes still use pending their v2 ``Output`` migration.
-ResultEnvelope = dict[str, Any]
+from pollux.interaction import Usage
 
 DEFAULT_PROVIDER = "gemini"
 DEFAULT_MODELS = {
@@ -84,18 +82,25 @@ def usage_tokens(result: Output | OutputCollection) -> int | None:
     return total or None
 
 
-def merged_usage(*envelopes: ResultEnvelope) -> ResultEnvelope:
-    """Merge usage blocks from multiple Pollux calls.
+def merged_usage(*outputs: Output) -> Usage:
+    """Sum token usage across several Pollux outputs."""
+    input_tokens = sum(o.usage.input_tokens for o in outputs)
+    output_tokens = sum(o.usage.output_tokens for o in outputs)
+    total_tokens = sum(o.usage.total_tokens for o in outputs)
 
-    Note: pending migration to the v2 Output model (used only by the project
-    recipes, which are shelved for the v2 cookbook follow-up).
-    """
-    usage: dict[str, int] = {}
-    for envelope in envelopes:
-        raw = envelope.get("usage")
-        if not isinstance(raw, dict):
-            continue
-        for key, value in raw.items():
-            if isinstance(value, int):
-                usage[key] = usage.get(key, 0) + value
-    return {"usage": usage}
+    reasoning_list = [
+        o.usage.reasoning_tokens
+        for o in outputs
+        if o.usage.reasoning_tokens is not None
+    ]
+    cached_list = [
+        o.usage.cached_tokens for o in outputs if o.usage.cached_tokens is not None
+    ]
+
+    return Usage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        reasoning_tokens=sum(reasoning_list) if reasoning_list else None,
+        cached_tokens=sum(cached_list) if cached_list else None,
+    )

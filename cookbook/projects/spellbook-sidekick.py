@@ -27,13 +27,15 @@ Success check:
     - The packet surfaces concentration collisions and opener ideas.
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -53,8 +55,12 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
-from pollux import Config, Options, Source, run, run_many
-from pollux.result import ResultEnvelope
+from pollux import Config, Source, ToolDeclaration, run, run_many
+
+if TYPE_CHECKING:
+    from pollux import Output, OutputCollection
+    from pollux.interaction import ToolCall
+
 
 API_BASE = "https://www.dnd5eapi.co/api/2014"
 MAX_SPELLS = 5
@@ -385,28 +391,18 @@ def dedupe_spell_names(spells: list[str]) -> list[str]:
     return out
 
 
-def parse_tool_arguments(raw: object) -> dict[str, Any]:
-    """Parse provider-normalized tool-call arguments."""
-    if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
-
-
 def plan_lookup_names(
-    spell_names: list[str], tool_calls: list[dict[str, Any]]
+    spell_names: list[str], tool_calls: tuple[ToolCall, ...]
 ) -> list[str]:
     """Map tool calls back onto the extracted spell order."""
     planned: list[str] = []
     for idx, raw_name in enumerate(spell_names):
-        call = tool_calls[idx] if idx < len(tool_calls) else {}
-        args = parse_tool_arguments(call.get("arguments"))
-        requested = args.get("name")
+        call = tool_calls[idx] if idx < len(tool_calls) else None
+        requested = (
+            call.arguments.get("name")
+            if (call is not None and isinstance(call.arguments, dict))
+            else None
+        )
         planned.append(str(requested).strip() if requested else raw_name)
     return planned
 
@@ -733,7 +729,7 @@ async def extract_snapshot(
     level: int | None,
     pack_defaults: SpellbookPackDefaults | None,
     config: Config,
-) -> tuple[SpellbookSnapshot, ResultEnvelope]:
+) -> tuple[SpellbookSnapshot, Output | OutputCollection]:
     """Extract or build the initial spellbook snapshot."""
     if sheet is None:
         if config.use_mock:
@@ -816,11 +812,9 @@ async def extract_snapshot(
         [build_extraction_prompt(note)],
         sources=sources,
         config=config,
-        options=Options(response_schema=SpellbookSnapshot)
-        if not config.use_mock
-        else None,
+        output=SpellbookSnapshot if not config.use_mock else None,
     )
-    structured = extraction_env.get("structured", [])
+    structured = extraction_env.structured or []
     first = structured[0] if isinstance(structured, list) and structured else None
     if isinstance(first, SpellbookSnapshot):
         snapshot = merge_snapshot_spells(first, explicit_spells)
@@ -843,17 +837,21 @@ async def lookup_spell_facts(
     snapshot: SpellbookSnapshot,
     *,
     config: Config,
-) -> tuple[list[dict[str, Any]], ResultEnvelope]:
+) -> tuple[list[dict[str, Any]], Output]:
     """Normalize spell names with tool calls, then fetch spell facts."""
     lookup_env = await run(
         build_lookup_prompt(snapshot),
         config=config,
-        options=Options(tools=[LOOKUP_TOOL], tool_choice={"name": "lookup_spell"}),
+        tools=[
+            ToolDeclaration(
+                name=LOOKUP_TOOL["name"],
+                description=LOOKUP_TOOL["description"],
+                parameters=LOOKUP_TOOL["parameters"],
+            )
+        ],
+        tool_choice={"name": "lookup_spell"},
     )
-    raw_tool_calls = lookup_env.get("tool_calls")
-    tool_calls = (
-        raw_tool_calls[0] if isinstance(raw_tool_calls, list) and raw_tool_calls else []
-    )
+    tool_calls = lookup_env.tool_calls
     lookup_names = plan_lookup_names(snapshot.spell_names, tool_calls)
 
     if config.use_mock:
@@ -865,8 +863,6 @@ async def lookup_spell_facts(
             *[asyncio.to_thread(fetch_spell_detail, index) for _, index in resolved]
         )
 
-    lookup_env.setdefault("metrics", {})
-    lookup_env["metrics"]["tool_calls_seen"] = len(tool_calls)
     return facts, lookup_env
 
 
@@ -876,7 +872,7 @@ async def build_cards(
     spell_facts: list[dict[str, Any]],
     session_brief: str,
     config: Config,
-) -> tuple[list[SpellCard], ResultEnvelope]:
+) -> tuple[list[SpellCard], OutputCollection]:
     """Fan out one prompt per spell to build quick-reference cards."""
     card_env = await run_many(
         [spell_card_prompt(fact["name"]) for fact in spell_facts],
@@ -891,11 +887,11 @@ async def build_cards(
             )
         ],
         config=config,
-        options=Options(response_schema=SpellCard) if not config.use_mock else None,
+        output=SpellCard if not config.use_mock else None,
     )
     if config.use_mock:
         return [fallback_card(snapshot, fact) for fact in spell_facts], card_env
-    structured = card_env.get("structured", [])
+    structured = card_env.structured or []
     cards: list[SpellCard] = []
     for idx, fact in enumerate(spell_facts):
         candidate = (
@@ -918,7 +914,7 @@ async def build_summary(
     cards: list[SpellCard],
     session_brief: str,
     config: Config,
-) -> tuple[SpellPacketSummary, ResultEnvelope]:
+) -> tuple[SpellPacketSummary, Output]:
     """Build the final packet summary from normalized spell facts and cards."""
     summary_env = await run(
         build_summary_prompt(note),
@@ -933,15 +929,13 @@ async def build_summary(
             identifier="spell-packet-input",
         ),
         config=config,
-        options=Options(response_schema=SpellPacketSummary)
-        if not config.use_mock
-        else None,
+        output=SpellPacketSummary if not config.use_mock else None,
     )
     if config.use_mock:
         return fallback_summary(
             snapshot, note=note, cards=cards, spell_facts=spell_facts
         ), summary_env
-    structured = summary_env.get("structured", [])
+    structured = summary_env.structured or []
     first = structured[0] if isinstance(structured, list) and structured else None
     summary = (
         first
@@ -992,17 +986,25 @@ async def main_async(
         config=config,
     )
 
-    envelope = merged_usage(extraction_env, lookup_env, card_env, summary_env)
-    envelope.setdefault("metrics", {})
-    envelope["metrics"]["tool_calls_seen"] = lookup_env.get("metrics", {}).get(
-        "tool_calls_seen", 0
-    )
+    outputs = []
+    from pollux.interaction.collection import OutputCollection
+
+    if isinstance(extraction_env, OutputCollection):
+        outputs.extend(extraction_env.outputs)
+    else:
+        outputs.append(extraction_env)
+    outputs.append(lookup_env)
+    outputs.extend(card_env.outputs)
+    outputs.append(summary_env)
+
+    usage = merged_usage(*outputs)
+    tool_calls_seen = len(lookup_env.tool_calls)
 
     print_snapshot(snapshot, note=note)
     print_section("Packet snapshot")
     print_kv_rows(
         [
-            ("Status", summary_env.get("status", "ok")),
+            ("Status", summary_env.metrics.completion_status),
             ("Sheet provided", bool(sheet)),
             (
                 "Starter pack",
@@ -1013,12 +1015,13 @@ async def main_async(
                 ),
             ),
             ("Cards", len(cards)),
-            ("Tool lookups", envelope.get("metrics", {}).get("tool_calls_seen", 0)),
+            ("Tool lookups", tool_calls_seen),
         ]
     )
     print_cards(cards)
     print_summary(summary)
-    print_usage(envelope)
+    print_usage(usage)
+
     print_learning_hints(
         [
             "Next: swap the session note and watch which spells stay in the packet.",
