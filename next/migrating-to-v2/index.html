@@ -1107,12 +1107,18 @@ interaction-shaped API:</p>
 logging, limits, and storage. Pollux owns the provider-facing interaction and
 the continuation format it needs for the next turn.</p>
 <h2 id="serialized-state">Serialized State<a class="headerlink" href="#serialized-state" title="Permanent link">&para;</a></h2>
-<p>Pollux 1.x now stamps serialized continuation state and deferred handles with a
-version and provider marker. Pollux 2.0 is expected to reject incompatible 1.x
-artifacts with an actionable error instead of reading them as 2.0 state.</p>
-<p>Plan to re-run work across the major-version boundary rather than reusing old
-serialized continuation blobs. Persist enough application state to rebuild the
-request when that is the right recovery path.</p>
+<p>In 2.0, continuation state is the public <code>Continuation</code> primitive, not a private
+dict. Read it from <code>output.continuation</code>, persist it with
+<code>continuation.to_jsonable()</code>, and restore it with <code>Continuation.from_jsonable(...)</code>.
+Serialized continuations are stamped with a schema version and the provider that
+produced them, and <code>from_jsonable()</code> rejects an incompatible version (and, when you
+pass <code>expected_provider=</code>, a mismatched provider) with an actionable error instead
+of misreading it.</p>
+<p>A continuation is bound to its provider: its <code>provider_state</code> (response ids,
+provider-specific replay blocks) is not portable, so reusing one under a different
+provider is rejected before dispatch. Across the 1.x → 2.0 boundary, plan to re-run
+work rather than reusing old serialized blobs; persist enough application state to
+rebuild the request when that is the right recovery path.</p>
 <h2 id="what-to-do-in-1x">What To Do In 1.x<a class="headerlink" href="#what-to-do-in-1x" title="Permanent link">&para;</a></h2>
 <p>You do not need to rewrite working 1.x code before 2.0 exists. To make future
 migration easier:</p>
@@ -1142,6 +1148,10 @@ migration easier:</p>
   one explicit interaction over an <code>Environment</code> and <code>Input</code>. Continue a
   conversation or tool loop by passing the prior <code>Output</code>'s <code>continuation</code> and any
   <code>tool_results</code> in the next <code>Input</code>, the replacement for <code>continue_tool()</code>.</li>
+<li><code>stream(environment, input, *, config, **generation_kwargs)</code> observes that same
+  interaction as a timeline of <code>Event</code>s (<code>text_delta</code>, <code>reasoning_delta</code>,
+  <code>tool_call</code>, <code>usage</code>, <code>finish</code>), ending in a <code>done</code> event whose <code>output</code> matches
+  what <code>interact()</code> would return. Streaming is supported on every provider.</li>
 </ul>
 <p><code>defer()</code> now follows the same model: it accepts one prompt or a collection,
 and <code>collect_deferred()</code> returns an <code>OutputCollection</code>. Persistent caching
