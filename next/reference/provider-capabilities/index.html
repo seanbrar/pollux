@@ -1312,10 +1312,10 @@ before dispatch or the provider page below calls out why it is out of scope.</p>
 <td>Streaming (<code>stream()</code> → <code>Event</code>)</td>
 <td>❌</td>
 <td>❌</td>
-<td>❌</td>
-<td>❌</td>
 <td>✅</td>
-<td>Streamed <code>done.output</code> matches the non-streaming <code>Output</code>; cloud providers land in a later slice</td>
+<td>✅</td>
+<td>✅</td>
+<td>Streamed <code>done.output</code> matches the non-streaming <code>Output</code>; OpenAI and Gemini land in a later slice</td>
 </tr>
 <tr>
 <td>Conversation continuity (<code>history</code>, <code>continue_from</code>)</td>
@@ -1403,7 +1403,10 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
   models through Anthropic's adaptive thinking mode.</li>
 <li>Thinking block replay: when Anthropic returns <code>thinking</code> or
   <code>redacted_thinking</code> blocks, Pollux preserves them in conversation state and
-  replays them verbatim on continuation turns so tool loops remain valid.</li>
+  replays them verbatim on continuation turns so tool loops remain valid. This
+  holds for <code>stream()</code> too: signed thinking blocks are reassembled from the
+  stream, so a streamed extended-thinking + tool turn continues identically to
+  the non-streaming path.</li>
 <li><code>Options.max_tokens</code>: limits the output length. Default is <code>16384</code> for Anthropic,
   which leaves room for thinking output at all effort levels. Other providers
   currently ignore this option.</li>
@@ -1452,7 +1455,9 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
   appears in <code>ResultEnvelope.reasoning</code>, and token counts in
   <code>ResultEnvelope.usage["reasoning_tokens"]</code> when available. OpenRouter does
   not accept <code>reasoning_budget_tokens</code>; Pollux raises <code>ConfigurationError</code>
-  before dispatch.</li>
+  before dispatch. Under <code>stream()</code>, reasoning text is surfaced for display but
+  the <code>reasoning_details</code> replay state is not reconstructed from the stream
+  (best-effort context, not a continuation requirement).</li>
 </ul>
 <h3 id="local">Local<a class="headerlink" href="#local" title="Permanent link">&para;</a></h3>
 <ul>
