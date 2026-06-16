@@ -97,13 +97,19 @@ the continuation format it needs for the next turn.
 
 ## Serialized State
 
-Pollux 1.x now stamps serialized continuation state and deferred handles with a
-version and provider marker. Pollux 2.0 is expected to reject incompatible 1.x
-artifacts with an actionable error instead of reading them as 2.0 state.
+In 2.0, continuation state is the public `Continuation` primitive, not a private
+dict. Read it from `output.continuation`, persist it with
+`continuation.to_jsonable()`, and restore it with `Continuation.from_jsonable(...)`.
+Serialized continuations are stamped with a schema version and the provider that
+produced them, and `from_jsonable()` rejects an incompatible version (and, when you
+pass `expected_provider=`, a mismatched provider) with an actionable error instead
+of misreading it.
 
-Plan to re-run work across the major-version boundary rather than reusing old
-serialized continuation blobs. Persist enough application state to rebuild the
-request when that is the right recovery path.
+A continuation is bound to its provider: its `provider_state` (response ids,
+provider-specific replay blocks) is not portable, so reusing one under a different
+provider is rejected before dispatch. Across the 1.x → 2.0 boundary, plan to re-run
+work rather than reusing old serialized blobs; persist enough application state to
+rebuild the request when that is the right recovery path.
 
 ## What To Do In 1.x
 
@@ -136,6 +142,10 @@ The 2.0 interaction model is landing incrementally on `main`:
   one explicit interaction over an `Environment` and `Input`. Continue a
   conversation or tool loop by passing the prior `Output`'s `continuation` and any
   `tool_results` in the next `Input`, the replacement for `continue_tool()`.
+- `stream(environment, input, *, config, **generation_kwargs)` observes that same
+  interaction as a timeline of `Event`s (`text_delta`, `reasoning_delta`,
+  `tool_call`, `usage`, `finish`), ending in a `done` event whose `output` matches
+  what `interact()` would return. Streaming is supported on every provider.
 
 `defer()` now follows the same model: it accepts one prompt or a collection,
 and `collect_deferred()` returns an `OutputCollection`. Persistent caching
