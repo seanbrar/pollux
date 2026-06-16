@@ -13,11 +13,11 @@ from pollux.interaction.environment import EnvironmentSnapshot
 from pollux.interaction.extract import provider_response_to_output
 from pollux.interaction.output import Diagnostics, Output
 from pollux.interaction.requirements import OutputRequirements
-from pollux.interaction.validate import validate_interaction
-from pollux.options import (
+from pollux.interaction.schema import (
     ResponseSchemaInput,
     response_schema_hash,
 )
+from pollux.interaction.validate import validate_interaction
 from pollux.providers.base import (
     DeferredProvider,
     Provider,
@@ -267,7 +267,7 @@ def _validate_collect_schema(
     if handle.schema_hash is None:
         raise ConfigurationError(
             "response_schema was provided at collect time but no schema was used at submission",
-            hint="Omit response_schema, or re-submit with Options(response_schema=...) to enable rehydration.",
+            hint="Omit response_schema, or re-submit with defer(response_schema=...) to enable rehydration.",
         )
     current_hash = response_schema_hash(response_schema)
     if current_hash != handle.schema_hash:

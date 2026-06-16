@@ -67,15 +67,14 @@ from pollux.interaction.execute import (
     execute_interactions,
     resolve_persistent_cache,
 )
-from pollux.options import Options, ResponseSchemaInput
 from pollux.providers.base import CloseableProvider
-from pollux.result import ResultEnvelope
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from pollux.interaction.schema import ResponseSchemaInput
     from pollux.providers.base import Provider
 
 try:
@@ -695,14 +694,12 @@ __all__ = [
     "Input",
     "InternalError",
     "Message",
-    "Options",
     "Output",
     "OutputCollection",
     "OutputRequirements",
     "PlanningError",
     "PolluxError",
     "RateLimitError",
-    "ResultEnvelope",
     "RetryPolicy",
     "Source",
     "SourceError",

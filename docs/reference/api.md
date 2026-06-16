@@ -62,11 +62,7 @@ provider-specific helpers such as `Source.with_gemini_video_settings(...)` and
 
 ::: pollux.DeferredSnapshot
 
-::: pollux.Options
-
 ::: pollux.RetryPolicy
-
-::: pollux.ResultEnvelope
 
 ## Interaction Types (2.0)
 

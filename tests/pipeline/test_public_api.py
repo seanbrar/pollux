@@ -8,7 +8,6 @@ import pollux
 import pollux.cache
 from pollux.config import Config
 from pollux.errors import ConfigurationError
-from pollux.options import Options
 from pollux.source import Source
 from tests.conftest import (
     GEMINI_MODEL,
@@ -65,10 +64,10 @@ async def test_empty_string_prompt_raises_clear_error() -> None:
     assert exc.value.hint is not None
 
 
-def test_options_reject_unknown_provider_options_provider() -> None:
+def test_requirements_reject_unknown_provider_options_provider() -> None:
     """provider_options should be keyed by supported provider names."""
     with pytest.raises(ConfigurationError, match="Unknown provider_options provider"):
-        Options(provider_options={"not-a-provider": {"x": 1}})
+        pollux.OutputRequirements(provider_options={"not-a-provider": {"x": 1}})
 
 
 @pytest.mark.asyncio

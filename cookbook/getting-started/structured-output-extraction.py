@@ -5,9 +5,9 @@ Problem:
     You want to turn model output into a typed object that downstream code can trust.
 
 Key idea:
-    Pass a Pydantic model class via `Options(response_schema=...)`. Pollux will:
+    Pass a Pydantic model class via the `output=` argument. Pollux will:
     - ask the provider for structured JSON output (when supported)
-    - return `envelope["structured"]` alongside the raw `answers`
+    - return `output.structured` alongside the raw `output.text`
 
 When to use:
     - You are building a pipeline that needs validated fields.
@@ -35,7 +35,7 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit
-from pollux import Config, Options, Source, run
+from pollux import Config, Source, run
 
 
 class KeyPoints(BaseModel):
@@ -60,7 +60,7 @@ async def main_async(path: Path, *, config: Config) -> None:
             PROMPT,
             source=Source.from_file(path),
             config=config,
-            options=Options(response_schema=KeyPoints),
+            output=KeyPoints,
         )
         structured = envelope.structured
         parsed = None
