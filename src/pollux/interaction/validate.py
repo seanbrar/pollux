@@ -29,6 +29,35 @@ def _wants_conversation(inputs: Sequence[Input]) -> bool:
     )
 
 
+def _reject_incompatible_continuations(
+    inputs: Sequence[Input], snapshot: EnvironmentSnapshot
+) -> None:
+    """Reject reusing a continuation produced by a different provider.
+
+    A live :class:`Continuation` records the provider that produced it. Its
+    ``provider_state`` — response ids and provider-specific replay blocks such as
+    Anthropic's signed thinking blocks — is not portable, so replaying it under
+    another provider would corrupt the turn. This is the runtime half of the
+    continuation-compatibility contract; the serialized half lives in
+    ``Continuation.from_jsonable(expected_provider=...)``. Continuations without a
+    provider marker (hand-built, or derived from plain ``history``) are left alone.
+    """
+    active = snapshot.provider
+    if active is None:
+        return
+    for inp in inputs:
+        continuation = inp.continuation
+        if continuation is None or continuation.provider is None:
+            continue
+        if continuation.provider != active:
+            raise ConfigurationError(
+                f"Continuation was produced by provider {continuation.provider!r}, "
+                f"but the active provider is {active!r}",
+                hint="Reuse a continuation only with the provider that produced "
+                "it, or start a new interaction.",
+            )
+
+
 def validate_interaction(
     requirements: OutputRequirements,
     inputs: Sequence[Input],
@@ -82,6 +111,8 @@ def validate_interaction(
             "Conversation continuity currently supports exactly one input per call",
             hint="Continue from a single input when passing continuation/history.",
         )
+
+    _reject_incompatible_continuations(inputs, snapshot)
 
     if cache_requested and not caps.persistent_cache:
         raise ConfigurationError(
