@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import uuid
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.tools import ToolCallDelta
 from pollux.parts import build_shared_parts
 from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
@@ -29,12 +30,15 @@ from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderResponse,
+    ProviderStreamChunk,
     ToolCall,
     is_file_part,
     provider_response_to_dict,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from pollux.config import Config
     from pollux.interaction.environment import EnvironmentSnapshot
     from pollux.interaction.input import Input
@@ -644,6 +648,104 @@ class GeminiProvider:
                 message="Gemini generate failed",
             ) from e
 
+    async def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Stream normalized deltas from Gemini's streaming content endpoint.
+
+        Gemini replays conversation via history (no provider_state), so thought
+        text is surfaced for display only. Function calls arrive whole rather
+        than fragmented, so each one is emitted as a single-fragment tool-call
+        delta with its own slot index.
+        """
+        client = self._get_client()
+        from google.genai import types
+
+        parts = _compile.request_parts(snapshot, input)
+        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
+        config_kwargs = self._build_config_kwargs(parts, snapshot, requirements)
+        contents = self._build_contents(parts, history or None)
+
+        tool_call_index = 0
+        try:
+            stream = await client.aio.models.generate_content_stream(
+                model=config.model,
+                contents=contents,
+                config=types.GenerateContentConfig(**config_kwargs),
+            )
+            async for response in stream:
+                for chunk in self._stream_response_to_chunks(response, tool_call_index):
+                    if chunk.tool_calls:
+                        tool_call_index += len(chunk.tool_calls)
+                    yield chunk
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="gemini",
+                phase="stream",
+                allow_network_errors=True,
+                message="Gemini stream failed",
+            ) from e
+
+    def _stream_response_to_chunks(
+        self, response: Any, tool_call_index: int
+    ) -> list[ProviderStreamChunk]:
+        """Map one streamed Gemini response into normalized chunks."""
+        chunks: list[ProviderStreamChunk] = []
+
+        candidates = _field(response, "candidates", []) or []
+        candidate = (
+            candidates[0] if isinstance(candidates, list) and candidates else None
+        )
+        if candidate is not None:
+            content = _field(candidate, "content")
+            parts = _field(content, "parts", []) if content is not None else []
+            local_tool_count = 0
+            for part in parts or []:
+                function_call = _field(part, "function_call")
+                if function_call is not None:
+                    call_id = (
+                        _field(function_call, "id") or f"call_{uuid.uuid4().hex[:8]}"
+                    )
+                    arguments = json.dumps(_field(function_call, "args") or {})
+                    chunks.append(
+                        ProviderStreamChunk(
+                            tool_calls=(
+                                ToolCallDelta(
+                                    index=tool_call_index + local_tool_count,
+                                    id=str(call_id),
+                                    name=str(_field(function_call, "name", "")),
+                                    arguments=arguments,
+                                ),
+                            )
+                        )
+                    )
+                    local_tool_count += 1
+                    continue
+                part_text = _field(part, "text")
+                if isinstance(part_text, str) and part_text:
+                    if _field(part, "thought", default=False):
+                        chunks.append(ProviderStreamChunk(reasoning=part_text))
+                    else:
+                        chunks.append(ProviderStreamChunk(text=part_text))
+
+            finish_reason = _normalize_finish_reason(_field(candidate, "finish_reason"))
+        else:
+            finish_reason = None
+
+        usage = _stream_usage(_field(response, "usage_metadata"))
+        if usage or finish_reason is not None:
+            chunks.append(
+                ProviderStreamChunk(usage=usage or None, finish_reason=finish_reason)
+            )
+        return chunks
+
     async def _wait_for_file_active(
         self,
         file_name: str,
@@ -1177,6 +1279,34 @@ def _field(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
+
+
+def _stream_usage(usage_metadata: Any) -> dict[str, int]:
+    """Normalize a streamed Gemini ``usage_metadata`` block into usage keys.
+
+    Mirrors the non-streaming usage extraction so a streamed turn's final usage
+    matches ``generate``. Fields are only emitted when present; core merges usage
+    across chunks, so the final cumulative block wins.
+    """
+    if usage_metadata is None:
+        return {}
+    usage: dict[str, int] = {}
+    prompt = _field(usage_metadata, "prompt_token_count")
+    if prompt is not None:
+        usage["input_tokens"] = int(prompt or 0)
+    candidates_toks = _field(usage_metadata, "candidates_token_count")
+    if candidates_toks is not None:
+        usage["output_tokens"] = int(candidates_toks or 0)
+    total = _field(usage_metadata, "total_token_count")
+    if total is not None:
+        usage["total_tokens"] = int(total or 0)
+    thoughts = _field(usage_metadata, "thoughts_token_count")
+    if thoughts is not None:
+        usage["reasoning_tokens"] = int(thoughts)
+    cached = _field(usage_metadata, "cached_content_token_count")
+    if cached is not None:
+        usage["cached_tokens"] = int(cached)
+    return usage
 
 
 def _extract_response_text(response: Any) -> str:

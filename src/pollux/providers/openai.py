@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.tools import ToolCallDelta
 from pollux.parts import build_shared_parts
 from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
@@ -30,12 +31,15 @@ from pollux.providers.base import (
 from pollux.providers.models import (
     ProviderFileAsset,
     ProviderResponse,
+    ProviderStreamChunk,
     ToolCall,
     is_file_part,
     provider_response_to_dict,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from pollux.config import Config
     from pollux.interaction.environment import EnvironmentSnapshot
     from pollux.interaction.input import Input
@@ -524,6 +528,92 @@ class OpenAIProvider:
             response, response_schema=requirements.output_schema_json()
         )
 
+    async def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Stream normalized deltas from the OpenAI Responses API.
+
+        OpenAI continues via ``previous_response_id`` (no replayed reasoning),
+        so reasoning summary text is surfaced for display only. The terminal
+        ``response.completed`` event carries the final response, which is parsed
+        once for usage, finish reason, and id.
+        """
+        client = self._get_client()
+        parts = _compile.request_parts(snapshot, input)
+        create_kwargs = self._build_responses_create_kwargs(
+            parts, snapshot, input, requirements, config
+        )
+        create_kwargs["stream"] = True
+
+        try:
+            stream = await client.responses.create(**create_kwargs)
+            async for event in stream:
+                chunk = self._stream_event_to_chunk(event)
+                if chunk is not None:
+                    yield chunk
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="openai",
+                phase="stream",
+                allow_network_errors=True,
+                message="OpenAI stream failed",
+            ) from e
+
+    def _stream_event_to_chunk(self, event: Any) -> ProviderStreamChunk | None:
+        """Map one Responses API stream event to a normalized chunk."""
+        event_type = _field(event, "type")
+        if event_type == "response.output_text.delta":
+            delta = _field(event, "delta")
+            return ProviderStreamChunk(text=delta) if isinstance(delta, str) else None
+        if event_type == "response.reasoning_summary_text.delta":
+            delta = _field(event, "delta")
+            return (
+                ProviderStreamChunk(reasoning=delta) if isinstance(delta, str) else None
+            )
+        if event_type == "response.output_item.added":
+            item = _field(event, "item")
+            if _field(item, "type") == "function_call":
+                index = _field(event, "output_index", 0)
+                delta = ToolCallDelta(
+                    index=index if isinstance(index, int) else 0,
+                    id=_str_or_none(_field(item, "call_id")),
+                    name=_str_or_none(_field(item, "name")),
+                )
+                return ProviderStreamChunk(tool_calls=(delta,))
+            return None
+        if event_type == "response.function_call_arguments.delta":
+            delta = _field(event, "delta")
+            if isinstance(delta, str) and delta:
+                index = _field(event, "output_index", 0)
+                return ProviderStreamChunk(
+                    tool_calls=(
+                        ToolCallDelta(
+                            index=index if isinstance(index, int) else 0,
+                            arguments=delta,
+                        ),
+                    )
+                )
+            return None
+        if event_type == "response.completed":
+            parsed = self._parse_response(
+                _field(event, "response"), response_schema=None
+            )
+            return ProviderStreamChunk(
+                usage=parsed.usage or None,
+                finish_reason=parsed.finish_reason,
+                response_id=parsed.response_id,
+            )
+        return None
+
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Upload a local file and return an asset."""
         client = self._get_client()
@@ -838,6 +928,11 @@ def _field(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
+
+
+def _str_or_none(value: Any) -> str | None:
+    """Return the value when it is a non-empty string, else ``None``."""
+    return value if isinstance(value, str) and value else None
 
 
 def _extract_output_text(response: Any) -> str:
