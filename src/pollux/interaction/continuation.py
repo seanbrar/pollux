@@ -74,7 +74,18 @@ class Message:
 
 @dataclass(frozen=True, slots=True)
 class Continuation:
-    """Serializable state for continuing a provider-correct interaction."""
+    """Serializable state for continuing a provider-correct interaction.
+
+    Read it from ``output.continuation`` and pass it back as
+    ``Input(continuation=...)`` to take the next turn. Persist it across processes
+    with :meth:`to_jsonable` / :meth:`from_jsonable`, which stamp and verify a
+    schema version (and, optionally, the producing provider).
+
+    A continuation is bound to the provider that produced it — its
+    ``provider_state`` (response ids, provider-specific replay blocks) is not
+    portable. Reusing one under a different provider is rejected before dispatch.
+    It is not memory: Pollux does not summarize, rank, or compact it.
+    """
 
     SCHEMA_VERSION: ClassVar[int] = SCHEMA_VERSION
 
