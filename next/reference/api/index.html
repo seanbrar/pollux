@@ -6499,7 +6499,8 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 </div><h2 id="interaction-types-20">Interaction Types (2.0)<a class="headerlink" href="#interaction-types-20" title="Permanent link">&para;</a></h2>
 <p>The canonical v2 interaction model. <code>interact()</code> takes an <code>Environment</code> and an
 <code>Input</code> and returns an <code>Output</code>; <code>OutputCollection</code> is the source-pattern
-aggregate. These coexist with the 1.x types during the 2.0 cutover.</p>
+aggregate that <code>run_many()</code> and <code>collect_deferred()</code> return. The 1.x <code>Options</code>
+and <code>ResultEnvelope</code> types are no longer part of the public API.</p>
 
 
 <div class="doc doc-object doc-class">

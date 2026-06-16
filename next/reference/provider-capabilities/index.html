@@ -1072,7 +1072,7 @@
 
 <h1 id="provider-capabilities">Provider Capabilities<a class="headerlink" href="#provider-capabilities" title="Permanent link">&para;</a></h1>
 <p>This page defines the current capability contract by provider.</p>
-<p>Pollux is <strong>capability-transparent</strong>, not capability-equalizing: providers are allowed to differ, and those differences are surfaced clearly.</p>
+<p>Pollux is <strong>capability-transparent</strong>, not capability-equalizing: providers are allowed to differ, and those differences are surfaced explicitly.</p>
 <h2 id="policy">Policy<a class="headerlink" href="#policy" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Provider feature parity is <strong>not</strong> required for release.</li>
@@ -1126,7 +1126,7 @@ before dispatch or the provider page below calls out why it is out of scope.</p>
 <td>Local sends <code>json_schema</code>; schema enforcement quality varies by server</td>
 </tr>
 <tr>
-<td>Deferred delivery (<code>defer*</code>, <code>inspect_deferred</code>, <code>collect_deferred</code>, <code>cancel_deferred</code>)</td>
+<td>Deferred delivery (<code>defer</code>, <code>inspect_deferred</code>, <code>collect_deferred</code>, <code>cancel_deferred</code>)</td>
 <td>✅</td>
 <td>✅</td>
 <td>✅</td>
@@ -1287,8 +1287,8 @@ before dispatch or the provider page below calls out why it is out of scope.</p>
 <td>✅</td>
 <td>✅</td>
 <td>⚠️ model-dependent</td>
-<td>❌</td>
-<td><code>Options.tools</code> is for Pollux-normalized client/application tools</td>
+<td>✅ (server-dependent)</td>
+<td>Pollux-normalized client/application tools; local trusts the server, no capability probe</td>
 </tr>
 <tr>
 <td>Provider-hosted tools</td>
@@ -1305,8 +1305,8 @@ before dispatch or the provider page below calls out why it is out of scope.</p>
 <td>✅</td>
 <td>✅</td>
 <td>⚠️ model-dependent</td>
-<td>❌</td>
-<td>Works on OpenRouter models that support tool calling</td>
+<td>✅ (server-dependent)</td>
+<td>Local replays assistant tool calls and <code>tool</code>-role results verbatim</td>
 </tr>
 <tr>
 <td>Conversation continuity (<code>history</code>, <code>continue_from</code>)</td>
@@ -1454,12 +1454,18 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
 <li><code>base_url</code> is required (via <code>Config(base_url=...)</code> or the
   <code>POLLUX_LOCAL_BASE_URL</code> environment variable). <code>api_key</code> is optional; most
   self-hosted servers ignore it.</li>
-<li>The supported surface is intentionally narrow: text in, text or JSON out.
-  Pollux passively surfaces model-native reasoning text when the server returns
+<li>The supported surface is text or tool calls in, text or JSON out. Pollux
+  passively surfaces model-native reasoning text when the server returns
   <code>reasoning_content</code>, but it does not send portable reasoning controls.
-  File uploads, remote URLs, multimodal parts, tool calling, reasoning controls,
-  explicit and implicit caching, and deferred delivery are not supported.
+  File uploads, remote URLs, multimodal parts, reasoning controls, persistent
+  and provider-managed caching, and deferred delivery are not supported.
   Requesting any of them raises <code>ConfigurationError</code> before dispatch.</li>
+<li>Function tool calling is supported through the standard <code>tools</code> /
+  <code>tool_choice</code> fields: Pollux sends the declarations, replays assistant tool
+  calls and tool results on continuation turns, and surfaces returned tool calls
+  on the response. Like JSON mode, this trusts the server: there is no
+  per-model capability probe, and a server that ignores <code>tools</code> never emits
+  tool calls.</li>
 <li>Structured outputs use OpenAI-compatible JSON schema mode
   (<code>response_format={"type": "json_schema", ...}</code>). Server-side schema
   enforcement quality varies. Pydantic schema inputs are validated downstream

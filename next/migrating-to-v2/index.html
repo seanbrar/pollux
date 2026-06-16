@@ -1141,7 +1141,7 @@ migration easier:</p>
 <li><code>interact(environment, input, *, config, **generation_kwargs) -&gt; Output</code> runs
   one explicit interaction over an <code>Environment</code> and <code>Input</code>. Continue a
   conversation or tool loop by passing the prior <code>Output</code>'s <code>continuation</code> and any
-  <code>tool_results</code> in the next <code>Input</code> — the replacement for <code>continue_tool()</code>.</li>
+  <code>tool_results</code> in the next <code>Input</code>, the replacement for <code>continue_tool()</code>.</li>
 </ul>
 <p><code>defer()</code> now follows the same model: it accepts one prompt or a collection,
 and <code>collect_deferred()</code> returns an <code>OutputCollection</code>. Persistent caching
