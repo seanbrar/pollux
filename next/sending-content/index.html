@@ -502,13 +502,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#resultenvelope-reference" class="md-nav__link">
+  <a href="#output-and-outputcollection-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ResultEnvelope Reference
+        Output and OutputCollection Reference
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Output and OutputCollection Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output-fields-single-interaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Fields (Single Interaction)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outputcollection-fields-multi-prompt-deferred-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OutputCollection Fields (Multi-Prompt / Deferred Result)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1021,7 +1049,7 @@
 
 
 <!-- Intent: Teach the three core mechanics: creating Sources, calling run()
-     and run_many(), and reading ResultEnvelope. Do NOT cover source patterns
+     and run_many(), and reading Output / OutputCollection. Do NOT cover source patterns
      in depth (that's the next page), tool calling, or conversation history.
      Assumes the reader has completed Getting Started. Register: guided applied. -->
 
@@ -1033,7 +1061,7 @@ a <code>Source</code>, which entry point to call, and how to read the result.</p
 <p class="admonition-title">Boundary</p>
 <p><strong>Pollux owns:</strong> uploading and caching source content, attaching it to
 provider API calls, running prompts concurrently, and normalizing
-responses into a stable <code>ResultEnvelope</code>.</p>
+responses into stable <code>Output</code> / <code>OutputCollection</code> models.</p>
 <p><strong>You own:</strong> choosing what to analyze, writing prompts, and processing
 the returned answers.</p>
 </div>
@@ -1120,9 +1148,9 @@ exposes this as a Gemini-specific source modifier:</p>
 <span class="p">)</span><span class="o">.</span><span class="n">with_gemini_url_context</span><span class="p">()</span>
 </code></pre></div>
 <p>Use this only when you have chosen Gemini. URL Context retrieval metadata is
-available in <code>result["diagnostics"]["raw_responses"][i]["artifacts"]</code>. Because
+available in <code>result.diagnostics.raw["raw_responses"][i]["artifacts"]</code>. Because
 retrieval happens at request time, URL Context sources cannot be baked into
-<code>create_cache()</code>.</p>
+<code>prepare_environment()</code>.</p>
 <h3 id="gemini-video-controls">Gemini Video Controls<a class="headerlink" href="#gemini-video-controls" title="Permanent link">&para;</a></h3>
 <p>Gemini supports clip windows and custom frame sampling for video inputs. Pollux
 exposes these as an explicit Gemini-only source helper instead of a generic
@@ -1147,7 +1175,7 @@ format changes.</p>
         <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
@@ -1173,14 +1201,12 @@ quality before scaling up.</p>
         <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;paper.pdf&quot;</span><span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>   <span class="c1"># &quot;ok&quot;</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code>ok
-The paper concludes that context caching reduces repeated token cost by up to
+<div class="highlight"><pre><span></span><code>The paper concludes that context caching reduces repeated token cost by up to
 90% for fan-out workloads, with diminishing returns below 3 prompts per source.
 </code></pre></div>
 <h3 id="step-by-step-walkthrough">Step-by-Step Walkthrough<a class="headerlink" href="#step-by-step-walkthrough" title="Permanent link">&para;</a></h3>
@@ -1199,8 +1225,9 @@ The paper concludes that context caching reduces repeated token cost by up to
    request, plans the API call, executes it, and extracts the answer.</p>
 </li>
 <li>
-<p><strong>Read <code>result["answers"]</code>.</strong> The first (and only) element contains the
-   model's response. Check <code>result["status"]</code> to confirm the call succeeded.</p>
+<p><strong>Read <code>result.text</code>.</strong> The <code>text</code> property contains the
+   model's response. You can also inspect <code>result.metrics.completion_status</code>
+   to confirm the call succeeded cleanly.</p>
 </li>
 </ol>
 <h2 id="multiple-prompts-run_many">Multiple Prompts: <code>run_many()</code><a class="headerlink" href="#multiple-prompts-run_many" title="Permanent link">&para;</a></h2>
@@ -1223,9 +1250,9 @@ collection-level workflows.</p>
         <span class="s2">&quot;List key findings.&quot;</span><span class="p">,</span>
     <span class="p">]</span>
 
-    <span class="n">envelope</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">envelope</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">envelope</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">],</span> <span class="mi">1</span><span class="p">):</span>
+    <span class="n">collection</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">collection</span><span class="o">.</span><span class="n">status</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">collection</span><span class="o">.</span><span class="n">answers</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Q</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">answer</span><span class="p">[:</span><span class="mi">80</span><span class="p">]</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
@@ -1277,7 +1304,7 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 </tr>
 <tr>
 <td>Returning tool results to the model</td>
-<td><code>continue_tool()</code></td>
+<td><code>interact()</code> / <code>stream()</code></td>
 <td>Feeds tool outputs back into the conversation</td>
 </tr>
 </tbody>
@@ -1286,104 +1313,115 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 the same shared context, reach for <code>run_many()</code>. If you need one result record
 per file, write the outer file loop yourself and call <code>run_many()</code> inside it.
 If the workload can wait, reach for <code>defer()</code>.</p>
-<p><code>continue_tool()</code> is a specialized entry point for agent loops. It takes a
-previous <code>ResultEnvelope</code> containing tool calls and your tool results, and
-returns the model's next response. See
-<a href="../conversations-and-agents/#feeding-tool-results-back-with-continue_tool">Feeding Tool Results Back with <code>continue_tool()</code></a>
+<p><code>interact()</code> (and its streaming sibling <code>stream()</code>) is the canonical entry point
+for multi-turn conversations and tool-calling loops. It takes an <code>Environment</code>
+(defining instructions, tools, etc.) and an <code>Input</code> turn (carrying prompts,
+tool results, and continuation state). See
+<a href="../conversations-and-agents/#feeding-tool-results-back-with-interact">Feeding Tool Results Back with <code>interact()</code></a>
 for details.</p>
 <p><code>run()</code> is a convenience wrapper that delegates to <code>run_many()</code> with a single
 prompt. In benchmarks, <code>run_many()</code> is typically faster for multi-prompt
 workloads because it shares uploads and runs prompts concurrently.</p>
-<h2 id="resultenvelope-reference">ResultEnvelope Reference<a class="headerlink" href="#resultenvelope-reference" title="Permanent link">&para;</a></h2>
-<p>Every <code>run()</code>, <code>run_many()</code>, and <code>collect_deferred()</code> call returns a
-<code>ResultEnvelope</code>: a dict with a stable shape that works the same regardless of
-provider.</p>
+<h2 id="output-and-outputcollection-reference">Output and OutputCollection Reference<a class="headerlink" href="#output-and-outputcollection-reference" title="Permanent link">&para;</a></h2>
+<p>Execution functions return either an <code>Output</code> object (for single interactions like <code>run()</code> and <code>interact()</code>) or an <code>OutputCollection</code> (for multi-prompt execution like <code>run_many()</code> or deferred collection).</p>
+<h3 id="output-fields-single-interaction">Output Fields (Single Interaction)<a class="headerlink" href="#output-fields-single-interaction" title="Permanent link">&para;</a></h3>
+<p>An <code>Output</code> is a frozen dataclass with the following attributes:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
+<th>Attribute</th>
 <th>Type</th>
-<th>Always present</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>status</code></td>
-<td><code>"ok" \| "partial" \| "error"</code></td>
-<td>Yes</td>
-<td><code>ok</code> = all answers populated; <code>partial</code> = some empty; <code>error</code> = all empty</td>
+<td><code>text</code></td>
+<td><code>str</code></td>
+<td>The primary text response from the model</td>
+</tr>
+<tr>
+<td><code>structured</code></td>
+<td><code>Any</code></td>
+<td>The parsed Pydantic model or JSON dict (when <code>output</code> schema is set)</td>
+</tr>
+<tr>
+<td><code>reasoning</code></td>
+<td><code>str \| None</code></td>
+<td>Model reasoning/thinking text when supported and returned by the provider</td>
+</tr>
+<tr>
+<td><code>tool_calls</code></td>
+<td><code>tuple[ToolCall, ...]</code></td>
+<td>Tuple of <code>ToolCall</code> requests emitted by the model</td>
+</tr>
+<tr>
+<td><code>continuation</code></td>
+<td><code>Continuation \| None</code></td>
+<td>State handle to continue the interaction in a subsequent turn</td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td><code>Usage</code></td>
+<td>Token usage details (<code>input_tokens</code>, <code>output_tokens</code>, <code>total_tokens</code>, <code>reasoning_tokens</code>, <code>cached_tokens</code>)</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td><code>Metrics</code></td>
+<td>Execution metadata (<code>duration_s</code>, <code>n_calls</code>, <code>cache_used</code>, <code>cache_mode</code>, <code>cache_hit</code>, <code>finish_reason</code>, <code>completion_status</code>)</td>
+</tr>
+<tr>
+<td><code>diagnostics</code></td>
+<td><code>Diagnostics</code></td>
+<td>Low-level debug detail (e.g. <code>raw_responses</code> lists)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="outputcollection-fields-multi-prompt-deferred-result">OutputCollection Fields (Multi-Prompt / Deferred Result)<a class="headerlink" href="#outputcollection-fields-multi-prompt-deferred-result" title="Permanent link">&para;</a></h3>
+<p>An <code>OutputCollection</code> aggregates results from multi-prompt source-pattern executions:</p>
+<table>
+<thead>
+<tr>
+<th>Attribute/Property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outputs</code></td>
+<td><code>tuple[Output, ...]</code></td>
+<td>Individual <code>Output</code> objects in submission order</td>
 </tr>
 <tr>
 <td><code>answers</code></td>
 <td><code>list[str]</code></td>
-<td>Yes</td>
-<td>One string per prompt</td>
+<td>Property helper returning a list of primary text responses</td>
 </tr>
 <tr>
 <td><code>structured</code></td>
 <td><code>list[Any]</code></td>
-<td>Only with <code>response_schema</code></td>
-<td>Parsed objects matching your schema</td>
+<td>Property helper returning a list of parsed structured payloads</td>
 </tr>
 <tr>
-<td><code>reasoning</code></td>
-<td><code>list[str \| None]</code></td>
-<td>No</td>
-<td>Provider reasoning traces (when available)</td>
-</tr>
-<tr>
-<td><code>tool_calls</code></td>
-<td><code>list[list[dict]]</code></td>
-<td>Only with tool calling</td>
-<td>Per-prompt list of tool-call requests. See <a href="../conversations-and-agents/">Conversations</a></td>
-</tr>
-<tr>
-<td><code>confidence</code></td>
-<td><code>float</code></td>
-<td>Yes</td>
-<td>Heuristic: <code>0.9</code> for ok, <code>0.5</code> otherwise</td>
-</tr>
-<tr>
-<td><code>extraction_method</code></td>
-<td><code>str</code></td>
-<td>Yes</td>
-<td>Always <code>"text"</code></td>
+<td><code>status</code></td>
+<td><code>"ok" \| "partial" \| "error"</code></td>
+<td>Aggregate status based on whether all, some, or no answers were returned</td>
 </tr>
 <tr>
 <td><code>usage</code></td>
-<td><code>dict[str, int]</code></td>
-<td>Yes</td>
-<td>Token counts (<code>input_tokens</code>, <code>output_tokens</code>, <code>total_tokens</code>, and optional <code>reasoning_tokens</code>, <code>cached_tokens</code>). See <a href="../caching/#observing-cache-hits">Observing Cache Hits</a> for <code>cached_tokens</code> semantics.</td>
-</tr>
-<tr>
-<td><code>metrics</code></td>
-<td><code>dict[str, Any]</code></td>
-<td>Yes</td>
-<td><code>duration_s</code>, <code>n_calls</code>, <code>cache_used</code> (<a href="../caching/#persistent-caching-gemini">persistent caching</a> only), <code>finish_reasons</code> (per-prompt, e.g. <code>"stop"</code>, <code>"max_tokens"</code>). Deferred results also add <code>metrics["deferred"] = True</code>.</td>
-</tr>
-<tr>
-<td><code>diagnostics</code></td>
-<td><code>dict[str, Any]</code></td>
-<td>Yes</td>
-<td>Low-level diagnostics. All calls include <code>raw_responses</code>. Deferred results also add <code>diagnostics["deferred"]</code> with <code>job_id</code>, timing, and per-request lifecycle items.</td>
+<td><code>Usage</code></td>
+<td>Token usage summed across all interactions in the collection</td>
 </tr>
 </tbody>
 </table>
-<p>Example of a complete envelope:</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span>
-    <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;ok&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;answers&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;The paper concludes that...&quot;</span><span class="p">],</span>
-    <span class="s2">&quot;confidence&quot;</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">,</span>
-    <span class="s2">&quot;extraction_method&quot;</span><span class="p">:</span> <span class="s2">&quot;text&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;usage&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;input_tokens&quot;</span><span class="p">:</span> <span class="mi">1250</span><span class="p">,</span> <span class="s2">&quot;output_tokens&quot;</span><span class="p">:</span> <span class="mi">89</span><span class="p">,</span> <span class="s2">&quot;total_tokens&quot;</span><span class="p">:</span> <span class="mi">1339</span><span class="p">},</span>
-    <span class="s2">&quot;metrics&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;duration_s&quot;</span><span class="p">:</span> <span class="mf">1.42</span><span class="p">,</span> <span class="s2">&quot;n_calls&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;cache_used&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;finish_reasons&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;stop&quot;</span><span class="p">]},</span>
-    <span class="s2">&quot;diagnostics&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;raw_responses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">]},</span>
-<span class="p">}</span>
+<p>Example of serializing a completed result to JSON:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Output and OutputCollection objects serialize via .to_jsonable()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">())</span>
 </code></pre></div>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Conversation continuity (<code>history</code>, <code>continue_from</code>) works with one
+<li>Conversation continuity (<code>history</code>, <code>continuation</code>) works with one
   prompt per call. See
   <a href="../conversations-and-agents/">Continuing Conversations Across Turns</a>.</li>
 <li>Deferred work uses <code>defer()</code>, <code>inspect_deferred()</code>,

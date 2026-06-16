@@ -968,7 +968,7 @@
      application code around provider-side job lifecycles. Do NOT reteach the
      deferred method signatures or every lifecycle state in detail. That lives
      on the submission page. Assumes the reader already knows defer(),
-     inspect_deferred(), collect_deferred(), and ResultEnvelope. Register:
+     inspect_deferred(), collect_deferred(), and OutputCollection. Register:
      guided applied. -->
 
 <h1 id="building-with-deferred-delivery">Building With Deferred Delivery<a class="headerlink" href="#building-with-deferred-delivery" title="Permanent link">&para;</a></h1>
@@ -992,7 +992,7 @@ wiring collected results into downstream storage or alerts.</p>
 <ol>
 <li><code>pending</code>: the job was submitted and the handle is stored durably.</li>
 <li><code>collectable</code>: <code>inspect_deferred()</code> says the job reached a terminal state.</li>
-<li><code>collected</code>: your code wrote the <code>ResultEnvelope</code> somewhere durable and
+<li><code>collected</code>: your code wrote the <code>OutputCollection</code> somewhere durable and
    retired the pending handle.</li>
 </ol>
 <p>That answers the three important questions:</p>
@@ -1002,8 +1002,8 @@ wiring collected results into downstream storage or alerts.</p>
 <li>Your application decides how a pending handle becomes a collected record.</li>
 </ul>
 <p>Terminal does not mean successful. A collectable job can still produce
-<code>result["status"] == "partial"</code> or <code>result["status"] == "error"</code>, so branch on
-the collected envelope before you decide whether the workflow succeeded.</p>
+<code>result.status == "partial"</code> or <code>result.status == "error"</code>, so branch on
+the collected collection before you decide whether the workflow succeeded.</p>
 <p>This pattern fits cleanly inside a larger system. A cron job, worker queue,
 CLI, or web app can all use the same boundary. Pollux handles provider
 lifecycle calls. Your code owns scheduling and persistence.</p>
@@ -1036,7 +1036,7 @@ lifecycle calls. Your code owns scheduling and persistence.</p>
     <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
         <span class="n">handle</span> <span class="o">=</span> <span class="k">await</span> <span class="n">defer</span><span class="p">(</span>
             <span class="s2">&quot;Summarize the report in five bullets and list the three biggest execution risks.&quot;</span><span class="p">,</span>
-            <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">path</span><span class="p">),</span>
+            <span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">path</span><span class="p">)],</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">record</span> <span class="o">=</span> <span class="p">{</span>
@@ -1063,13 +1063,13 @@ lifecycle calls. Your code owns scheduling and persistence.</p>
             <span class="k">continue</span>
 
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">collect_deferred</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
-        <span class="n">outcome_dir</span> <span class="o">=</span> <span class="n">RESULTS_DIR</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span>
+        <span class="n">outcome_dir</span> <span class="o">=</span> <span class="n">RESULTS_DIR</span> <span class="o">/</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span>
         <span class="n">outcome_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">result_path</span> <span class="o">=</span> <span class="n">outcome_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">handle</span><span class="o">.</span><span class="n">job_id</span><span class="si">}</span><span class="s2">.json&quot;</span>
         <span class="n">collected</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">&quot;report_path&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">report_path</span><span class="p">),</span>
             <span class="s2">&quot;snapshot_status&quot;</span><span class="p">:</span> <span class="n">snapshot</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
-            <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
+            <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">(),</span>
         <span class="p">}</span>
         <span class="c1"># Store the collected outcome, then retire the pending handle.</span>
         <span class="n">result_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">collected</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
@@ -1086,11 +1086,11 @@ lifecycle calls. Your code owns scheduling and persistence.</p>
 <li>Submission is fast. The interactive path stores a durable handle and exits.</li>
 <li>Readiness is explicit. <code>snapshot.is_terminal</code> is the only gate before
    collection.</li>
-<li>Success is explicit. <code>result["status"]</code> decides whether the collected job
+<li>Success is explicit. <code>result.status</code> decides whether the collected job
    landed in <code>ok</code>, <code>partial</code>, or <code>error</code>.</li>
 <li>Collection happens once per pending record. After your code writes the
    outcome, it retires the handle from the pending set.</li>
-<li>The result still lands in a normal <code>ResultEnvelope</code>, so downstream parsing
+<li>The result still lands in a normal <code>OutputCollection</code>, so downstream parsing
    stays small.</li>
 </ol>
 <p>The directories here are placeholders for your real system boundary. Replace

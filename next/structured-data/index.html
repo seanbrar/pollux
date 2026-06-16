@@ -521,10 +521,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-response_schema-option" class="md-nav__link">
+  <a href="#the-output-argument" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The response_schema Option
+        The output Argument
       
     </span>
   </a>
@@ -992,10 +992,10 @@
   
 
 
-<!-- Intent: Teach structured output extraction via response_schema. Cover
+<!-- Intent: Teach structured output extraction via the output argument. Cover
      Pydantic models, JSON schema dicts, nested models, and combining with
      reasoning. Do NOT cover tool calling, conversation history, or caching.
-     Assumes the reader understands run() and ResultEnvelope from Sending
+     Assumes the reader understands run() and Output from Sending
      Content. Register: guided applied. -->
 
 <h1 id="extracting-structured-data">Extracting Structured Data<a class="headerlink" href="#extracting-structured-data" title="Permanent link">&para;</a></h1>
@@ -1011,17 +1011,17 @@ regex extraction.</p>
 <p class="admonition-title">Boundary</p>
 <p><strong>Pollux owns:</strong> translating your schema to the provider's structured
 output format, parsing the response into typed objects, and populating
-<code>result["structured"]</code>.</p>
+<code>result.structured</code>.</p>
 <p><strong>You own:</strong> defining Pydantic models (or JSON schema dicts), building
 the extraction pipeline, validating domain constraints beyond what the
 schema expresses, and writing results to storage.</p>
 </div>
-<h2 id="the-response_schema-option">The <code>response_schema</code> Option<a class="headerlink" href="#the-response_schema-option" title="Permanent link">&para;</a></h2>
-<p>Pass a Pydantic model (or JSON schema dict) via <code>Options(response_schema=...)</code>
-to get typed, validated output in <code>envelope["structured"]</code>.</p>
+<h2 id="the-output-argument">The output Argument<a class="headerlink" href="#the-output-argument" title="Permanent link">&para;</a></h2>
+<p>Pass a Pydantic model (or JSON schema dict) via the <code>output=</code> keyword argument
+to get typed, validated output in <code>result.structured</code>.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">PaperSummary</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
@@ -1029,21 +1029,20 @@ to get typed, validated output in <code>envelope["structured"]</code>.</p>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;openai&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5-nano&quot;</span><span class="p">)</span>
-    <span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">response_schema</span><span class="o">=</span><span class="n">PaperSummary</span><span class="p">)</span>
     <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
         <span class="s2">&quot;Extract a structured summary.&quot;</span><span class="p">,</span>
         <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="s2">&quot;Title: Caching Study. Findings: tokens saved, latency reduced.&quot;</span><span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-        <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+        <span class="n">output</span><span class="o">=</span><span class="n">PaperSummary</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">summary</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;structured&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">structured</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">summary</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>       <span class="c1"># &quot;Caching Study&quot;</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">summary</span><span class="o">.</span><span class="n">findings</span><span class="p">)</span>    <span class="c1"># [&quot;tokens saved&quot;, &quot;latency reduced&quot;]</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
-<p>When <code>response_schema</code> is set, the <code>structured</code> field contains one parsed
-object per prompt. The raw text is still available in <code>answers</code>.</p>
+<p>When <code>output</code> is set on <code>run()</code>, the <code>structured</code> property contains the parsed
+object. The raw text is still available in <code>text</code>.</p>
 <h2 id="complete-extraction-pipeline">Complete Extraction Pipeline<a class="headerlink" href="#complete-extraction-pipeline" title="Permanent link">&para;</a></h2>
 <p>Let's build something real: extract metadata from research papers into a
 typed catalog and write to JSONL. This is a common pattern for building
@@ -1054,7 +1053,7 @@ datasets from document collections.</p>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">PaperMetadata</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
@@ -1067,9 +1066,6 @@ datasets from document collections.</p>
 
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">)</span>
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">response_schema</span><span class="o">=</span><span class="n">PaperMetadata</span><span class="p">)</span>
-
-
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">extract_metadata</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PaperMetadata</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract structured metadata from a single paper.&quot;&quot;&quot;</span>
     <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
@@ -1078,9 +1074,9 @@ datasets from document collections.</p>
         <span class="s2">&quot;methodology used.&quot;</span><span class="p">,</span>
         <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-        <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+        <span class="n">output</span><span class="o">=</span><span class="n">PaperMetadata</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;structured&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">structured</span>
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">build_catalog</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1094,7 +1090,7 @@ datasets from document collections.</p>
                 <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">metadata</span><span class="o">.</span><span class="n">model_dump_json</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">metadata</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">metadata</span><span class="o">.</span><span class="n">year</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: FAILED — </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: FAILED: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Wrote catalog to </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -1109,14 +1105,15 @@ datasets from document collections.</p>
    and your downstream code's type expectations.</p>
 </li>
 <li>
-<p><strong>Pass the schema via <code>Options</code>.</strong> <code>Options(response_schema=PaperMetadata)</code>
+<p><strong>Pass the schema via <code>output</code>.</strong> <code>output=PaperMetadata</code>
    tells Pollux to request structured output from the provider. Pollux
    handles the translation to provider-specific schema formats.</p>
 </li>
 <li>
-<p><strong>Read from <code>result["structured"]</code>.</strong> When <code>response_schema</code> is set,
-   <code>result["structured"]</code> contains one parsed object per prompt. For
-   <code>run()</code> (single prompt), access <code>result["structured"][0]</code>.</p>
+<p><strong>Read from <code>result.structured</code>.</strong> When <code>output</code> is set on <code>run()</code>,
+   <code>result.structured</code> contains the parsed Pydantic object. For
+   <code>run_many()</code>, <code>collection.structured</code> contains a list of parsed objects
+   (one per prompt) in input order.</p>
 </li>
 <li>
 <p><strong>Serialize to storage.</strong> Pydantic models serialize cleanly to JSON via
@@ -1141,11 +1138,10 @@ built per-user), pass a JSON schema dict instead of a Pydantic model:</p>
     <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;topics&quot;</span><span class="p">],</span>
 <span class="p">}</span>
 
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">response_schema</span><span class="o">=</span><span class="n">schema</span><span class="p">)</span>
-<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="n">schema</span><span class="p">)</span>
 
-<span class="c1"># result[&quot;structured&quot;][0] is a dict (no Pydantic model to parse into)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;structured&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>
+<span class="c1"># result.structured is a dict (no Pydantic model to parse into)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">structured</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>
 </code></pre></div>
 <h2 id="nested-models">Nested Models<a class="headerlink" href="#nested-models" title="Permanent link">&para;</a></h2>
 <p>Pydantic models can nest arbitrarily. Use this for rich document structures:</p>
@@ -1168,18 +1164,19 @@ built per-user), pass a JSON schema dict instead of a Pydantic model:</p>
 <p>Pollux flattens the nested model into a JSON schema that the provider
 enforces. The response is parsed back into the full nested structure.</p>
 <h2 id="structured-output-with-reasoning">Structured Output with Reasoning<a class="headerlink" href="#structured-output-with-reasoning" title="Permanent link">&para;</a></h2>
-<p>Combine <code>response_schema</code> with <code>reasoning_effort</code> to get both structured
+<p>Combine <code>output</code> schema with <code>reasoning_effort</code> to get both structured
 data and the model's reasoning trace:</p>
-<div class="highlight"><pre><span></span><code><span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span>
-    <span class="n">response_schema</span><span class="o">=</span><span class="n">PaperMetadata</span><span class="p">,</span>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="n">PaperMetadata</span><span class="p">,</span>
     <span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
-
-<span class="n">metadata</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;structured&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>       <span class="c1"># Typed extraction</span>
-<span class="k">if</span> <span class="s2">&quot;reasoning&quot;</span> <span class="ow">in</span> <span class="n">result</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;reasoning&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Reasoning:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;reasoning&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][:</span><span class="mi">200</span><span class="p">])</span>  <span class="c1"># Model&#39;s thought process</span>
+<span class="n">metadata</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">structured</span>       <span class="c1"># Typed extraction</span>
+<span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">reasoning</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Reasoning:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">reasoning</span><span class="p">[:</span><span class="mi">200</span><span class="p">])</span>  <span class="c1"># Model&#39;s thought process</span>
 </code></pre></div>
 <p>This is useful when you need to audit <em>why</em> the model extracted specific
 values, for example when the methodology classification drives downstream
@@ -1189,11 +1186,11 @@ decisions.</p>
 <li><strong>Schema complexity affects reliability.</strong> Flat schemas with descriptive
   field names work best. Deeply nested schemas with many optional fields
   produce inconsistent results. Simplify where you can.</li>
-<li><strong>Raw text is always available.</strong> Even with <code>response_schema</code>, the raw
-  model response is in <code>result["answers"]</code>. Useful for debugging when the
+<li><strong>Raw text is always available.</strong> Even with <code>output</code> schemas, the raw
+  model response is in <code>result.text</code>. Useful for debugging when the
   structured output doesn't match expectations.</li>
 <li><strong>Structured output is provider- and model-dependent.</strong> Gemini, OpenAI, and
-  Anthropic support <code>response_schema</code>. OpenRouter supports it on models that
+  Anthropic support structured outputs. OpenRouter supports them on models that
   advertise <code>response_format</code> or <code>structured_outputs</code>. See
   <a href="../reference/provider-capabilities/">Provider Capabilities</a> for details.</li>
 <li><strong>Pydantic v2 is required.</strong> Pollux uses <code>model_json_schema()</code> for schema

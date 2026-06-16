@@ -1171,8 +1171,7 @@ file path.</p>
 <h3 id="deferred-delivery">Deferred Delivery<a class="headerlink" href="#deferred-delivery" title="Permanent link">&para;</a></h3>
 <p>Not all work needs an immediate answer. <strong>Deferred delivery</strong> submits requests
 to a provider-side job system, often at lower cost when deferred pricing is
-available, and returns a serializable handle. Your code persists the handle and
-collects the <code>ResultEnvelope</code> later. Some providers call this a batch API, but
+available, and returns a serializable handle. Your code persists the handle and collects the <code>OutputCollection</code> later. Some providers call this a batch API, but
 Pollux uses <strong>deferred delivery</strong> for the user-facing workflow. See
 <a href="../building-with-deferred-delivery/">Building With Deferred Delivery</a> for the
 operating model, then
@@ -1212,8 +1211,8 @@ cache keys from content hashes.</p>
 <p><strong>Execute:</strong> Uploads content, reuses cached context where possible, and runs
 provider calls concurrently.</p>
 <p><strong>Extract:</strong> Transforms API responses into a stable
-<a href="../sending-content/#resultenvelope-reference"><code>ResultEnvelope</code></a> with
-<code>answers</code>, optional <code>structured</code> data, and <code>usage</code> metadata.</p>
+<a href="../sending-content/#output-and-outputcollection-reference"><code>Output</code></a> with
+<code>text</code>, optional <code>structured</code> data, and <code>usage</code> metadata.</p>
 <p>This separation is what lets Pollux handle multimodal inputs and provider
 differences without forcing callers to reimplement orchestration logic.</p>
 <h3 id="source-patterns-in-pollux">Source Patterns in Pollux<a class="headerlink" href="#source-patterns-in-pollux" title="Permanent link">&para;</a></h3>
@@ -1290,7 +1289,7 @@ leaves domain-level decisions and workflow orchestration to your code.</p>
 <tr>
 <td><strong>Result aggregation</strong></td>
 <td>Collecting, comparing, and storing answers</td>
-<td>Normalizing each response into <code>ResultEnvelope</code></td>
+<td>Normalizing each response into <code>Output</code> / <code>OutputCollection</code></td>
 </tr>
 <tr>
 <td><strong>Error recovery</strong></td>
@@ -1305,7 +1304,7 @@ leaves domain-level decisions and workflow orchestration to your code.</p>
 <tr>
 <td><strong>Output validation</strong></td>
 <td>Domain-specific checks on answers</td>
-<td>Structured parsing via <code>response_schema</code></td>
+<td>Structured parsing via <code>output</code> schema</td>
 </tr>
 </tbody>
 </table>

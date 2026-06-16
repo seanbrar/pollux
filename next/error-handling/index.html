@@ -1068,7 +1068,7 @@
      hierarchy, failure triage, production error patterns (category-specific
      catching, circuit breakers, partial failures, resume-on-failure). Do NOT
      re-explain tool calling or conversation mechanics. Assumes the reader has
-     used run() and understands Config/Options. Register: reference + guided
+     used run() and understands Config. Register: reference + guided
      applied (patterns). -->
 
 <h1 id="handling-errors-and-recovery">Handling Errors and Recovery<a class="headerlink" href="#handling-errors-and-recovery" title="Permanent link">&para;</a></h1>
@@ -1106,7 +1106,7 @@ strings.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
 <p><strong>Pollux owns:</strong> retrying transient API failures (rate limits, server
-errors) within a single <code>run()</code> or <code>run_many()</code> call, respecting
+errors) within a single <code>run()</code>, <code>run_many()</code>, or <code>interact()</code> call, respecting
 <code>Retry-After</code> headers, and raising typed exceptions with <code>.hint</code>.</p>
 <p><strong>You own:</strong> workflow-level retry decisions (should I retry this file?),
 error categorization for your logging/alerting, partial-failure policies
@@ -1203,17 +1203,17 @@ handling, structured logging, and a summary report:</p>
             <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)),</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;partial&quot;</span><span class="p">:</span>
-            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: partial result (some answers empty)&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">completion_status</span> <span class="o">!=</span> <span class="s2">&quot;clean&quot;</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: incomplete result (status: </span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">completion_status</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span>
 
     <span class="k">except</span> <span class="n">ConfigurationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="c1"># Bad config — nothing to retry, abort early</span>
+        <span class="c1"># Bad config: nothing to retry, abort early</span>
         <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Configuration error: </span><span class="si">%s</span><span class="s2"> (hint: </span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">,</span> <span class="n">exc</span><span class="o">.</span><span class="n">hint</span><span class="p">)</span>
         <span class="k">raise</span>  <span class="c1"># Let the caller abort the pipeline</span>
 
     <span class="k">except</span> <span class="n">SourceError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="c1"># Bad input file — skip it, process the rest</span>
+        <span class="c1"># Bad input file: skip it, process the rest</span>
         <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Skipping </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2"> (hint: </span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">exc</span><span class="p">,</span> <span class="n">exc</span><span class="o">.</span><span class="n">hint</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
 
@@ -1225,7 +1225,7 @@ handling, structured logging, and a summary report:</p>
         <span class="k">return</span> <span class="kc">None</span>
 
     <span class="k">except</span> <span class="n">APIError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="c1"># Other provider errors — log details for diagnosis</span>
+        <span class="c1"># Other provider errors: log details for diagnosis</span>
         <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
             <span class="s2">&quot;API error on </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2"> [status=</span><span class="si">%s</span><span class="s2">, retryable=</span><span class="si">%s</span><span class="s2">] (hint: </span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span>
             <span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">exc</span><span class="p">,</span> <span class="n">exc</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">exc</span><span class="o">.</span><span class="n">retryable</span><span class="p">,</span> <span class="n">exc</span><span class="o">.</span><span class="n">hint</span><span class="p">,</span>
@@ -1310,7 +1310,7 @@ handling, structured logging, and a summary report:</p>
 <tr>
 <td><code>status: "partial"</code></td>
 <td>Some prompts returned empty answers</td>
-<td>Check individual entries in <code>answers</code> to identify which prompts failed</td>
+<td>Check individual entries in <code>collection.answers</code> to identify which prompts failed</td>
 </tr>
 <tr>
 <td>Remote source rejected</td>
@@ -1414,18 +1414,18 @@ prompts in a <code>run_many()</code> call returned empty answers. The call succe
 but the output is incomplete:</p>
 <div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
 
-<span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;ok&quot;</span><span class="p">:</span>
-    <span class="c1"># All answers populated — process normally</span>
+<span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;ok&quot;</span><span class="p">:</span>
+    <span class="c1"># All answers populated: process normally</span>
     <span class="k">pass</span>
-<span class="k">elif</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;partial&quot;</span><span class="p">:</span>
-    <span class="c1"># Some answers are empty strings — decide per-answer</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">]):</span>
+<span class="k">elif</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;partial&quot;</span><span class="p">:</span>
+    <span class="c1"># Some answers are empty strings: decide per-answer</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">answers</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">answer</span><span class="p">:</span>
             <span class="n">process_answer</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">answer</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Empty answer for prompt </span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-<span class="k">elif</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span>
-    <span class="c1"># All answers empty — treat as a failure</span>
+<span class="k">elif</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span>
+    <span class="c1"># All answers empty: treat as a failure</span>
     <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;All answers empty&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="durable-pipelines-with-resume-on-failure">Durable Pipelines with Resume-on-Failure<a class="headerlink" href="#durable-pipelines-with-resume-on-failure" title="Permanent link">&para;</a></h3>
@@ -1458,7 +1458,7 @@ each item (not only at run end), so you never lose progress. See the
 <li><strong><code>RateLimitError</code> means retries were exhausted.</strong> Pollux already waited
   and retried. If you still get <code>RateLimitError</code>, reduce concurrency or add
   a longer backoff at the workflow level.</li>
-<li><strong>Check <code>result["status"]</code> even on success.</strong> A successful call can return
+<li><strong>Check <code>result.status</code> or <code>completion_status</code> even on success.</strong> A successful call can return
   <code>"partial"</code> status with some empty answers. Don't assume all answers are
   populated because no exception was raised.</li>
 <li><strong>Don't catch <code>Exception</code> when you mean <code>PolluxError</code>.</strong> Catching too

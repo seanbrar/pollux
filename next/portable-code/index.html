@@ -1074,7 +1074,7 @@
      from pipeline logic, graceful degradation, model tier mapping, and testing
      with mock mode. Cover model-specific constraints (GPT-5 sampling, Gemini
      reasoning). Do NOT re-explain tool calling or conversation mechanics.
-     Assumes the reader has used run() and understands Config/Options.
+     Assumes the reader has used run() and understands Config.
      Register: guided applied (architectural patterns). -->
 
 <h1 id="writing-portable-code-across-providers">Writing Portable Code Across Providers<a class="headerlink" href="#writing-portable-code-across-providers" title="Permanent link">&para;</a></h1>
@@ -1083,8 +1083,8 @@ OpenAI (or back) by changing a config line, not rewriting your pipeline.
 This page shows the patterns that make that work.</p>
 <p>Pollux is capability-transparent, not capability-equalizing. All providers
 support the core text pipeline, but some features are provider-specific. For
-example, Gemini uses explicit caching (<code>create_cache()</code>), Anthropic uses
-implicit caching (<code>Options(implicit_caching=True)</code>), and OpenRouter exposes
+example, Gemini uses persistent caching (<code>CachePolicy</code>), Anthropic uses
+implicit caching (<code>Environment(cache="auto")</code>), and OpenRouter exposes
 tool calling and structured outputs only on models that advertise those
 features.
 When you use an unsupported feature for a provider, Pollux raises a
@@ -1092,9 +1092,9 @@ When you use an unsupported feature for a provider, Pollux raises a
 This keeps behavior legible in both development and production.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
-<p><strong>Pollux owns:</strong> translating your <code>Config</code>, <code>Options</code>, <code>Source</code>, and
+<p><strong>Pollux owns:</strong> translating your <code>Config</code>, <code>Environment</code>, <code>Input</code>, and
 prompts into provider-specific API calls, and normalizing responses
-into a stable <code>ResultEnvelope</code>.</p>
+into stable <code>Output</code> / <code>OutputCollection</code> models.</p>
 <p><strong>You own:</strong> choosing which features to use (sticking to the portable
 subset or gracefully degrading), selecting provider-appropriate models,
 and handling capability differences at the edges.</p>
@@ -1110,7 +1110,7 @@ varying parts in config; keep the stable parts in functions.</p>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIError</span><span class="p">,</span> <span class="n">Config</span><span class="p">,</span> <span class="n">ConfigurationError</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIError</span><span class="p">,</span> <span class="n">Config</span><span class="p">,</span> <span class="n">ConfigurationError</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">run</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">DocumentSummary</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
@@ -1147,17 +1147,16 @@ varying parts in config; keep the stable parts in functions.</p>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;gemini&quot;</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DocumentSummary</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Analyze a document — works with any supported provider.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Analyze a document. This function works with any supported provider.&quot;&quot;&quot;</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">make_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
-    <span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">response_schema</span><span class="o">=</span><span class="n">DocumentSummary</span><span class="p">)</span>
 
     <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
         <span class="n">prompt</span><span class="p">,</span>
         <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">file_path</span><span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-        <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+        <span class="n">output</span><span class="o">=</span><span class="n">DocumentSummary</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;structured&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">structured</span>
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1184,8 +1183,8 @@ varying parts in config; keep the stable parts in functions.</p>
    models directly.</p>
 </li>
 <li>
-<p><strong>Handle features conditionally.</strong> Explicit caching (<code>create_cache()</code>) is
-   Gemini-specific, while implicit caching (<code>implicit_caching=True</code>) is
+<p><strong>Handle features conditionally.</strong> Persistent caching (<code>prepare_environment()</code>) is
+   Gemini-specific, while implicit caching is
    Anthropic-specific. Some providers also cache repeated prefixes
    automatically. Gate these conditional optimizations on the provider name
    or handle them near the call site; see
@@ -1215,10 +1214,10 @@ that don't map to traditional controls.</p>
 <code>temperature</code> and <code>top_p</code> sampling controls with a provider error. Older
 models (like <code>gpt-4.1-nano</code>) still accept them.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># This will fail with an APIError for gpt-5 family models</span>
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">top_p</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">top_p</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
 
 <span class="c1"># Instead, use the default behavior or rely on reasoning_effort</span>
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;medium&quot;</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;medium&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="choosing-a-reasoning-control">Choosing a Reasoning Control<a class="headerlink" href="#choosing-a-reasoning-control" title="Permanent link">&para;</a></h3>
 <p>Pollux exposes two reasoning knobs, and they are mutually exclusive:</p>
@@ -1235,20 +1234,18 @@ it, but model-specific acceptance and minimums remain provider-defined.</p>
 <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
     <span class="s2">&quot;Solve this step by step...&quot;</span><span class="p">,</span>
     <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-3-flash-preview&quot;</span><span class="p">),</span>
-    <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;high&quot;</span><span class="p">),</span>
+    <span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Use an explicit budget on a provider that accepts token-based reasoning.</span>
 <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
     <span class="s2">&quot;Think briefly, then answer.&quot;</span><span class="p">,</span>
     <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;anthropic&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;claude-haiku-4-5&quot;</span><span class="p">),</span>
-    <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">reasoning_budget_tokens</span><span class="o">=</span><span class="mi">2048</span><span class="p">),</span>
+    <span class="n">reasoning_budget_tokens</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="k">if</span> <span class="s2">&quot;reasoning&quot;</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;reasoning&quot;</span><span class="p">]:</span>
-        <span class="k">if</span> <span class="n">text</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Thinking:&quot;</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">reasoning</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Thinking:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">reasoning</span><span class="p">)</span>
 </code></pre></div>
 <p>Exact budget floors are provider-defined. Pollux validates the shape
 (<code>int &gt;= 0</code>) and provider-level support; the upstream provider may still
@@ -1324,21 +1321,18 @@ at the call site rather than avoiding them entirely:</p>
             <span class="n">prompt</span><span class="p">,</span>
             <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">file_path</span><span class="p">),</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-            <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;high&quot;</span><span class="p">),</span>
+            <span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="n">reasoning</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">if</span> <span class="s2">&quot;reasoning&quot;</span> <span class="ow">in</span> <span class="n">result</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;reasoning&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
-            <span class="n">reasoning</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;reasoning&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">reasoning</span>
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">reasoning</span>
 
     <span class="k">except</span> <span class="p">(</span><span class="n">ConfigurationError</span><span class="p">,</span> <span class="n">APIError</span><span class="p">):</span>
-        <span class="c1"># Provider or model doesn&#39;t support this reasoning mode — retry without it</span>
+        <span class="c1"># Provider or model doesn&#39;t support this reasoning mode; retry without it</span>
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
             <span class="n">prompt</span><span class="p">,</span>
             <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">file_path</span><span class="p">),</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="kc">None</span>
 </code></pre></div>
 <h3 id="running-against-a-self-hosted-model">Running against a self-hosted model<a class="headerlink" href="#running-against-a-self-hosted-model" title="Permanent link">&para;</a></h3>
 <p>Point Pollux at a locally hosted model for iteration or privacy-sensitive work,
@@ -1378,8 +1372,8 @@ provider in CI with real credentials:</p>
         <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="s2">&quot;Test content.&quot;</span><span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;ok&quot;</span>
-    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">completion_status</span> <span class="o">==</span> <span class="s2">&quot;clean&quot;</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span>
 </code></pre></div>
 <h2 id="what-to-watch-for">What to Watch For<a class="headerlink" href="#what-to-watch-for" title="Permanent link">&para;</a></h2>
 <ul>

@@ -548,10 +548,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#continuing-a-conversation-with-continue_from" class="md-nav__link">
+  <a href="#continuing-a-conversation-with-continuation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Continuing a Conversation with continue_from
+        Continuing a Conversation with Continuation
       
     </span>
   </a>
@@ -592,10 +592,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#feeding-tool-results-back-with-continue_tool" class="md-nav__link">
+  <a href="#feeding-tool-results-back-with-interact" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Feeding Tool Results Back with continue_tool()
+        Feeding Tool Results Back with interact()
       
     </span>
   </a>
@@ -975,11 +975,11 @@
   
 
 
-<!-- Intent: Teach conversation continuity mechanics: continue_from, manual
+<!-- Intent: Teach conversation continuity mechanics: continuation, manual
      history, and tool messages in history. Also cover tool calling setup
-     (defining tools, reading tool_calls, continue_tool). Do NOT include the
-     complete agent loop — that's on its own page. Assumes the reader
-     understands run() and ResultEnvelope. Register: guided applied. -->
+     (defining tools, reading tool_calls, interact). Do NOT include the
+     complete agent loop (which is on its own page). Assumes the reader
+     understands run() and Output. Register: guided applied. -->
 
 <h1 id="continuing-conversations-across-turns">Continuing Conversations Across Turns<a class="headerlink" href="#continuing-conversations-across-turns" title="Permanent link">&para;</a></h1>
 <p>You want a model that remembers prior exchanges, or one that calls tools and
@@ -997,50 +997,43 @@ next turn.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
 <p><strong>Pollux owns:</strong> delivering tool definitions to the provider, surfacing
-<code>tool_calls</code> in the result envelope, carrying conversation state via
-<code>continue_from</code>, and translating history formats across providers.</p>
+<code>tool_calls</code> in the Output model, carrying conversation state via
+<code>continuation</code>, and translating history formats across providers.</p>
 <p><strong>You own:</strong> the loop structure, tool implementations, turn limits,
 error handling per turn, deciding when to stop, and persisting history
 across sessions.</p>
 </div>
-<h2 id="continuing-a-conversation-with-continue_from">Continuing a Conversation with <code>continue_from</code><a class="headerlink" href="#continuing-a-conversation-with-continue_from" title="Permanent link">&para;</a></h2>
-<p>Pass a prior <code>ResultEnvelope</code> back into <code>Options(continue_from=...)</code> to
-automatically resume a conversation. Pollux unpacks the initial prompt,
-the assistant's previous response, and any tool calls directly into the
-context payload without requiring manual dictionary manipulation.</p>
-<p>To use <code>continue_from</code>, the first turn must opt into conversation tracking
-by passing <code>history=[]</code> (an empty list is enough). Without it, Pollux
-treats the call as stateless and does not build conversation state.</p>
+<h2 id="continuing-a-conversation-with-continuation">Continuing a Conversation with <code>Continuation</code><a class="headerlink" href="#continuing-a-conversation-with-continuation" title="Permanent link">&para;</a></h2>
+<p>Pass a prior result's <code>continuation</code> back into the next <code>Input(continuation=...)</code> to automatically resume a conversation. Pollux unpacks the initial prompt, the assistant's previous response, and any tool calls directly into the context payload.</p>
+<p>To get a <code>continuation</code> for subsequent turns in plain conversational calls, the first turn must opt into conversation tracking by passing <code>history=[]</code> (or an empty list/tuple). Without it, Pollux treats the call as stateless and does not build continuation state.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>When tool calling is active, Pollux auto-populates conversation state
-whenever the model returns <code>tool_calls</code> — no explicit <code>history=[]</code>
-needed. The opt-in requirement only applies to plain conversational
-calls without tools.</p>
+<p>When tool calling is active, Pollux auto-populates continuation state whenever the model returns <code>tool_calls</code>, so no explicit <code>history=[]</code> is needed. The opt-in requirement only applies to plain conversational calls without tools.</p>
 </div>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">run</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">interact</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">chat_loop</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemini-2.5-flash-lite&quot;</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">()</span>
 
     <span class="c1"># Turn 1: opt into conversation tracking with history=[]</span>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;User: Hello! Please remember my name is Sean.&quot;</span><span class="p">)</span>
-    <span class="n">result1</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
-        <span class="s2">&quot;Hello! Please remember my name is Sean.&quot;</span><span class="p">,</span>
+    <span class="n">result1</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Hello! Please remember my name is Sean.&quot;</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="p">[]),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-        <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">history</span><span class="o">=</span><span class="p">[]),</span>  <span class="c1"># Enable conversation state</span>
     <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assistant: </span><span class="si">{</span><span class="n">result1</span><span class="p">[</span><span class="s1">&#39;answers&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assistant: </span><span class="si">{</span><span class="n">result1</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="c1"># Turn 2: continue from prior result</span>
+    <span class="c1"># Turn 2: continue from prior result&#39;s continuation</span>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">User: What is my name?&quot;</span><span class="p">)</span>
-    <span class="n">result2</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
-        <span class="s2">&quot;What is my name?&quot;</span><span class="p">,</span>
+    <span class="n">result2</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">Input</span><span class="p">(</span><span class="n">continuation</span><span class="o">=</span><span class="n">result1</span><span class="o">.</span><span class="n">continuation</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;What is my name?&quot;</span><span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-        <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">continue_from</span><span class="o">=</span><span class="n">result1</span><span class="p">),</span>  <span class="c1"># Picks up where result1 left off</span>
     <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assistant: </span><span class="si">{</span><span class="n">result2</span><span class="p">[</span><span class="s1">&#39;answers&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assistant: </span><span class="si">{</span><span class="n">result2</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">chat_loop</span><span class="p">())</span>
 </code></pre></div>
@@ -1050,25 +1043,26 @@ save tokens, or resume a chat from a database, <code>continue_from</code> won't 
 <p>Instead, pass an explicit <code>history</code> list of dictionaries containing <code>role</code>
 and <code>content</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">run</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Message</span><span class="p">,</span> <span class="n">interact</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">manual_history_injection</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;openai&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5-nano&quot;</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">()</span>
 
-    <span class="c1"># Imagine this was pulled from a database</span>
+    <span class="c1"># Pull from database, wrapped in Message objects</span>
     <span class="n">previous_chat</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the capital of France?&quot;</span><span class="p">},</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;The capital of France is Paris.&quot;</span><span class="p">}</span>
+        <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;What is the capital of France?&quot;</span><span class="p">),</span>
+        <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;The capital of France is Paris.&quot;</span><span class="p">)</span>
     <span class="p">]</span>
 
-    <span class="c1"># Resume the chat by passing history into Options</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
-        <span class="s2">&quot;And what is its population?&quot;</span><span class="p">,</span>
+    <span class="c1"># Resume the chat by passing history into Input</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;And what is its population?&quot;</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="n">previous_chat</span><span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-        <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">history</span><span class="o">=</span><span class="n">previous_chat</span><span class="p">),</span>
     <span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assistant: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;answers&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assistant: </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">manual_history_injection</span><span class="p">())</span>
 </code></pre></div>
@@ -1078,94 +1072,78 @@ provide to <code>run()</code>.</p>
 <p>If your conversation includes tool execution (the model asked for data, you
 retrieved it, and now you must return it), <code>history</code> is how you manually
 format tool responses:</p>
-<div class="highlight"><pre><span></span><code><span class="n">history</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What&#39;s the weather in NYC?&quot;</span><span class="p">},</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;tool_calls&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">]},</span>
-    <span class="c1"># Format your tool response like this:</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="s2">&quot;tool_call_id&quot;</span><span class="p">:</span> <span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s1">&#39;{&quot;temp_f&quot;: 72}&#39;</span><span class="p">},</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Message</span><span class="p">,</span> <span class="n">ToolCall</span><span class="p">,</span> <span class="n">interact</span>
+
+<span class="n">history</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;What&#39;s the weather in NYC?&quot;</span><span class="p">),</span>
+    <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">tool_calls</span><span class="o">=</span><span class="p">(</span>
+        <span class="n">ToolCall</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;get_weather&quot;</span><span class="p">,</span> <span class="n">arguments_text</span><span class="o">=</span><span class="s1">&#39;{&quot;location&quot;: &quot;NYC&quot;}&#39;</span><span class="p">),</span>
+    <span class="p">)),</span>
+    <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="n">tool_call_id</span><span class="o">=</span><span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s1">&#39;{&quot;temp_f&quot;: 72}&#39;</span><span class="p">),</span>
 <span class="p">]</span>
 
-<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
-    <span class="s2">&quot;Given that weather, what should I wear?&quot;</span><span class="p">,</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Given that weather, what should I wear?&quot;</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="n">history</span><span class="p">),</span>
     <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-    <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">history</span><span class="o">=</span><span class="n">history</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">]),</span>
 <span class="p">)</span>
 </code></pre></div>
 <h2 id="setting-up-tool-calling">Setting Up Tool Calling<a class="headerlink" href="#setting-up-tool-calling" title="Permanent link">&para;</a></h2>
-<p>Pollux passes function tool definitions to providers and surfaces tool call
-responses in the result envelope. <code>Options.tools</code> is for Pollux-normalized
-client/application tools that your code executes. Provider-hosted server tools
-such as web search or code execution are provider-specific and belong in
-<code>Options(provider_options=...)</code>.</p>
-<p><strong>Defining tools:</strong> pass a list of tool schemas in <code>Options.tools</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Options</span>
+<p>Pollux passes function tool definitions to providers and surfaces tool call responses in the output. <code>Environment.tools</code> is for Pollux-normalized client/application tools that your code executes. Provider-hosted server tools such as web search or code execution are provider-specific and belong in the <code>provider_options=</code> keyword argument.</p>
+<p><strong>Defining tools:</strong> pass <code>ToolDeclaration</code> objects in <code>Environment.tools</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">ToolDeclaration</span>
 
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span>
+<span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
     <span class="n">tools</span><span class="o">=</span><span class="p">[</span>
-        <span class="p">{</span>
-            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;get_weather&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Get weather for a location&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="n">ToolDeclaration</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;get_weather&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Get weather for a location&quot;</span><span class="p">,</span>
+            <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
                 <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">}},</span>
             <span class="p">},</span>
-        <span class="p">}</span>
+        <span class="p">)</span>
     <span class="p">],</span>
-    <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>  <span class="c1"># &quot;auto&quot;, &quot;required&quot;, &quot;none&quot;, or {&quot;name&quot;: &quot;...&quot;}</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>Pollux normalizes tool parameter schemas at the provider boundary. For OpenAI
-(which defaults to strict mode), <code>additionalProperties: false</code> and <code>required</code>
-are injected automatically. For Gemini, unsupported fields like
-<code>additionalProperties</code> are stripped. You can define one schema and use it
-across all providers without modification.</p>
-<p><strong>Reading tool calls:</strong> when the model invokes tools, the result envelope
-includes a <code>tool_calls</code> field:</p>
-<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="s2">&quot;What&#39;s the weather in NYC?&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+<p>Pollux normalizes tool parameter schemas at the provider boundary. For OpenAI (which defaults to strict mode), <code>additionalProperties: false</code> and <code>required</code> are injected automatically. For Gemini, unsupported fields like <code>additionalProperties</code> are stripped. You can define one schema and use it across all providers without modification.</p>
+<p><strong>Reading tool calls:</strong> when the model invokes tools, the completed <code>Output</code> includes a <code>tool_calls</code> field:</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">Input</span><span class="p">(</span><span class="s2">&quot;What&#39;s the weather in NYC?&quot;</span><span class="p">),</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
 
-<span class="k">if</span> <span class="s2">&quot;tool_calls&quot;</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;tool_calls&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>  <span class="c1"># per-prompt list</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">call</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span> <span class="n">call</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">])</span>
+<span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">call</span><span class="o">.</span><span class="n">arguments</span><span class="p">)</span>
 </code></pre></div>
-<h2 id="feeding-tool-results-back-with-continue_tool">Feeding Tool Results Back with <code>continue_tool()</code><a class="headerlink" href="#feeding-tool-results-back-with-continue_tool" title="Permanent link">&para;</a></h2>
-<p>When the model requests tool calls, you execute them in your code and feed the
-results back for the next turn. <code>continue_tool()</code> handles this handoff: it
-takes the previous <code>ResultEnvelope</code> (which contains the model's tool-call
-requests and conversation state) along with your tool-result messages, and
-returns the model's next response.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">continue_tool</span>
+<h2 id="feeding-tool-results-back-with-interact">Feeding Tool Results Back with <code>interact()</code><a class="headerlink" href="#feeding-tool-results-back-with-interact" title="Permanent link">&para;</a></h2>
+<p>When the model requests tool calls, you execute them in your code and feed the results back for the next turn. <code>interact()</code> handles this handoff: it takes the previous <code>Output</code>'s <code>continuation</code> handle along with your tool results, and returns the model's next response.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Input</span><span class="p">,</span> <span class="n">ToolResult</span><span class="p">,</span> <span class="n">interact</span>
 
 <span class="c1"># After executing the tool calls from a previous result...</span>
 <span class="n">tool_results</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="s2">&quot;tool_call_id&quot;</span><span class="p">:</span> <span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s1">&#39;{&quot;temp_f&quot;: 72}&#39;</span><span class="p">},</span>
+    <span class="n">ToolResult</span><span class="p">(</span><span class="n">call_id</span><span class="o">=</span><span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s1">&#39;{&quot;temp_f&quot;: 72}&#39;</span><span class="p">),</span>
 <span class="p">]</span>
 
-<span class="n">next_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">continue_tool</span><span class="p">(</span>
-    <span class="n">continue_from</span><span class="o">=</span><span class="n">result</span><span class="p">,</span>       <span class="c1"># The ResultEnvelope containing tool_calls</span>
-    <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">,</span>  <span class="c1"># Your tool outputs</span>
+<span class="n">next_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">(</span><span class="n">continuation</span><span class="o">=</span><span class="n">result</span><span class="o">.</span><span class="n">continuation</span><span class="p">,</span> <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">),</span>
     <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-    <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
-<p><code>continue_tool()</code> internally reconstructs the conversation history from the
-previous envelope's state, appends your tool results, and calls <code>run()</code> to get
-the model's next response. The returned <code>ResultEnvelope</code> may contain another
-round of <code>tool_calls</code> (if the model needs more data) or a final text answer.</p>
+<p><code>interact()</code> internally reconstructs the conversation history from the previous continuation, appends your tool results, and calls the provider to get the model's next response. The returned <code>Output</code> may contain another round of <code>tool_calls</code> or a final text answer.</p>
 <h2 id="what-to-watch-for">What to Watch For<a class="headerlink" href="#what-to-watch-for" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>tool_calls</code> is per-prompt.</strong> <code>result["tool_calls"]</code> is a list of
-  lists, one per prompt. For <code>run()</code> (single prompt), access
-  <code>result["tool_calls"][0]</code>.</li>
-<li><strong>Conversation continuity requires one prompt.</strong> Both <code>history</code> and
-  <code>continue_from</code> work with single-prompt <code>run()</code> calls, not <code>run_many()</code>.</li>
+<li><strong><code>tool_calls</code> is flat on <code>Output</code>.</strong> When using <code>interact()</code>, <code>result.tool_calls</code>
+  is a flat tuple of <code>ToolCall</code> objects.</li>
+<li><strong>Conversation continuity requires one prompt.</strong> <code>interact()</code> takes a single
+  <code>Input</code> turn.</li>
 <li><strong>Plain conversations need <code>history=[]</code> on the first turn.</strong> Without
-  <code>history</code> or <code>continue_from</code>, Pollux treats a call as stateless and
-  does not produce conversation state. Pass <code>history=[]</code> on the first
-  turn to enable <code>continue_from</code> on subsequent turns.</li>
-<li><strong>Tool-call responses auto-populate conversation state.</strong> When <code>run()</code>
-  returns tool calls, Pollux builds conversation state automatically, even
-  without explicit <code>history</code> or <code>continue_from</code>. This means <code>continue_tool()</code>
-  works on any result that contains tool calls — no opt-in needed.</li>
+  <code>history</code> or <code>continuation</code>, Pollux treats a call as stateless and
+  does not produce continuation state. Pass <code>history=[]</code> on the first
+  turn to enable <code>continuation</code> on subsequent turns.</li>
+<li><strong>Tool-call responses auto-populate continuation.</strong> When a call returns
+  tool calls, Pollux builds the <code>continuation</code> state automatically, even
+  without explicit <code>history=[]</code>. This means continuation works for the next
+  turn of any tool call, with no opt-in needed.</li>
 <li><strong>Provider differences exist.</strong> Gemini, OpenAI, and Anthropic support tool
   calling and tool messages in history. OpenRouter supports them on models
   that advertise tool support. See

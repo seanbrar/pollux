@@ -1007,8 +1007,7 @@ extended thinking, or OpenRouter for routed model access.</p>
         <span class="p">),</span>
         <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">])</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
 
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
@@ -1022,19 +1021,18 @@ use <code>Config(provider="openrouter", model="google/gemma-3-27b-it:free")</cod
 run the pipeline locally without network calls. See <a href="../configuration/#mock-mode">Mock Mode</a>.</p>
 </div>
 <h2 id="4-see-the-output">4. See the Output<a class="headerlink" href="#4-see-the-output" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>ok
-The key points are: (1) Pollux supports three execution patterns (fan-out,
+<div class="highlight"><pre><span></span><code>The key points are: (1) Pollux supports three execution patterns (fan-out,
 fan-in, and broadcast); (2) it provides context caching to avoid
 re-uploading the same content for repeated prompts.
 </code></pre></div>
-<p>That's your first Pollux result. The <code>status</code> is <code>ok</code> and the answer
+<p>That's your first Pollux result. The <code>result.text</code> contains the answer and
 references details from the source text. When this works, swap to your real
 input: <code>Source.from_file("document.pdf")</code>.</p>
 <div class="admonition info">
 <p class="admonition-title">What happened?</p>
 <p><strong>Pollux owned:</strong> normalizing your prompt and source into a request,
 planning the API call, executing it, and extracting the answer into a
-standard <a href="../sending-content/#resultenvelope-reference">ResultEnvelope</a>.</p>
+standard <a href="../sending-content/#output-and-outputcollection-reference">Output</a>.</p>
 <p><strong>You owned:</strong> writing the prompt, choosing what to analyze, and deciding
 what to do with the result.</p>
 <p>This boundary runs through every part of Pollux. You'll see it called out

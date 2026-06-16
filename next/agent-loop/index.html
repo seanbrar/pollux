@@ -586,15 +586,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-you-just-built" class="md-nav__link">
+  <a href="#deconstructing-the-loop" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What You Just Built
+        Deconstructing the Loop
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What You Just Built">
+    <nav class="md-nav" aria-label="Deconstructing the Loop">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -659,10 +659,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#using-history-instead-of-continue_from" class="md-nav__link">
+  <a href="#using-history-instead-of-continuation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using history instead of continue_from
+        Using history instead of continuation
       
     </span>
   </a>
@@ -1044,11 +1044,11 @@
 
 <!-- Intent: The canonical composition tutorial. Teach users how to build a
      complete tool-calling agent loop using Pollux primitives. This is the page
-     that solves the "Boolean Trap" — it proves that complex workflows are built
-     by composing run() + continue_tool() inside the user's own loop. Do NOT
-     introduce conversation mechanics from scratch — link back to that page.
-     Assumes the reader understands continue_from, tool calling setup, and
-     continue_tool() from the previous page. Register: warm tutorial. -->
+     that solves the "Boolean Trap" and proves that complex workflows are built
+     by composing interact() inside the user's own loop. Do NOT
+     introduce conversation mechanics from scratch. Link back to that page.
+     Assumes the reader understands continuation, tool calling setup, and
+     interact() from the previous page. Register: warm tutorial. -->
 
 <h1 id="building-an-agent-loop">Building an Agent Loop<a class="headerlink" href="#building-an-agent-loop" title="Permanent link">&para;</a></h1>
 <p>We're going to build a complete agent: a program that reasons, calls tools,
@@ -1059,7 +1059,7 @@ understanding of <em>why</em> it's built this way.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
 <p><strong>Pollux owns:</strong> executing each turn (sending the prompt, surfacing tool
-calls, carrying conversation state forward via <code>continue_tool()</code>).</p>
+calls, carrying conversation state forward via <code>interact()</code>).</p>
 <p><strong>You own:</strong> the loop itself: how many turns to allow, which tools to
 implement, what to do between turns, and when to stop.</p>
 </div>
@@ -1069,24 +1069,32 @@ Type it out (or paste it) and run it. We'll break it down afterward.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">run</span><span class="p">,</span> <span class="n">continue_tool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Config</span><span class="p">,</span>
+    <span class="n">Environment</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">,</span>
+    <span class="n">ToolCall</span><span class="p">,</span>
+    <span class="n">ToolDeclaration</span><span class="p">,</span>
+    <span class="n">ToolResult</span><span class="p">,</span>
+    <span class="n">interact</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="n">MAX_TURNS</span> <span class="o">=</span> <span class="mi">5</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;openai&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5-nano&quot;</span><span class="p">)</span>
 
 <span class="n">tools</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span>
-        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;get_weather&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Get current weather for a location&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="n">ToolDeclaration</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;get_weather&quot;</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Get current weather for a location&quot;</span><span class="p">,</span>
+        <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
             <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
             <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
                 <span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;City name&quot;</span><span class="p">},</span>
             <span class="p">},</span>
             <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">],</span>
         <span class="p">},</span>
-    <span class="p">}</span>
+    <span class="p">)</span>
 <span class="p">]</span>
 
 <span class="c1"># --- Tool implementations (your code) ---</span>
@@ -1101,46 +1109,49 @@ Type it out (or paste it) and run it. We'll break it down afterward.</p>
 <span class="p">}</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">execute_tool_calls</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">execute_tool_calls</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ToolCall</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">ToolResult</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run each tool call and return tool-result messages.&quot;&quot;&quot;</span>
     <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">output</span> <span class="o">=</span> <span class="n">TOOL_DISPATCH</span><span class="p">[</span><span class="n">tc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]](</span><span class="n">tc</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">])</span>
+            <span class="c1"># Arguments are already parsed by ToolCall</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">tc</span><span class="o">.</span><span class="n">arguments</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">arguments</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">TOOL_DISPATCH</span><span class="p">[</span><span class="n">tc</span><span class="o">.</span><span class="n">name</span><span class="p">](</span><span class="n">args</span><span class="p">)</span>
             <span class="n">content</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="n">content</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)})</span>
-        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;tool&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;tool_call_id&quot;</span><span class="p">:</span> <span class="n">tc</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span>
-            <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">content</span><span class="p">,</span>
-        <span class="p">})</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ToolResult</span><span class="p">(</span>
+            <span class="n">call_id</span><span class="o">=</span><span class="n">tc</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+            <span class="n">content</span><span class="o">=</span><span class="n">content</span><span class="p">,</span>
+        <span class="p">))</span>
     <span class="k">return</span> <span class="n">results</span>
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">agent</span><span class="p">(</span><span class="n">user_prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run a tool-calling agent loop and return the final answer.&quot;&quot;&quot;</span>
-    <span class="c1"># history=[] is optional — Pollux auto-populates conversation state when</span>
-    <span class="c1"># tool calls are present — but included here for explicitness.</span>
-    <span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span> <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="p">[])</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">user_prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">user_prompt</span><span class="p">),</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+        <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
 
     <span class="k">for</span> <span class="n">turn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">MAX_TURNS</span><span class="p">):</span>
-        <span class="k">if</span> <span class="s2">&quot;tool_calls&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">out</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">text</span>
 
         <span class="c1"># Execute every tool the model requested</span>
-        <span class="n">tool_results</span> <span class="o">=</span> <span class="n">execute_tool_calls</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;tool_calls&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">tool_results</span> <span class="o">=</span> <span class="n">execute_tool_calls</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">)</span>
 
-        <span class="c1"># Next turn — model sees tool results and may call more tools</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">continue_tool</span><span class="p">(</span>
-            <span class="n">continue_from</span><span class="o">=</span><span class="n">result</span><span class="p">,</span>
-            <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">,</span>
+        <span class="c1"># Next turn: model sees tool results and may call more tools</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+            <span class="n">env</span><span class="p">,</span>
+            <span class="n">Input</span><span class="p">(</span><span class="n">continuation</span><span class="o">=</span><span class="n">out</span><span class="o">.</span><span class="n">continuation</span><span class="p">,</span> <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">),</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-            <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">),</span>
         <span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># Best-effort after MAX_TURNS</span>
+    <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">text</span>  <span class="c1"># Best-effort after MAX_TURNS</span>
 
 
 <span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">agent</span><span class="p">(</span><span class="s2">&quot;What&#39;s the weather in NYC and London?&quot;</span><span class="p">)))</span>
@@ -1150,7 +1161,7 @@ Type it out (or paste it) and run it. We'll break it down afterward.</p>
 </code></pre></div>
 <p>The model asked for two tool calls (one for each city), your code executed
 them, and the model composed an answer from both results.</p>
-<h2 id="what-you-just-built">What You Just Built<a class="headerlink" href="#what-you-just-built" title="Permanent link">&para;</a></h2>
+<h2 id="deconstructing-the-loop">Deconstructing the Loop<a class="headerlink" href="#deconstructing-the-loop" title="Permanent link">&para;</a></h2>
 <p>Let's take this apart, because the structure matters as much as the code.</p>
 <h3 id="you-wrote-the-loop">You wrote the loop<a class="headerlink" href="#you-wrote-the-loop" title="Permanent link">&para;</a></h3>
 <p>Look at the <code>agent()</code> function. The <code>for turn in range(MAX_TURNS)</code> loop is
@@ -1181,9 +1192,9 @@ This means you control:</p>
 <p>Within each iteration, Pollux handled:</p>
 <ol>
 <li>Delivering the prompt and tool definitions to the provider.</li>
-<li>Surfacing <code>tool_calls</code> in the result envelope.</li>
-<li>Carrying conversation state forward via <code>continue_tool()</code>.</li>
-<li>Normalizing the response into a stable <code>ResultEnvelope</code>.</li>
+<li>Surfacing <code>tool_calls</code> in the <code>Output</code> object.</li>
+<li>Carrying conversation state forward via <code>interact()</code>.</li>
+<li>Normalizing the response into a stable <code>Output</code> model.</li>
 </ol>
 <p>The boundary is clean: Pollux executes turns, you decide what happens
 <em>between</em> them.</p>
@@ -1197,39 +1208,40 @@ This means you control:</p>
 
 <span class="n">TOOL_DISPATCH</span><span class="p">[</span><span class="s2">&quot;search_web&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">args</span><span class="p">:</span> <span class="n">search_web</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;query&quot;</span><span class="p">])</span>
 
-<span class="n">tools</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;search_web&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Search the web for information&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+<span class="n">tools</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ToolDeclaration</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;search_web&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Search the web for information&quot;</span><span class="p">,</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
         <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">}},</span>
         <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;query&quot;</span><span class="p">],</span>
     <span class="p">},</span>
-<span class="p">})</span>
+<span class="p">))</span>
 </code></pre></div>
 <p>The loop itself doesn't change. It already handles any number of tools.</p>
-<h3 id="using-history-instead-of-continue_from">Using <code>history</code> instead of <code>continue_from</code><a class="headerlink" href="#using-history-instead-of-continue_from" title="Permanent link">&para;</a></h3>
-<p><code>continue_from</code> is convenient when you have the prior result object.
+<h3 id="using-history-instead-of-continuation">Using <code>history</code> instead of <code>continuation</code><a class="headerlink" href="#using-history-instead-of-continuation" title="Permanent link">&para;</a></h3>
+<p><code>continuation</code> is convenient when you have the prior <code>Output</code> object.
 If you need more control (injecting a system message mid-conversation,
 trimming old turns), build <code>history</code> manually:</p>
-<div class="highlight"><pre><span></span><code><span class="n">history</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What&#39;s the weather in NYC?&quot;</span><span class="p">},</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;tool_calls&quot;</span><span class="p">:</span> <span class="n">tool_calls</span><span class="p">},</span>
-    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="s2">&quot;tool_call_id&quot;</span><span class="p">:</span> <span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s1">&#39;{&quot;temp_f&quot;: 72}&#39;</span><span class="p">},</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Message</span>
+
+<span class="n">history</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;What&#39;s the weather in NYC?&quot;</span><span class="p">),</span>
+    <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">tool_calls</span><span class="o">=</span><span class="n">tool_calls</span><span class="p">),</span>
+    <span class="n">Message</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="n">tool_call_id</span><span class="o">=</span><span class="s2">&quot;call_1&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s1">&#39;{&quot;temp_f&quot;: 72}&#39;</span><span class="p">),</span>
 <span class="p">]</span>
 
-<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
-    <span class="s2">&quot;Now summarize.&quot;</span><span class="p">,</span>
+<span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Now summarize.&quot;</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="n">history</span><span class="p">),</span>
     <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-    <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="n">history</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
 <h3 id="guiding-tool-use-with-system-instructions">Guiding tool use with system instructions<a class="headerlink" href="#guiding-tool-use-with-system-instructions" title="Permanent link">&para;</a></h3>
-<p>Use <code>system_instruction</code> to constrain when and how the model calls tools:</p>
-<div class="highlight"><pre><span></span><code><span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span>
+<p>Use <code>instructions</code> to constrain when and how the model calls tools, passed to the <code>Environment</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
     <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span>
-    <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
-    <span class="n">system_instruction</span><span class="o">=</span><span class="p">(</span>
+    <span class="n">instructions</span><span class="o">=</span><span class="p">(</span>
         <span class="s2">&quot;You are a weather assistant. Only call get_weather for cities &quot;</span>
         <span class="s2">&quot;the user explicitly mentions. Do not guess locations.&quot;</span>
     <span class="p">),</span>
@@ -1238,30 +1250,34 @@ trimming old turns), build <code>history</code> manually:</p>
 <h3 id="adding-human-in-the-loop-approval">Adding human-in-the-loop approval<a class="headerlink" href="#adding-human-in-the-loop-approval" title="Permanent link">&para;</a></h3>
 <p>Insert an approval step before executing tool calls:</p>
 <div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">agent_with_approval</span><span class="p">(</span><span class="n">user_prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-    <span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span> <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">user_prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">user_prompt</span><span class="p">),</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+        <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
 
     <span class="k">for</span> <span class="n">turn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">MAX_TURNS</span><span class="p">):</span>
-        <span class="k">if</span> <span class="s2">&quot;tool_calls&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">out</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">text</span>
 
         <span class="c1"># Show what the model wants to do</span>
-        <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;tool_calls&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Tool: </span><span class="si">{</span><span class="n">tc</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">tc</span><span class="p">[</span><span class="s1">&#39;arguments&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">out</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Tool: </span><span class="si">{</span><span class="n">tc</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">tc</span><span class="o">.</span><span class="n">arguments</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
 
         <span class="n">approval</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s2">&quot;Execute these tool calls? [y/n] &quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">approval</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span>
             <span class="k">return</span> <span class="s2">&quot;Agent stopped by user.&quot;</span>
 
-        <span class="n">tool_results</span> <span class="o">=</span> <span class="n">execute_tool_calls</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;tool_calls&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">continue_tool</span><span class="p">(</span>
-            <span class="n">continue_from</span><span class="o">=</span><span class="n">result</span><span class="p">,</span>
-            <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">,</span>
+        <span class="n">tool_results</span> <span class="o">=</span> <span class="n">execute_tool_calls</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">tool_calls</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+            <span class="n">env</span><span class="p">,</span>
+            <span class="n">Input</span><span class="p">(</span><span class="n">continuation</span><span class="o">=</span><span class="n">out</span><span class="o">.</span><span class="n">continuation</span><span class="p">,</span> <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">),</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-            <span class="n">options</span><span class="o">=</span><span class="n">Options</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">),</span>
         <span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;answers&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">text</span>
 </code></pre></div>
 <p>This is a two-line addition to the loop. That's the benefit of owning
 the control flow.</p>
@@ -1272,9 +1288,8 @@ the control flow.</p>
 <li><strong>Return errors as tool results, don't raise.</strong> If a tool fails, return a
   JSON error message so the model can reason about the failure. Raising an
   exception breaks the loop.</li>
-<li><strong><code>tool_calls</code> is per-prompt.</strong> <code>result["tool_calls"]</code> is a list of
-  lists, one per prompt. For <code>run()</code> (single prompt), access
-  <code>result["tool_calls"][0]</code>.</li>
+<li><strong><code>tool_calls</code> is a flat tuple on <code>Output</code>.</strong> When using <code>interact()</code> or <code>run()</code>,
+  <code>out.tool_calls</code> is a flat tuple of <code>ToolCall</code> objects.</li>
 <li><strong>The model can request multiple tools in one turn.</strong> The example handles
   this naturally: <code>execute_tool_calls</code> iterates over all calls and returns
   a result for each.</li>

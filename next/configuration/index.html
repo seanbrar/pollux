@@ -749,16 +749,38 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#options" class="md-nav__link">
+  <a href="#execution-and-generation-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Options
+        Execution and Generation Parameters
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Options">
+    <nav class="md-nav" aria-label="Execution and Generation Parameters">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Configuration
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#provider-options-escape-hatch" class="md-nav__link">
@@ -1025,9 +1047,9 @@
   
 
 
-<!-- Intent: Reference page for Config and Options fields. Cover API key
-     resolution, mock mode, performance/cost controls, RetryPolicy, and Options
-     per-prompt overrides. Do NOT include tutorials or extended examples,
+<!-- Intent: Reference page for Config fields. Cover API key
+     resolution, mock mode, performance/cost controls, RetryPolicy, and execution
+     parameters. Do NOT include tutorials or extended examples,
      link to the relevant guide pages. Register: reference. -->
 
 <h1 id="configuring-pollux">Configuring Pollux<a class="headerlink" href="#configuring-pollux" title="Permanent link">&para;</a></h1>
@@ -1170,7 +1192,7 @@ pipeline logic, testing integrations, and CI.</p>
 </tr>
 <tr>
 <td>Reduce token spend on repeated context</td>
-<td>Use <code>create_cache()</code>. See <a href="../caching/">Reducing Costs with Context Caching</a></td>
+<td>Use <code>prepare_environment(cache=CachePolicy(...))</code>. See <a href="../caching/">Reducing Costs with Context Caching</a></td>
 </tr>
 <tr>
 <td>Higher throughput for many prompts/sources</td>
@@ -1237,30 +1259,32 @@ jitter, and a wall-clock deadline:</p>
 </table>
 <p>When a provider returns a <code>Retry-After</code> hint, Pollux respects it (whichever
 is longer: the computed backoff or the server hint).</p>
-<h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
-<p><code>Config</code> establishes the infrastructure requirements for a provider connection. <code>Options</code> is different: it controls per-prompt inference overrides. This split lets you tune how text is generated on a call-by-call basis without tearing down or recreating the underlying client.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Options</span>
-
-<span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span>
-    <span class="n">system_instruction</span><span class="o">=</span><span class="s2">&quot;You are a concise analyst.&quot;</span><span class="p">,</span>  <span class="c1"># Optional global behavior guide</span>
+<h2 id="execution-and-generation-parameters">Execution and Generation Parameters<a class="headerlink" href="#execution-and-generation-parameters" title="Permanent link">&para;</a></h2>
+<p>In Pollux v2, generation and execution constraints are passed as first-class keyword arguments to the execution functions (<code>run()</code>, <code>run_many()</code>, <code>interact()</code>, <code>stream()</code>, and <code>defer()</code>).</p>
+<p>For stable setups (such as tools, system instructions, or caching policies), you define them on a reusable <code>Environment</code>. Per-turn inputs (conversation state, tool results, prompt content) are passed via <code>Input</code>.</p>
+<p>Here is an example showing the keyword arguments you can pass directly:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Pass options as direct kwargs</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
+    <span class="s2">&quot;Solve this problem.&quot;</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="n">MyPydanticModel</span><span class="p">,</span>           <span class="c1"># Structured output schema</span>
     <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>                  <span class="c1"># Generation tuning</span>
     <span class="n">top_p</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>                        <span class="c1"># Generation tuning</span>
-    <span class="n">tools</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;get_weather&quot;</span><span class="p">}],</span>  <span class="c1"># Native tool calling</span>
-    <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>               <span class="c1"># Tool calling mode (&#39;auto&#39;, &#39;required&#39;, &#39;none&#39;, or dict)</span>
-    <span class="n">response_schema</span><span class="o">=</span><span class="n">MyPydanticModel</span><span class="p">,</span>  <span class="c1"># Structured output extraction</span>
-    <span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>        <span class="c1"># Controls model thinking depth</span>
-    <span class="c1"># reasoning_budget_tokens=0,      # Explicit reasoning token budget where supported</span>
-    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span>                  <span class="c1"># Provider-specific output cap</span>
-    <span class="n">implicit_caching</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>            <span class="c1"># Auto-cache prefix (Anthropic only)</span>
+    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span>                  <span class="c1"># Output token ceiling</span>
+    <span class="n">seed</span><span class="o">=</span><span class="mi">123</span><span class="p">,</span>                         <span class="c1"># Sampling seed where supported</span>
+    <span class="n">reasoning_effort</span><span class="o">=</span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>        <span class="c1"># Qualitative thinking depth</span>
+    <span class="c1"># reasoning_budget_tokens=2048,   # Or explicit thinking token budget</span>
+    <span class="n">tool_choice</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>               <span class="c1"># Tool-choice control</span>
     <span class="n">provider_options</span><span class="o">=</span><span class="p">{</span>                <span class="c1"># Raw provider escape hatch</span>
         <span class="s2">&quot;openai&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;web_search_preview&quot;</span><span class="p">}]},</span>
     <span class="p">},</span>
 <span class="p">)</span>
 </code></pre></div>
+<h3 id="supported-parameters">Supported Parameters<a class="headerlink" href="#supported-parameters" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>Field</th>
+<th>Parameter</th>
 <th>Type</th>
 <th>Default</th>
 <th>Description</th>
@@ -1268,10 +1292,10 @@ is longer: the computed backoff or the server hint).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>system_instruction</code></td>
-<td><code>str \| None</code></td>
+<td><code>output</code></td>
+<td><code>type[BaseModel] \| dict \| None</code></td>
 <td><code>None</code></td>
-<td>Global system prompt</td>
+<td>Expected JSON response format. See <a href="../structured-data/">Extracting Structured Data</a></td>
 </tr>
 <tr>
 <td><code>temperature</code></td>
@@ -1286,64 +1310,34 @@ is longer: the computed backoff or the server hint).</p>
 <td>Nucleus sampling probability</td>
 </tr>
 <tr>
-<td><code>tools</code></td>
-<td><code>list[dict] \| None</code></td>
+<td><code>max_tokens</code></td>
+<td><code>int \| None</code></td>
 <td><code>None</code></td>
-<td>JSON schemas for Pollux-normalized function tools. See <a href="../conversations-and-agents/">Continuing Conversations Across Turns</a></td>
+<td>Output-token budget cap</td>
 </tr>
 <tr>
-<td><code>tool_choice</code></td>
-<td><code>str \| dict \| None</code></td>
+<td><code>seed</code></td>
+<td><code>int \| None</code></td>
 <td><code>None</code></td>
-<td>Tool execution strategy. See <a href="../agent-loop/">Building an Agent Loop</a></td>
-</tr>
-<tr>
-<td><code>response_schema</code></td>
-<td><code>type[BaseModel] \| dict</code></td>
-<td><code>None</code></td>
-<td>Expected JSON response format. See <a href="../structured-data/">Extracting Structured Data</a></td>
+<td>Optional sampling seed</td>
 </tr>
 <tr>
 <td><code>reasoning_effort</code></td>
 <td><code>str \| None</code></td>
 <td><code>None</code></td>
-<td>Controls model thinking depth. See <a href="../portable-code/#choosing-a-reasoning-control">Writing Portable Code Across Providers</a></td>
+<td>Qualitative reasoning level (<code>"low"</code>, <code>"medium"</code>, <code>"high"</code>). See <a href="../portable-code/#choosing-a-reasoning-control">Writing Portable Code Across Providers</a></td>
 </tr>
 <tr>
 <td><code>reasoning_budget_tokens</code></td>
 <td><code>int \| None</code></td>
 <td><code>None</code></td>
-<td>Explicit reasoning token budget where supported. Mutually exclusive with <code>reasoning_effort</code>. See <a href="../portable-code/#choosing-a-reasoning-control">Writing Portable Code Across Providers</a></td>
+<td>Explicit reasoning token budget. See <a href="../portable-code/#choosing-a-reasoning-control">Writing Portable Code Across Providers</a></td>
 </tr>
 <tr>
-<td><code>max_tokens</code></td>
-<td><code>int \| None</code></td>
+<td><code>tool_choice</code></td>
+<td><code>str \| dict \| None</code></td>
 <td><code>None</code></td>
-<td>Output-token cap with provider-specific semantics. Anthropic applies provider defaults when omitted; other providers may ignore it. See <a href="../reference/provider-capabilities/">Provider Capabilities</a></td>
-</tr>
-<tr>
-<td><code>history</code></td>
-<td><code>list[dict] \| None</code></td>
-<td><code>None</code></td>
-<td>Conversation history. See <a href="../conversations-and-agents/">Continuing Conversations Across Turns</a></td>
-</tr>
-<tr>
-<td><code>continue_from</code></td>
-<td><code>ResultEnvelope \| None</code></td>
-<td><code>None</code></td>
-<td>Resume from a prior result. See <a href="../conversations-and-agents/">Continuing Conversations Across Turns</a></td>
-</tr>
-<tr>
-<td><code>cache</code></td>
-<td><code>CacheHandle \| None</code></td>
-<td><code>None</code></td>
-<td>Persistent explicit cache (Gemini). See <a href="../caching/">Reducing Costs with Context Caching</a></td>
-</tr>
-<tr>
-<td><code>implicit_caching</code></td>
-<td><code>bool \| None</code></td>
-<td><code>None</code></td>
-<td>Enable or disable Anthropic implicit caching. Defaults to <code>True</code> for a single provider call and <code>False</code> for multi-call fan-out. <code>implicit_caching=True</code> raises on providers that do not support it. See <a href="../caching/">Reducing Costs with Context Caching</a></td>
+<td>Tool-choice control (<code>"auto"</code>, <code>"required"</code>, <code>"none"</code>, or dict). See <a href="../agent-loop/">Building an Agent Loop</a></td>
 </tr>
 <tr>
 <td><code>provider_options</code></td>
@@ -1353,53 +1347,45 @@ is longer: the computed backoff or the server hint).</p>
 </tr>
 </tbody>
 </table>
+<h3 id="environment-configuration">Environment Configuration<a class="headerlink" href="#environment-configuration" title="Permanent link">&para;</a></h3>
+<p>For instructions, sources, and tool declarations, configure an <code>Environment</code> and pass it to <code>interact()</code>, <code>run()</code>, or <code>run_many()</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">ToolDeclaration</span><span class="p">,</span> <span class="n">CachePolicy</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
+    <span class="n">instructions</span><span class="o">=</span><span class="s2">&quot;You are a helpful assistant.&quot;</span><span class="p">,</span>
+    <span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;doc.pdf&quot;</span><span class="p">)],</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">ToolDeclaration</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;get_weather&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)],</span>
+    <span class="n">cache</span><span class="o">=</span><span class="n">CachePolicy</span><span class="p">(</span><span class="n">ttl_seconds</span><span class="o">=</span><span class="mi">3600</span><span class="p">),</span> <span class="c1"># Persistent caching policy</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Or for <code>run()</code> and <code>run_many()</code>, you can pass <code>instructions</code>, <code>sources</code> / <code>source</code>, and <code>tools</code> directly as inline keyword arguments, and Pollux will construct the <code>Environment</code> internally.</p>
 <h3 id="provider-options-escape-hatch">Provider Options Escape Hatch<a class="headerlink" href="#provider-options-escape-hatch" title="Permanent link">&para;</a></h3>
-<p><code>provider_options</code> is Pollux's one raw provider escape hatch. It is for
-provider-specific request fields that Pollux does not normalize, such as
-hosted/server tools, service tiers, or newly released provider knobs.</p>
-<div class="highlight"><pre><span></span><code><span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">(</span>
+<p><code>provider_options</code> is Pollux's one raw provider escape hatch. It is for provider-specific request fields that Pollux does not normalize, such as hosted/server tools, service tiers, or newly released provider knobs.</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
     <span class="n">provider_options</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;openai&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;web_search_preview&quot;</span><span class="p">}]},</span>
         <span class="s2">&quot;gemini&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;seed&quot;</span><span class="p">:</span> <span class="mi">123</span><span class="p">},</span>
     <span class="p">},</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>Only the active provider's dictionary is forwarded. If a raw key overlaps with
-a field Pollux already generated from first-class options, Pollux raises
-<code>ConfigurationError</code> instead of silently overriding either value. For example,
-do not pass both <code>Options(tools=[...])</code> and
-<code>provider_options={"openai": {"tools": [...]}}</code> in the same call.</p>
+<p>Only the active provider's dictionary is forwarded. If a raw key overlaps with a field Pollux already generated from first-class options, Pollux raises <code>ConfigurationError</code> instead of silently overriding either value. For example, do not pass both <code>tools=[...]</code> and <code>provider_options={"openai": {"tools": [...]}}</code> in the same call.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>OpenAI GPT-5 family models (<code>gpt-5</code>, <code>gpt-5-mini</code>, <code>gpt-5-nano</code>) reject
-sampling controls like <code>temperature</code> and <code>top_p</code> with provider errors.
-Older OpenAI models (for example <code>gpt-4.1-nano</code>) still accept them.
-See <a href="../portable-code/#model-specific-constraints">Writing Portable Code Across Providers</a>
-for the full constraints mapping.</p>
+<p>OpenAI GPT-5 family models (<code>gpt-5</code>, <code>gpt-5-mini</code>, <code>gpt-5-nano</code>) reject sampling controls like <code>temperature</code> and <code>top_p</code> with provider errors. Older OpenAI models (for example <code>gpt-4.1-nano</code>) still accept them. See <a href="../portable-code/#model-specific-constraints">Writing Portable Code Across Providers</a> for the full constraints mapping.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>reasoning_effort</code> and <code>reasoning_budget_tokens</code> are mutually exclusive.
-Use <code>reasoning_effort</code> when the provider exposes named levels
-(<code>"low"</code>, <code>"medium"</code>, <code>"high"</code>). Use <code>reasoning_budget_tokens</code> when you
-need an exact token ceiling. Not every provider accepts both, and some
-provider/model combinations may still reject a value at call time; see
-<a href="../portable-code/#reasoning-control-mapping">Reasoning Control Mapping</a>.</p>
+<p><code>reasoning_effort</code> and <code>reasoning_budget_tokens</code> are mutually exclusive. Use <code>reasoning_effort</code> when the provider exposes named levels (<code>"low"</code>, <code>"medium"</code>, <code>"high"</code>). Use <code>reasoning_budget_tokens</code> when you need an exact token ceiling. Not every provider accepts both, and some provider/model combinations may still reject a value at call time; see <a href="../portable-code/#reasoning-control-mapping">Reasoning Control Mapping</a>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>max_tokens</code> is not a portable "length knob" with identical behavior
-everywhere. Anthropic uses it as the total output budget and applies a
-provider default when you omit it. OpenRouter forwards it to the routed
-model. Other providers may ignore it in the current release.</p>
+<p><code>max_tokens</code> is not a portable "length knob" with identical behavior everywhere. Anthropic uses it as the total output budget and applies a provider default when you omit it. OpenRouter forwards it to the routed model. Other providers may ignore it in the current release.</p>
 </div>
 <div class="admonition warning">
-<p class="admonition-title">Cache handle restrictions</p>
-<p>When <code>cache</code> is set, <code>system_instruction</code>, <code>tools</code>, and <code>tool_choice</code>
-<strong>must not</strong> be passed in the same <code>Options</code>. <code>system_instruction</code> and
-<code>tools</code> can be baked into <code>create_cache()</code>, while <code>tool_choice</code> must be
-set only on uncached calls. See
-<a href="../caching/">Reducing Costs with Context Caching</a> for details.</p>
+<p class="admonition-title">Cache environment restrictions</p>
+<p>When persistent <code>cache</code> is configured on an <code>Environment</code>, <code>instructions</code> and <code>tools</code> are baked directly into the cache. Modifying them requires preparing a new <code>Environment</code> (which creates a new cache). See <a href="../caching/">Reducing Costs with Context Caching</a> for details.</p>
 </div>
 <h2 id="safety-notes">Safety Notes<a class="headerlink" href="#safety-notes" title="Permanent link">&para;</a></h2>
 <ul>
