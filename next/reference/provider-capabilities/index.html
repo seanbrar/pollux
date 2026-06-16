@@ -1309,6 +1309,15 @@ before dispatch or the provider page below calls out why it is out of scope.</p>
 <td>Local replays assistant tool calls and <code>tool</code>-role results verbatim</td>
 </tr>
 <tr>
+<td>Streaming (<code>stream()</code> → <code>Event</code>)</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>Streamed <code>done.output</code> matches the non-streaming <code>Output</code>; cloud providers land in a later slice</td>
+</tr>
+<tr>
 <td>Conversation continuity (<code>history</code>, <code>continue_from</code>)</td>
 <td>✅</td>
 <td>✅</td>
