@@ -1,8 +1,8 @@
-<!-- Intent: Teach conversation continuity mechanics: continue_from, manual
+<!-- Intent: Teach conversation continuity mechanics: continuation, manual
      history, and tool messages in history. Also cover tool calling setup
-     (defining tools, reading tool_calls, continue_tool). Do NOT include the
-     complete agent loop — that's on its own page. Assumes the reader
-     understands run() and ResultEnvelope. Register: guided applied. -->
+     (defining tools, reading tool_calls, interact). Do NOT include the
+     complete agent loop (which is on its own page). Assumes the reader
+     understands run() and Output. Register: guided applied. -->
 
 # Continuing Conversations Across Turns
 
@@ -23,54 +23,47 @@ next turn.
 
 !!! info "Boundary"
     **Pollux owns:** delivering tool definitions to the provider, surfacing
-    `tool_calls` in the result envelope, carrying conversation state via
-    `continue_from`, and translating history formats across providers.
+    `tool_calls` in the Output model, carrying conversation state via
+    `continuation`, and translating history formats across providers.
 
     **You own:** the loop structure, tool implementations, turn limits,
     error handling per turn, deciding when to stop, and persisting history
     across sessions.
 
-## Continuing a Conversation with `continue_from`
+## Continuing a Conversation with `Continuation`
 
-Pass a prior `ResultEnvelope` back into `Options(continue_from=...)` to
-automatically resume a conversation. Pollux unpacks the initial prompt,
-the assistant's previous response, and any tool calls directly into the
-context payload without requiring manual dictionary manipulation.
+Pass a prior result's `continuation` back into the next `Input(continuation=...)` to automatically resume a conversation. Pollux unpacks the initial prompt, the assistant's previous response, and any tool calls directly into the context payload.
 
-To use `continue_from`, the first turn must opt into conversation tracking
-by passing `history=[]` (an empty list is enough). Without it, Pollux
-treats the call as stateless and does not build conversation state.
+To get a `continuation` for subsequent turns in plain conversational calls, the first turn must opt into conversation tracking by passing `history=[]` (or an empty list/tuple). Without it, Pollux treats the call as stateless and does not build continuation state.
 
 !!! note
-    When tool calling is active, Pollux auto-populates conversation state
-    whenever the model returns `tool_calls` — no explicit `history=[]`
-    needed. The opt-in requirement only applies to plain conversational
-    calls without tools.
+    When tool calling is active, Pollux auto-populates continuation state whenever the model returns `tool_calls`, so no explicit `history=[]` is needed. The opt-in requirement only applies to plain conversational calls without tools.
 
 ```python
 import asyncio
-from pollux import Config, Options, run
+from pollux import Config, Environment, Input, interact
 
 async def chat_loop() -> None:
     config = Config(provider="gemini", model="gemini-2.5-flash-lite")
+    env = Environment()
 
     # Turn 1: opt into conversation tracking with history=[]
     print("User: Hello! Please remember my name is Sean.")
-    result1 = await run(
-        "Hello! Please remember my name is Sean.",
+    result1 = await interact(
+        env,
+        Input(content="Hello! Please remember my name is Sean.", history=[]),
         config=config,
-        options=Options(history=[]),  # Enable conversation state
     )
-    print(f"Assistant: {result1['answers'][0]}")
+    print(f"Assistant: {result1.text}")
 
-    # Turn 2: continue from prior result
+    # Turn 2: continue from prior result's continuation
     print("\nUser: What is my name?")
-    result2 = await run(
-        "What is my name?",
+    result2 = await interact(
+        env,
+        Input(continuation=result1.continuation, content="What is my name?"),
         config=config,
-        options=Options(continue_from=result1),  # Picks up where result1 left off
     )
-    print(f"Assistant: {result2['answers'][0]}")
+    print(f"Assistant: {result2.text}")
 
 asyncio.run(chat_loop())
 ```
@@ -85,25 +78,26 @@ and `content`:
 
 ```python
 import asyncio
-from pollux import Config, Options, run
+from pollux import Config, Environment, Input, Message, interact
 
 async def manual_history_injection() -> None:
     config = Config(provider="openai", model="gpt-5-nano")
+    env = Environment()
 
-    # Imagine this was pulled from a database
+    # Pull from database, wrapped in Message objects
     previous_chat = [
-        {"role": "user", "content": "What is the capital of France?"},
-        {"role": "assistant", "content": "The capital of France is Paris."}
+        Message(role="user", content="What is the capital of France?"),
+        Message(role="assistant", content="The capital of France is Paris.")
     ]
 
-    # Resume the chat by passing history into Options
-    result = await run(
-        "And what is its population?",
+    # Resume the chat by passing history into Input
+    result = await interact(
+        env,
+        Input(content="And what is its population?", history=previous_chat),
         config=config,
-        options=Options(history=previous_chat),
     )
 
-    print(f"Assistant: {result['answers'][0]}")
+    print(f"Assistant: {result.text}")
 
 asyncio.run(manual_history_injection())
 ```
@@ -118,109 +112,93 @@ retrieved it, and now you must return it), `history` is how you manually
 format tool responses:
 
 ```python
+from pollux import Input, Message, ToolCall, interact
+
 history = [
-    {"role": "user", "content": "What's the weather in NYC?"},
-    {"role": "assistant", "content": "", "tool_calls": [...]},
-    # Format your tool response like this:
-    {"role": "tool", "tool_call_id": "call_1", "content": '{"temp_f": 72}'},
+    Message(role="user", content="What's the weather in NYC?"),
+    Message(role="assistant", content="", tool_calls=(
+        ToolCall.from_text(id="call_1", name="get_weather", arguments_text='{"location": "NYC"}'),
+    )),
+    Message(role="tool", tool_call_id="call_1", content='{"temp_f": 72}'),
 ]
 
-result = await run(
-    "Given that weather, what should I wear?",
+result = await interact(
+    env,
+    Input(content="Given that weather, what should I wear?", history=history),
     config=config,
-    options=Options(history=history, tools=[...]),
 )
 ```
 
 ## Setting Up Tool Calling
 
-Pollux passes function tool definitions to providers and surfaces tool call
-responses in the result envelope. `Options.tools` is for Pollux-normalized
-client/application tools that your code executes. Provider-hosted server tools
-such as web search or code execution are provider-specific and belong in
-`Options(provider_options=...)`.
+Pollux passes function tool definitions to providers and surfaces tool call responses in the output. `Environment.tools` is for Pollux-normalized client/application tools that your code executes. Provider-hosted server tools such as web search or code execution are provider-specific and belong in the `provider_options=` keyword argument.
 
-**Defining tools:** pass a list of tool schemas in `Options.tools`:
+**Defining tools:** pass `ToolDeclaration` objects in `Environment.tools`:
 
 ```python
-from pollux import Options
+from pollux import Environment, ToolDeclaration
 
-options = Options(
+env = Environment(
     tools=[
-        {
-            "name": "get_weather",
-            "description": "Get weather for a location",
-            "parameters": {
+        ToolDeclaration(
+            name="get_weather",
+            description="Get weather for a location",
+            parameters={
                 "type": "object",
                 "properties": {"location": {"type": "string"}},
             },
-        }
+        )
     ],
-    tool_choice="auto",  # "auto", "required", "none", or {"name": "..."}
 )
 ```
 
-Pollux normalizes tool parameter schemas at the provider boundary. For OpenAI
-(which defaults to strict mode), `additionalProperties: false` and `required`
-are injected automatically. For Gemini, unsupported fields like
-`additionalProperties` are stripped. You can define one schema and use it
-across all providers without modification.
+Pollux normalizes tool parameter schemas at the provider boundary. For OpenAI (which defaults to strict mode), `additionalProperties: false` and `required` are injected automatically. For Gemini, unsupported fields like `additionalProperties` are stripped. You can define one schema and use it across all providers without modification.
 
-**Reading tool calls:** when the model invokes tools, the result envelope
-includes a `tool_calls` field:
+**Reading tool calls:** when the model invokes tools, the completed `Output` includes a `tool_calls` field:
 
 ```python
-result = await run("What's the weather in NYC?", config=config, options=options)
+result = await interact(env, Input("What's the weather in NYC?"), config=config, tool_choice="auto")
 
-if "tool_calls" in result:
-    for call in result["tool_calls"][0]:  # per-prompt list
-        print(call["name"], call["arguments"])
+if result.tool_calls:
+    for call in result.tool_calls:
+        print(call.name, call.arguments)
 ```
 
-## Feeding Tool Results Back with `continue_tool()`
+## Feeding Tool Results Back with `interact()`
 
-When the model requests tool calls, you execute them in your code and feed the
-results back for the next turn. `continue_tool()` handles this handoff: it
-takes the previous `ResultEnvelope` (which contains the model's tool-call
-requests and conversation state) along with your tool-result messages, and
-returns the model's next response.
+When the model requests tool calls, you execute them in your code and feed the results back for the next turn. `interact()` handles this handoff: it takes the previous `Output`'s `continuation` handle along with your tool results, and returns the model's next response.
 
 ```python
-from pollux import continue_tool
+from pollux import Input, ToolResult, interact
 
 # After executing the tool calls from a previous result...
 tool_results = [
-    {"role": "tool", "tool_call_id": "call_1", "content": '{"temp_f": 72}'},
+    ToolResult(call_id="call_1", content='{"temp_f": 72}'),
 ]
 
-next_result = await continue_tool(
-    continue_from=result,       # The ResultEnvelope containing tool_calls
-    tool_results=tool_results,  # Your tool outputs
+next_result = await interact(
+    env,
+    Input(continuation=result.continuation, tool_results=tool_results),
     config=config,
-    options=Options(tools=tools),
 )
 ```
 
-`continue_tool()` internally reconstructs the conversation history from the
-previous envelope's state, appends your tool results, and calls `run()` to get
-the model's next response. The returned `ResultEnvelope` may contain another
-round of `tool_calls` (if the model needs more data) or a final text answer.
+`interact()` internally reconstructs the conversation history from the previous continuation, appends your tool results, and calls the provider to get the model's next response. The returned `Output` may contain another round of `tool_calls` or a final text answer.
 
 ## What to Watch For
 
-- **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of
-  lists, one per prompt. For `run()` (single prompt), access
-  `result["tool_calls"][0]`.
-- **Conversation continuity requires one prompt.** Both `history` and
-  `continue_from` work with single-prompt `run()` calls, not `run_many()`.
+- **`tool_calls` is flat on `Output`.** When using `interact()`, `result.tool_calls`
+  is a flat tuple of `ToolCall` objects.
+- **Conversation continuity requires one prompt.** `interact()` takes a single
+  `Input` turn.
 - **Plain conversations need `history=[]` on the first turn.** Without
-  `history` or `continue_from`, Pollux treats a call as stateless and
-  does not produce conversation state. Pass `history=[]` on the first
-  turn to enable `continue_from` on subsequent turns.
-- **Tool-call responses auto-populate conversation state.** When `run()`
-  returns tool calls, Pollux builds conversation state automatically, even
-  without explicit `history` or `continue_from`. This means `continue_tool()`
-  works on any result that contains tool calls — no opt-in needed.
+  `history` or `continuation`, Pollux treats a call as stateless and
+  does not produce continuation state. Pass `history=[]` on the first
+  turn to enable `continuation` on subsequent turns.
+- **Tool-call responses auto-populate continuation.** When a call returns
+  tool calls, Pollux builds the `continuation` state automatically, even
+  without explicit `history=[]`. This means continuation works for the next
+  turn of any tool call, with no opt-in needed.
 - **Provider differences exist.** Gemini, OpenAI, and Anthropic support tool
   calling and tool messages in history. OpenRouter supports them on models
   that advertise tool support. See

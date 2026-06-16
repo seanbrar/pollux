@@ -2,7 +2,7 @@
      application code around provider-side job lifecycles. Do NOT reteach the
      deferred method signatures or every lifecycle state in detail. That lives
      on the submission page. Assumes the reader already knows defer(),
-     inspect_deferred(), collect_deferred(), and ResultEnvelope. Register:
+     inspect_deferred(), collect_deferred(), and OutputCollection. Register:
      guided applied. -->
 
 # Building With Deferred Delivery
@@ -30,7 +30,7 @@ Teach your application three persistence states:
 
 1. `pending`: the job was submitted and the handle is stored durably.
 2. `collectable`: `inspect_deferred()` says the job reached a terminal state.
-3. `collected`: your code wrote the `ResultEnvelope` somewhere durable and
+3. `collected`: your code wrote the `OutputCollection` somewhere durable and
    retired the pending handle.
 
 That answers the three important questions:
@@ -40,8 +40,8 @@ That answers the three important questions:
 - Your application decides how a pending handle becomes a collected record.
 
 Terminal does not mean successful. A collectable job can still produce
-`result["status"] == "partial"` or `result["status"] == "error"`, so branch on
-the collected envelope before you decide whether the workflow succeeded.
+`result.status == "partial"` or `result.status == "error"`, so branch on
+the collected collection before you decide whether the workflow succeeded.
 
 This pattern fits cleanly inside a larger system. A cron job, worker queue,
 CLI, or web app can all use the same boundary. Pollux handles provider
@@ -78,7 +78,7 @@ async def submit_reports(paths: list[Path]) -> None:
     for path in paths:
         handle = await defer(
             "Summarize the report in five bullets and list the three biggest execution risks.",
-            source=Source.from_file(path),
+            sources=[Source.from_file(path)],
             config=config,
         )
         record = {
@@ -105,13 +105,13 @@ async def harvest_ready_reports() -> None:
             continue
 
         result = await collect_deferred(handle)
-        outcome_dir = RESULTS_DIR / result["status"]
+        outcome_dir = RESULTS_DIR / result.status
         outcome_dir.mkdir(parents=True, exist_ok=True)
         result_path = outcome_dir / f"{handle.job_id}.json"
         collected = {
             "report_path": str(report_path),
             "snapshot_status": snapshot.status,
-            "result": result,
+            "result": result.to_jsonable(),
         }
         # Store the collected outcome, then retire the pending handle.
         result_path.write_text(json.dumps(collected, indent=2), encoding="utf-8")
@@ -129,11 +129,11 @@ asyncio.run(submit_reports(reports))
 1. Submission is fast. The interactive path stores a durable handle and exits.
 2. Readiness is explicit. `snapshot.is_terminal` is the only gate before
    collection.
-3. Success is explicit. `result["status"]` decides whether the collected job
+3. Success is explicit. `result.status` decides whether the collected job
    landed in `ok`, `partial`, or `error`.
 4. Collection happens once per pending record. After your code writes the
    outcome, it retires the handle from the pending set.
-5. The result still lands in a normal `ResultEnvelope`, so downstream parsing
+5. The result still lands in a normal `OutputCollection`, so downstream parsing
    stays small.
 
 The directories here are placeholders for your real system boundary. Replace

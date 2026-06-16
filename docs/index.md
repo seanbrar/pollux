@@ -30,7 +30,7 @@ content. No boilerplate.
 management saves tokens and money.
 
 **Deferred delivery.** Submit non-urgent work once, persist a handle, and
-collect later in the same `ResultEnvelope` format.
+collect later in the same `OutputCollection` / `Output` format.
 
 **Built for reliability.** Async pipeline, retries with backoff, structured
 output, usage tracking.

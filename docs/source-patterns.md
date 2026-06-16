@@ -1,7 +1,7 @@
 <!-- Intent: Teach collection-level analysis workflows using source patterns
      (fan-out, fan-in, broadcast). Show the two-level loop pattern (your outer
      loop + Pollux's inner call). Do NOT cover structured output, tool calling,
-     or caching mechanics — link to those pages. Assumes the reader understands
+     or caching mechanics. Link to those pages. Assumes the reader understands
      run() and run_many() from Sending Content. Register: guided applied. -->
 
 # Analyzing Collections with Source Patterns
@@ -67,7 +67,7 @@ results into a summary dictionary:
 import asyncio
 from pathlib import Path
 
-from pollux import Config, Options, Source, run_many
+from pollux import Config, Source, run_many
 
 config = Config(provider="gemini", model="gemini-2.5-flash-lite")
 
@@ -87,10 +87,10 @@ async def analyze_file(path: Path) -> dict:
     )
     return {
         "file": path.name,
-        "status": result["status"],
-        "main_argument": result["answers"][0],
-        "key_findings": result["answers"][1],
-        "tokens": result["usage"]["total_tokens"],
+        "status": result.status,
+        "main_argument": result.answers[0],
+        "key_findings": result.answers[1],
+        "tokens": result.usage.total_tokens,
     }
 
 
@@ -110,7 +110,7 @@ async def process_directory(directory: str) -> list[dict]:
             results.append(summary)
             print(f"  {path.name}: {summary['status']} ({summary['tokens']} tokens)")
         except Exception as exc:
-            print(f"  {path.name}: FAILED — {exc}")
+            print(f"  {path.name}: FAILED: {exc}")
             results.append({"file": path.name, "status": "error", "error": str(exc)})
 
     succeeded = sum(1 for r in results if r["status"] == "ok")
@@ -159,7 +159,7 @@ async def synthesize_collection(directory: str, question: str) -> str:
         sources=sources,
         config=config,
     )
-    return result["answers"][0]
+    return result.answers[0]
 ```
 
 This sends all sources to the model in one call. Useful for comparative
@@ -167,7 +167,7 @@ questions: "Which paper has the strongest methodology?" or "What themes
 appear across all documents?"
 
 For structured comparisons with typed output (similarities, differences,
-strengths), combine fan-in with a `response_schema`. See
+strengths), combine fan-in with an `output` schema. See
 [Extracting Structured Data](structured-data.md).
 
 ## Concurrent File Processing
@@ -237,8 +237,8 @@ async def process_to_jsonl(directory: str, output: str) -> None:
 - **Memory with large collections.** Each `Source.from_file()` reads the
   file for hashing. For very large collections, process in batches rather
   than loading all sources at once.
-- **Caching helps fan-out, not iteration.** `create_cache()` saves
-  tokens when the *same source* gets reused across multiple prompts. It
+- **Caching helps fan-out, not iteration.** `prepare_environment()` with a `CachePolicy`
+  saves tokens when the *same source* gets reused across multiple prompts. It
   does not help when each file is different. See
   [Reducing Costs with Context Caching](caching.md).
 

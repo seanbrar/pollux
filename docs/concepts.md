@@ -96,8 +96,7 @@ file path.
 
 Not all work needs an immediate answer. **Deferred delivery** submits requests
 to a provider-side job system, often at lower cost when deferred pricing is
-available, and returns a serializable handle. Your code persists the handle and
-collects the `ResultEnvelope` later. Some providers call this a batch API, but
+available, and returns a serializable handle. Your code persists the handle and collects the `OutputCollection` later. Some providers call this a batch API, but
 Pollux uses **deferred delivery** for the user-facing workflow. See
 [Building With Deferred Delivery](building-with-deferred-delivery.md) for the
 operating model, then
@@ -151,8 +150,8 @@ cache keys from content hashes.
 provider calls concurrently.
 
 **Extract:** Transforms API responses into a stable
-[`ResultEnvelope`](sending-content.md#resultenvelope-reference) with
-`answers`, optional `structured` data, and `usage` metadata.
+[`Output`](sending-content.md#output-and-outputcollection-reference) with
+`text`, optional `structured` data, and `usage` metadata.
 
 This separation is what lets Pollux handle multimodal inputs and provider
 differences without forcing callers to reimplement orchestration logic.
@@ -216,10 +215,10 @@ leaves domain-level decisions and workflow orchestration to your code.
 | **Tool execution** | Implementing and calling tools | Surfacing tool-call requests and passing results back |
 | **Multi-turn loops** | Loop control, exit conditions, state | Single-turn request/response with conversation continuity |
 | **Deferred lifecycle** | Persistence, polling cadence, scheduling, cross-job orchestration | Provider submission, lifecycle normalization, ordered collection |
-| **Result aggregation** | Collecting, comparing, and storing answers | Normalizing each response into `ResultEnvelope` |
+| **Result aggregation** | Collecting, comparing, and storing answers | Normalizing each response into `Output` / `OutputCollection` |
 | **Error recovery** | Deciding what to retry or skip at the workflow level | Retrying transient API failures within a single call |
 | **Concurrency** | Parallelizing across files or workflows | Concurrent API calls within a single `run_many()` |
-| **Output validation** | Domain-specific checks on answers | Structured parsing via `response_schema` |
+| **Output validation** | Domain-specific checks on answers | Structured parsing via `output` schema |
 
 This boundary is intentional. Keeping workflow orchestration in your code
 means Pollux never imposes opinions about loop structures, error policies,

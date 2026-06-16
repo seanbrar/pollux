@@ -29,7 +29,7 @@ before dispatch or the provider page below calls out why it is out of scope.
 |---|---|---|---|---|---|---|
 | Text generation | ✅ | ✅ | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
-| Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
+| Structured outputs (`output` schema) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
 | Deferred delivery (`defer`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly |
 
 ### Inputs
@@ -54,14 +54,14 @@ before dispatch or the provider page below calls out why it is out of scope.
 
 | Capability | Gemini | OpenAI | Anthropic | OpenRouter | Local | Notes |
 |---|---|---|---|---|---|---|
-| Reasoning output (`result["reasoning"]`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ⚠️ server/model-dependent | Pollux surfaces reasoning text when providers return it |
+| Reasoning output (`result.reasoning`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ⚠️ server/model-dependent | Pollux surfaces reasoning text when providers return it |
 | `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
 | `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
 | Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Pollux-normalized client/application tools; local trusts the server, no capability probe |
 | Provider-hosted tools | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ server-dependent | Raw provider escape hatch; not normalized by Pollux |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Local replays assistant tool calls and `tool`-role results verbatim |
 | Streaming (`stream()` → `Event`) | ✅ | ✅ | ✅ | ✅ | ✅ | Streamed `done.output` matches the non-streaming `Output` |
-| Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
+| Conversation continuity (`history`, `continuation`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
 For when deferred delivery is a fit and how to structure code around provider
 jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.md).
@@ -87,7 +87,7 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   carried entirely via `history`.
 - Tool parameter schemas are normalized at the provider boundary:
   `additionalProperties` is stripped because the Gemini API rejects it.
-- Reasoning: Gemini returns full thinking text in `ResultEnvelope.reasoning`
+- Reasoning: Gemini returns full thinking text in `output.reasoning`
   when the selected model and reasoning mode support it. Pollux forwards both
   `reasoning_effort` and `reasoning_budget_tokens`; model-specific acceptance
   is enforced by the Gemini API.
@@ -114,8 +114,8 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   false` and `required` are injected automatically. Callers who set `strict:
   false` on a tool definition bypass normalization.
 - Reasoning: OpenAI provides reasoning summaries (not raw traces) in
-  `ResultEnvelope.reasoning`. Token counts appear in
-  `ResultEnvelope.usage["reasoning_tokens"]` when the model returns them.
+  `output.reasoning`. Token counts appear in
+  `output.usage.reasoning_tokens` when the model returns them.
   Some older models reject `reasoning_effort`. OpenAI does not accept
   `reasoning_budget_tokens`; Pollux raises `ConfigurationError` before the
   request is dispatched.
@@ -133,7 +133,7 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   `Environment` to opt out.
 - See [current caching scope](../caching.md#current-pollux-scope) for what
   Pollux exposes from Anthropic's caching surface.
-- Reasoning: thinking text appears in `ResultEnvelope.reasoning`.
+- Reasoning: thinking text appears in `output.reasoning`.
   `reasoning_effort` and `reasoning_budget_tokens` are both forwarded for
   Anthropic models that support them. Exact model support and budget floors
   are enforced by Anthropic. Pollux routes current Opus adaptive-thinking
@@ -144,7 +144,7 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   holds for `stream()` too: signed thinking blocks are reassembled from the
   stream, so a streamed extended-thinking + tool turn continues identically to
   the non-streaming path.
-- `Options.max_tokens`: limits the output length. Default is `16384` for Anthropic,
+- `max_tokens`: limits the output length. Default is `16384` for Anthropic,
   which leaves room for thinking output at all effort levels. Other providers
   currently ignore this option.
 
@@ -157,9 +157,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   continuity, model-gated structured outputs, model-gated tool calling, and
   verified image/PDF inputs.
 - Pollux does not expose OpenRouter routing controls in the public API.
-- `continue_from` works through Pollux conversation state replay; there is no
+- `continuation` works through Pollux conversation state replay; there is no
   OpenRouter-specific equivalent to OpenAI's `previous_response_id`.
-- `continue_tool()` works through the same replay path. Pollux carries prior
+- `interact()` and `stream()` work through the same replay path. Pollux carries prior
   assistant tool calls and tool-result messages forward through history when
   the selected OpenRouter model supports tool calling.
 - Structured outputs and tool calling are model-dependent on OpenRouter.
@@ -189,8 +189,8 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - OpenRouter supports automatic prompt caching on many routed providers.
   Pollux does not expose OpenRouter-specific cache controls.
 - Reasoning: works on OpenRouter models that support reasoning. Thinking text
-  appears in `ResultEnvelope.reasoning`, and token counts in
-  `ResultEnvelope.usage["reasoning_tokens"]` when available. OpenRouter does
+  appears in `output.reasoning`, and token counts in
+  `output.usage.reasoning_tokens` when available. OpenRouter does
   not accept `reasoning_budget_tokens`; Pollux raises `ConfigurationError`
   before dispatch. Under `stream()`, reasoning text is surfaced for display but
   the `reasoning_details` replay state is not reconstructed from the stream
@@ -220,10 +220,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - Structured outputs use OpenAI-compatible JSON schema mode
   (`response_format={"type": "json_schema", ...}`). Server-side schema
   enforcement quality varies. Pydantic schema inputs are validated downstream
-  when building `ResultEnvelope.structured`; raw JSON Schema dicts rely on the
+  when building `output.structured`; raw JSON Schema dicts rely on the
   local server's schema enforcement. When a server returns non-JSON text, or a
   Pydantic response fails model validation, the corresponding entry in
-  `ResultEnvelope.structured` is `None`.
+  `output.structured` is `None`.
 - Automatic prompt caching depends entirely on the backing inference engine.
   Pollux does not expose a toggle for it.
 - Conversation continuity uses `history`; there is no server-side session ID

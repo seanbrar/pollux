@@ -1,5 +1,5 @@
 <!-- Intent: Teach the three core mechanics: creating Sources, calling run()
-     and run_many(), and reading ResultEnvelope. Do NOT cover source patterns
+     and run_many(), and reading Output / OutputCollection. Do NOT cover source patterns
      in depth (that's the next page), tool calling, or conversation history.
      Assumes the reader has completed Getting Started. Register: guided applied. -->
 
@@ -12,7 +12,7 @@ a `Source`, which entry point to call, and how to read the result.
 !!! info "Boundary"
     **Pollux owns:** uploading and caching source content, attaching it to
     provider API calls, running prompts concurrently, and normalizing
-    responses into a stable `ResultEnvelope`.
+    responses into stable `Output` / `OutputCollection` models.
 
     **You own:** choosing what to analyze, writing prompts, and processing
     the returned answers.
@@ -78,9 +78,9 @@ source = Source.from_uri(
 ```
 
 Use this only when you have chosen Gemini. URL Context retrieval metadata is
-available in `result["diagnostics"]["raw_responses"][i]["artifacts"]`. Because
+available in `result.diagnostics.raw["raw_responses"][i]["artifacts"]`. Because
 retrieval happens at request time, URL Context sources cannot be baked into
-`create_cache()`.
+`prepare_environment()`.
 
 ### Gemini Video Controls
 
@@ -110,7 +110,7 @@ async def main() -> None:
         source=source,
         config=config,
     )
-    print(result["answers"][0])
+    print(result.text)
 
 asyncio.run(main())
 ```
@@ -142,8 +142,7 @@ async def main() -> None:
         source=Source.from_file("paper.pdf"),
         config=config,
     )
-    print(result["status"])   # "ok"
-    print(result["answers"][0])
+    print(result.text)
 
 asyncio.run(main())
 ```
@@ -151,7 +150,6 @@ asyncio.run(main())
 Output:
 
 ```
-ok
 The paper concludes that context caching reduces repeated token cost by up to
 90% for fan-out workloads, with diminishing returns below 3 prompts per source.
 ```
@@ -168,8 +166,9 @@ The paper concludes that context caching reduces repeated token cost by up to
 3. **Call `run()`.** Pass the prompt, source, and config. Pollux normalizes the
    request, plans the API call, executes it, and extracts the answer.
 
-4. **Read `result["answers"]`.** The first (and only) element contains the
-   model's response. Check `result["status"]` to confirm the call succeeded.
+4. **Read `result.text`.** The `text` property contains the
+   model's response. You can also inspect `result.metrics.completion_status`
+   to confirm the call succeeded cleanly.
 
 ## Multiple Prompts: `run_many()`
 
@@ -194,9 +193,9 @@ async def main() -> None:
         "List key findings.",
     ]
 
-    envelope = await run_many(prompts, sources=sources, config=config)
-    print(envelope["status"])
-    for i, answer in enumerate(envelope["answers"], 1):
+    collection = await run_many(prompts, sources=sources, config=config)
+    print(collection.status)
+    for i, answer in enumerate(collection.answers, 1):
         print(f"Q{i}: {answer[:80]}...")
 
 asyncio.run(main())
@@ -220,59 +219,65 @@ Q2: Key findings: (1) fan-out caching saves 85-92% of input tokens; (2) broad...
 | Many questions against the same shared source set | `run_many()` | Fan-out over a combined context |
 | Many questions per file in a collection | Outer loop + `run_many()` | Broadcast pattern; see [Source Patterns](source-patterns.md) |
 | Non-urgent work you will collect later | `defer()` | Background provider execution with a serializable handle |
-| Returning tool results to the model | `continue_tool()` | Feeds tool outputs back into the conversation |
+| Returning tool results to the model | `interact()` / `stream()` | Feeds tool outputs back into the conversation |
 
 Rule of thumb: if prompts or sources are plural and every prompt should receive
 the same shared context, reach for `run_many()`. If you need one result record
 per file, write the outer file loop yourself and call `run_many()` inside it.
 If the workload can wait, reach for `defer()`.
 
-`continue_tool()` is a specialized entry point for agent loops. It takes a
-previous `ResultEnvelope` containing tool calls and your tool results, and
-returns the model's next response. See
-[Feeding Tool Results Back with `continue_tool()`](conversations-and-agents.md#feeding-tool-results-back-with-continue_tool)
+`interact()` (and its streaming sibling `stream()`) is the canonical entry point
+for multi-turn conversations and tool-calling loops. It takes an `Environment`
+(defining instructions, tools, etc.) and an `Input` turn (carrying prompts,
+tool results, and continuation state). See
+[Feeding Tool Results Back with `interact()`](conversations-and-agents.md#feeding-tool-results-back-with-interact)
 for details.
 
 `run()` is a convenience wrapper that delegates to `run_many()` with a single
 prompt. In benchmarks, `run_many()` is typically faster for multi-prompt
 workloads because it shares uploads and runs prompts concurrently.
 
-## ResultEnvelope Reference
+## Output and OutputCollection Reference
 
-Every `run()`, `run_many()`, and `collect_deferred()` call returns a
-`ResultEnvelope`: a dict with a stable shape that works the same regardless of
-provider.
+Execution functions return either an `Output` object (for single interactions like `run()` and `interact()`) or an `OutputCollection` (for multi-prompt execution like `run_many()` or deferred collection).
 
-| Field | Type | Always present | Description |
-|---|---|---|---|
-| `status` | `"ok" \| "partial" \| "error"` | Yes | `ok` = all answers populated; `partial` = some empty; `error` = all empty |
-| `answers` | `list[str]` | Yes | One string per prompt |
-| `structured` | `list[Any]` | Only with `response_schema` | Parsed objects matching your schema |
-| `reasoning` | `list[str \| None]` | No | Provider reasoning traces (when available) |
-| `tool_calls` | `list[list[dict]]` | Only with tool calling | Per-prompt list of tool-call requests. See [Conversations](conversations-and-agents.md) |
-| `confidence` | `float` | Yes | Heuristic: `0.9` for ok, `0.5` otherwise |
-| `extraction_method` | `str` | Yes | Always `"text"` |
-| `usage` | `dict[str, int]` | Yes | Token counts (`input_tokens`, `output_tokens`, `total_tokens`, and optional `reasoning_tokens`, `cached_tokens`). See [Observing Cache Hits](caching.md#observing-cache-hits) for `cached_tokens` semantics. |
-| `metrics` | `dict[str, Any]` | Yes | `duration_s`, `n_calls`, `cache_used` ([persistent caching](caching.md#persistent-caching-gemini) only), `finish_reasons` (per-prompt, e.g. `"stop"`, `"max_tokens"`). Deferred results also add `metrics["deferred"] = True`. |
-| `diagnostics` | `dict[str, Any]` | Yes | Low-level diagnostics. All calls include `raw_responses`. Deferred results also add `diagnostics["deferred"]` with `job_id`, timing, and per-request lifecycle items. |
+### Output Fields (Single Interaction)
 
-Example of a complete envelope:
+An `Output` is a frozen dataclass with the following attributes:
+
+| Attribute | Type | Description |
+|---|---|---|
+| `text` | `str` | The primary text response from the model |
+| `structured` | `Any` | The parsed Pydantic model or JSON dict (when `output` schema is set) |
+| `reasoning` | `str \| None` | Model reasoning/thinking text when supported and returned by the provider |
+| `tool_calls` | `tuple[ToolCall, ...]` | Tuple of `ToolCall` requests emitted by the model |
+| `continuation` | `Continuation \| None` | State handle to continue the interaction in a subsequent turn |
+| `usage` | `Usage` | Token usage details (`input_tokens`, `output_tokens`, `total_tokens`, `reasoning_tokens`, `cached_tokens`) |
+| `metrics` | `Metrics` | Execution metadata (`duration_s`, `n_calls`, `cache_used`, `cache_mode`, `cache_hit`, `finish_reason`, `completion_status`) |
+| `diagnostics` | `Diagnostics` | Low-level debug detail (e.g. `raw_responses` lists) |
+
+### OutputCollection Fields (Multi-Prompt / Deferred Result)
+
+An `OutputCollection` aggregates results from multi-prompt source-pattern executions:
+
+| Attribute/Property | Type | Description |
+|---|---|---|
+| `outputs` | `tuple[Output, ...]` | Individual `Output` objects in submission order |
+| `answers` | `list[str]` | Property helper returning a list of primary text responses |
+| `structured` | `list[Any]` | Property helper returning a list of parsed structured payloads |
+| `status` | `"ok" \| "partial" \| "error"` | Aggregate status based on whether all, some, or no answers were returned |
+| `usage` | `Usage` | Token usage summed across all interactions in the collection |
+
+Example of serializing a completed result to JSON:
 
 ```python
-{
-    "status": "ok",
-    "answers": ["The paper concludes that..."],
-    "confidence": 0.9,
-    "extraction_method": "text",
-    "usage": {"input_tokens": 1250, "output_tokens": 89, "total_tokens": 1339},
-    "metrics": {"duration_s": 1.42, "n_calls": 1, "cache_used": False, "finish_reasons": ["stop"]},
-    "diagnostics": {"raw_responses": [...]},
-}
+# Output and OutputCollection objects serialize via .to_jsonable()
+print(result.to_jsonable())
 ```
 
 ## Notes
 
-- Conversation continuity (`history`, `continue_from`) works with one
+- Conversation continuity (`history`, `continuation`) works with one
   prompt per call. See
   [Continuing Conversations Across Turns](conversations-and-agents.md).
 - Deferred work uses `defer()`, `inspect_deferred()`,

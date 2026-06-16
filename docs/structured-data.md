@@ -1,7 +1,7 @@
-<!-- Intent: Teach structured output extraction via response_schema. Cover
+<!-- Intent: Teach structured output extraction via the output argument. Cover
      Pydantic models, JSON schema dicts, nested models, and combining with
      reasoning. Do NOT cover tool calling, conversation history, or caching.
-     Assumes the reader understands run() and ResultEnvelope from Sending
+     Assumes the reader understands run() and Output from Sending
      Content. Register: guided applied. -->
 
 # Extracting Structured Data
@@ -19,21 +19,21 @@ regex extraction.
 !!! info "Boundary"
     **Pollux owns:** translating your schema to the provider's structured
     output format, parsing the response into typed objects, and populating
-    `result["structured"]`.
+    `result.structured`.
 
     **You own:** defining Pydantic models (or JSON schema dicts), building
     the extraction pipeline, validating domain constraints beyond what the
     schema expresses, and writing results to storage.
 
-## The `response_schema` Option
+## The output Argument
 
-Pass a Pydantic model (or JSON schema dict) via `Options(response_schema=...)`
-to get typed, validated output in `envelope["structured"]`.
+Pass a Pydantic model (or JSON schema dict) via the `output=` keyword argument
+to get typed, validated output in `result.structured`.
 
 ```python
 import asyncio
 from pydantic import BaseModel
-from pollux import Config, Options, Source, run
+from pollux import Config, Source, run
 
 class PaperSummary(BaseModel):
     title: str
@@ -41,22 +41,21 @@ class PaperSummary(BaseModel):
 
 async def main() -> None:
     config = Config(provider="openai", model="gpt-5-nano")
-    options = Options(response_schema=PaperSummary)
     result = await run(
         "Extract a structured summary.",
         source=Source.from_text("Title: Caching Study. Findings: tokens saved, latency reduced."),
         config=config,
-        options=options,
+        output=PaperSummary,
     )
-    summary = result["structured"][0]
+    summary = result.structured
     print(summary.title)       # "Caching Study"
     print(summary.findings)    # ["tokens saved", "latency reduced"]
 
 asyncio.run(main())
 ```
 
-When `response_schema` is set, the `structured` field contains one parsed
-object per prompt. The raw text is still available in `answers`.
+When `output` is set on `run()`, the `structured` property contains the parsed
+object. The raw text is still available in `text`.
 
 ## Complete Extraction Pipeline
 
@@ -71,7 +70,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from pollux import Config, Options, Source, run
+from pollux import Config, Source, run
 
 
 class PaperMetadata(BaseModel):
@@ -84,9 +83,6 @@ class PaperMetadata(BaseModel):
 
 
 config = Config(provider="gemini", model="gemini-2.5-flash-lite")
-options = Options(response_schema=PaperMetadata)
-
-
 async def extract_metadata(path: Path) -> PaperMetadata:
     """Extract structured metadata from a single paper."""
     result = await run(
@@ -95,9 +91,9 @@ async def extract_metadata(path: Path) -> PaperMetadata:
         "methodology used.",
         source=Source.from_file(str(path)),
         config=config,
-        options=options,
+        output=PaperMetadata,
     )
-    return result["structured"][0]
+    return result.structured
 
 
 async def build_catalog(directory: str, output: str) -> None:
@@ -111,7 +107,7 @@ async def build_catalog(directory: str, output: str) -> None:
                 f.write(metadata.model_dump_json() + "\n")
                 print(f"  {path.name}: {metadata.title} ({metadata.year})")
             except Exception as exc:
-                print(f"  {path.name}: FAILED — {exc}")
+                print(f"  {path.name}: FAILED: {exc}")
 
     print(f"\nWrote catalog to {output}")
 
@@ -125,13 +121,14 @@ asyncio.run(build_catalog("./papers", "catalog.jsonl"))
    and types you expect. The model constrains both the LLM's output format
    and your downstream code's type expectations.
 
-2. **Pass the schema via `Options`.** `Options(response_schema=PaperMetadata)`
+2. **Pass the schema via `output`.** `output=PaperMetadata`
    tells Pollux to request structured output from the provider. Pollux
    handles the translation to provider-specific schema formats.
 
-3. **Read from `result["structured"]`.** When `response_schema` is set,
-   `result["structured"]` contains one parsed object per prompt. For
-   `run()` (single prompt), access `result["structured"][0]`.
+3. **Read from `result.structured`.** When `output` is set on `run()`,
+   `result.structured` contains the parsed Pydantic object. For
+   `run_many()`, `collection.structured` contains a list of parsed objects
+   (one per prompt) in input order.
 
 4. **Serialize to storage.** Pydantic models serialize cleanly to JSON via
    `model_dump_json()`. Write one object per line for JSONL, or use
@@ -156,11 +153,10 @@ schema = {
     "required": ["title", "topics"],
 }
 
-options = Options(response_schema=schema)
-result = await run(prompt, source=source, config=config, options=options)
+result = await run(prompt, source=source, config=config, output=schema)
 
-# result["structured"][0] is a dict (no Pydantic model to parse into)
-print(result["structured"][0]["title"])
+# result.structured is a dict (no Pydantic model to parse into)
+print(result.structured["title"])
 ```
 
 ## Nested Models
@@ -190,20 +186,21 @@ enforces. The response is parsed back into the full nested structure.
 
 ## Structured Output with Reasoning
 
-Combine `response_schema` with `reasoning_effort` to get both structured
+Combine `output` schema with `reasoning_effort` to get both structured
 data and the model's reasoning trace:
 
 ```python
-options = Options(
-    response_schema=PaperMetadata,
+result = await run(
+    prompt,
+    source=source,
+    config=config,
+    output=PaperMetadata,
     reasoning_effort="high",
 )
 
-result = await run(prompt, source=source, config=config, options=options)
-
-metadata = result["structured"][0]       # Typed extraction
-if "reasoning" in result and result["reasoning"][0]:
-    print("Reasoning:", result["reasoning"][0][:200])  # Model's thought process
+metadata = result.structured       # Typed extraction
+if result.reasoning:
+    print("Reasoning:", result.reasoning[:200])  # Model's thought process
 ```
 
 This is useful when you need to audit *why* the model extracted specific
@@ -215,11 +212,11 @@ decisions.
 - **Schema complexity affects reliability.** Flat schemas with descriptive
   field names work best. Deeply nested schemas with many optional fields
   produce inconsistent results. Simplify where you can.
-- **Raw text is always available.** Even with `response_schema`, the raw
-  model response is in `result["answers"]`. Useful for debugging when the
+- **Raw text is always available.** Even with `output` schemas, the raw
+  model response is in `result.text`. Useful for debugging when the
   structured output doesn't match expectations.
 - **Structured output is provider- and model-dependent.** Gemini, OpenAI, and
-  Anthropic support `response_schema`. OpenRouter supports it on models that
+  Anthropic support structured outputs. OpenRouter supports them on models that
   advertise `response_format` or `structured_outputs`. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.
 - **Pydantic v2 is required.** Pollux uses `model_json_schema()` for schema
