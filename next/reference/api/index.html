@@ -1172,93 +1172,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pollux.Options" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Options
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pollux.Options-functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Functions
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Functions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#pollux.Options.response_schema_json" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        response_schema_json
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pollux.Options.response_schema_model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        response_schema_model
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pollux.Options.response_schema_hash" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        response_schema_hash
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pollux.Options.provider_options_for" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        provider_options_for
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#pollux.RetryPolicy" class="md-nav__link">
     <span class="md-ellipsis">
       
         RetryPolicy
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pollux.ResultEnvelope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ResultEnvelope
       
     </span>
   </a>
@@ -2107,7 +2024,7 @@ and cache preference. Cannot be combined with inline
                 <code>output</code>
             </td>
             <td>
-                  <code><span title="pollux.options.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
+                  <code><span title="pollux.interaction.schema.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2298,7 +2215,8 @@ print(result.text)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">120</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">119</span>
+<span class="normal">120</span>
 <span class="normal">121</span>
 <span class="normal">122</span>
 <span class="normal">123</span>
@@ -2374,8 +2292,7 @@ print(result.text)</p>
 <span class="normal">193</span>
 <span class="normal">194</span>
 <span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
+<span class="normal">196</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
     <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">source</span><span class="p">:</span> <span class="n">Source</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2570,7 +2487,7 @@ and cache preference. Cannot be combined with inline
                 <code>output</code>
             </td>
             <td>
-                  <code><span title="pollux.options.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
+                  <code><span title="pollux.interaction.schema.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2766,7 +2683,8 @@ for answer in results.answers:
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">345</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">344</span>
+<span class="normal">345</span>
 <span class="normal">346</span>
 <span class="normal">347</span>
 <span class="normal">348</span>
@@ -2856,8 +2774,7 @@ for answer in results.answers:
 <span class="normal">432</span>
 <span class="normal">433</span>
 <span class="normal">434</span>
-<span class="normal">435</span>
-<span class="normal">436</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_many</span><span class="p">(</span>
+<span class="normal">435</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_many</span><span class="p">(</span>
     <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -3035,7 +2952,7 @@ Continue by passing the prior output's <code>continuation</code> and any
                 <code>output</code>
             </td>
             <td>
-                  <code><span title="pollux.options.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
+                  <code><span title="pollux.interaction.schema.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3216,7 +3133,8 @@ while result.tool_calls:
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">200</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">199</span>
+<span class="normal">200</span>
 <span class="normal">201</span>
 <span class="normal">202</span>
 <span class="normal">203</span>
@@ -3284,8 +3202,7 @@ while result.tool_calls:
 <span class="normal">265</span>
 <span class="normal">266</span>
 <span class="normal">267</span>
-<span class="normal">268</span>
-<span class="normal">269</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">interact</span><span class="p">(</span>
+<span class="normal">268</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">interact</span><span class="p">(</span>
     <span class="n">environment</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
     <span class="nb">input</span><span class="p">:</span> <span class="n">Input</span><span class="p">,</span>  <span class="c1"># noqa: A002 - &quot;input&quot; is the canonical v2 primitive name</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3525,7 +3442,8 @@ results = await run_many(prompts, environment=environment, config=config)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">439</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">438</span>
+<span class="normal">439</span>
 <span class="normal">440</span>
 <span class="normal">441</span>
 <span class="normal">442</span>
@@ -3579,8 +3497,7 @@ results = await run_many(prompts, environment=environment, config=config)</p>
 <span class="normal">490</span>
 <span class="normal">491</span>
 <span class="normal">492</span>
-<span class="normal">493</span>
-<span class="normal">494</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prepare_environment</span><span class="p">(</span>
+<span class="normal">493</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prepare_environment</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
@@ -3738,7 +3655,7 @@ deferred delivery and are intentionally not part of this surface.</p>
                 <code>output</code>
             </td>
             <td>
-                  <code><span title="pollux.options.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
+                  <code><span title="pollux.interaction.schema.ResponseSchemaInput">ResponseSchemaInput</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3891,7 +3808,8 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">272</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">271</span>
+<span class="normal">272</span>
 <span class="normal">273</span>
 <span class="normal">274</span>
 <span class="normal">275</span>
@@ -3960,8 +3878,7 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 <span class="normal">338</span>
 <span class="normal">339</span>
 <span class="normal">340</span>
-<span class="normal">341</span>
-<span class="normal">342</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">defer</span><span class="p">(</span>
+<span class="normal">341</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">defer</span><span class="p">(</span>
     <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -4050,15 +3967,15 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">497</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">496</span>
+<span class="normal">497</span>
 <span class="normal">498</span>
 <span class="normal">499</span>
 <span class="normal">500</span>
 <span class="normal">501</span>
 <span class="normal">502</span>
 <span class="normal">503</span>
-<span class="normal">504</span>
-<span class="normal">505</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inspect_deferred</span><span class="p">(</span>
+<span class="normal">504</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inspect_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeferredSnapshot</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Inspect the current state of a deferred job.&quot;&quot;&quot;</span>
@@ -4136,7 +4053,8 @@ output rehydration. Must match the schema used at submission time.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">508</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">507</span>
+<span class="normal">508</span>
 <span class="normal">509</span>
 <span class="normal">510</span>
 <span class="normal">511</span>
@@ -4159,8 +4077,7 @@ output rehydration. Must match the schema used at submission time.</p>
 <span class="normal">528</span>
 <span class="normal">529</span>
 <span class="normal">530</span>
-<span class="normal">531</span>
-<span class="normal">532</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect_deferred</span><span class="p">(</span>
+<span class="normal">531</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">response_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -4203,15 +4120,15 @@ output rehydration. Must match the schema used at submission time.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">535</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">534</span>
+<span class="normal">535</span>
 <span class="normal">536</span>
 <span class="normal">537</span>
 <span class="normal">538</span>
 <span class="normal">539</span>
 <span class="normal">540</span>
 <span class="normal">541</span>
-<span class="normal">542</span>
-<span class="normal">543</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_deferred</span><span class="p">(</span>
+<span class="normal">542</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Request provider-side cancellation for a deferred job.&quot;&quot;&quot;</span>
@@ -6488,497 +6405,6 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 
 
 
-<a id="pollux.Options"></a>
-    <div class="doc doc-contents first">
-
-
-
-        <p>Optional execution features for <code>run()</code> and <code>run_many()</code>.</p>
-
-
-
-
-
-
-
-
-              <details class="mkdocstrings-source">
-                <summary>Source code in <code>src/pollux/options.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 57</span>
-<span class="normal"> 58</span>
-<span class="normal"> 59</span>
-<span class="normal"> 60</span>
-<span class="normal"> 61</span>
-<span class="normal"> 62</span>
-<span class="normal"> 63</span>
-<span class="normal"> 64</span>
-<span class="normal"> 65</span>
-<span class="normal"> 66</span>
-<span class="normal"> 67</span>
-<span class="normal"> 68</span>
-<span class="normal"> 69</span>
-<span class="normal"> 70</span>
-<span class="normal"> 71</span>
-<span class="normal"> 72</span>
-<span class="normal"> 73</span>
-<span class="normal"> 74</span>
-<span class="normal"> 75</span>
-<span class="normal"> 76</span>
-<span class="normal"> 77</span>
-<span class="normal"> 78</span>
-<span class="normal"> 79</span>
-<span class="normal"> 80</span>
-<span class="normal"> 81</span>
-<span class="normal"> 82</span>
-<span class="normal"> 83</span>
-<span class="normal"> 84</span>
-<span class="normal"> 85</span>
-<span class="normal"> 86</span>
-<span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
-<span class="normal"> 90</span>
-<span class="normal"> 91</span>
-<span class="normal"> 92</span>
-<span class="normal"> 93</span>
-<span class="normal"> 94</span>
-<span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
-<span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span>
-<span class="normal">102</span>
-<span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span>
-<span class="normal">107</span>
-<span class="normal">108</span>
-<span class="normal">109</span>
-<span class="normal">110</span>
-<span class="normal">111</span>
-<span class="normal">112</span>
-<span class="normal">113</span>
-<span class="normal">114</span>
-<span class="normal">115</span>
-<span class="normal">116</span>
-<span class="normal">117</span>
-<span class="normal">118</span>
-<span class="normal">119</span>
-<span class="normal">120</span>
-<span class="normal">121</span>
-<span class="normal">122</span>
-<span class="normal">123</span>
-<span class="normal">124</span>
-<span class="normal">125</span>
-<span class="normal">126</span>
-<span class="normal">127</span>
-<span class="normal">128</span>
-<span class="normal">129</span>
-<span class="normal">130</span>
-<span class="normal">131</span>
-<span class="normal">132</span>
-<span class="normal">133</span>
-<span class="normal">134</span>
-<span class="normal">135</span>
-<span class="normal">136</span>
-<span class="normal">137</span>
-<span class="normal">138</span>
-<span class="normal">139</span>
-<span class="normal">140</span>
-<span class="normal">141</span>
-<span class="normal">142</span>
-<span class="normal">143</span>
-<span class="normal">144</span>
-<span class="normal">145</span>
-<span class="normal">146</span>
-<span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span>
-<span class="normal">152</span>
-<span class="normal">153</span>
-<span class="normal">154</span>
-<span class="normal">155</span>
-<span class="normal">156</span>
-<span class="normal">157</span>
-<span class="normal">158</span>
-<span class="normal">159</span>
-<span class="normal">160</span>
-<span class="normal">161</span>
-<span class="normal">162</span>
-<span class="normal">163</span>
-<span class="normal">164</span>
-<span class="normal">165</span>
-<span class="normal">166</span>
-<span class="normal">167</span>
-<span class="normal">168</span>
-<span class="normal">169</span>
-<span class="normal">170</span>
-<span class="normal">171</span>
-<span class="normal">172</span>
-<span class="normal">173</span>
-<span class="normal">174</span>
-<span class="normal">175</span>
-<span class="normal">176</span>
-<span class="normal">177</span>
-<span class="normal">178</span>
-<span class="normal">179</span>
-<span class="normal">180</span>
-<span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span>
-<span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span>
-<span class="normal">201</span>
-<span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
-<span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span>
-<span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
-<span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span>
-<span class="normal">217</span>
-<span class="normal">218</span>
-<span class="normal">219</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Options</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Optional execution features for `run()` and `run_many()`.&quot;&quot;&quot;</span>
-
-    <span class="c1">#: Optional system-level instruction for model behavior.</span>
-    <span class="n">system_instruction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Pydantic ``BaseModel`` subclass or JSON Schema dict for structured output.</span>
-    <span class="n">response_schema</span><span class="p">:</span> <span class="n">ResponseSchemaInput</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1">#: Core tool calling parameters</span>
-    <span class="n">tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">tool_choice</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;required&quot;</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1">#: Generation tuning parameters</span>
-    <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1">#: Controls model thinking depth; passed through to the provider.</span>
-    <span class="n">reasoning_effort</span><span class="p">:</span> <span class="n">ReasoningEffort</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Controls provider reasoning token budget where supported.</span>
-    <span class="n">reasoning_budget_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="c1">#: Mutually exclusive with *continue_from*.</span>
-    <span class="n">history</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Mutually exclusive with *history*.</span>
-    <span class="n">continue_from</span><span class="p">:</span> <span class="n">ResultEnvelope</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Hard limit on the model&#39;s total output tokens. Provider-specific semantics.</span>
-    <span class="n">max_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Persistent context cache obtained from ``create_cache()``.</span>
-    <span class="n">cache</span><span class="p">:</span> <span class="n">CacheHandle</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Controls implicit model-level caching (e.g., Anthropic prefix caching).</span>
-    <span class="c1">#: Defaults to True for a single provider call, False for multi-call fan-out.</span>
-    <span class="n">implicit_caching</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Raw provider-scoped request options. Keys are provider names; values are</span>
-    <span class="c1">#: passed through without normalization at the active provider boundary.</span>
-    <span class="n">provider_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate option shapes early for clear errors.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">system_instruction</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">system_instruction</span><span class="p">,</span> <span class="nb">str</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;system_instruction must be a string&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass system_instruction=&#39;You are a concise assistant.&#39;&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span>
-            <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="p">(</span>
-                <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
-                <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">,</span> <span class="n">BaseModel</span><span class="p">)</span>
-            <span class="p">)</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;response_schema must be a Pydantic model class or JSON schema dict&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass a BaseModel subclass or a dict following JSON Schema.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
-            <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span> <span class="o">&lt;=</span> <span class="mi">0</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;max_tokens must be a positive integer&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass max_tokens=16384 or greater for thinking models.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
-            <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span> <span class="o">&lt;</span> <span class="mi">0</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;reasoning_budget_tokens must be a non-negative integer&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="p">(</span>
-                    <span class="s2">&quot;Pass reasoning_budget_tokens=0 or a larger integer. &quot;</span>
-                    <span class="s2">&quot;Provider- and model-specific limits are enforced by the &quot;</span>
-                    <span class="s2">&quot;provider API.&quot;</span>
-                <span class="p">),</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_effort</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;reasoning_effort and reasoning_budget_tokens are mutually exclusive&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Choose either qualitative effort or an explicit token budget.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">history</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">continue_from</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;history and continue_from are mutually exclusive&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Use exactly one conversation input source per call.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">history</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">history</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                    <span class="s2">&quot;history must be a list of role/content messages&quot;</span><span class="p">,</span>
-                    <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass history=[{&#39;role&#39;: &#39;user&#39;, &#39;content&#39;: &#39;...&#39;}].&quot;</span><span class="p">,</span>
-                <span class="p">)</span>
-            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">history</span><span class="p">:</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;role&quot;</span><span class="p">),</span> <span class="nb">str</span><span class="p">):</span>
-                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                        <span class="s2">&quot;history items must be dicts with a string &#39;role&#39; field&quot;</span><span class="p">,</span>
-                        <span class="n">hint</span><span class="o">=</span><span class="p">(</span>
-                            <span class="s2">&quot;Each item needs at least {&#39;role&#39;: &#39;user&#39;, ...}. &quot;</span>
-                            <span class="s2">&quot;Tool messages may omit &#39;content&#39; or include extra &quot;</span>
-                            <span class="s2">&quot;keys like &#39;tool_call_id&#39;.&quot;</span>
-                        <span class="p">),</span>
-                    <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">continue_from</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">continue_from</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;continue_from must be a prior Pollux result envelope&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass the dict returned by run() or run_many().&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="kn">from</span><span class="w"> </span><span class="nn">pollux.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">CacheHandle</span>
-
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">,</span> <span class="n">CacheHandle</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                    <span class="s2">&quot;cache must be a CacheHandle from create_cache()&quot;</span><span class="p">,</span>
-                    <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Call create_cache() first, then pass Options(cache=handle).&quot;</span><span class="p">,</span>
-                <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                    <span class="s2">&quot;provider_options must be a dictionary keyed by provider name&quot;</span><span class="p">,</span>
-                    <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass provider_options={&#39;openai&#39;: {&#39;tools&#39;: [...]}}.&quot;</span><span class="p">,</span>
-                <span class="p">)</span>
-            <span class="n">supported_providers</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">get_args</span><span class="p">(</span><span class="n">ProviderName</span><span class="p">))</span>
-            <span class="k">for</span> <span class="n">provider</span><span class="p">,</span> <span class="n">provider_payload</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">provider</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">supported_providers</span><span class="p">:</span>
-                    <span class="n">allowed</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">supported_providers</span><span class="p">))</span>
-                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Unknown provider_options provider: </span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">,</span>
-                        <span class="n">hint</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Use one of: </span><span class="si">{</span><span class="n">allowed</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">,</span>
-                    <span class="p">)</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;provider_options[</span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2">] must be a dictionary&quot;</span><span class="p">,</span>
-                        <span class="n">hint</span><span class="o">=</span><span class="p">(</span>
-                            <span class="s2">&quot;Pass raw provider parameters as a dictionary, e.g. &quot;</span>
-                            <span class="sa">f</span><span class="s2">&quot;provider_options=</span><span class="se">{{</span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2">: </span><span class="se">{{</span><span class="s2">&#39;key&#39;: &#39;value&#39;</span><span class="se">}}}}</span><span class="s2">.&quot;</span>
-                        <span class="p">),</span>
-                    <span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">response_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return JSON Schema for provider APIs.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">response_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">response_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return Pydantic schema class when one was provided.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">response_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">response_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a stable hash of the JSON Schema.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">response_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">provider_options_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return raw options for the active provider.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
-        <span class="n">payload</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span> <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-<h2 id="pollux.Options-functions">Functions<a href="#pollux.Options-functions" class="headerlink" title="Permanent link">&para;</a></h2>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.Options.response_schema_json" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">response_schema_json</span>
-
-
-<a href="#pollux.Options.response_schema_json" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">response_schema_json</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return JSON Schema for provider APIs.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/options.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">response_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return JSON Schema for provider APIs.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">response_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.Options.response_schema_model" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">response_schema_model</span>
-
-
-<a href="#pollux.Options.response_schema_model" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">response_schema_model</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return Pydantic schema class when one was provided.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/options.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">response_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return Pydantic schema class when one was provided.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">response_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.Options.response_schema_hash" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">response_schema_hash</span>
-
-
-<a href="#pollux.Options.response_schema_hash" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">response_schema_hash</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return a stable hash of the JSON Schema.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/options.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">response_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a stable hash of the JSON Schema.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">response_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">response_schema</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.Options.provider_options_for" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">provider_options_for</span>
-
-
-<a href="#pollux.Options.provider_options_for" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">provider_options_for</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return raw options for the active provider.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/options.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span>
-<span class="normal">217</span>
-<span class="normal">218</span>
-<span class="normal">219</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">provider_options_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return raw options for the active provider.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">payload</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span> <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
 <a id="pollux.RetryPolicy"></a>
     <div class="doc doc-contents first">
 
@@ -7048,95 +6474,6 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;RetryPolicy.max_delay_s must be &gt;= 0&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_elapsed_s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_elapsed_s</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;RetryPolicy.max_elapsed_s must be &gt;= 0 or None&quot;</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<a id="pollux.ResultEnvelope"></a>
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.TypedDict">TypedDict</span></code></p>
-
-
-
-        <p>Standard result envelope returned by Pollux v1.</p>
-<p><code>status</code> is <code>"ok"</code> when all answers are non-empty, <code>"partial"</code> when
-some are empty, or <code>"error"</code> when all are empty.</p>
-
-
-
-
-
-
-
-
-              <details class="mkdocstrings-source">
-                <summary>Source code in <code>src/pollux/result.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">15</span>
-<span class="normal">16</span>
-<span class="normal">17</span>
-<span class="normal">18</span>
-<span class="normal">19</span>
-<span class="normal">20</span>
-<span class="normal">21</span>
-<span class="normal">22</span>
-<span class="normal">23</span>
-<span class="normal">24</span>
-<span class="normal">25</span>
-<span class="normal">26</span>
-<span class="normal">27</span>
-<span class="normal">28</span>
-<span class="normal">29</span>
-<span class="normal">30</span>
-<span class="normal">31</span>
-<span class="normal">32</span>
-<span class="normal">33</span>
-<span class="normal">34</span>
-<span class="normal">35</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ResultEnvelope</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Standard result envelope returned by Pollux v1.</span>
-
-<span class="sd">    ``status`` is ``&quot;ok&quot;`` when all answers are non-empty, ``&quot;partial&quot;`` when</span>
-<span class="sd">    some are empty, or ``&quot;error&quot;`` when all are empty.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">status</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ok&quot;</span><span class="p">,</span> <span class="s2">&quot;partial&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">]</span>
-    <span class="n">answers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="c1"># Stable core contract.</span>
-    <span class="c1">#: Present only when ``response_schema`` was set in Options.</span>
-    <span class="n">structured</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
-    <span class="n">reasoning</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
-    <span class="c1">#: Heuristic: ``0.9`` for ``&quot;ok&quot;`` status, ``0.5`` otherwise.</span>
-    <span class="n">confidence</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="c1">#: Always ``&quot;text&quot;`` in v1.0.</span>
-    <span class="n">extraction_method</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">usage</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
-    <span class="n">metrics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-    <span class="n">diagnostics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-    <span class="n">_conversation_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-    <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
