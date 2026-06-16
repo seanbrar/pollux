@@ -17,6 +17,7 @@ For provider-level feature differences, see [Provider Capabilities](provider-cap
 | Ask one prompt about one source (or no source) | `run()` → `Output` | [Sending Content to Models](../sending-content.md) |
 | Ask many prompts against shared sources | `run_many()` → `OutputCollection` | [Analyzing Collections with Source Patterns](../source-patterns.md) |
 | Run one explicit interaction (environment + input), incl. tools/continuation | `interact()` | [Building an Agent Loop](../agent-loop.md) |
+| Stream one explicit interaction as it arrives | `stream()` → `Event` timeline | [Building an Agent Loop](../agent-loop.md) |
 | Prepare a reusable environment (and front-load cache/upload I/O) | `prepare_environment()` → `Environment` | [Reducing Costs with Context Caching](../caching.md) |
 | Submit non-urgent work and collect it later | `defer()` → `DeferredHandle` | [Building With Deferred Delivery](../building-with-deferred-delivery.md) |
 | Check deferred job status or collect terminal results | `inspect_deferred()` / `collect_deferred()` / `cancel_deferred()` | [Submitting Work for Later Collection](../submitting-work-for-later-collection.md) |
@@ -37,6 +38,8 @@ The primary execution functions are exported from `pollux`:
 ::: pollux.run_many
 
 ::: pollux.interact
+
+::: pollux.stream
 
 ::: pollux.prepare_environment
 
@@ -76,6 +79,8 @@ and `ResultEnvelope` types are no longer part of the public API.
 ::: pollux.Input
 
 ::: pollux.Output
+
+::: pollux.Event
 
 ::: pollux.OutputCollection
 

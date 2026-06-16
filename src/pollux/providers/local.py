@@ -34,6 +34,8 @@ from pollux.providers._openai_compat import (
     first_choice_message,
     map_tool_choice,
     normalize_tools,
+    parse_chat_stream_chunk,
+    parse_sse_line,
     parse_tool_calls,
     parse_usage,
     serialize_tool_calls,
@@ -44,9 +46,11 @@ from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderResponse,
+    ProviderStreamChunk,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
     from pollux.config import Config
@@ -140,16 +144,18 @@ class LocalProvider:
                     ),
                 )
 
-    async def generate(
+    def _build_payload(
         self,
         snapshot: EnvironmentSnapshot,
         input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
         requirements: OutputRequirements,
         config: Config,
-    ) -> ProviderResponse:
-        """Generate a response via OpenAI-compatible Chat Completions."""
-        await self.validate_request(snapshot, input, requirements, config)
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Build the Chat Completions request body and the response schema, if any.
 
+        Shared by ``generate`` and ``stream_generate``; the streaming path adds
+        only the ``stream`` flags on top of this body.
+        """
         history, _previous_response_id, _provider_state = _compile.prior_turns(input)
         response_schema = requirements.output_schema_json()
         tools = _compile.tool_dicts(snapshot)
@@ -190,6 +196,21 @@ class LocalProvider:
             requirements.provider_options_for("local"),
             provider="local",
         )
+        return payload, response_schema
+
+    async def generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> ProviderResponse:
+        """Generate a response via OpenAI-compatible Chat Completions."""
+        await self.validate_request(snapshot, input, requirements, config)
+
+        payload, response_schema = self._build_payload(
+            snapshot, input, requirements, config
+        )
 
         client = self._get_client()
         try:
@@ -223,6 +244,56 @@ class LocalProvider:
             )
 
         return _parse_response(data, response_schema=response_schema)
+
+    async def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Stream normalized deltas via OpenAI-compatible Chat Completions."""
+        await self.validate_request(snapshot, input, requirements, config)
+
+        payload, _response_schema = self._build_payload(
+            snapshot, input, requirements, config
+        )
+        payload["stream"] = True
+        # Ask for a terminal usage chunk; servers that ignore it simply omit one.
+        payload["stream_options"] = {"include_usage": True}
+
+        client = self._get_client()
+        try:
+            async with client.stream(
+                "POST", "chat/completions", json=payload
+            ) as response:
+                if response.is_error:
+                    await response.aread()
+                    raise httpx.HTTPStatusError(
+                        extract_error_message(response),
+                        request=response.request,
+                        response=response,
+                    )
+                async for line in response.aiter_lines():
+                    data = parse_sse_line(line)
+                    if data is None:
+                        continue
+                    chunk = parse_chat_stream_chunk(data)
+                    if chunk is not None:
+                        yield chunk
+        except asyncio.CancelledError:
+            raise
+        except (ConfigurationError, APIError):
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="local",
+                phase="stream",
+                allow_network_errors=True,
+                message="Local provider stream failed",
+                hint=_hint_for_local_error(e, base_url=self._base_url),
+            ) from e
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
         """Reject uploads because local provider takes inline content only."""

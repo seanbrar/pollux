@@ -127,6 +127,23 @@ class ToolCall:
 
 
 @dataclass(frozen=True, slots=True)
+class ToolCallDelta:
+    """One incremental fragment of a streamed tool call.
+
+    Providers stream tool calls in pieces: an opening fragment usually carries
+    ``id`` and ``name`` for a slot, and later fragments append ``arguments``
+    text. ``index`` identifies the call slot so fragments reassemble in order.
+    Core accumulates these into a final :class:`ToolCall`; consumers that only
+    want completed calls can ignore ``tool_call_delta`` events.
+    """
+
+    index: int = 0
+    id: str | None = None
+    name: str | None = None
+    arguments: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class ToolResult:
     """Application-produced output returned to the model for a prior tool call."""
 

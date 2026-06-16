@@ -18,23 +18,31 @@ from typing import TYPE_CHECKING
 
 from pollux.cache import create_cache_impl
 from pollux.continuation import build_conversation_state, history_text_from_parts
-from pollux.errors import APIError, InternalError, PolluxError
+from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.interaction._uploads import cleanup_uploads, substitute_upload_parts
 from pollux.interaction.adapters import continuation_from_state, state_from_continuation
 from pollux.interaction.capabilities import resolve_capabilities
 from pollux.interaction.collection import OutputCollection
 from pollux.interaction.continuation import Continuation
 from pollux.interaction.environment import CachePolicy, EnvironmentSnapshot
+from pollux.interaction.event import Event
 from pollux.interaction.extract import provider_response_to_output
+from pollux.interaction.output import Usage
+from pollux.interaction.tools import ToolCall
 from pollux.interaction.validate import validate_interaction
 from pollux.parts import build_shared_parts
 from pollux.providers import _compile
-from pollux.providers.base import FileUploadingProvider, ValidatingProvider
+from pollux.providers.base import (
+    FileUploadingProvider,
+    StreamingProvider,
+    ValidatingProvider,
+)
 from pollux.providers.models import ProviderResponse, is_file_part
+from pollux.providers.models import ToolCall as ProviderToolCall
 from pollux.retry import retry_async, should_retry_generate
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import AsyncIterator, Sequence
     from typing import Any
 
     from pollux.config import Config
@@ -322,3 +330,153 @@ async def execute_interaction(
         environment, [input], requirements, config, provider
     )
     return collection.outputs[0]
+
+
+class _ToolCallAssembler:
+    """Reassemble streamed tool-call fragments into ordered, complete calls.
+
+    Fragments arrive keyed by ``index``: the opening fragment for a slot usually
+    carries ``id``/``name`` and later fragments append argument text. Slots are
+    emitted in first-seen order so the assembled calls match arrival order.
+    """
+
+    def __init__(self) -> None:
+        self._order: list[int] = []
+        self._slots: dict[int, dict[str, Any]] = {}
+
+    def add(self, delta: Any) -> None:
+        """Merge one :class:`ToolCallDelta` fragment into its slot."""
+        slot = self._slots.get(delta.index)
+        if slot is None:
+            slot = {"id": None, "name": None, "arguments": []}
+            self._slots[delta.index] = slot
+            self._order.append(delta.index)
+        if delta.id:
+            slot["id"] = delta.id
+        if delta.name:
+            slot["name"] = delta.name
+        if delta.arguments:
+            slot["arguments"].append(delta.arguments)
+
+    def assembled(self) -> list[tuple[ToolCall, ProviderToolCall]]:
+        """Return ``(public ToolCall, transport ToolCall)`` pairs, in order."""
+        pairs: list[tuple[ToolCall, ProviderToolCall]] = []
+        for index in self._order:
+            slot = self._slots[index]
+            call_id = slot["id"] or f"call_{index}"
+            name = slot["name"] or ""
+            arguments = "".join(slot["arguments"])
+            public = ToolCall.from_text(
+                id=call_id, name=name, arguments_text=arguments, index=index
+            )
+            transport = ProviderToolCall(id=call_id, name=name, arguments=arguments)
+            pairs.append((public, transport))
+        return pairs
+
+
+async def stream_interaction(
+    environment: Environment,
+    input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+    requirements: OutputRequirements,
+    config: Config,
+    provider: Provider,
+) -> AsyncIterator[Event]:
+    """Stream one interaction as :class:`Event` objects, ending in ``done``.
+
+    Same orchestration as :func:`execute_interaction` (capability validation,
+    uploads, cache resolution, continuation, ``Output`` assembly), observed as a
+    timeline: text/reasoning/tool-call deltas as the provider emits them, then a
+    terminal ``done`` whose ``output`` matches the non-streaming result. A
+    mid-stream provider failure raises from the iterator instead of emitting
+    ``done``. Streamed turns are single-input and are not retried mid-stream.
+    """
+    start_time = time.perf_counter()
+    snapshot = EnvironmentSnapshot.from_environment(
+        environment, provider=config.provider
+    )
+    caps = resolve_capabilities(provider.capabilities, config.capabilities)
+    persistent_requested = isinstance(snapshot.cache, CachePolicy)
+    validate_interaction(
+        requirements, [input], snapshot, caps, cache_requested=persistent_requested
+    )
+
+    if not isinstance(provider, StreamingProvider):
+        raise ConfigurationError(
+            "Provider does not support streaming",
+            hint="Use a streaming-capable provider, or call interact() for a "
+            "single blocking Output.",
+        )
+
+    if isinstance(provider, ValidatingProvider):
+        await provider.validate_request(snapshot, input, requirements, config)
+
+    upload_cache: dict[tuple[str, str], ProviderFileAsset] = {}
+    snapshot, cache_mode = await _prepare_snapshot(
+        snapshot, 1, config, provider, caps, upload_cache
+    )
+    user_content = history_text_from_parts(_compile.request_parts(snapshot, input))
+
+    text_parts: list[str] = []
+    reasoning_parts: list[str] = []
+    tool_calls = _ToolCallAssembler()
+    usage: dict[str, int] = {}
+    finish_reason: str | None = None
+    response_id: str | None = None
+
+    try:
+        yield Event(type="start")
+        async for chunk in provider.stream_generate(
+            snapshot, input, requirements, config
+        ):
+            if chunk.text:
+                text_parts.append(chunk.text)
+                yield Event(type="text_delta", text=chunk.text)
+            if chunk.reasoning:
+                reasoning_parts.append(chunk.reasoning)
+                yield Event(type="reasoning_delta", text=chunk.reasoning)
+            for delta in chunk.tool_calls:
+                tool_calls.add(delta)
+                yield Event(type="tool_call_delta", delta=delta)
+            if chunk.usage:
+                usage = chunk.usage
+                yield Event(type="usage", usage=Usage.from_dict(chunk.usage))
+            if chunk.finish_reason:
+                finish_reason = chunk.finish_reason
+            if chunk.response_id:
+                response_id = chunk.response_id
+
+        assembled = tool_calls.assembled()
+        for public_call, _transport in assembled:
+            yield Event(type="tool_call", tool_call=public_call)
+        if finish_reason is not None:
+            yield Event(type="finish", finish_reason=finish_reason)
+
+        response = ProviderResponse(
+            text="".join(text_parts),
+            usage=usage,
+            reasoning="".join(reasoning_parts) or None,
+            tool_calls=[transport for _public, transport in assembled] or None,
+            response_id=response_id,
+            finish_reason=finish_reason,
+        )
+        duration_s = time.perf_counter() - start_time
+        cached = usage.get("cached_tokens", 0)
+        cache_used = cache_mode == "persistent"
+        cache_hit = cache_used or (
+            cache_mode == "implicit" and isinstance(cached, int) and cached > 0
+        )
+        continuation = _build_continuation(
+            input, response, user_content, config.provider
+        )
+        output = provider_response_to_output(
+            response,
+            requirements=requirements,
+            duration_s=duration_s,
+            cache_used=cache_used,
+            cache_mode=cache_mode,
+            cache_hit=cache_hit,
+            continuation=continuation,
+        )
+        yield Event(type="done", output=output)
+    finally:
+        await cleanup_uploads(upload_cache, provider)

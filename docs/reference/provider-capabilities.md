@@ -60,6 +60,7 @@ before dispatch or the provider page below calls out why it is out of scope.
 | Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Pollux-normalized client/application tools; local trusts the server, no capability probe |
 | Provider-hosted tools | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ server-dependent | Raw provider escape hatch; not normalized by Pollux |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Local replays assistant tool calls and `tool`-role results verbatim |
+| Streaming (`stream()` → `Event`) | ❌ | ❌ | ❌ | ❌ | ✅ | Streamed `done.output` matches the non-streaming `Output`; cloud providers land in a later slice |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
 For when deferred delivery is a fit and how to structure code around provider

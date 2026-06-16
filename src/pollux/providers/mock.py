@@ -6,9 +6,14 @@ from typing import TYPE_CHECKING, Any
 
 from pollux.providers import _compile
 from pollux.providers.base import ProviderCapabilities
-from pollux.providers.models import ProviderFileAsset, ProviderResponse
+from pollux.providers.models import (
+    ProviderFileAsset,
+    ProviderResponse,
+    ProviderStreamChunk,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
     from pollux.config import Config
@@ -61,6 +66,30 @@ class MockProvider:
         return ProviderResponse(
             text=f"echo: {_echo_text(parts)[:100]}",
             usage={"input_tokens": 10, "total_tokens": 20},
+        )
+
+    async def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,  # noqa: ARG002
+        config: Config,  # noqa: ARG002
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Stream the same echo text as ``generate`` in two text deltas.
+
+        Splitting the body into deltas plus a terminal usage/finish chunk lets
+        streaming tests assert the event timeline while keeping ``done.output``
+        identical to the non-streaming :meth:`generate` result.
+        """
+        parts = _compile.request_parts(snapshot, input)
+        text = f"echo: {_echo_text(parts)[:100]}"
+        midpoint = len(text) // 2
+        yield ProviderStreamChunk(text=text[:midpoint])
+        yield ProviderStreamChunk(text=text[midpoint:])
+        yield ProviderStreamChunk(
+            usage={"input_tokens": 10, "total_tokens": 20},
+            finish_reason="stop",
+            response_id="mock-stream-1",
         )
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:

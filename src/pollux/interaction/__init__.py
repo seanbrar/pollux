@@ -21,6 +21,7 @@ from pollux.interaction.environment import (
     Environment,
     EnvironmentSnapshot,
 )
+from pollux.interaction.event import Event, EventType
 from pollux.interaction.input import Input
 from pollux.interaction.output import (
     CompletionStatus,
@@ -34,6 +35,7 @@ from pollux.interaction.requirements import OutputRequirements, ToolChoice
 from pollux.interaction.tools import (
     JSONValue,
     ToolCall,
+    ToolCallDelta,
     ToolDeclaration,
     ToolResult,
 )
@@ -47,6 +49,8 @@ __all__ = [
     "Diagnostics",
     "Environment",
     "EnvironmentSnapshot",
+    "Event",
+    "EventType",
     "Input",
     "JSONValue",
     "Message",
@@ -55,6 +59,7 @@ __all__ = [
     "OutputCollection",
     "OutputRequirements",
     "ToolCall",
+    "ToolCallDelta",
     "ToolChoice",
     "ToolDeclaration",
     "ToolResult",
