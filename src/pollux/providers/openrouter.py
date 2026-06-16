@@ -23,7 +23,11 @@ from pollux.providers._openai_compat import (
     extract_message_text,
     extract_response_id,
     first_choice_message,
+    map_tool_choice,
+    normalize_tools,
+    parse_tool_calls,
     parse_usage,
+    serialize_tool_calls,
 )
 from pollux.providers._utils import merge_provider_options, to_strict_schema
 from pollux.providers.base import ProviderCapabilities
@@ -31,7 +35,6 @@ from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderResponse,
-    ToolCall,
 )
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -127,8 +130,8 @@ class OpenRouterProvider:
         if requirements.max_tokens is not None:
             payload["max_tokens"] = requirements.max_tokens
         if tools is not None:
-            payload["tools"] = self._normalize_tools(tools)
-            mapped_tool_choice = self._map_tool_choice(requirements.tool_choice)
+            payload["tools"] = normalize_tools(tools)
+            mapped_tool_choice = map_tool_choice(requirements.tool_choice)
             if mapped_tool_choice is not None:
                 payload["tool_choice"] = mapped_tool_choice
         if requirements.reasoning_effort is not None:
@@ -177,42 +180,6 @@ class OpenRouterProvider:
             )
 
         return _parse_response(data, response_schema=response_schema)
-
-    @staticmethod
-    def _normalize_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Convert Pollux tool dicts to OpenRouter chat-completions format."""
-        result: list[dict[str, Any]] = []
-        for tool in tools:
-            name = tool.get("name")
-            if not isinstance(name, str) or not name:
-                continue
-
-            function: dict[str, Any] = {"name": name}
-            description = tool.get("description")
-            if isinstance(description, str) and description:
-                function["description"] = description
-            parameters = tool.get("parameters")
-            if isinstance(parameters, dict):
-                function["parameters"] = to_strict_schema(parameters)
-
-            result.append({"type": "function", "function": function})
-        return result
-
-    @staticmethod
-    def _map_tool_choice(
-        tool_choice: str | dict[str, Any] | None,
-    ) -> str | dict[str, Any] | None:
-        """Map Pollux tool_choice to OpenRouter chat-completions shape."""
-        if tool_choice is None:
-            return None
-        if isinstance(tool_choice, str):
-            return tool_choice
-        if isinstance(tool_choice, dict) and isinstance(tool_choice.get("name"), str):
-            return {
-                "type": "function",
-                "function": {"name": tool_choice["name"]},
-            }
-        return None
 
     async def validate_request(
         self,
@@ -443,7 +410,7 @@ def _history_message_to_openrouter(
         }
 
     message: dict[str, Any] = {"role": item.role, "content": item.content}
-    tool_calls = _serialize_tool_calls(item.tool_calls)
+    tool_calls = serialize_tool_calls(item.tool_calls)
     if tool_calls:
         message["tool_calls"] = tool_calls
 
@@ -722,7 +689,7 @@ def _parse_response(
 
     usage = parse_usage(data.get("usage"))
 
-    tool_calls = _parse_tool_calls(message.get("tool_calls"))
+    tool_calls = parse_tool_calls(message.get("tool_calls"))
     reasoning = message.get("reasoning")
     reasoning_details = _normalize_reasoning_details(message.get("reasoning_details"))
     provider_state: dict[str, Any] | None = None
@@ -742,56 +709,6 @@ def _parse_response(
         finish_reason=extract_finish_reason(choice),
         provider_state=provider_state,
     )
-
-
-def _parse_tool_calls(value: Any) -> list[ToolCall]:
-    """Extract tool calls from an OpenRouter chat-completions assistant message."""
-    if not isinstance(value, list):
-        return []
-
-    tool_calls: list[ToolCall] = []
-    for idx, item in enumerate(value):
-        if not isinstance(item, Mapping):
-            continue
-        function = item.get("function")
-        if not isinstance(function, Mapping):
-            continue
-
-        name = function.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-
-        raw_arguments = function.get("arguments")
-        if isinstance(raw_arguments, str):
-            arguments = raw_arguments
-        else:
-            arguments = json.dumps(raw_arguments if raw_arguments is not None else {})
-
-        raw_id = item.get("id")
-        call_id = raw_id if isinstance(raw_id, str) and raw_id else f"call_{idx}"
-        tool_calls.append(ToolCall(id=call_id, name=name, arguments=arguments))
-
-    return tool_calls
-
-
-def _serialize_tool_calls(tool_calls: list[ToolCall] | None) -> list[dict[str, Any]]:
-    """Serialize Pollux tool calls into OpenRouter's OpenAI-compatible shape."""
-    if not tool_calls:
-        return []
-
-    serialized: list[dict[str, Any]] = []
-    for tool_call in tool_calls:
-        serialized.append(
-            {
-                "id": tool_call.id,
-                "type": "function",
-                "function": {
-                    "name": tool_call.name,
-                    "arguments": tool_call.arguments,
-                },
-            }
-        )
-    return serialized
 
 
 def _extract_reasoning(item_provider_state: dict[str, Any] | None) -> str | None:

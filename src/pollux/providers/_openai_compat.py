@@ -2,20 +2,24 @@
 
 Both the self-hosted ``local`` provider and the ``openrouter`` provider speak
 OpenAI-compatible Chat Completions over httpx. The request shaping and input
-handling differ (local is text-only; OpenRouter handles multimodal parts,
-tools, and reasoning), but the primitives that read a Chat Completions *response*
-are identical. This module owns that shared wire vocabulary so the two adapters
-parse responses, usage, and errors one way.
+handling differ (local is text-only; OpenRouter handles multimodal parts and
+reasoning), but the primitives that read a Chat Completions *response* and shape
+its tool vocabulary are identical. This module owns that shared wire vocabulary
+so the two adapters parse responses, usage, errors, and tool calls one way.
 
 These helpers are deliberately stateless and provider-neutral. Provider-specific
-behavior (reasoning extraction, tool-call parsing, nested upstream errors) stays
+behavior (reasoning extraction, nested upstream errors, multimodal parts) stays
 in the adapters and layers on top of these primitives.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 from typing import TYPE_CHECKING, Any
+
+from pollux.providers._utils import to_strict_schema
+from pollux.providers.models import ToolCall
 
 if TYPE_CHECKING:
     import httpx
@@ -119,3 +123,87 @@ def extract_error_message(response: httpx.Response) -> str:
             return message
     text = response.text.strip()
     return text or f"HTTP {response.status_code}"
+
+
+def normalize_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert Pollux tool dicts to Chat Completions ``function`` tool format."""
+    result: list[dict[str, Any]] = []
+    for tool in tools:
+        name = tool.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+
+        function: dict[str, Any] = {"name": name}
+        description = tool.get("description")
+        if isinstance(description, str) and description:
+            function["description"] = description
+        parameters = tool.get("parameters")
+        if isinstance(parameters, dict):
+            function["parameters"] = to_strict_schema(parameters)
+
+        result.append({"type": "function", "function": function})
+    return result
+
+
+def map_tool_choice(
+    tool_choice: str | dict[str, Any] | None,
+) -> str | dict[str, Any] | None:
+    """Map a Pollux ``tool_choice`` to the Chat Completions shape."""
+    if tool_choice is None:
+        return None
+    if isinstance(tool_choice, str):
+        return tool_choice
+    if isinstance(tool_choice, dict) and isinstance(tool_choice.get("name"), str):
+        return {
+            "type": "function",
+            "function": {"name": tool_choice["name"]},
+        }
+    return None
+
+
+def parse_tool_calls(value: Any) -> list[ToolCall]:
+    """Extract tool calls from a Chat Completions assistant message."""
+    if not isinstance(value, list):
+        return []
+
+    tool_calls: list[ToolCall] = []
+    for idx, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            continue
+        function = item.get("function")
+        if not isinstance(function, Mapping):
+            continue
+
+        name = function.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+
+        raw_arguments = function.get("arguments")
+        if isinstance(raw_arguments, str):
+            arguments = raw_arguments
+        else:
+            arguments = json.dumps(raw_arguments if raw_arguments is not None else {})
+
+        raw_id = item.get("id")
+        call_id = raw_id if isinstance(raw_id, str) and raw_id else f"call_{idx}"
+        tool_calls.append(ToolCall(id=call_id, name=name, arguments=arguments))
+
+    return tool_calls
+
+
+def serialize_tool_calls(tool_calls: list[ToolCall] | None) -> list[dict[str, Any]]:
+    """Serialize Pollux tool calls into the Chat Completions assistant shape."""
+    if not tool_calls:
+        return []
+
+    return [
+        {
+            "id": tool_call.id,
+            "type": "function",
+            "function": {
+                "name": tool_call.name,
+                "arguments": tool_call.arguments,
+            },
+        }
+        for tool_call in tool_calls
+    ]

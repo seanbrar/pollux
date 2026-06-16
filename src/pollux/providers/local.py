@@ -1,11 +1,17 @@
 """Local Chat Completions provider for self-hosted inference servers.
 
 Pollux targets the OpenAI Chat Completions wire format here, not a specific
-inference engine. The supported surface is deliberately narrow: text in, text or
-JSON out. Model-native reasoning text is surfaced when returned, but reasoning
-controls, file uploads, context caching, tool calling, and deferred delivery are
-intentionally unsupported. Those belong to cloud providers, inference servers,
-or application code, not to Pollux's orchestration layer.
+inference engine. The supported surface is text or tool calls in, text or JSON
+out: model-native reasoning text is surfaced when returned, and tool calling is
+sent through the standard ``tools``/``tool_choice`` fields so a local server can
+drive an agent loop. Reasoning controls, file uploads, context caching, and
+deferred delivery stay unsupported — those belong to cloud providers, inference
+servers, or application code, not to Pollux's orchestration layer.
+
+Tool support trusts the server the same way JSON mode does: Pollux sends the
+declarations and replays tool turns, and a server that ignores ``tools`` simply
+never emits tool calls. There is no per-model capability probe (local servers
+vary too much to query reliably).
 """
 
 from __future__ import annotations
@@ -26,7 +32,11 @@ from pollux.providers._openai_compat import (
     extract_message_text,
     extract_response_id,
     first_choice_message,
+    map_tool_choice,
+    normalize_tools,
+    parse_tool_calls,
     parse_usage,
+    serialize_tool_calls,
 )
 from pollux.providers._utils import merge_provider_options, to_strict_schema
 from pollux.providers.base import ProviderCapabilities
@@ -120,29 +130,6 @@ class LocalProvider:
                     "reasoning controls. Remove reasoning_effort."
                 ),
             )
-        if snapshot.tools or requirements.tool_choice is not None:
-            raise ConfigurationError(
-                "Local provider does not support tool calling",
-                hint=(
-                    "Tool calling is out of scope for the local provider. "
-                    "Use OpenAI, Gemini, or OpenRouter for tool use."
-                ),
-            )
-        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
-        for item in history:
-            if (
-                item.role == "tool"
-                or item.tool_call_id is not None
-                or item.tool_calls is not None
-            ):
-                raise ConfigurationError(
-                    "Local provider does not support tool-call history",
-                    hint=(
-                        "Start a fresh text-only local conversation, summarize "
-                        "tool results into plain text, or use a provider with "
-                        "tool calling."
-                    ),
-                )
         for part in _compile.request_parts(snapshot, input):
             if not _is_text_part(part):
                 raise ConfigurationError(
@@ -165,6 +152,7 @@ class LocalProvider:
 
         history, _previous_response_id, _provider_state = _compile.prior_turns(input)
         response_schema = requirements.output_schema_json()
+        tools = _compile.tool_dicts(snapshot)
         messages = _build_messages(
             _compile.request_parts(snapshot, input),
             history or None,
@@ -180,6 +168,11 @@ class LocalProvider:
             payload["top_p"] = requirements.top_p
         if requirements.max_tokens is not None:
             payload["max_tokens"] = requirements.max_tokens
+        if tools is not None:
+            payload["tools"] = normalize_tools(tools)
+            mapped_tool_choice = map_tool_choice(requirements.tool_choice)
+            if mapped_tool_choice is not None:
+                payload["tool_choice"] = mapped_tool_choice
         if response_schema is not None:
             strict_schema = to_strict_schema(response_schema)
             # Servers that support Chat Completions JSON schema mode can map this
@@ -313,14 +306,28 @@ def _build_messages(
 def _history_message(item: Message) -> dict[str, Any] | None:
     """Map a Pollux history message to Chat Completions format.
 
-    Tool-call history is unsupported and rejected by ``validate_request`` before
-    dispatch; this helper only maps text-only conversation turns.
+    Tool turns replay as the standard ``tool``-role result message and assistant
+    ``tool_calls`` array; empty assistant turns carrying neither text nor a tool
+    call are dropped so the transcript stays well-formed.
     """
     if item.role == "tool":
+        if not item.tool_call_id:
+            return None
+        return {
+            "role": "tool",
+            "tool_call_id": item.tool_call_id,
+            "content": item.content,
+        }
+
+    message: dict[str, Any] = {"role": item.role, "content": item.content}
+    tool_calls = serialize_tool_calls(item.tool_calls)
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+
+    if item.role == "assistant" and not item.content and not tool_calls:
         return None
-    if not item.content:
-        return None
-    return {"role": item.role, "content": item.content}
+
+    return message
 
 
 def _join_text_parts(parts: list[Any]) -> str:
@@ -366,11 +373,14 @@ def _parse_response(
         except Exception:
             structured = None
 
+    tool_calls = parse_tool_calls(message.get("tool_calls"))
+
     return ProviderResponse(
         text=text,
         usage=parse_usage(data.get("usage")),
         reasoning=reasoning,
         structured=structured,
+        tool_calls=tool_calls or None,
         response_id=extract_response_id(data),
         finish_reason=extract_finish_reason(choice),
     )

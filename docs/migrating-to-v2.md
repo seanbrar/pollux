@@ -135,7 +135,7 @@ The 2.0 interaction model is landing incrementally on `main`:
 - `interact(environment, input, *, config, **generation_kwargs) -> Output` runs
   one explicit interaction over an `Environment` and `Input`. Continue a
   conversation or tool loop by passing the prior `Output`'s `continuation` and any
-  `tool_results` in the next `Input` — the replacement for `continue_tool()`.
+  `tool_results` in the next `Input`, the replacement for `continue_tool()`.
 
 `defer()` now follows the same model: it accepts one prompt or a collection,
 and `collect_deferred()` returns an `OutputCollection`. Persistent caching

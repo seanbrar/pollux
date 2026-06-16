@@ -8,7 +8,7 @@
 
 This page defines the current capability contract by provider.
 
-Pollux is **capability-transparent**, not capability-equalizing: providers are allowed to differ, and those differences are surfaced clearly.
+Pollux is **capability-transparent**, not capability-equalizing: providers are allowed to differ, and those differences are surfaced explicitly.
 
 ## Policy
 
@@ -30,7 +30,7 @@ before dispatch or the provider page below calls out why it is out of scope.
 | Text generation | ✅ | ✅ | ✅ | ✅ | ✅ | Core feature |
 | Multi-prompt execution (`run_many`) | ✅ | ✅ | ✅ | ✅ | ✅ | One call per prompt, shared context |
 | Structured outputs (`response_schema`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (JSON schema mode) | Local sends `json_schema`; schema enforcement quality varies by server |
-| Deferred delivery (`defer*`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly |
+| Deferred delivery (`defer`, `inspect_deferred`, `collect_deferred`, `cancel_deferred`) | ✅ | ✅ | ✅ | ❌ | ❌ | Use the deferred API directly |
 
 ### Inputs
 
@@ -57,9 +57,9 @@ before dispatch or the provider page below calls out why it is out of scope.
 | Reasoning output (`result["reasoning"]`) | ✅ | ✅ | ✅ | ⚠️ model-dependent | ⚠️ server/model-dependent | Pollux surfaces reasoning text when providers return it |
 | `reasoning_effort` | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Qualitative level (`"low"`, `"medium"`, `"high"`, etc.); exact model support remains provider-defined |
 | `reasoning_budget_tokens` | ✅ | ❌ | ✅ | ❌ | ❌ | Explicit token ceiling; mutually exclusive with `reasoning_effort` |
-| Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | `Options.tools` is for Pollux-normalized client/application tools |
+| Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Pollux-normalized client/application tools; local trusts the server, no capability probe |
 | Provider-hosted tools | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ server-dependent | Raw provider escape hatch; not normalized by Pollux |
-| Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ❌ | Works on OpenRouter models that support tool calling |
+| Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Local replays assistant tool calls and `tool`-role results verbatim |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
 For when deferred delivery is a fit and how to structure code around provider
@@ -199,12 +199,18 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
 - `base_url` is required (via `Config(base_url=...)` or the
   `POLLUX_LOCAL_BASE_URL` environment variable). `api_key` is optional; most
   self-hosted servers ignore it.
-- The supported surface is intentionally narrow: text in, text or JSON out.
-  Pollux passively surfaces model-native reasoning text when the server returns
+- The supported surface is text or tool calls in, text or JSON out. Pollux
+  passively surfaces model-native reasoning text when the server returns
   `reasoning_content`, but it does not send portable reasoning controls.
-  File uploads, remote URLs, multimodal parts, tool calling, reasoning controls,
-  explicit and implicit caching, and deferred delivery are not supported.
+  File uploads, remote URLs, multimodal parts, reasoning controls, persistent
+  and provider-managed caching, and deferred delivery are not supported.
   Requesting any of them raises `ConfigurationError` before dispatch.
+- Function tool calling is supported through the standard `tools` /
+  `tool_choice` fields: Pollux sends the declarations, replays assistant tool
+  calls and tool results on continuation turns, and surfaces returned tool calls
+  on the response. Like JSON mode, this trusts the server: there is no
+  per-model capability probe, and a server that ignores `tools` never emits
+  tool calls.
 - Structured outputs use OpenAI-compatible JSON schema mode
   (`response_format={"type": "json_schema", ...}`). Server-side schema
   enforcement quality varies. Pydantic schema inputs are validated downstream

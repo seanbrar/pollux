@@ -68,7 +68,8 @@ provider-specific helpers such as `Source.with_gemini_video_settings(...)` and
 
 The canonical v2 interaction model. `interact()` takes an `Environment` and an
 `Input` and returns an `Output`; `OutputCollection` is the source-pattern
-aggregate. These coexist with the 1.x types during the 2.0 cutover.
+aggregate that `run_many()` and `collect_deferred()` return. The 1.x `Options`
+and `ResultEnvelope` types are no longer part of the public API.
 
 ::: pollux.Environment
 
