@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import BaseModel
 import pytest
 
 from pollux.interaction.output import (
@@ -13,6 +14,10 @@ from pollux.interaction.output import (
 from pollux.interaction.tools import ToolCall
 
 pytestmark = pytest.mark.unit
+
+
+class _StructuredAnswer(BaseModel):
+    value: int
 
 
 @pytest.mark.parametrize(
@@ -66,6 +71,11 @@ def test_output_to_jsonable_has_named_facets_without_v1_vestiges():
     assert "confidence" not in payload
     assert "status" not in payload
     assert "extraction_method" not in payload
+
+
+def test_output_to_jsonable_serializes_pydantic_structured_output():
+    output = Output(text="", structured=_StructuredAnswer(value=7))
+    assert output.to_jsonable()["structured"] == {"value": 7}
 
 
 def test_output_omits_empty_optional_facets():

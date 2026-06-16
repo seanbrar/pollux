@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import BaseModel
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -133,6 +135,13 @@ class Diagnostics:
         return dict(self.raw) if self.raw else {}
 
 
+def _jsonable_structured(value: Any) -> Any:
+    """Return a JSON-compatible structured payload where Pollux can guarantee it."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Output:
     """The completed result of one model interaction, as named facets."""
@@ -150,7 +159,7 @@ class Output:
         """Serialize to a JSON-compatible dict (optional facets omitted)."""
         payload: dict[str, Any] = {"text": self.text}
         if self.structured is not None:
-            payload["structured"] = self.structured
+            payload["structured"] = _jsonable_structured(self.structured)
         if self.reasoning is not None:
             payload["reasoning"] = self.reasoning
         if self.tool_calls:
