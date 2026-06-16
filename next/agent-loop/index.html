@@ -1067,7 +1067,6 @@ implement, what to do between turns, and when to stop.</p>
 <p>Here's a weather agent that answers questions by calling a <code>get_weather</code> tool.
 Type it out (or paste it) and run it. We'll break it down afterward.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">Config</span><span class="p">,</span>
@@ -1114,16 +1113,16 @@ Type it out (or paste it) and run it. We'll break it down afterward.</p>
     <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># Arguments are already parsed by ToolCall</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="n">tc</span><span class="o">.</span><span class="n">arguments</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">arguments</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
+            <span class="c1"># Raises ConfigurationError if the model emitted malformed or non-object JSON.</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">tc</span><span class="o">.</span><span class="n">arguments_dict</span><span class="p">()</span>
             <span class="n">output</span> <span class="o">=</span> <span class="n">TOOL_DISPATCH</span><span class="p">[</span><span class="n">tc</span><span class="o">.</span><span class="n">name</span><span class="p">](</span><span class="n">args</span><span class="p">)</span>
-            <span class="n">content</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ToolResult</span><span class="o">.</span><span class="n">from_value</span><span class="p">(</span><span class="n">call_id</span><span class="o">=</span><span class="n">tc</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">output</span><span class="p">))</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-            <span class="n">content</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)})</span>
-        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ToolResult</span><span class="p">(</span>
-            <span class="n">call_id</span><span class="o">=</span><span class="n">tc</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
-            <span class="n">content</span><span class="o">=</span><span class="n">content</span><span class="p">,</span>
-        <span class="p">))</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ToolResult</span><span class="o">.</span><span class="n">from_value</span><span class="p">(</span>
+                <span class="n">call_id</span><span class="o">=</span><span class="n">tc</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)},</span>
+                <span class="n">is_error</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">))</span>
     <span class="k">return</span> <span class="n">results</span>
 
 
@@ -1288,6 +1287,9 @@ the control flow.</p>
 <li><strong>Return errors as tool results, don't raise.</strong> If a tool fails, return a
   JSON error message so the model can reason about the failure. Raising an
   exception breaks the loop.</li>
+<li><strong>Use <code>ToolCall.arguments_dict()</code> for dispatch.</strong> It accepts object-shaped
+  JSON arguments and rejects malformed or non-object arguments with an actionable
+  error, instead of silently treating them as <code>{}</code>.</li>
 <li><strong><code>tool_calls</code> is a flat tuple on <code>Output</code>.</strong> When using <code>interact()</code> or <code>run()</code>,
   <code>out.tool_calls</code> is a flat tuple of <code>ToolCall</code> objects.</li>
 <li><strong>The model can request multiple tools in one turn.</strong> The example handles
