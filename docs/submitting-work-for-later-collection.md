@@ -88,7 +88,7 @@ Run `submit_job()` once. You should see a provider job id and a JSON file at
 `outputs/deferred-job.json`. Run `collect_job()` later. `inspect_deferred()`
 normalizes the lifecycle into `queued`, `running`, `cancelling`, `completed`,
 `partial`, `failed`, `cancelled`, or `expired`. Once `snapshot.is_terminal`
-turns `True`, `collect_deferred()` returns an `OutputCollection` — the same
+turns `True`, `collect_deferred()` returns an `OutputCollection`, the same
 shape `run_many()` returns.
 
 ### Why this example is shaped this way
