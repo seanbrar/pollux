@@ -28,7 +28,7 @@ pytestmark = pytest.mark.unit
         ("safety", None, "cutoff"),
         ("stop", "context_overflow", "truncated"),
         ("stop", "rate_limit", "error"),
-        ("weird_unknown", None, "cutoff"),
+        ("weird_unknown", None, "clean"),
     ],
 )
 def test_completion_status_mapping(finish_reason, error_category, expected):

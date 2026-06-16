@@ -17,20 +17,18 @@ import time
 from typing import TYPE_CHECKING
 
 from pollux.cache import create_cache_impl
-from pollux.continuation import build_conversation_state, history_text_from_parts
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.interaction._uploads import cleanup_uploads, substitute_upload_parts
-from pollux.interaction.adapters import continuation_from_state, state_from_continuation
 from pollux.interaction.capabilities import resolve_capabilities
 from pollux.interaction.collection import OutputCollection
-from pollux.interaction.continuation import Continuation
+from pollux.interaction.continuation import build_continuation
 from pollux.interaction.environment import CachePolicy, EnvironmentSnapshot
 from pollux.interaction.event import Event
 from pollux.interaction.extract import provider_response_to_output
 from pollux.interaction.output import Usage
 from pollux.interaction.tools import ToolCall
 from pollux.interaction.validate import validate_interaction
-from pollux.parts import build_shared_parts
+from pollux.parts import build_shared_parts, history_text_from_parts
 from pollux.providers import _compile
 from pollux.providers.base import (
     FileUploadingProvider,
@@ -52,44 +50,6 @@ if TYPE_CHECKING:
     from pollux.interaction.requirements import OutputRequirements
     from pollux.providers.base import Provider
     from pollux.providers.models import ProviderFileAsset
-
-
-def _prior_history_dicts(input: Input) -> list[dict[str, Any]]:  # noqa: A002
-    """Reconstruct the prior-turn history dicts that precede this interaction."""
-    if input.continuation is not None:
-        dicts = list(state_from_continuation(input.continuation).history)
-    elif input.history is not None:
-        dicts = list(
-            state_from_continuation(Continuation(messages=tuple(input.history))).history
-        )
-    else:
-        dicts = []
-    dicts.extend(
-        {"role": "tool", "content": tr.content, "tool_call_id": tr.call_id}
-        for tr in input.tool_results
-    )
-    return dicts
-
-
-def _build_continuation(
-    input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
-    response: ProviderResponse,
-    user_content: str | None,
-    provider: str,
-) -> Continuation | None:
-    """Assemble the next-turn continuation for one interaction, or ``None``."""
-    state = build_conversation_state(
-        [response],
-        first_prompt=input.content,
-        first_user_content=user_content,
-        conversation_history=_prior_history_dicts(input),
-        previous_response_id=input.continuation.response_id
-        if input.continuation is not None
-        else None,
-        wants_conversation=input.continuation is not None or input.history is not None,
-        provider=provider,
-    )
-    return continuation_from_state(state) if state is not None else None
 
 
 #: Fallback TTL when a ``CachePolicy`` leaves ``ttl_seconds`` unset.
@@ -297,8 +257,11 @@ async def execute_interactions(
             cache_hit = (
                 cache_mode == "implicit" and isinstance(cached, int) and cached > 0
             )
-        continuation = _build_continuation(
-            inputs[idx], response, user_contents[idx], config.provider
+        continuation = build_continuation(
+            inputs[idx],
+            response,
+            user_content=user_contents[idx],
+            provider=config.provider,
         )
         outputs.append(
             provider_response_to_output(
@@ -472,8 +435,8 @@ async def stream_interaction(
         cache_hit = cache_used or (
             cache_mode == "implicit" and isinstance(cached, int) and cached > 0
         )
-        continuation = _build_continuation(
-            input, response, user_content, config.provider
+        continuation = build_continuation(
+            input, response, user_content=user_content, provider=config.provider
         )
         output = provider_response_to_output(
             response,

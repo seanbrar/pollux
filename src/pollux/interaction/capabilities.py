@@ -4,8 +4,7 @@ A provider exposes static capabilities. A ``Config`` may additionally declare
 capability overrides — to cap support a provider claims, or to assert support a
 provider's static block omits (the local OpenAI-compatible server case). When the
 two disagree, the user's declaration wins; undeclared capabilities fall back to
-the provider's static value. The structural-protocol decomposition of capabilities
-arrives with the Slice 3 boundary restructure; this is the additive seam.
+the provider's static value.
 """
 
 from __future__ import annotations

@@ -126,9 +126,7 @@ class GeminiProvider:
                     hint="uv pip install google-genai",
                 ) from e
 
-            # Initialize with just API key as per 'Gemini Developer API' instructions.
-            # If user wanted Vertex, they'd need to provide project/location logic,
-            # but current impl only took api_key.
+            # Gemini Developer API client; Vertex (project/location) is not supported.
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
@@ -187,7 +185,7 @@ class GeminiProvider:
                         )
                     converted.append(p["text"])
                 else:
-                    # Fallback for other dicts, though we should likely validate
+                    # Dicts without uri/text: reject misplaced video settings.
                     if _provider_hint_payload(p, name="video_metadata") is not None:
                         raise APIError(
                             "Gemini video settings require a video file or URI part"

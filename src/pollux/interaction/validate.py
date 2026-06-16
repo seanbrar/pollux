@@ -2,9 +2,8 @@
 
 Reads the v2 primitives (``OutputRequirements`` / ``Input`` /
 ``EnvironmentSnapshot``) and rejects requested features the provider cannot serve
-before any network I/O. Fine-grained capabilities still use the
-``ProviderCapabilities`` booleans; the structural-protocol decomposition is a
-later Slice 2 sub-PR.
+before any network I/O. Fine-grained capabilities use the
+``ProviderCapabilities`` booleans.
 """
 
 from __future__ import annotations

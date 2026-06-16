@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Continuation, Message, build_continuation
 from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.local import LocalProvider
 from tests.conftest import (
@@ -247,6 +248,56 @@ async def test_local_generate_extracts_reasoning_content() -> None:
 
     assert result.text == "4"
     assert result.reasoning == "2+2=4"
+
+
+@pytest.mark.asyncio
+async def test_local_reasoning_is_display_only_and_not_replayed() -> None:
+    """Model reasoning surfaces on the output but never re-enters continuation.
+
+    The local server returns reasoning out-of-band (``reasoning_content``);
+    Pollux surfaces it as ``reasoning`` but must not echo it back into the replay
+    messages an agent loop sends on the next turn.
+    """
+    reasoning_text = "INTERNAL-CHAIN-OF-THOUGHT: 2 + 2 = 4"
+    first = _FakeLocalClient(
+        payload={
+            "id": "chatcmpl_reasoning_replay",
+            "choices": [
+                {
+                    "message": {"content": "4", "reasoning_content": reasoning_text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"total_tokens": 5},
+        }
+    )
+    provider = _make_local_provider(first)
+
+    snapshot, input_, requirements, config = _local(
+        content="2+2?",
+        history=[Message(role="user", content="Ready?")],
+    )
+    response = await provider.generate(snapshot, input_, requirements, config)
+    assert response.reasoning == reasoning_text
+
+    continuation = build_continuation(
+        input_, response, user_content="2+2?", provider="local"
+    )
+    assert continuation is not None
+    assistant = continuation.messages[-1]
+    assert assistant.role == "assistant"
+    assert assistant.content == "4"
+    assert assistant.provider_state is None
+    assert reasoning_text not in json.dumps(continuation.to_jsonable())
+
+    # Replaying the continuation must not send reasoning back to the server.
+    second = _FakeLocalClient()
+    replay_provider = _make_local_provider(second)
+    await replay_provider.generate(
+        *_local(content="and 3+3?", continuation=continuation)
+    )
+    assert second.last_json is not None
+    assert reasoning_text not in json.dumps(second.last_json)
 
 
 @pytest.mark.asyncio

@@ -100,7 +100,7 @@ def prior_turns(
     Continuation and explicit history are alternative prior-state sources
     (``Input`` already enforces they are not both set). Per-message provider
     state is folded under a ``"history"`` key so the transport can replay opaque
-    blocks (e.g. reasoning) the same way the v1 path did.
+    blocks (e.g. reasoning) during continuation.
     """
     prior: tuple[Message, ...] = ()
     previous_response_id: str | None = None

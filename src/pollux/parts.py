@@ -54,3 +54,23 @@ def build_shared_parts(
             parts.append(part)
 
     return parts
+
+
+def history_text_from_parts(parts: list[Any]) -> str | None:
+    """Return a replayable text history message when all parts are text.
+
+    Returns ``None`` if any part is non-text (e.g. a file or URI part), since a
+    multimodal turn cannot be replayed as a plain text message.
+    """
+    texts: list[str] = []
+    for part in parts:
+        if isinstance(part, str):
+            texts.append(part)
+            continue
+        if isinstance(part, dict):
+            text = part.get("text")
+            if isinstance(text, str):
+                texts.append(text)
+                continue
+        return None
+    return "\n\n".join(texts) if texts else None
