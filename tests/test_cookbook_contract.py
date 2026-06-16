@@ -20,14 +20,6 @@ pytestmark = pytest.mark.unit
 ROOT = Path(__file__).resolve().parents[1]
 CLI_DOC = ROOT / "docs" / "reference" / "cli.md"
 
-# The projects/* recipes are shelved (SHELVED_V2) pending the v2 cookbook
-# migration: they remain v1-shaped (Options, create_cache, envelope mutation)
-# and cannot be imported until migrated. The helper unit tests below load those
-# modules directly via exec, so they are skipped alongside the recipes.
-_shelved_project_recipe = pytest.mark.skip(
-    reason="projects/* recipes shelved pending v2 cookbook migration"
-)
-
 
 def test_recipe_catalog_is_complete() -> None:
     """Every listed recipe appears in the CLI reference catalog table."""
@@ -68,11 +60,13 @@ def _load_recipe_module(name: str, rel_path: str) -> Any:
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    import sys
+
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
 
-@_shelved_project_recipe
 def test_normalize_lookup_name_handles_common_forms() -> None:
     """Common player spellings should move toward canonical PokeAPI ids.
 
@@ -87,7 +81,6 @@ def test_normalize_lookup_name_handles_common_forms() -> None:
     assert recipe.normalize_lookup_name("Nidoran♀") == "nidoran-f"
 
 
-@_shelved_project_recipe
 def test_parse_pantry_note_dedupes_and_normalizes() -> None:
     """Pantry notes should become a small stable ingredient list."""
     recipe = _load_recipe_module("fridge_raid", "cookbook/projects/fridge-raid.py")
@@ -98,7 +91,6 @@ def test_parse_pantry_note_dedupes_and_normalizes() -> None:
     ]
 
 
-@_shelved_project_recipe
 def test_parse_party_member_normalizes_class_and_level() -> None:
     """Party member CLI input should normalize class aliases and numeric levels."""
     recipe = _load_recipe_module(
@@ -110,7 +102,6 @@ def test_parse_party_member_normalizes_class_and_level() -> None:
     assert member.level == 5
 
 
-@_shelved_project_recipe
 def test_dedupe_spell_names_preserves_order() -> None:
     """Spell helpers should keep first-seen spell order while removing duplicates."""
     recipe = _load_recipe_module(
@@ -123,7 +114,6 @@ def test_dedupe_spell_names_preserves_order() -> None:
     ]
 
 
-@_shelved_project_recipe
 def test_load_spellbook_pack_defaults_reads_profile_and_scenario(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -182,10 +172,6 @@ def test_load_spellbook_pack_defaults_reads_profile_and_scenario(
     assert "Tight rooms reward careful first-round play." in defaults.session_brief
 
 
-@pytest.mark.skip(
-    reason="projects/spellbook-sidekick is shelved pending the v2 cookbook "
-    "migration; this runs the recipe end-to-end."
-)
 def test_spellbook_pack_cli_overrides_take_precedence(tmp_path: Path) -> None:
     """Explicit CLI fields should override starter-pack identity defaults."""
     pack_root = tmp_path / "projects" / "spellbook-sidekick" / "v1"
@@ -283,9 +269,13 @@ def test_all_recipes_run_in_mock_mode(tmp_path: Path) -> None:
         f"python -m cookbook getting-started/extract-media-insights --input {video} --mock",
         f"python -m cookbook getting-started/extract-media-insights --input {audio} --mock",
         "python -m cookbook getting-started/run-against-local-model --mock",
-        # NOTE: the projects/* recipes and optimization/cache-warming-and-ttl are
-        # shelved pending the v2 cookbook migration follow-up (they mutate the v1
-        # result envelope / depend on persistent caching).
+        # The projects/* recipes have been migrated to the v2 architecture.
+        f"python -m cookbook projects/fridge-raid {image} --mock",
+        f"python -m cookbook projects/paper-to-workshop-kit --input {input_txt} --mock",
+        "python -m cookbook projects/pokedex-analyst pikachu gyarados ferrothorn --mock",
+        "python -m cookbook projects/spellbook-sidekick --class wiz --level 5 --spell Shield --mock",
+        "python -m cookbook projects/treasure-tailor --party-member Nyx:wiz:5 --party-member Lyra:cleric:5 --summary 'Defeated a dragon' --mock",
+        # NOTE: optimization/cache-warming-and-ttl is shelved pending the v2 cookbook migration follow-up.
         f"python -m cookbook optimization/large-scale-fan-out --input {text_dir} --limit 1 --concurrency 1 --mock",
         f"python -m cookbook optimization/run-vs-run-many --input {input_txt} --mock",
         f"python -m cookbook production/rate-limits-and-concurrency --input {text_dir} --limit 1 --concurrency 2 --mock",

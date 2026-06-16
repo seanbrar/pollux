@@ -28,9 +28,7 @@ if TYPE_CHECKING:
 COOKBOOK_DIRNAME = "cookbook"
 EXCLUDE_DIRS = {"utils", "templates", "data", "__pycache__"}
 
-# Recipes pending migration to the v2 Output model (tracked v2 cookbook
-# follow-up). The heavy "projects/" recipes mutate the v1 result envelope.
-SHELVED_V2 = {"projects"}
+SHELVED_V2: set[str] = set()
 
 # Determines the "start here" recipe for bare invocation / --list display.
 START_HERE_DISPLAY = "getting-started/analyze-single-paper.py"

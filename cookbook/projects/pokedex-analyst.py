@@ -42,10 +42,21 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
-from pollux import Config, Options, Source, run
+from pollux import (
+    Config,
+    Environment,
+    Input,
+    Source,
+    ToolDeclaration,
+    ToolResult,
+    interact,
+    run,
+)
 
 if TYPE_CHECKING:
-    from pollux.result import ResultEnvelope
+    from pollux import Output
+    from pollux.interaction import ToolCall
+
 
 API_BASE = "https://pokeapi.co/api/v2"
 MAX_ROSTER_SIZE = 6
@@ -145,26 +156,16 @@ def normalize_lookup_name(name: str) -> str:
     return re.sub(r"-+", "-", cleaned)
 
 
-def parse_tool_arguments(raw: object) -> dict[str, Any]:
-    """Parse tool-call arguments from provider-normalized payloads."""
-    if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
-
-
-def plan_lookup_names(roster: list[str], tool_calls: list[dict[str, Any]]) -> list[str]:
+def plan_lookup_names(roster: list[str], tool_calls: tuple[ToolCall, ...]) -> list[str]:
     """Map tool-call requests back onto the roster order."""
     planned: list[str] = []
     for idx, raw_name in enumerate(roster):
-        call = tool_calls[idx] if idx < len(tool_calls) else {}
-        args = parse_tool_arguments(call.get("arguments"))
-        requested = args.get("name")
+        call = tool_calls[idx] if idx < len(tool_calls) else None
+        requested = (
+            call.arguments.get("name")
+            if (call is not None and isinstance(call.arguments, dict))
+            else None
+        )
         planned.append(str(requested).strip() if requested else raw_name)
     return planned
 
@@ -332,7 +333,7 @@ async def run_mock_flow(
     *,
     battle_format: str,
     config: Config,
-) -> tuple[TeamReport, list[dict[str, Any]], ResultEnvelope]:
+) -> tuple[TeamReport, list[dict[str, Any]], Output]:
     """Build a mock report while still exercising one Pollux call."""
     profiles = mock_profiles(roster)
     envelope = await run(
@@ -352,44 +353,68 @@ async def run_real_flow(
     *,
     battle_format: str,
     config: Config,
-) -> tuple[TeamReport, list[dict[str, Any]], ResultEnvelope]:
+) -> tuple[TeamReport, list[dict[str, Any]], Output]:
     """Use tool calling for lookups, then synthesize a structured report."""
-    # Phase 1: ask the model to plan tool calls for each roster slot
-    lookup_env = await run(
-        build_lookup_prompt(roster, battle_format),
-        config=config,
-        options=Options(tools=[LOOKUP_TOOL], tool_choice={"name": "lookup_pokemon"}),
+    lookup_decl = ToolDeclaration(
+        name=LOOKUP_TOOL["name"],
+        description=LOOKUP_TOOL["description"],
+        parameters=LOOKUP_TOOL["parameters"],
     )
-    raw_tool_calls = lookup_env.get("tool_calls")
-    # tool_calls is grouped per-prompt; [0] selects the single prompt's calls.
-    tool_calls = raw_tool_calls[0] if raw_tool_calls else []
+    env = Environment(tools=[lookup_decl])
+    prompt = build_lookup_prompt(roster, battle_format)
+
+    # Turn 1: request the lookup tool calls
+    out = await interact(
+        env,
+        Input(content=prompt),
+        config=config,
+        tool_choice={"name": "lookup_pokemon"},
+    )
+    tool_calls = out.tool_calls
     lookup_names = plan_lookup_names(roster, tool_calls)
 
-    # Phase 2: fetch canonical facts from PokeAPI
+    # Fetch canonical facts from PokeAPI and build tool results
     profiles: list[dict[str, Any]] = []
-    for name in lookup_names:
-        profiles.append(await asyncio.to_thread(fetch_pokemon, name))
+    results: list[ToolResult] = []
+    for idx, tc in enumerate(tool_calls):
+        name = lookup_names[idx] if idx < len(lookup_names) else tc.id
+        data = await asyncio.to_thread(fetch_pokemon, name)
+        profiles.append(data)
+        results.append(ToolResult(call_id=tc.id, content=json.dumps(data)))
 
-    # Phase 3: synthesize a structured report from the normalized data
-    team_data = {"battle_format": battle_format, "pokemon": profiles}
-    report_env = await run(
-        build_report_prompt(battle_format),
-        source=Source.from_json(team_data, identifier="normalized-roster"),
+    # Turn 2: continuation with tool results, expecting a structured TeamReport
+    final = await interact(
+        env,
+        Input(continuation=out.continuation, tool_results=results),
         config=config,
-        options=Options(response_schema=TeamReport),
+        output=TeamReport,
     )
 
-    structured = report_env.get("structured", [])
-    first = structured[0] if isinstance(structured, list) and structured else None
-    report = (
-        first
-        if isinstance(first, TeamReport)
-        else fallback_report(profiles, battle_format=battle_format)
+    report = final.structured
+    if not isinstance(report, TeamReport):
+        report = fallback_report(profiles, battle_format=battle_format)
+
+    import dataclasses
+
+    from pollux.interaction.output import Diagnostics, Metrics
+
+    merged_u = merged_usage(out, final)
+    merged_m = Metrics(
+        duration_s=out.metrics.duration_s + final.metrics.duration_s,
+        n_calls=out.metrics.n_calls + final.metrics.n_calls,
+        cache_used=out.metrics.cache_used or final.metrics.cache_used,
+        cache_mode=final.metrics.cache_mode,
+        cache_hit=out.metrics.cache_hit or final.metrics.cache_hit,
+        finish_reason=final.metrics.finish_reason,
+        completion_status=final.metrics.completion_status,
     )
-    report_env["usage"] = merged_usage(lookup_env, report_env).get("usage", {})
-    report_env.setdefault("metrics", {})
-    report_env["metrics"]["tool_calls_seen"] = len(tool_calls)
-    return report, profiles, report_env
+    final = dataclasses.replace(
+        final,
+        usage=merged_u,
+        metrics=merged_m,
+        diagnostics=Diagnostics(raw={"tool_calls_seen": len(tool_calls)}),
+    )
+    return report, profiles, final
 
 
 # -- Main -------------------------------------------------------------------
@@ -414,19 +439,23 @@ async def main_async(
             config=config,
         )
 
-    metrics = envelope.get("metrics", {})
+    tool_lookups = 0
+    if envelope.diagnostics and envelope.diagnostics.raw:
+        tool_lookups = envelope.diagnostics.raw.get("tool_calls_seen", 0)
+
     print_section("Team snapshot")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", envelope.metrics.completion_status),
             ("Format", battle_format),
             ("Roster size", len(roster)),
-            ("Tool lookups", metrics.get("tool_calls_seen", 0)),
+            ("Tool lookups", tool_lookups),
         ]
     )
     print_roster_snapshot(profiles)
     print_report(report)
     print_usage(envelope)
+
     print_learning_hints(
         [
             "Next: swap one roster slot and compare how the weak spots change.",

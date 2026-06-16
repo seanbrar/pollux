@@ -15,6 +15,7 @@ from cookbook.utils.runtime import print_run_mode
 
 if TYPE_CHECKING:
     from pollux import Config, Output, OutputCollection
+    from pollux.interaction import Usage
 
 
 def _display_path(path: Path) -> str:
@@ -66,9 +67,11 @@ def print_excerpt(title: str, text: str, *, limit: int = 400) -> None:
         print(f"  {line}")
 
 
-def print_usage(result: Output | OutputCollection) -> None:
+def print_usage(result: Output | OutputCollection | Usage) -> None:
     """Print token usage when available."""
-    usage = result.usage
+    from pollux.interaction import Usage
+
+    usage = result if isinstance(result, Usage) else result.usage
     rows: list[tuple[str, object]] = []
     if usage.total_tokens:
         rows.append(("Total tokens", usage.total_tokens))

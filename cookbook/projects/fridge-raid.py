@@ -45,10 +45,12 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit, merged_usage
-from pollux import Config, Options, Source, run_many
+from pollux import Config, Source, run_many
 
 if TYPE_CHECKING:
-    from pollux.result import ResultEnvelope
+    from pollux import OutputCollection
+    from pollux.interaction import Usage
+
 
 DEFAULT_STYLE = "weeknight comfort"
 
@@ -259,7 +261,7 @@ async def run_mock_flow(
     pantry_note: str,
     style: str,
     config: Config,
-) -> tuple[KitchenState, FridgeRaidPlan, ResultEnvelope]:
+) -> tuple[KitchenState, FridgeRaidPlan, OutputCollection]:
     """Exercise one Pollux call, then render a deterministic mock artifact."""
     envelope = await run_many(
         [build_inventory_prompt(style)],
@@ -279,15 +281,15 @@ async def run_real_flow(
     style: str,
     max_meals: int,
     config: Config,
-) -> tuple[KitchenState, FridgeRaidPlan, ResultEnvelope]:
+) -> tuple[KitchenState, FridgeRaidPlan, Usage]:
     """Run the two-pass multimodal workflow."""
     inventory_env = await run_many(
         [build_inventory_prompt(style)],
         sources=sources,
         config=config,
-        options=Options(response_schema=KitchenState),
+        output=KitchenState,
     )
-    structured_state = inventory_env.get("structured", [])
+    structured_state = inventory_env.structured or []
     first_state = structured_state[0] if structured_state else None
     kitchen_state = (
         first_state
@@ -299,16 +301,16 @@ async def run_real_flow(
         [build_plan_prompt(style, max_meals)],
         sources=[Source.from_json(kitchen_state, identifier="kitchen-state")],
         config=config,
-        options=Options(response_schema=FridgeRaidPlan),
+        output=FridgeRaidPlan,
     )
-    structured_plan = plan_env.get("structured", [])
+    structured_plan = plan_env.structured or []
     first_plan = structured_plan[0] if structured_plan else None
     plan = (
         first_plan
         if isinstance(first_plan, FridgeRaidPlan)
         else fallback_plan(kitchen_state, style=style)
     )
-    return kitchen_state, plan, merged_usage(inventory_env, plan_env)
+    return kitchen_state, plan, merged_usage(*inventory_env.outputs, *plan_env.outputs)
 
 
 async def main_async(
@@ -328,8 +330,10 @@ async def main_async(
             style=style,
             config=config,
         )
+        status = envelope.status
+        usage = envelope
     else:
-        kitchen_state, plan, envelope = await run_real_flow(
+        kitchen_state, plan, usage = await run_real_flow(
             sources,
             pantry_note=pantry_note,
             image_paths=image_paths,
@@ -337,11 +341,12 @@ async def main_async(
             max_meals=max_meals,
             config=config,
         )
+        status = "ok"
 
     print_section("Raid snapshot")
     print_kv_rows(
         [
-            ("Status", envelope.get("status", "ok")),
+            ("Status", status),
             ("Images", len(image_paths)),
             ("Pantry note items", len(parse_pantry_note(pantry_note))),
             ("Meal count", len(plan.meals)),
@@ -350,7 +355,8 @@ async def main_async(
     )
     print_ingredients(kitchen_state)
     print_plan(plan)
-    print_usage(envelope)
+    print_usage(usage)
+
     print_learning_hints(
         [
             "Notice: pass 1's KitchenState becomes pass 2's Source via Source.from_json(). Try adding a field to the schema and watch it flow through.",
