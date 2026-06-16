@@ -420,6 +420,7 @@ async def stream_interaction(
     reasoning_parts: list[str] = []
     tool_calls = _ToolCallAssembler()
     usage: dict[str, int] = {}
+    provider_state: dict[str, Any] = {}
     finish_reason: str | None = None
     response_id: str | None = None
 
@@ -438,8 +439,13 @@ async def stream_interaction(
                 tool_calls.add(delta)
                 yield Event(type="tool_call_delta", delta=delta)
             if chunk.usage:
-                usage = chunk.usage
-                yield Event(type="usage", usage=Usage.from_dict(chunk.usage))
+                # Usage may stream across several chunks (e.g. Anthropic reports
+                # input at message_start and output at message_delta), so merge
+                # rather than replace and surface the cumulative snapshot.
+                usage.update(chunk.usage)
+                yield Event(type="usage", usage=Usage.from_dict(usage))
+            if chunk.provider_state:
+                provider_state.update(chunk.provider_state)
             if chunk.finish_reason:
                 finish_reason = chunk.finish_reason
             if chunk.response_id:
@@ -458,6 +464,7 @@ async def stream_interaction(
             tool_calls=[transport for _public, transport in assembled] or None,
             response_id=response_id,
             finish_reason=finish_reason,
+            provider_state=provider_state or None,
         )
         duration_s = time.perf_counter() - start_time
         cached = usage.get("cached_tokens", 0)
