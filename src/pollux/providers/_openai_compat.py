@@ -18,8 +18,9 @@ from collections.abc import Mapping
 import json
 from typing import TYPE_CHECKING, Any
 
+from pollux.interaction.tools import ToolCallDelta
 from pollux.providers._utils import to_strict_schema
-from pollux.providers.models import ToolCall
+from pollux.providers.models import ProviderStreamChunk, ToolCall
 
 if TYPE_CHECKING:
     import httpx
@@ -207,3 +208,100 @@ def serialize_tool_calls(tool_calls: list[ToolCall] | None) -> list[dict[str, An
         }
         for tool_call in tool_calls
     ]
+
+
+def parse_sse_line(line: str) -> dict[str, Any] | None:
+    """Parse one Server-Sent Events line into its JSON ``data`` object.
+
+    Returns ``None`` for blank lines, non-``data:`` lines (comments/event names),
+    the terminal ``[DONE]`` sentinel, and any ``data`` payload that is not a JSON
+    object. Callers iterate ``response.aiter_lines()`` and skip ``None``.
+    """
+    stripped = line.strip()
+    if not stripped.startswith("data:"):
+        return None
+    payload = stripped[len("data:") :].strip()
+    if not payload or payload == "[DONE]":
+        return None
+    try:
+        data = json.loads(payload)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def parse_chat_stream_chunk(data: Mapping[str, Any]) -> ProviderStreamChunk | None:
+    """Map one OpenAI-compatible streaming ``data`` object to a stream chunk.
+
+    Pulls visible text, model-native reasoning text, tool-call fragments, the
+    finish reason, a streamed usage block, and the response id from one chunk.
+    Returns ``None`` when the chunk carries nothing Pollux tracks (e.g. an empty
+    role-priming delta) so the provider can skip it.
+    """
+    response_id = data.get("id")
+    response_id = response_id if isinstance(response_id, str) and response_id else None
+
+    text = ""
+    reasoning = ""
+    tool_calls: list[ToolCallDelta] = []
+    finish_reason: str | None = None
+
+    choices = data.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+        choice = choices[0]
+        delta = choice.get("delta")
+        if isinstance(delta, Mapping):
+            content = delta.get("content")
+            if isinstance(content, str):
+                text = content
+            reasoning_content = delta.get("reasoning_content")
+            if isinstance(reasoning_content, str):
+                reasoning = reasoning_content
+            tool_calls = _parse_tool_call_deltas(delta.get("tool_calls"))
+        raw_finish = choice.get("finish_reason")
+        if isinstance(raw_finish, str):
+            finish_reason = raw_finish
+
+    usage = parse_usage(data.get("usage")) or None
+
+    if not (text or reasoning or tool_calls or finish_reason or usage or response_id):
+        return None
+
+    return ProviderStreamChunk(
+        text=text,
+        reasoning=reasoning,
+        tool_calls=tuple(tool_calls),
+        usage=usage,
+        finish_reason=finish_reason,
+        response_id=response_id,
+    )
+
+
+def _parse_tool_call_deltas(value: Any) -> list[ToolCallDelta]:
+    """Extract streamed tool-call fragments from a chat-completions delta."""
+    if not isinstance(value, list):
+        return []
+
+    deltas: list[ToolCallDelta] = []
+    for position, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            continue
+        index = item.get("index")
+        if not isinstance(index, int):
+            index = position
+        call_id = item.get("id")
+        call_id = call_id if isinstance(call_id, str) and call_id else None
+        name: str | None = None
+        arguments = ""
+        function = item.get("function")
+        if isinstance(function, Mapping):
+            raw_name = function.get("name")
+            if isinstance(raw_name, str) and raw_name:
+                name = raw_name
+            raw_arguments = function.get("arguments")
+            if isinstance(raw_arguments, str):
+                arguments = raw_arguments
+        deltas.append(
+            ToolCallDelta(index=index, id=call_id, name=name, arguments=arguments)
+        )
+    return deltas

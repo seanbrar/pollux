@@ -52,12 +52,14 @@ from pollux.interaction import (
     Continuation,
     Environment,
     EnvironmentSnapshot,
+    Event,
     Input,
     Message,
     Output,
     OutputCollection,
     OutputRequirements,
     ToolCall,
+    ToolCallDelta,
     ToolChoice,
     ToolDeclaration,
     ToolResult,
@@ -66,13 +68,14 @@ from pollux.interaction.execute import (
     execute_interaction,
     execute_interactions,
     resolve_persistent_cache,
+    stream_interaction,
 )
 from pollux.providers.base import CloseableProvider
 from pollux.retry import RetryPolicy
 from pollux.source import Source
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import AsyncIterator, Callable, Sequence
 
     from pollux.interaction.schema import ResponseSchemaInput
     from pollux.providers.base import Provider
@@ -264,6 +267,79 @@ async def interact(
         return await execute_interaction(
             environment, input, requirements, config, provider
         )
+    finally:
+        await _close_provider(provider)
+
+
+async def stream(
+    environment: Environment,
+    input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+    *,
+    config: Config,
+    output: ResponseSchemaInput | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_budget_tokens: int | None = None,
+    tool_choice: ToolChoice | None = None,
+    provider_options: dict[str, dict[str, Any]] | None = None,
+) -> AsyncIterator[Event]:
+    """Stream one explicit v2 interaction as :class:`Event` objects.
+
+    The streaming sibling of :func:`interact`: same environment/input/config and
+    the same completed result, observed as a timeline. Iterate the events
+    (``text_delta``, ``reasoning_delta``, ``tool_call_delta``, ``tool_call``,
+    ``usage``, ``finish``) and read the final assembled :class:`Output` from the
+    terminal ``done`` event, whose ``output`` matches what :func:`interact` would
+    return for the same interaction. Consumers never parse SSE or provider chunks.
+
+    A provider that does not support streaming raises ``ConfigurationError``. A
+    mid-stream provider failure raises from the iterator rather than emitting a
+    ``done`` event, so a failed interaction never yields a final output.
+
+    Args:
+        environment: Reusable model-facing setup for the interaction.
+        input: The per-turn payload (user content, continuation, tool results).
+        config: Configuration specifying provider and model.
+        output: Optional Pydantic model or JSON Schema for structured output.
+        temperature: Optional sampling temperature.
+        top_p: Optional nucleus-sampling probability.
+        max_tokens: Optional hard cap on output tokens.
+        seed: Optional sampling seed where supported.
+        reasoning_effort: Optional qualitative reasoning effort.
+        reasoning_budget_tokens: Optional explicit reasoning token budget.
+        tool_choice: Optional tool-choice control.
+        provider_options: Optional raw provider-scoped generation options.
+
+    Yields:
+        Each :class:`Event` in the interaction's timeline, ending in ``done``.
+
+    Example:
+        async for event in stream(environment, Input("Inspect the repo."), config=cfg):
+            if event.type == "text_delta":
+                print(event.text, end="")
+            elif event.type == "done":
+                result = event.output
+    """
+    requirements = _build_requirements(
+        output=output,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        reasoning_budget_tokens=reasoning_budget_tokens,
+        tool_choice=tool_choice,
+        provider_options=provider_options,
+    )
+    provider = _get_provider(config)
+    try:
+        async for event in stream_interaction(
+            environment, input, requirements, config, provider
+        ):
+            yield event
     finally:
         await _close_provider(provider)
 
@@ -691,6 +767,7 @@ __all__ = [
     "DeferredNotReadyError",
     "DeferredSnapshot",
     "Environment",
+    "Event",
     "Input",
     "InternalError",
     "Message",
@@ -704,6 +781,7 @@ __all__ = [
     "Source",
     "SourceError",
     "ToolCall",
+    "ToolCallDelta",
     "ToolChoice",
     "ToolDeclaration",
     "ToolResult",
@@ -715,4 +793,5 @@ __all__ = [
     "prepare_environment",
     "run",
     "run_many",
+    "stream",
 ]

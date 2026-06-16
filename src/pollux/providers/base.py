@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
     from pollux.config import Config
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from pollux.providers.models import (
         ProviderFileAsset,
         ProviderResponse,
+        ProviderStreamChunk,
     )
 
 DeferredItemStatus = Literal["succeeded", "failed", "cancelled", "expired"]
@@ -94,6 +96,28 @@ class Provider(Protocol):
     @property
     def capabilities(self) -> ProviderCapabilities:
         """Feature capabilities for strict option validation."""
+        ...
+
+
+@runtime_checkable
+class StreamingProvider(Protocol):
+    """Optional provider hook for streaming one interaction turn.
+
+    Implementing this protocol *is* the streaming capability: ``stream()`` detects
+    it via ``isinstance`` and rejects providers that do not. The method parses the
+    upstream stream and yields normalized :class:`ProviderStreamChunk` deltas;
+    core owns event emission and final ``Output`` assembly so a streamed turn's
+    ``done.output`` matches the non-streaming result.
+    """
+
+    def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Compile one interaction turn and stream normalized response deltas."""
         ...
 
 

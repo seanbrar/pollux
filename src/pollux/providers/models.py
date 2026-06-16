@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pollux.interaction.tools import ToolCallDelta
 
 
 @dataclass(frozen=True)
@@ -76,6 +79,25 @@ class ProviderResponse:
     finish_reason: str | None = None
     provider_state: dict[str, Any] | None = None
     artifacts: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ProviderStreamChunk:
+    """One normalized delta from a provider's streamed response.
+
+    A provider's ``stream_generate`` yields these as it parses the upstream
+    stream; core accumulates them into a final :class:`ProviderResponse` and maps
+    them to the public event vocabulary. Every facet is optional so one upstream
+    chunk can carry text, reasoning, tool-call fragments, usage, a finish reason,
+    or a response id together.
+    """
+
+    text: str = ""
+    reasoning: str = ""
+    tool_calls: tuple[ToolCallDelta, ...] = ()
+    usage: dict[str, int] | None = None
+    finish_reason: str | None = None
+    response_id: str | None = None
 
 
 def provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:
