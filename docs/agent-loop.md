@@ -29,7 +29,6 @@ Type it out (or paste it) and run it. We'll break it down afterward.
 
 ```python
 import asyncio
-import json
 
 from pollux import (
     Config,
@@ -76,16 +75,16 @@ def execute_tool_calls(tool_calls: tuple[ToolCall, ...]) -> list[ToolResult]:
     results = []
     for tc in tool_calls:
         try:
-            # Arguments are already parsed by ToolCall
-            args = tc.arguments if isinstance(tc.arguments, dict) else {}
+            # Raises ConfigurationError if the model emitted malformed or non-object JSON.
+            args = tc.arguments_dict()
             output = TOOL_DISPATCH[tc.name](args)
-            content = json.dumps(output)
+            results.append(ToolResult.from_value(call_id=tc.id, value=output))
         except Exception as exc:
-            content = json.dumps({"error": str(exc)})
-        results.append(ToolResult(
-            call_id=tc.id,
-            content=content,
-        ))
+            results.append(ToolResult.from_value(
+                call_id=tc.id,
+                value={"error": str(exc)},
+                is_error=True,
+            ))
     return results
 
 
@@ -282,6 +281,9 @@ the control flow.
 - **Return errors as tool results, don't raise.** If a tool fails, return a
   JSON error message so the model can reason about the failure. Raising an
   exception breaks the loop.
+- **Use `ToolCall.arguments_dict()` for dispatch.** It accepts object-shaped
+  JSON arguments and rejects malformed or non-object arguments with an actionable
+  error, instead of silently treating them as `{}`.
 - **`tool_calls` is a flat tuple on `Output`.** When using `interact()` or `run()`,
   `out.tool_calls` is a flat tuple of `ToolCall` objects.
 - **The model can request multiple tools in one turn.** The example handles

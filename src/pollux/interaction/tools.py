@@ -110,6 +110,27 @@ class ToolCall:
             provider_state=provider_state,
         )
 
+    def arguments_dict(self) -> dict[str, Any]:
+        """Return parsed JSON-object arguments or raise an explicit config error.
+
+        Agent loops usually dispatch tools from object-shaped JSON arguments.
+        This helper keeps that path strict: malformed JSON and non-object JSON
+        are rejected instead of being silently treated as an empty dict.
+        """
+        if self.arguments_error is not None:
+            raise ConfigurationError(
+                f"Tool call {self.name!r} has invalid JSON arguments",
+                hint=self.arguments_error,
+            )
+        if self.arguments is None:
+            return {}
+        if not isinstance(self.arguments, dict):
+            raise ConfigurationError(
+                f"Tool call {self.name!r} arguments must be a JSON object",
+                hint="Define tool parameters as an object schema and retry the turn.",
+            )
+        return dict(self.arguments)
+
     def to_jsonable(self) -> dict[str, Any]:
         """Serialize to a compact JSON-compatible dict (optional facets omitted)."""
         payload: dict[str, Any] = {
@@ -150,6 +171,32 @@ class ToolResult:
     call_id: str
     content: str
     is_error: bool = False
+
+    @classmethod
+    def from_value(
+        cls,
+        *,
+        call_id: str,
+        value: JSONValue,
+        is_error: bool = False,
+    ) -> ToolResult:
+        """Build a tool result from a JSON value, serializing non-strings.
+
+        Strings are preserved as-is. Other JSON values are encoded compactly so
+        agent loops can return structured tool output without repeating
+        ``json.dumps`` at every dispatch site.
+        """
+        if isinstance(value, str):
+            content = value
+        else:
+            try:
+                content = json.dumps(value, ensure_ascii=False, sort_keys=True)
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationError(
+                    "ToolResult.from_value() requires a JSON-serializable value",
+                    hint="Return a string, dict, list, number, boolean, or None.",
+                ) from exc
+        return cls(call_id=call_id, content=content, is_error=is_error)
 
     def to_jsonable(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict."""

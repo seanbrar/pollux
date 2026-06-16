@@ -32,6 +32,28 @@ def test_tool_call_empty_arguments_is_not_an_error():
     assert call.arguments_error is None
 
 
+def test_tool_call_arguments_dict_returns_parsed_object():
+    call = ToolCall.from_text(id="c1", name="f", arguments_text='{"city": "Paris"}')
+    assert call.arguments_dict() == {"city": "Paris"}
+
+
+def test_tool_call_arguments_dict_treats_empty_arguments_as_empty_object():
+    call = ToolCall.from_text(id="c1", name="f")
+    assert call.arguments_dict() == {}
+
+
+def test_tool_call_arguments_dict_rejects_invalid_json():
+    call = ToolCall.from_text(id="c1", name="f", arguments_text="{not json")
+    with pytest.raises(ConfigurationError, match="invalid JSON arguments"):
+        call.arguments_dict()
+
+
+def test_tool_call_arguments_dict_rejects_non_object_json():
+    call = ToolCall.from_text(id="c1", name="f", arguments_text='["not", "object"]')
+    with pytest.raises(ConfigurationError, match="must be a JSON object"):
+        call.arguments_dict()
+
+
 def test_tool_call_to_jsonable_omits_unset_facets():
     call = ToolCall.from_text(id="c1", name="f", arguments_text='{"a": 1}')
     payload = call.to_jsonable()
@@ -76,3 +98,21 @@ def test_tool_result_to_jsonable():
         "content": "boom",
         "is_error": True,
     }
+
+
+def test_tool_result_from_value_preserves_strings():
+    assert ToolResult.from_value(call_id="c1", value="ok").content == "ok"
+
+
+def test_tool_result_from_value_serializes_json_values():
+    result = ToolResult.from_value(
+        call_id="c1",
+        value={"temp_f": 72, "conditions": ["sunny"]},
+    )
+    assert result.content == '{"conditions": ["sunny"], "temp_f": 72}'
+
+
+def test_tool_result_from_value_marks_errors():
+    result = ToolResult.from_value(call_id="c1", value={"error": "boom"}, is_error=True)
+    assert result.is_error is True
+    assert result.to_jsonable()["is_error"] is True
