@@ -7,10 +7,10 @@ Copy this file when a recipe needs typed, validated output. Replace:
 - The `mock_preview()` body so mock runs show a realistic shape.
 
 Why a response schema (not hand-parsed JSON):
-    Pass a Pydantic model via `Options(response_schema=...)`. Pollux asks the
-    provider for structured output (when supported) and returns validated
-    objects in `envelope["structured"]` alongside the raw `answers`. This is the
-    pattern every schema-using recipe in the cookbook follows.
+    Pass a Pydantic model via the `output=` argument. Pollux asks the provider
+    for structured output (when supported) and returns validated objects in
+    `output.structured` alongside the raw `output.text`. This is the pattern
+    every schema-using recipe in the cookbook follows.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit
-from pollux import Config, Options, Source, run
+from pollux import Config, Source, run
 
 
 class MySchema(BaseModel):
@@ -61,7 +61,7 @@ async def main_async(path: Path, *, config: Config) -> None:
             PROMPT,
             source=Source.from_file(path),
             config=config,
-            options=Options(response_schema=MySchema),
+            output=MySchema,
         )
         structured = envelope.structured or []
         first = structured[0] if structured else None

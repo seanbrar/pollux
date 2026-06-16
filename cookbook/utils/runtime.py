@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pollux import Config
 from pollux.errors import ConfigurationError
 
 if TYPE_CHECKING:
     from pollux import Output, OutputCollection
-    from pollux.result import ResultEnvelope
+
+#: The v1 result-envelope dict shape. Retained only for ``merged_usage``, which
+#: the shelved project recipes still use pending their v2 ``Output`` migration.
+ResultEnvelope = dict[str, Any]
 
 DEFAULT_PROVIDER = "gemini"
 DEFAULT_MODELS = {

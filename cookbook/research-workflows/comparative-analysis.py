@@ -31,7 +31,7 @@ from cookbook.utils.runtime import (
     add_runtime_args,
     build_config_or_exit,
 )
-from pollux import Config, Options, Source, run_many
+from pollux import Config, Source, run_many
 
 PROMPT = (
     "Compare these sources for a project lead deciding what to do next. "
@@ -85,9 +85,8 @@ async def main_async(paths: list[Path], *, config: Config) -> None:
         envelope = await run_many([PROMPT], sources=sources, config=config)
         brief: ComparisonBrief | None = mock_brief(paths)
     else:
-        options = Options(response_schema=ComparisonBrief)
         envelope = await run_many(
-            [PROMPT], sources=sources, config=config, options=options
+            [PROMPT], sources=sources, config=config, output=ComparisonBrief
         )
         structured = envelope.structured or []
         first = structured[0] if structured else None

@@ -1,53 +1,42 @@
-"""The v1.x conversation-continuation mechanism.
+"""Conversation-continuation serialization.
 
-Pollux 1.x carries continuation state as a dict under the private
-``_conversation_state`` key of a ``ResultEnvelope``. This module owns the full
-surface of that mechanism:
+``ConversationState`` owns the serialized conversation-state dict shape: the
+magic keys (``version``, ``provider``, ``history``, ``response_id``,
+``provider_state``). The v2 :class:`~pollux.interaction.continuation.Continuation`
+primitive is converted to and from this shape in ``interaction/adapters.py``.
 
-- :class:`ConversationState` owns the serialized ``_conversation_state`` shape.
-- :func:`load_continuation` resolves prior-turn state from ``continue_from``.
-- :func:`history_to_messages` translates history dicts into provider messages.
+- :class:`ConversationState` owns the serialized state shape.
 - :func:`build_conversation_state` assembles the updated state after a response.
 - :func:`history_text_from_parts` derives a replayable user text turn.
-
-It is the single seam the v2 ``Continuation`` primitive will replace.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pollux.errors import ConfigurationError
-from pollux.providers.models import Message, ToolCall, tool_call_to_dict
+from pollux.providers.models import tool_call_to_dict
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from pollux.options import Options
     from pollux.providers.models import ProviderResponse
 
 
 @dataclass(frozen=True)
 class ConversationState:
-    """Serialized state stored under a ResultEnvelope's ``_conversation_state`` key.
+    """The single owner of the serialized conversation-state dict shape.
 
-    This is the single owner of that dict shape: the magic keys (``version``,
-    ``provider``, ``history``, ``response_id``, ``provider_state``) and the
-    envelope key itself live here rather than as string literals across the
-    read, write, and continue paths. It is distinct from
-    :class:`ContinuationState`, which is the *resolved* prior-turn working state
-    derived from this serialized form.
+    The magic keys (``version``, ``provider``, ``history``, ``response_id``,
+    ``provider_state``) live here rather than as string literals across the
+    read, write, and continue paths.
 
     The ``version`` and ``provider`` markers let a future major (which redefines
     this shape) detect and reject an incompatible serialized state with a clear
-    error instead of misreading it. v1.x stays permissive on read: a missing
-    ``version`` is treated as a pre-1.8 envelope rather than an error.
+    error instead of misreading it. Reads stay permissive: a missing
+    ``version`` is treated as a pre-1.8 state rather than an error.
     """
 
-    #: Envelope key under which this state is stored in a ``ResultEnvelope``.
-    ENVELOPE_KEY: ClassVar[str] = "_conversation_state"
     #: Schema version stamped into newly written state. Bump on shape changes.
     SCHEMA_VERSION: ClassVar[int] = 1
 
@@ -58,19 +47,11 @@ class ConversationState:
     provider: str | None = None
 
     @classmethod
-    def from_envelope(cls, envelope: Mapping[str, Any]) -> ConversationState | None:
-        """Parse from a ResultEnvelope, or ``None`` when the key is absent/invalid."""
-        state = envelope.get(cls.ENVELOPE_KEY)
-        if not isinstance(state, dict):
-            return None
-        return cls.from_state_dict(state)
-
-    @classmethod
     def from_state_dict(cls, state: Mapping[str, Any]) -> ConversationState:
         """Parse a serialized state dict, type-guarding each facet.
 
         A missing or non-integer ``version`` is read as ``1`` (a pre-1.8
-        envelope), keeping older serialized state loadable.
+        state), keeping older serialized state loadable.
         """
         raw_history = state.get("history")
         history = list(raw_history) if isinstance(raw_history, list) else []
@@ -108,60 +89,6 @@ class ConversationState:
         return state
 
 
-@dataclass(frozen=True)
-class ContinuationState:
-    """Resolved prior-turn state for the current interaction.
-
-    ``history`` is the effective message history (explicit or recovered from
-    ``continue_from``). ``conversation_history`` is the base history that the
-    updated state will be appended to.
-    """
-
-    history: list[dict[str, Any]] | None
-    conversation_history: list[dict[str, Any]]
-    previous_response_id: str | None
-    provider_state: dict[str, Any] | None
-
-
-def load_continuation(options: Options) -> ContinuationState:
-    """Resolve prior conversation state from ``history`` / ``continue_from``."""
-    history = options.history
-    conversation_history: list[dict[str, Any]] = []
-    if history is not None:
-        conversation_history = [dict(item) for item in history]
-
-    previous_response_id: str | None = None
-    provider_state: dict[str, Any] | None = None
-    if options.continue_from is not None:
-        state = ConversationState.from_envelope(options.continue_from)
-        if state is None:
-            raise ConfigurationError(
-                "continue_from is missing _conversation_state",
-                hint=(
-                    "Pass a prior Pollux ResultEnvelope produced with conversation "
-                    "support."
-                ),
-            )
-
-        if history is None:
-            conversation_history = [
-                item
-                for item in state.history
-                if isinstance(item, dict) and isinstance(item.get("role"), str)
-            ]
-            history = conversation_history
-
-        previous_response_id = state.response_id
-        provider_state = state.provider_state
-
-    return ContinuationState(
-        history=history,
-        conversation_history=conversation_history,
-        previous_response_id=previous_response_id,
-        provider_state=provider_state,
-    )
-
-
 def history_text_from_parts(parts: list[Any]) -> str | None:
     """Return a replayable text history message when all parts are text."""
     texts: list[str] = []
@@ -176,58 +103,6 @@ def history_text_from_parts(parts: list[Any]) -> str | None:
                 continue
         return None
     return "\n\n".join(texts) if texts else None
-
-
-def history_to_messages(
-    history: list[dict[str, Any]],
-) -> tuple[list[Message], list[dict[str, Any] | None] | None]:
-    """Translate history dicts into provider ``Message`` objects.
-
-    Returns the messages plus the per-message provider states when any are
-    present (so the caller can fold them into the request provider state under
-    a ``"history"`` key), or ``None`` when no message carried provider state.
-    """
-    messages: list[Message] = []
-    item_states: list[dict[str, Any] | None] = []
-    has_item_states = False
-    for h in history:
-        role = h.get("role", "user")
-        content = h.get("content", "")
-        tc_id = h.get("tool_call_id")
-        msg_provider_state = h.get("provider_state")
-        tcs = None
-        raw_tcs = h.get("tool_calls")
-        if isinstance(raw_tcs, list):
-            tcs = []
-            for tc in raw_tcs:
-                if isinstance(tc, dict):
-                    raw_args = tc.get("arguments", "")
-                    args_str = (
-                        json.dumps(raw_args)
-                        if isinstance(raw_args, dict)
-                        else str(raw_args)
-                    )
-                    tcs.append(
-                        ToolCall(
-                            id=str(tc.get("id", "")),
-                            name=str(tc.get("name", "")),
-                            arguments=args_str,
-                        )
-                    )
-        if isinstance(msg_provider_state, dict):
-            item_states.append(dict(msg_provider_state))
-            has_item_states = True
-        else:
-            item_states.append(None)
-        messages.append(
-            Message(
-                role=str(role),
-                content=content if isinstance(content, str) else str(content),
-                tool_call_id=tc_id if isinstance(tc_id, str) else None,
-                tool_calls=tcs,
-            )
-        )
-    return messages, (item_states if has_item_states else None)
 
 
 def build_conversation_state(

@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class CacheHandle:
-    """Opaque handle returned by ``create_cache()``.
+    """Opaque handle to a provider-side persistent context cache.
 
-    Pass instances via ``Options(cache=handle)`` to reuse a persistent
-    context cache across ``run()`` / ``run_many()`` calls.
+    Produced while preparing an :class:`~pollux.Environment` and reused across
+    ``run()`` / ``run_many()`` calls that share that environment.
     """
 
     name: str

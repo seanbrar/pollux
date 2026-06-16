@@ -53,7 +53,7 @@ from cookbook.utils.presentation import (
     print_usage,
 )
 from cookbook.utils.runtime import add_runtime_args, build_config_or_exit
-from pollux import Config, Options, Source, run_many
+from pollux import Config, Source, run_many
 
 VIDEO_EXTS = [".mp4", ".mov", ".webm", ".mkv"]
 MAX_SOURCES = 10
@@ -189,9 +189,8 @@ async def main_async(
         envelope = await run_many([prompt], sources=sources, config=config)
         synthesis: VideoSynthesis | None = mock_synthesis(labels)
     else:
-        options = Options(response_schema=VideoSynthesis)
         envelope = await run_many(
-            [prompt], sources=sources, config=config, options=options
+            [prompt], sources=sources, config=config, output=VideoSynthesis
         )
         structured = envelope.structured or []
         first = structured[0] if structured else None

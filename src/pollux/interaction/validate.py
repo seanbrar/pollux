@@ -1,10 +1,10 @@
 """Validate a planned v2 interaction against provider capabilities.
 
-The v2 sibling of ``capabilities.validate_capabilities``: it reads the v2
-primitives (``OutputRequirements`` / ``Input`` / ``EnvironmentSnapshot``) instead
-of ``Options`` and rejects requested features the provider cannot serve before any
-network I/O. Fine-grained capabilities still use the ``ProviderCapabilities``
-booleans; the structural-protocol decomposition is a later Slice 2 sub-PR.
+Reads the v2 primitives (``OutputRequirements`` / ``Input`` /
+``EnvironmentSnapshot``) and rejects requested features the provider cannot serve
+before any network I/O. Fine-grained capabilities still use the
+``ProviderCapabilities`` booleans; the structural-protocol decomposition is a
+later Slice 2 sub-PR.
 """
 
 from __future__ import annotations

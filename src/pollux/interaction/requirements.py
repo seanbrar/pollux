@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from pollux.config import ProviderName
 from pollux.errors import ConfigurationError
-from pollux.options import (
+from pollux.interaction.schema import (
     ResponseSchemaInput,
     response_schema_hash,
     response_schema_json,
