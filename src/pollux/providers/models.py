@@ -21,8 +21,8 @@ class ToolCall:
 def tool_call_to_dict(tool_call: ToolCall) -> dict[str, Any]:
     """Serialize a ToolCall to its normalized ``{id, name, arguments}`` dict.
 
-    This is the single owner of the normalized tool-call dict shape shared by
-    diagnostics (``raw_responses``), result envelopes, and conversation state.
+    This is the single owner of the normalized tool-call dict shape used by
+    response diagnostics and deferred item payloads.
     """
     return {
         "id": tool_call.id,

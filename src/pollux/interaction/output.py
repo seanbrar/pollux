@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 #: another provider-side condition, or failed.
 CompletionStatus = Literal["clean", "truncated", "cutoff", "error"]
 
-_CLEAN_FINISH = {"stop", "tool_calls", "end_turn", "stop_sequence", "complete"}
 _TRUNCATED_FINISH = {"max_tokens", "length"}
 _CUTOFF_FINISH = {
     "content_filter",
@@ -44,7 +43,8 @@ def completion_status(
     ``error_category`` values come from
     :func:`pollux.providers._errors._detect_error_category`. A context-overflow
     error is reported as ``"truncated"``; any other categorized error is
-    ``"error"``. Otherwise the (already normalized) finish reason decides.
+    ``"error"``. Otherwise a recognized truncation or cutoff finish reason maps
+    accordingly, and anything else (including an unrecognized reason) is clean.
     """
     if error_category == "context_overflow":
         return "truncated"
@@ -53,13 +53,11 @@ def completion_status(
     if finish_reason is None:
         return "clean"
     reason = finish_reason.lower()
-    if reason in _CLEAN_FINISH:
-        return "clean"
     if reason in _TRUNCATED_FINISH:
         return "truncated"
     if reason in _CUTOFF_FINISH:
         return "cutoff"
-    return "cutoff"
+    return "clean"
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +72,7 @@ class Usage:
 
     @classmethod
     def from_dict(cls, usage: Mapping[str, int]) -> Usage:
-        """Build from the v1 flat usage dict, ignoring unknown keys."""
+        """Build from the provider's flat usage dict, ignoring unknown keys."""
         reasoning = usage.get("reasoning_tokens")
         cached = usage.get("cached_tokens")
         return cls(

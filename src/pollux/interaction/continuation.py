@@ -16,6 +16,9 @@ from pollux.interaction.tools import ToolCall
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from pollux.interaction.input import Input
+    from pollux.providers.models import ProviderResponse
+
 #: Bump when the serialized shape changes incompatibly.
 SCHEMA_VERSION = 1
 
@@ -154,3 +157,74 @@ class Continuation:
             provider_state=provider_state if isinstance(provider_state, dict) else None,
             version=version,
         )
+
+
+def _prior_messages(input: Input) -> tuple[Message, ...]:  # noqa: A002
+    """Replay messages preceding this turn: prior state plus returned tool results."""
+    if input.continuation is not None:
+        prior = input.continuation.messages
+    elif input.history is not None:
+        prior = tuple(input.history)
+    else:
+        prior = ()
+    tool_messages = tuple(
+        Message(role="tool", content=tr.content, tool_call_id=tr.call_id)
+        for tr in input.tool_results
+    )
+    return prior + tool_messages
+
+
+def build_continuation(
+    input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+    response: ProviderResponse,
+    *,
+    user_content: str | None,
+    provider: str | None,
+) -> Continuation | None:
+    """Assemble the next-turn continuation for one interaction, or ``None``.
+
+    A continuation is produced when the caller opted into conversation continuity
+    (the input carried prior ``continuation`` or ``history``) or when the response
+    carries tool calls the caller may need to return results for. It appends this
+    turn's user message (when present) and the assistant reply to the prior replay
+    messages; the assistant message and the continuation both carry the response's
+    opaque ``provider_state`` for correct replay.
+    """
+    wants_conversation = input.continuation is not None or input.history is not None
+    response_tool_calls = response.tool_calls or ()
+    if not (wants_conversation or response_tool_calls):
+        return None
+
+    messages = list(_prior_messages(input))
+    turn_user_content = user_content or input.content
+    if turn_user_content is not None:
+        messages.append(Message(role="user", content=turn_user_content))
+
+    provider_state = (
+        response.provider_state if isinstance(response.provider_state, dict) else None
+    )
+    messages.append(
+        Message(
+            role="assistant",
+            content=response.text,
+            tool_calls=tuple(
+                ToolCall.from_text(id=tc.id, name=tc.name, arguments_text=tc.arguments)
+                for tc in response_tool_calls
+            ),
+            provider_state=provider_state,
+        )
+    )
+
+    response_id = (
+        response.response_id
+        if isinstance(response.response_id, str)
+        else input.continuation.response_id
+        if input.continuation is not None
+        else None
+    )
+    return Continuation(
+        messages=tuple(messages),
+        response_id=response_id,
+        provider=provider,
+        provider_state=provider_state,
+    )

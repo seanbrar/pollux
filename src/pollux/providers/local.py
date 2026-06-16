@@ -420,12 +420,9 @@ def _parse_response(
     """Parse a Chat Completions payload into ProviderResponse.
 
     JSON parsing is opportunistic: a non-JSON response despite JSON mode
-    produces ``structured=None`` (matching OpenRouter). result.py then
-    surfaces this as a ``None`` entry in the envelope's ``structured``
-    list and marks status accordingly. We deliberately do not raise here
-    because local servers vary in their JSON-mode fidelity, and a structured=None
-    slot is the established Pollux signal for "did not produce structured
-    output." Revisit if real-world use shows this silent path confuses users.
+    produces ``structured=None`` (matching OpenRouter) rather than raising,
+    because local servers vary in their JSON-mode fidelity. A ``None``
+    structured facet is Pollux's signal that no structured output was produced.
     """
     choice, message = first_choice_message(data)
 

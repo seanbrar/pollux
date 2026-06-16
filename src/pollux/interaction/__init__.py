@@ -5,10 +5,9 @@ These are the application-facing primitives for the v2 mental model::
     Environment + Input + Config -> Output
 
 The types here are frozen dataclasses with no behavior beyond construction,
-validation, and serialization. The live ``run()`` / ``run_many()`` pipeline does
-not use them yet; the provider boundary is migrated onto them in Slice 2. They
-are not re-exported from the top-level ``pollux`` package until the Slice 3
-frontdoor cutover.
+validation, and serialization. The execution path and provider boundary work in
+terms of these primitives, and the public ones are re-exported from the
+top-level ``pollux`` package.
 """
 
 from __future__ import annotations

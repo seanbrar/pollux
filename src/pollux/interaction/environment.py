@@ -37,9 +37,8 @@ class Environment:
     """The reusable, stable model-facing setup around interactions.
 
     ``sources`` and ``tools`` accept any ordered sequence and are frozen to
-    tuples. Tool declarations must be :class:`ToolDeclaration` objects; the
-    friendly facades (Slice 3) coerce raw dict schemas through
-    :meth:`ToolDeclaration.from_dict`.
+    tuples. Tool declarations must be :class:`ToolDeclaration` objects; build one
+    from a raw dict schema with :meth:`ToolDeclaration.from_dict`.
     """
 
     instructions: str | None = None
