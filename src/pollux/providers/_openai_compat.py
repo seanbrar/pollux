@@ -254,9 +254,13 @@ def parse_chat_stream_chunk(data: Mapping[str, Any]) -> ProviderStreamChunk | No
             content = delta.get("content")
             if isinstance(content, str):
                 text = content
+            # ``reasoning_content`` is the local/OpenAI-compatible field;
+            # OpenRouter streams reasoning text under ``reasoning`` instead.
             reasoning_content = delta.get("reasoning_content")
             if isinstance(reasoning_content, str):
                 reasoning = reasoning_content
+            elif isinstance(delta.get("reasoning"), str):
+                reasoning = delta["reasoning"]
             tool_calls = _parse_tool_call_deltas(delta.get("tool_calls"))
         raw_finish = choice.get("finish_reason")
         if isinstance(raw_finish, str):

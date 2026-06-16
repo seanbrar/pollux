@@ -25,6 +25,8 @@ from pollux.providers._openai_compat import (
     first_choice_message,
     map_tool_choice,
     normalize_tools,
+    parse_chat_stream_chunk,
+    parse_sse_line,
     parse_tool_calls,
     parse_usage,
     serialize_tool_calls,
@@ -35,6 +37,7 @@ from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderResponse,
+    ProviderStreamChunk,
 )
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -43,6 +46,7 @@ _OPENROUTER_REASONING_KEY = "openrouter_reasoning"
 _OPENROUTER_REASONING_DETAILS_KEY = "openrouter_reasoning_details"
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
     from pollux.config import Config
@@ -97,16 +101,18 @@ class OpenRouterProvider:
             )
         return cast("httpx.AsyncClient", self._client)
 
-    async def generate(
+    def _build_payload(
         self,
         snapshot: EnvironmentSnapshot,
         input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
         requirements: OutputRequirements,
         config: Config,
-    ) -> ProviderResponse:
-        """Generate a response using OpenRouter chat completions."""
-        await self.validate_request(snapshot, input, requirements, config)
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Build the chat-completions request body and the response schema, if any.
 
+        Shared by ``generate`` and ``stream_generate``; the streaming path adds
+        only the ``stream`` flags on top of this body.
+        """
         # OpenRouter uses history replay, not ID-based continuation.
         history, _previous_response_id, provider_state = _compile.prior_turns(input)
         parts = _compile.request_parts(snapshot, input)
@@ -151,6 +157,21 @@ class OpenRouterProvider:
             requirements.provider_options_for("openrouter"),
             provider="openrouter",
         )
+        return payload, response_schema
+
+    async def generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> ProviderResponse:
+        """Generate a response using OpenRouter chat completions."""
+        await self.validate_request(snapshot, input, requirements, config)
+
+        payload, response_schema = self._build_payload(
+            snapshot, input, requirements, config
+        )
 
         client = self._get_client()
         try:
@@ -180,6 +201,57 @@ class OpenRouterProvider:
             )
 
         return _parse_response(data, response_schema=response_schema)
+
+    async def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Stream normalized deltas using OpenRouter chat completions.
+
+        Reasoning text is surfaced for display via the shared chunk parser;
+        OpenRouter's ``reasoning_details`` replay state is not reconstructed from
+        the stream (best-effort context, not a continuation requirement).
+        """
+        await self.validate_request(snapshot, input, requirements, config)
+
+        payload, _response_schema = self._build_payload(
+            snapshot, input, requirements, config
+        )
+        payload["stream"] = True
+        payload["stream_options"] = {"include_usage": True}
+
+        client = self._get_client()
+        try:
+            async with client.stream(
+                "POST", "/chat/completions", json=payload
+            ) as response:
+                if response.is_error:
+                    await response.aread()
+                    raise httpx.HTTPStatusError(
+                        _extract_error_message(response),
+                        request=response.request,
+                        response=response,
+                    )
+                async for line in response.aiter_lines():
+                    data = parse_sse_line(line)
+                    if data is None:
+                        continue
+                    chunk = parse_chat_stream_chunk(data)
+                    if chunk is not None:
+                        yield chunk
+        except ConfigurationError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="openrouter",
+                phase="stream",
+                allow_network_errors=True,
+                message="OpenRouter stream failed",
+            ) from e
 
     async def validate_request(
         self,

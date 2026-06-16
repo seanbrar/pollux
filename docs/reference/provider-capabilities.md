@@ -60,7 +60,7 @@ before dispatch or the provider page below calls out why it is out of scope.
 | Function tool calling | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Pollux-normalized client/application tools; local trusts the server, no capability probe |
 | Provider-hosted tools | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ via `provider_options` | ⚠️ server-dependent | Raw provider escape hatch; not normalized by Pollux |
 | Tool message pass-through in history | ✅ | ✅ | ✅ | ⚠️ model-dependent | ✅ (server-dependent) | Local replays assistant tool calls and `tool`-role results verbatim |
-| Streaming (`stream()` → `Event`) | ❌ | ❌ | ❌ | ❌ | ✅ | Streamed `done.output` matches the non-streaming `Output`; cloud providers land in a later slice |
+| Streaming (`stream()` → `Event`) | ❌ | ❌ | ✅ | ✅ | ✅ | Streamed `done.output` matches the non-streaming `Output`; OpenAI and Gemini land in a later slice |
 | Conversation continuity (`history`, `continue_from`) | ✅ | ✅ | ✅ | ✅ | ✅ | Single prompt per call |
 
 For when deferred delivery is a fit and how to structure code around provider
@@ -140,7 +140,10 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   models through Anthropic's adaptive thinking mode.
 - Thinking block replay: when Anthropic returns `thinking` or
   `redacted_thinking` blocks, Pollux preserves them in conversation state and
-  replays them verbatim on continuation turns so tool loops remain valid.
+  replays them verbatim on continuation turns so tool loops remain valid. This
+  holds for `stream()` too: signed thinking blocks are reassembled from the
+  stream, so a streamed extended-thinking + tool turn continues identically to
+  the non-streaming path.
 - `Options.max_tokens`: limits the output length. Default is `16384` for Anthropic,
   which leaves room for thinking output at all effort levels. Other providers
   currently ignore this option.
@@ -189,7 +192,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   appears in `ResultEnvelope.reasoning`, and token counts in
   `ResultEnvelope.usage["reasoning_tokens"]` when available. OpenRouter does
   not accept `reasoning_budget_tokens`; Pollux raises `ConfigurationError`
-  before dispatch.
+  before dispatch. Under `stream()`, reasoning text is surfaced for display but
+  the `reasoning_details` replay state is not reconstructed from the stream
+  (best-effort context, not a continuation requirement).
 
 ### Local
 

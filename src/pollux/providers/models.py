@@ -98,6 +98,7 @@ class ProviderStreamChunk:
     usage: dict[str, int] | None = None
     finish_reason: str | None = None
     response_id: str | None = None
+    provider_state: dict[str, Any] | None = None
 
 
 def provider_response_to_dict(response: ProviderResponse) -> dict[str, Any]:

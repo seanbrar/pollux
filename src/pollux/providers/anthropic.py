@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.tools import ToolCallDelta
 from pollux.parts import build_shared_parts
 from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
@@ -29,12 +30,14 @@ from pollux.providers.models import (
     Message,
     ProviderFileAsset,
     ProviderResponse,
+    ProviderStreamChunk,
     ToolCall,
     is_file_part,
     provider_response_to_dict,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
     from pollux.config import Config
@@ -594,6 +597,50 @@ class AnthropicProvider:
                 message="Anthropic generate failed",
             ) from e
 
+    async def stream_generate(
+        self,
+        snapshot: EnvironmentSnapshot,
+        input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+        requirements: OutputRequirements,
+        config: Config,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """Stream normalized deltas using Anthropic's Messages API.
+
+        Signed ``thinking`` blocks are reassembled from the stream and surfaced
+        as provider_state on a terminal chunk, so a streamed extended-thinking +
+        tool turn continues exactly like the non-streaming path (Anthropic
+        requires those signed blocks to be replayed verbatim).
+        """
+        client = self._get_client()
+        parts = _compile.request_parts(snapshot, input)
+        create_kwargs = self._build_messages_create_kwargs(
+            parts, snapshot, input, requirements, config
+        )
+        create_kwargs["stream"] = True
+
+        assembler = _AnthropicStreamAssembler()
+        try:
+            stream = await client.messages.create(**create_kwargs)
+            async for event in stream:
+                chunk = assembler.feed(event)
+                if chunk is not None:
+                    yield chunk
+            final = assembler.final_chunk()
+            if final is not None:
+                yield final
+        except asyncio.CancelledError:
+            raise
+        except APIError:
+            raise
+        except Exception as e:
+            raise wrap_provider_error(
+                e,
+                provider="anthropic",
+                phase="stream",
+                allow_network_errors=True,
+                message="Anthropic stream failed",
+            ) from e
+
     async def _resolve_deferred_parts(
         self,
         snapshot: EnvironmentSnapshot,
@@ -1037,6 +1084,149 @@ def _synthesize_terminal_batch_items(
         )
         for request_id in missing_request_ids
     ]
+
+
+class _AnthropicStreamAssembler:
+    """Map Anthropic Messages stream events to normalized stream chunks.
+
+    Holds the cross-event state streaming needs: the input token count (reported
+    at ``message_start``, needed to compute ``total_tokens`` at ``message_delta``)
+    and per-block ``thinking`` text + signatures, which are reassembled into the
+    same signed-thinking-block provider_state the non-streaming path produces.
+    Text, tool-call fragments, reasoning text, usage, and finish reason map
+    one-to-one onto :class:`ProviderStreamChunk` facets.
+    """
+
+    def __init__(self) -> None:
+        self._thinking: dict[int, dict[str, Any]] = {}
+        self._thinking_order: list[int] = []
+        self._input_tokens = 0
+
+    def feed(self, event: Any) -> ProviderStreamChunk | None:
+        """Translate one stream event into a chunk, or ``None`` to skip it."""
+        etype = getattr(event, "type", None)
+        if etype == "message_start":
+            return self._message_start(event)
+        if etype == "content_block_start":
+            return self._block_start(event)
+        if etype == "content_block_delta":
+            return self._block_delta(event)
+        if etype == "message_delta":
+            return self._message_delta(event)
+        return None
+
+    def final_chunk(self) -> ProviderStreamChunk | None:
+        """Emit reassembled signed thinking blocks as provider_state, if any."""
+        blocks: list[dict[str, str]] = []
+        for index in self._thinking_order:
+            slot = self._thinking[index]
+            if "redacted" in slot:
+                blocks.append({"type": "redacted_thinking", "data": slot["redacted"]})
+                continue
+            text = "".join(slot["thinking"])
+            signature = slot["signature"]
+            if text and isinstance(signature, str):
+                blocks.append(
+                    {"type": "thinking", "thinking": text, "signature": signature}
+                )
+        if blocks:
+            return ProviderStreamChunk(
+                provider_state={_ANTHROPIC_THINKING_BLOCKS_KEY: blocks}
+            )
+        return None
+
+    def _message_start(self, event: Any) -> ProviderStreamChunk | None:
+        message = getattr(event, "message", None)
+        response_id = getattr(message, "id", None)
+        response_id = response_id if isinstance(response_id, str) else None
+        usage: dict[str, int] = {}
+        usage_obj = getattr(message, "usage", None)
+        if usage_obj is not None:
+            input_tokens = getattr(usage_obj, "input_tokens", None)
+            if isinstance(input_tokens, int):
+                self._input_tokens = input_tokens
+                usage["input_tokens"] = input_tokens
+            cached = getattr(usage_obj, "cache_read_input_tokens", None)
+            if isinstance(cached, int):
+                usage["cached_tokens"] = cached
+        if usage or response_id:
+            return ProviderStreamChunk(usage=usage or None, response_id=response_id)
+        return None
+
+    def _block_start(self, event: Any) -> ProviderStreamChunk | None:
+        index = getattr(event, "index", 0)
+        index = index if isinstance(index, int) else 0
+        block = getattr(event, "content_block", None)
+        block_type = getattr(block, "type", None)
+        if block_type == "tool_use":
+            delta = ToolCallDelta(
+                index=index,
+                id=_str_or_none(getattr(block, "id", None)),
+                name=_str_or_none(getattr(block, "name", None)),
+            )
+            return ProviderStreamChunk(tool_calls=(delta,))
+        if block_type == "thinking":
+            self._thinking[index] = {"thinking": [], "signature": None}
+            self._thinking_order.append(index)
+        elif block_type == "redacted_thinking":
+            data = getattr(block, "data", None)
+            if isinstance(data, str):
+                self._thinking[index] = {"redacted": data}
+                self._thinking_order.append(index)
+        return None
+
+    def _block_delta(self, event: Any) -> ProviderStreamChunk | None:
+        index = getattr(event, "index", 0)
+        index = index if isinstance(index, int) else 0
+        delta = getattr(event, "delta", None)
+        delta_type = getattr(delta, "type", None)
+        if delta_type == "text_delta":
+            text = getattr(delta, "text", "")
+            return (
+                ProviderStreamChunk(text=text)
+                if isinstance(text, str) and text
+                else None
+            )
+        if delta_type == "input_json_delta":
+            partial = getattr(delta, "partial_json", "")
+            if isinstance(partial, str) and partial:
+                return ProviderStreamChunk(
+                    tool_calls=(ToolCallDelta(index=index, arguments=partial),)
+                )
+            return None
+        if delta_type == "thinking_delta":
+            thinking = getattr(delta, "thinking", "")
+            if isinstance(thinking, str) and thinking:
+                slot = self._thinking.get(index)
+                if slot is not None and "thinking" in slot:
+                    slot["thinking"].append(thinking)
+                return ProviderStreamChunk(reasoning=thinking)
+            return None
+        if delta_type == "signature_delta":
+            signature = getattr(delta, "signature", None)
+            slot = self._thinking.get(index)
+            if slot is not None and isinstance(signature, str):
+                slot["signature"] = signature
+        return None
+
+    def _message_delta(self, event: Any) -> ProviderStreamChunk | None:
+        delta = getattr(event, "delta", None)
+        finish_reason = _normalize_stop_reason(getattr(delta, "stop_reason", None))
+        usage: dict[str, int] = {}
+        usage_obj = getattr(event, "usage", None)
+        if usage_obj is not None:
+            output_tokens = getattr(usage_obj, "output_tokens", None)
+            if isinstance(output_tokens, int):
+                usage["output_tokens"] = output_tokens
+                usage["total_tokens"] = self._input_tokens + output_tokens
+        if finish_reason is None and not usage:
+            return None
+        return ProviderStreamChunk(finish_reason=finish_reason, usage=usage or None)
+
+
+def _str_or_none(value: Any) -> str | None:
+    """Return the value when it is a non-empty string, else ``None``."""
+    return value if isinstance(value, str) and value else None
 
 
 def _normalize_stop_reason(stop_reason: Any) -> str | None:
