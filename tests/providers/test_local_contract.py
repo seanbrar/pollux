@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
-from pollux.interaction.continuation import Message
-from pollux.interaction.tools import ToolCall
+from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.local import LocalProvider
 from tests.conftest import (
     LOCAL_MODEL,
@@ -339,53 +339,140 @@ async def test_local_generate_rejects_reasoning_budget_tokens() -> None:
 
 
 @pytest.mark.asyncio
-async def test_local_generate_rejects_tools() -> None:
-    """Tool calling is out of scope for the local provider."""
-    provider = _make_local_provider(_FakeLocalClient())
-
-    with pytest.raises(ConfigurationError, match="tool calling"):
-        await provider.generate(
-            *_local(
-                content="hi",
-                tools=[{"name": "get_weather"}],
-            )
-        )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "history",
-    [
-        [Message(role="tool", content="tool result", tool_call_id="call_1")],
-        [
-            Message(
-                role="assistant",
-                tool_calls=(
-                    ToolCall.from_text(
-                        id="call_1", name="lookup", arguments_text='{"q":"x"}'
-                    ),
-                ),
-            )
-        ],
-    ],
-    ids=["tool_message", "assistant_tool_calls"],
-)
-async def test_local_generate_rejects_tool_call_history(
-    history: list[Message],
-) -> None:
-    """Tool-call history must fail fast instead of dropping context."""
+async def test_local_generate_sends_tools_and_tool_choice() -> None:
+    """Tool declarations and tool_choice map to Chat Completions function shape."""
     fake = _FakeLocalClient()
     provider = _make_local_provider(fake)
 
-    with pytest.raises(ConfigurationError, match="tool-call history"):
-        await provider.generate(
-            *_local(
-                content="continue",
-                history=history,
-            )
+    await provider.generate(
+        *_local(
+            content="What's the weather?",
+            tools=[
+                {
+                    "name": "get_weather",
+                    "description": "Look up the weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                    },
+                }
+            ],
+            tool_choice={"name": "get_weather"},
         )
+    )
 
-    assert fake.last_json is None
+    assert fake.last_json is not None
+    assert fake.last_json["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Look up the weather",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                    "additionalProperties": False,
+                    "required": ["city"],
+                },
+            },
+        }
+    ]
+    assert fake.last_json["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "get_weather"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_local_generate_replays_tool_history() -> None:
+    """Assistant tool_calls and tool results replay as standard chat messages.
+
+    Mirrors an agent loop: prior turns arrive as a continuation, and the tool
+    result for the pending call arrives via ``tool_results`` (no new user text).
+    """
+    fake = _FakeLocalClient()
+    provider = _make_local_provider(fake)
+
+    await provider.generate(
+        *_local(
+            content="",
+            continuation=Continuation(
+                messages=(
+                    Message(role="user", content="What's the weather in NYC?"),
+                    Message(
+                        role="assistant",
+                        content="",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_1",
+                                name="get_weather",
+                                arguments_text='{"city":"NYC"}',
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            tool_results=[ToolResult(call_id="call_1", content='{"temp":72}')],
+        )
+    )
+
+    assert fake.last_json is not None
+    assert fake.last_json["messages"] == [
+        {"role": "user", "content": "What's the weather in NYC?"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"city":"NYC"}',
+                    },
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": '{"temp":72}'},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_local_generate_parses_tool_calls() -> None:
+    """tool_calls in the response surface on the ProviderResponse."""
+    fake = _FakeLocalClient(
+        payload={
+            "id": "chatcmpl_local_tool",
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call_xyz",
+                                "type": "function",
+                                "function": {
+                                    "name": "get_weather",
+                                    "arguments": '{"city":"NYC"}',
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {"total_tokens": 7},
+        }
+    )
+    provider = _make_local_provider(fake)
+
+    result = await provider.generate(*_local(content="Weather in NYC?"))
+
+    assert result.finish_reason == "tool_calls"
+    assert result.tool_calls is not None
+    assert result.tool_calls[0].id == "call_xyz"
+    assert result.tool_calls[0].name == "get_weather"
+    assert result.tool_calls[0].arguments == '{"city":"NYC"}'
 
 
 @pytest.mark.asyncio

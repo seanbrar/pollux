@@ -7,25 +7,22 @@ so tool calling is provider-complete through the v2 boundary (not just mock).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from pollux.config import Config, ProviderName
-from pollux.errors import ConfigurationError
 from pollux.interaction.environment import Environment, EnvironmentSnapshot
-from pollux.interaction.execute import execute_interaction
-from pollux.interaction.input import Input
-from pollux.interaction.requirements import OutputRequirements
 from pollux.interaction.tools import ToolDeclaration
 from pollux.providers import _compile
+from pollux.providers._openai_compat import normalize_tools
 from pollux.providers.anthropic import AnthropicProvider
-from pollux.providers.local import LocalProvider
 from pollux.providers.openai import OpenAIProvider
+
+if TYPE_CHECKING:
+    from pollux.config import ProviderName
 
 pytestmark = pytest.mark.unit
 
-_LOCAL_BASE_URL = "http://localhost:1234/v1"
 _TOOL = ToolDeclaration(
     name="get_weather",
     description="Get weather",
@@ -56,15 +53,8 @@ def test_translates_to_openai_function():
     assert "parameters" in tools[0]
 
 
-@pytest.mark.asyncio
-async def test_local_rejects_tools_through_v2():
-    provider = LocalProvider(base_url=_LOCAL_BASE_URL)
-    cfg = Config(provider="local", model="m", base_url=_LOCAL_BASE_URL)
-    with pytest.raises(ConfigurationError):
-        await execute_interaction(
-            Environment(tools=[_TOOL]),
-            Input(content="hi"),
-            OutputRequirements(),
-            cfg,
-            provider,
-        )
+def test_translates_to_local_function():
+    tools = normalize_tools(_compiled_tools("local"))
+    assert tools[0]["type"] == "function"
+    assert tools[0]["function"]["name"] == "get_weather"
+    assert "parameters" in tools[0]["function"]
