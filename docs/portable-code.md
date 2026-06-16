@@ -2,7 +2,7 @@
      from pipeline logic, graceful degradation, model tier mapping, and testing
      with mock mode. Cover model-specific constraints (GPT-5 sampling, Gemini
      reasoning). Do NOT re-explain tool calling or conversation mechanics.
-     Assumes the reader has used run() and understands Config/Options.
+     Assumes the reader has used run() and understands Config.
      Register: guided applied (architectural patterns). -->
 
 # Writing Portable Code Across Providers
@@ -13,8 +13,8 @@ This page shows the patterns that make that work.
 
 Pollux is capability-transparent, not capability-equalizing. All providers
 support the core text pipeline, but some features are provider-specific. For
-example, Gemini uses explicit caching (`create_cache()`), Anthropic uses
-implicit caching (`Options(implicit_caching=True)`), and OpenRouter exposes
+example, Gemini uses persistent caching (`CachePolicy`), Anthropic uses
+implicit caching (`Environment(cache="auto")`), and OpenRouter exposes
 tool calling and structured outputs only on models that advertise those
 features.
 When you use an unsupported feature for a provider, Pollux raises a
@@ -22,9 +22,9 @@ When you use an unsupported feature for a provider, Pollux raises a
 This keeps behavior legible in both development and production.
 
 !!! info "Boundary"
-    **Pollux owns:** translating your `Config`, `Options`, `Source`, and
+    **Pollux owns:** translating your `Config`, `Environment`, `Input`, and
     prompts into provider-specific API calls, and normalizing responses
-    into a stable `ResultEnvelope`.
+    into stable `Output` / `OutputCollection` models.
 
     **You own:** choosing which features to use (sticking to the portable
     subset or gracefully degrading), selecting provider-appropriate models,
@@ -46,7 +46,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from pollux import APIError, Config, ConfigurationError, Options, Source, run
+from pollux import APIError, Config, ConfigurationError, Source, run
 
 
 class DocumentSummary(BaseModel):
@@ -83,17 +83,16 @@ async def analyze_document(
     *,
     provider_name: str = "gemini",
 ) -> DocumentSummary:
-    """Analyze a document — works with any supported provider."""
+    """Analyze a document. This function works with any supported provider."""
     config = make_config(provider_name)
-    options = Options(response_schema=DocumentSummary)
 
     result = await run(
         prompt,
         source=Source.from_file(file_path),
         config=config,
-        options=options,
+        output=DocumentSummary,
     )
-    return result["structured"][0]
+    return result.structured
 
 
 async def main() -> None:
@@ -119,8 +118,8 @@ asyncio.run(main())
    its model. Your analysis functions never reference provider names or
    models directly.
 
-2. **Handle features conditionally.** Explicit caching (`create_cache()`) is
-   Gemini-specific, while implicit caching (`implicit_caching=True`) is
+2. **Handle features conditionally.** Persistent caching (`prepare_environment()`) is
+   Gemini-specific, while implicit caching is
    Anthropic-specific. Some providers also cache repeated prefixes
    automatically. Gate these conditional optimizations on the provider name
    or handle them near the call site; see
@@ -152,10 +151,10 @@ models (like `gpt-4.1-nano`) still accept them.
 
 ```python
 # This will fail with an APIError for gpt-5 family models
-options = Options(temperature=0.8, top_p=0.9)
+result = await run(prompt, config=config, temperature=0.8, top_p=0.9)
 
 # Instead, use the default behavior or rely on reasoning_effort
-options = Options(reasoning_effort="medium")
+result = await run(prompt, config=config, reasoning_effort="medium")
 ```
 
 ### Choosing a Reasoning Control
@@ -176,20 +175,18 @@ it, but model-specific acceptance and minimums remain provider-defined.
 result = await run(
     "Solve this step by step...",
     config=Config(provider="gemini", model="gemini-3-flash-preview"),
-    options=Options(reasoning_effort="high"),
+    reasoning_effort="high",
 )
 
 # Use an explicit budget on a provider that accepts token-based reasoning.
 result = await run(
     "Think briefly, then answer.",
     config=Config(provider="anthropic", model="claude-haiku-4-5"),
-    options=Options(reasoning_budget_tokens=2048),
+    reasoning_budget_tokens=2048,
 )
 
-if "reasoning" in result:
-    for text in result["reasoning"]:
-        if text:
-            print("Thinking:", text)
+if result.reasoning:
+    print("Thinking:", result.reasoning)
 ```
 
 Exact budget floors are provider-defined. Pollux validates the shape
@@ -242,21 +239,18 @@ async def analyze_with_reasoning(
             prompt,
             source=Source.from_file(file_path),
             config=config,
-            options=Options(reasoning_effort="high"),
+            reasoning_effort="high",
         )
-        reasoning = None
-        if "reasoning" in result and result["reasoning"][0]:
-            reasoning = result["reasoning"][0]
-        return result["answers"][0], reasoning
+        return result.text, result.reasoning
 
     except (ConfigurationError, APIError):
-        # Provider or model doesn't support this reasoning mode — retry without it
+        # Provider or model doesn't support this reasoning mode; retry without it
         result = await run(
             prompt,
             source=Source.from_file(file_path),
             config=config,
         )
-        return result["answers"][0], None
+        return result.text, None
 ```
 
 ### Running against a self-hosted model
@@ -305,8 +299,8 @@ async def test_analyze_document_mock(provider: str) -> None:
         source=Source.from_text("Test content."),
         config=config,
     )
-    assert result["status"] == "ok"
-    assert len(result["answers"]) == 1
+    assert result.metrics.completion_status == "clean"
+    assert result.text
 ```
 
 ## What to Watch For

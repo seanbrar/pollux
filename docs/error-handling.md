@@ -2,7 +2,7 @@
      hierarchy, failure triage, production error patterns (category-specific
      catching, circuit breakers, partial failures, resume-on-failure). Do NOT
      re-explain tool calling or conversation mechanics. Assumes the reader has
-     used run() and understands Config/Options. Register: reference + guided
+     used run() and understands Config. Register: reference + guided
      applied (patterns). -->
 
 # Handling Errors and Recovery
@@ -50,7 +50,7 @@ strings.
 
 !!! info "Boundary"
     **Pollux owns:** retrying transient API failures (rate limits, server
-    errors) within a single `run()` or `run_many()` call, respecting
+    errors) within a single `run()`, `run_many()`, or `interact()` call, respecting
     `Retry-After` headers, and raising typed exceptions with `.hint`.
 
     **You own:** workflow-level retry decisions (should I retry this file?),
@@ -153,17 +153,17 @@ async def safe_analyze(path: Path, prompt: str) -> str | None:
             source=Source.from_file(str(path)),
             config=config,
         )
-        if result["status"] == "partial":
-            log.warning("%s: partial result (some answers empty)", path.name)
-        return result["answers"][0]
+        if result.metrics.completion_status != "clean":
+            log.warning("%s: incomplete result (status: %s)", path.name, result.metrics.completion_status)
+        return result.text
 
     except ConfigurationError as exc:
-        # Bad config — nothing to retry, abort early
+        # Bad config: nothing to retry, abort early
         log.error("Configuration error: %s (hint: %s)", exc, exc.hint)
         raise  # Let the caller abort the pipeline
 
     except SourceError as exc:
-        # Bad input file — skip it, process the rest
+        # Bad input file: skip it, process the rest
         log.warning("Skipping %s: %s (hint: %s)", path.name, exc, exc.hint)
         return None
 
@@ -175,7 +175,7 @@ async def safe_analyze(path: Path, prompt: str) -> str | None:
         return None
 
     except APIError as exc:
-        # Other provider errors — log details for diagnosis
+        # Other provider errors: log details for diagnosis
         log.error(
             "API error on %s: %s [status=%s, retryable=%s] (hint: %s)",
             path.name, exc, exc.status_code, exc.retryable, exc.hint,
@@ -234,7 +234,7 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 | `ConfigurationError` at startup | Missing API key | `export GEMINI_API_KEY="your-key"` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY`) or pass `api_key` in `Config(...)` |
 | Outputs look like `echo: ...` | `use_mock=True` is set | Set `use_mock=False` (default) and ensure the API key is present |
 | `ConfigurationError` at request time | Provider/model mismatch | Verify the model belongs to the selected provider |
-| `status: "partial"` | Some prompts returned empty answers | Check individual entries in `answers` to identify which prompts failed |
+| `status: "partial"` | Some prompts returned empty answers | Check individual entries in `collection.answers` to identify which prompts failed |
 | Remote source rejected | Unsupported MIME type on OpenAI | OpenAI remote URL support is limited to PDFs and images |
 | Keys show as `***redacted***` | Intentional redaction | Your key is still being used. `Config` hides it from string representations |
 | `APIError: Cannot reach local server` | Local server not running, or wrong `base_url` | Start the server and confirm its URL; check `POLLUX_LOCAL_BASE_URL` and the `/v1` suffix |
@@ -319,18 +319,18 @@ but the output is incomplete:
 ```python
 result = await run_many(prompts, sources=sources, config=config)
 
-if result["status"] == "ok":
-    # All answers populated — process normally
+if result.status == "ok":
+    # All answers populated: process normally
     pass
-elif result["status"] == "partial":
-    # Some answers are empty strings — decide per-answer
-    for i, answer in enumerate(result["answers"]):
+elif result.status == "partial":
+    # Some answers are empty strings: decide per-answer
+    for i, answer in enumerate(result.answers):
         if answer:
             process_answer(i, answer)
         else:
             log.warning("Empty answer for prompt %d", i)
-elif result["status"] == "error":
-    # All answers empty — treat as a failure
+elif result.status == "error":
+    # All answers empty: treat as a failure
     log.error("All answers empty")
 ```
 
@@ -371,7 +371,7 @@ python -m cookbook production/resume-on-failure \
 - **`RateLimitError` means retries were exhausted.** Pollux already waited
   and retried. If you still get `RateLimitError`, reduce concurrency or add
   a longer backoff at the workflow level.
-- **Check `result["status"]` even on success.** A successful call can return
+- **Check `result.status` or `completion_status` even on success.** A successful call can return
   `"partial"` status with some empty answers. Don't assume all answers are
   populated because no exception was raised.
 - **Don't catch `Exception` when you mean `PolluxError`.** Catching too

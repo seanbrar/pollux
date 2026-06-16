@@ -70,8 +70,7 @@ async def main() -> None:
         ),
         config=config,
     )
-    print(result["status"])
-    print(result["answers"][0])
+    print(result.text)
 
 asyncio.run(main())
 ```
@@ -88,20 +87,19 @@ use `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.
 ## 4. See the Output
 
 ```
-ok
 The key points are: (1) Pollux supports three execution patterns (fan-out,
 fan-in, and broadcast); (2) it provides context caching to avoid
 re-uploading the same content for repeated prompts.
 ```
 
-That's your first Pollux result. The `status` is `ok` and the answer
+That's your first Pollux result. The `result.text` contains the answer and
 references details from the source text. When this works, swap to your real
 input: `Source.from_file("document.pdf")`.
 
 !!! info "What happened?"
     **Pollux owned:** normalizing your prompt and source into a request,
     planning the API call, executing it, and extracting the answer into a
-    standard [ResultEnvelope](sending-content.md#resultenvelope-reference).
+    standard [Output](sending-content.md#output-and-outputcollection-reference).
 
     **You owned:** writing the prompt, choosing what to analyze, and deciding
     what to do with the result.

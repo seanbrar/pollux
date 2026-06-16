@@ -1,10 +1,10 @@
 <!-- Intent: The canonical composition tutorial. Teach users how to build a
      complete tool-calling agent loop using Pollux primitives. This is the page
-     that solves the "Boolean Trap" — it proves that complex workflows are built
-     by composing run() + continue_tool() inside the user's own loop. Do NOT
-     introduce conversation mechanics from scratch — link back to that page.
-     Assumes the reader understands continue_from, tool calling setup, and
-     continue_tool() from the previous page. Register: warm tutorial. -->
+     that solves the "Boolean Trap" and proves that complex workflows are built
+     by composing interact() inside the user's own loop. Do NOT
+     introduce conversation mechanics from scratch. Link back to that page.
+     Assumes the reader understands continuation, tool calling setup, and
+     interact() from the previous page. Register: warm tutorial. -->
 
 # Building an Agent Loop
 
@@ -17,7 +17,7 @@ understanding of *why* it's built this way.
 
 !!! info "Boundary"
     **Pollux owns:** executing each turn (sending the prompt, surfacing tool
-    calls, carrying conversation state forward via `continue_tool()`).
+    calls, carrying conversation state forward via `interact()`).
 
     **You own:** the loop itself: how many turns to allow, which tools to
     implement, what to do between turns, and when to stop.
@@ -31,24 +31,32 @@ Type it out (or paste it) and run it. We'll break it down afterward.
 import asyncio
 import json
 
-from pollux import Config, Options, run, continue_tool
+from pollux import (
+    Config,
+    Environment,
+    Input,
+    ToolCall,
+    ToolDeclaration,
+    ToolResult,
+    interact,
+)
 
 MAX_TURNS = 5
 
 config = Config(provider="openai", model="gpt-5-nano")
 
 tools = [
-    {
-        "name": "get_weather",
-        "description": "Get current weather for a location",
-        "parameters": {
+    ToolDeclaration(
+        name="get_weather",
+        description="Get current weather for a location",
+        parameters={
             "type": "object",
             "properties": {
                 "location": {"type": "string", "description": "City name"},
             },
             "required": ["location"],
         },
-    }
+    )
 ]
 
 # --- Tool implementations (your code) ---
@@ -63,46 +71,49 @@ TOOL_DISPATCH = {
 }
 
 
-def execute_tool_calls(tool_calls: list[dict]) -> list[dict]:
+def execute_tool_calls(tool_calls: tuple[ToolCall, ...]) -> list[ToolResult]:
     """Run each tool call and return tool-result messages."""
     results = []
     for tc in tool_calls:
         try:
-            output = TOOL_DISPATCH[tc["name"]](tc["arguments"])
+            # Arguments are already parsed by ToolCall
+            args = tc.arguments if isinstance(tc.arguments, dict) else {}
+            output = TOOL_DISPATCH[tc.name](args)
             content = json.dumps(output)
         except Exception as exc:
             content = json.dumps({"error": str(exc)})
-        results.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": content,
-        })
+        results.append(ToolResult(
+            call_id=tc.id,
+            content=content,
+        ))
     return results
 
 
 async def agent(user_prompt: str) -> str:
     """Run a tool-calling agent loop and return the final answer."""
-    # history=[] is optional — Pollux auto-populates conversation state when
-    # tool calls are present — but included here for explicitness.
-    options = Options(tools=tools, tool_choice="auto", history=[])
-    result = await run(user_prompt, config=config, options=options)
+    env = Environment(tools=tools)
+    out = await interact(
+        env,
+        Input(content=user_prompt),
+        config=config,
+        tool_choice="auto",
+    )
 
     for turn in range(MAX_TURNS):
-        if "tool_calls" not in result:
-            return result["answers"][0]
+        if not out.tool_calls:
+            return out.text
 
         # Execute every tool the model requested
-        tool_results = execute_tool_calls(result["tool_calls"][0])
+        tool_results = execute_tool_calls(out.tool_calls)
 
-        # Next turn — model sees tool results and may call more tools
-        result = await continue_tool(
-            continue_from=result,
-            tool_results=tool_results,
+        # Next turn: model sees tool results and may call more tools
+        out = await interact(
+            env,
+            Input(continuation=out.continuation, tool_results=tool_results),
             config=config,
-            options=Options(tools=tools),
         )
 
-    return result["answers"][0]  # Best-effort after MAX_TURNS
+    return out.text  # Best-effort after MAX_TURNS
 
 
 print(asyncio.run(agent("What's the weather in NYC and London?")))
@@ -117,7 +128,7 @@ The weather in NYC is 72°F and sunny. In London, it's also 72°F and sunny.
 The model asked for two tool calls (one for each city), your code executed
 them, and the model composed an answer from both results.
 
-## What You Just Built
+## Deconstructing the Loop
 
 Let's take this apart, because the structure matters as much as the code.
 
@@ -154,9 +165,9 @@ This means you control:
 Within each iteration, Pollux handled:
 
 1. Delivering the prompt and tool definitions to the provider.
-2. Surfacing `tool_calls` in the result envelope.
-3. Carrying conversation state forward via `continue_tool()`.
-4. Normalizing the response into a stable `ResultEnvelope`.
+2. Surfacing `tool_calls` in the `Output` object.
+3. Carrying conversation state forward via `interact()`.
+4. Normalizing the response into a stable `Output` model.
 
 The boundary is clean: Pollux executes turns, you decide what happens
 *between* them.
@@ -176,48 +187,49 @@ def search_web(query: str) -> dict:
 
 TOOL_DISPATCH["search_web"] = lambda args: search_web(args["query"])
 
-tools.append({
-    "name": "search_web",
-    "description": "Search the web for information",
-    "parameters": {
+tools.append(ToolDeclaration(
+    name="search_web",
+    description="Search the web for information",
+    parameters={
         "type": "object",
         "properties": {"query": {"type": "string"}},
         "required": ["query"],
     },
-})
+))
 ```
 
 The loop itself doesn't change. It already handles any number of tools.
 
-### Using `history` instead of `continue_from`
+### Using `history` instead of `continuation`
 
-`continue_from` is convenient when you have the prior result object.
+`continuation` is convenient when you have the prior `Output` object.
 If you need more control (injecting a system message mid-conversation,
 trimming old turns), build `history` manually:
 
 ```python
+from pollux import Message
+
 history = [
-    {"role": "user", "content": "What's the weather in NYC?"},
-    {"role": "assistant", "content": "", "tool_calls": tool_calls},
-    {"role": "tool", "tool_call_id": "call_1", "content": '{"temp_f": 72}'},
+    Message(role="user", content="What's the weather in NYC?"),
+    Message(role="assistant", content="", tool_calls=tool_calls),
+    Message(role="tool", tool_call_id="call_1", content='{"temp_f": 72}'),
 ]
 
-result = await run(
-    "Now summarize.",
+out = await interact(
+    env,
+    Input(content="Now summarize.", history=history),
     config=config,
-    options=Options(tools=tools, history=history),
 )
 ```
 
 ### Guiding tool use with system instructions
 
-Use `system_instruction` to constrain when and how the model calls tools:
+Use `instructions` to constrain when and how the model calls tools, passed to the `Environment`:
 
 ```python
-options = Options(
+env = Environment(
     tools=tools,
-    tool_choice="auto",
-    system_instruction=(
+    instructions=(
         "You are a weather assistant. Only call get_weather for cities "
         "the user explicitly mentions. Do not guess locations."
     ),
@@ -230,30 +242,34 @@ Insert an approval step before executing tool calls:
 
 ```python
 async def agent_with_approval(user_prompt: str) -> str:
-    options = Options(tools=tools, tool_choice="auto")
-    result = await run(user_prompt, config=config, options=options)
+    env = Environment(tools=tools)
+    out = await interact(
+        env,
+        Input(content=user_prompt),
+        config=config,
+        tool_choice="auto",
+    )
 
     for turn in range(MAX_TURNS):
-        if "tool_calls" not in result:
-            return result["answers"][0]
+        if not out.tool_calls:
+            return out.text
 
         # Show what the model wants to do
-        for tc in result["tool_calls"][0]:
-            print(f"  Tool: {tc['name']}({tc['arguments']})")
+        for tc in out.tool_calls:
+            print(f"  Tool: {tc.name}({tc.arguments})")
 
         approval = input("Execute these tool calls? [y/n] ")
         if approval.lower() != "y":
             return "Agent stopped by user."
 
-        tool_results = execute_tool_calls(result["tool_calls"][0])
-        result = await continue_tool(
-            continue_from=result,
-            tool_results=tool_results,
+        tool_results = execute_tool_calls(out.tool_calls)
+        out = await interact(
+            env,
+            Input(continuation=out.continuation, tool_results=tool_results),
             config=config,
-            options=Options(tools=tools),
         )
 
-    return result["answers"][0]
+    return out.text
 ```
 
 This is a two-line addition to the loop. That's the benefit of owning
@@ -266,9 +282,8 @@ the control flow.
 - **Return errors as tool results, don't raise.** If a tool fails, return a
   JSON error message so the model can reason about the failure. Raising an
   exception breaks the loop.
-- **`tool_calls` is per-prompt.** `result["tool_calls"]` is a list of
-  lists, one per prompt. For `run()` (single prompt), access
-  `result["tool_calls"][0]`.
+- **`tool_calls` is a flat tuple on `Output`.** When using `interact()` or `run()`,
+  `out.tool_calls` is a flat tuple of `ToolCall` objects.
 - **The model can request multiple tools in one turn.** The example handles
   this naturally: `execute_tool_calls` iterates over all calls and returns
   a result for each.

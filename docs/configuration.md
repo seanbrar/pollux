@@ -1,6 +1,6 @@
-<!-- Intent: Reference page for Config and Options fields. Cover API key
-     resolution, mock mode, performance/cost controls, RetryPolicy, and Options
-     per-prompt overrides. Do NOT include tutorials or extended examples,
+<!-- Intent: Reference page for Config fields. Cover API key
+     resolution, mock mode, performance/cost controls, RetryPolicy, and execution
+     parameters. Do NOT include tutorials or extended examples,
      link to the relevant guide pages. Register: reference. -->
 
 # Configuring Pollux
@@ -119,7 +119,7 @@ config = Config(
 | Need | Direction |
 |---|---|
 | Fast iteration without API calls | `use_mock=True` |
-| Reduce token spend on repeated context | Use `create_cache()`. See [Reducing Costs with Context Caching](caching.md) |
+| Reduce token spend on repeated context | Use `prepare_environment(cache=CachePolicy(...))`. See [Reducing Costs with Context Caching](caching.md) |
 | Higher throughput for many prompts/sources | Increase `request_concurrency` |
 | Better resilience to transient failures | Customize `retry=RetryPolicy(...)` |
 
@@ -152,55 +152,72 @@ All `RetryPolicy` fields (defaults shown):
 When a provider returns a `Retry-After` hint, Pollux respects it (whichever
 is longer: the computed backoff or the server hint).
 
-## Options
+## Execution and Generation Parameters
 
-`Config` establishes the infrastructure requirements for a provider connection. `Options` is different: it controls per-prompt inference overrides. This split lets you tune how text is generated on a call-by-call basis without tearing down or recreating the underlying client.
+In Pollux v2, generation and execution constraints are passed as first-class keyword arguments to the execution functions (`run()`, `run_many()`, `interact()`, `stream()`, and `defer()`).
+
+For stable setups (such as tools, system instructions, or caching policies), you define them on a reusable `Environment`. Per-turn inputs (conversation state, tool results, prompt content) are passed via `Input`.
+
+Here is an example showing the keyword arguments you can pass directly:
 
 ```python
-from pollux import Options
-
-options = Options(
-    system_instruction="You are a concise analyst.",  # Optional global behavior guide
+# Pass options as direct kwargs
+result = await run(
+    "Solve this problem.",
+    config=config,
+    output=MyPydanticModel,           # Structured output schema
     temperature=0.7,                  # Generation tuning
     top_p=0.9,                        # Generation tuning
-    tools=[{"name": "get_weather"}],  # Native tool calling
-    tool_choice="auto",               # Tool calling mode ('auto', 'required', 'none', or dict)
-    response_schema=MyPydanticModel,  # Structured output extraction
-    reasoning_effort="medium",        # Controls model thinking depth
-    # reasoning_budget_tokens=0,      # Explicit reasoning token budget where supported
-    max_tokens=4096,                  # Provider-specific output cap
-    implicit_caching=True,            # Auto-cache prefix (Anthropic only)
+    max_tokens=4096,                  # Output token ceiling
+    seed=123,                         # Sampling seed where supported
+    reasoning_effort="medium",        # Qualitative thinking depth
+    # reasoning_budget_tokens=2048,   # Or explicit thinking token budget
+    tool_choice="auto",               # Tool-choice control
     provider_options={                # Raw provider escape hatch
         "openai": {"tools": [{"type": "web_search_preview"}]},
     },
 )
 ```
 
-| Field | Type | Default | Description |
+### Supported Parameters
+
+| Parameter | Type | Default | Description |
 |---|---|---|---|
-| `system_instruction` | `str \| None` | `None` | Global system prompt |
+| `output` | `type[BaseModel] \| dict \| None` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
 | `temperature` | `float \| None` | `None` | Sampling temperature |
 | `top_p` | `float \| None` | `None` | Nucleus sampling probability |
-| `tools` | `list[dict] \| None` | `None` | JSON schemas for Pollux-normalized function tools. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
-| `tool_choice` | `str \| dict \| None` | `None` | Tool execution strategy. See [Building an Agent Loop](agent-loop.md) |
-| `response_schema` | `type[BaseModel] \| dict` | `None` | Expected JSON response format. See [Extracting Structured Data](structured-data.md) |
-| `reasoning_effort` | `str \| None` | `None` | Controls model thinking depth. See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
-| `reasoning_budget_tokens` | `int \| None` | `None` | Explicit reasoning token budget where supported. Mutually exclusive with `reasoning_effort`. See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
-| `max_tokens` | `int \| None` | `None` | Output-token cap with provider-specific semantics. Anthropic applies provider defaults when omitted; other providers may ignore it. See [Provider Capabilities](reference/provider-capabilities.md) |
-| `history` | `list[dict] \| None` | `None` | Conversation history. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
-| `continue_from` | `ResultEnvelope \| None` | `None` | Resume from a prior result. See [Continuing Conversations Across Turns](conversations-and-agents.md) |
-| `cache` | `CacheHandle \| None` | `None` | Persistent explicit cache (Gemini). See [Reducing Costs with Context Caching](caching.md) |
-| `implicit_caching` | `bool \| None` | `None` | Enable or disable Anthropic implicit caching. Defaults to `True` for a single provider call and `False` for multi-call fan-out. `implicit_caching=True` raises on providers that do not support it. See [Reducing Costs with Context Caching](caching.md) |
+| `max_tokens` | `int \| None` | `None` | Output-token budget cap |
+| `seed` | `int \| None` | `None` | Optional sampling seed |
+| `reasoning_effort` | `str \| None` | `None` | Qualitative reasoning level (`"low"`, `"medium"`, `"high"`). See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
+| `reasoning_budget_tokens` | `int \| None` | `None` | Explicit reasoning token budget. See [Writing Portable Code Across Providers](portable-code.md#choosing-a-reasoning-control) |
+| `tool_choice` | `str \| dict \| None` | `None` | Tool-choice control (`"auto"`, `"required"`, `"none"`, or dict). See [Building an Agent Loop](agent-loop.md) |
 | `provider_options` | `dict[str, dict] \| None` | `None` | Raw provider-scoped request options. Keys must be provider names. |
+
+### Environment Configuration
+
+For instructions, sources, and tool declarations, configure an `Environment` and pass it to `interact()`, `run()`, or `run_many()`:
+
+```python
+from pollux import Environment, ToolDeclaration, CachePolicy
+
+env = Environment(
+    instructions="You are a helpful assistant.",
+    sources=[Source.from_file("doc.pdf")],
+    tools=[ToolDeclaration(name="get_weather", description="...")],
+    cache=CachePolicy(ttl_seconds=3600), # Persistent caching policy
+)
+```
+
+Or for `run()` and `run_many()`, you can pass `instructions`, `sources` / `source`, and `tools` directly as inline keyword arguments, and Pollux will construct the `Environment` internally.
 
 ### Provider Options Escape Hatch
 
-`provider_options` is Pollux's one raw provider escape hatch. It is for
-provider-specific request fields that Pollux does not normalize, such as
-hosted/server tools, service tiers, or newly released provider knobs.
+`provider_options` is Pollux's one raw provider escape hatch. It is for provider-specific request fields that Pollux does not normalize, such as hosted/server tools, service tiers, or newly released provider knobs.
 
 ```python
-options = Options(
+result = await run(
+    prompt,
+    config=config,
     provider_options={
         "openai": {"tools": [{"type": "web_search_preview"}]},
         "gemini": {"seed": 123},
@@ -208,39 +225,19 @@ options = Options(
 )
 ```
 
-Only the active provider's dictionary is forwarded. If a raw key overlaps with
-a field Pollux already generated from first-class options, Pollux raises
-`ConfigurationError` instead of silently overriding either value. For example,
-do not pass both `Options(tools=[...])` and
-`provider_options={"openai": {"tools": [...]}}` in the same call.
+Only the active provider's dictionary is forwarded. If a raw key overlaps with a field Pollux already generated from first-class options, Pollux raises `ConfigurationError` instead of silently overriding either value. For example, do not pass both `tools=[...]` and `provider_options={"openai": {"tools": [...]}}` in the same call.
 
 !!! note
-    OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject
-    sampling controls like `temperature` and `top_p` with provider errors.
-    Older OpenAI models (for example `gpt-4.1-nano`) still accept them.
-    See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints)
-    for the full constraints mapping.
+    OpenAI GPT-5 family models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) reject sampling controls like `temperature` and `top_p` with provider errors. Older OpenAI models (for example `gpt-4.1-nano`) still accept them. See [Writing Portable Code Across Providers](portable-code.md#model-specific-constraints) for the full constraints mapping.
 
 !!! note
-    `reasoning_effort` and `reasoning_budget_tokens` are mutually exclusive.
-    Use `reasoning_effort` when the provider exposes named levels
-    (`"low"`, `"medium"`, `"high"`). Use `reasoning_budget_tokens` when you
-    need an exact token ceiling. Not every provider accepts both, and some
-    provider/model combinations may still reject a value at call time; see
-    [Reasoning Control Mapping](portable-code.md#reasoning-control-mapping).
+    `reasoning_effort` and `reasoning_budget_tokens` are mutually exclusive. Use `reasoning_effort` when the provider exposes named levels (`"low"`, `"medium"`, `"high"`). Use `reasoning_budget_tokens` when you need an exact token ceiling. Not every provider accepts both, and some provider/model combinations may still reject a value at call time; see [Reasoning Control Mapping](portable-code.md#reasoning-control-mapping).
 
 !!! note
-    `max_tokens` is not a portable "length knob" with identical behavior
-    everywhere. Anthropic uses it as the total output budget and applies a
-    provider default when you omit it. OpenRouter forwards it to the routed
-    model. Other providers may ignore it in the current release.
+    `max_tokens` is not a portable "length knob" with identical behavior everywhere. Anthropic uses it as the total output budget and applies a provider default when you omit it. OpenRouter forwards it to the routed model. Other providers may ignore it in the current release.
 
-!!! warning "Cache handle restrictions"
-    When `cache` is set, `system_instruction`, `tools`, and `tool_choice`
-    **must not** be passed in the same `Options`. `system_instruction` and
-    `tools` can be baked into `create_cache()`, while `tool_choice` must be
-    set only on uncached calls. See
-    [Reducing Costs with Context Caching](caching.md) for details.
+!!! warning "Cache environment restrictions"
+    When persistent `cache` is configured on an `Environment`, `instructions` and `tools` are baked directly into the cache. Modifying them requires preparing a new `Environment` (which creates a new cache). See [Reducing Costs with Context Caching](caching.md) for details.
 
 ## Safety Notes
 
