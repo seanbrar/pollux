@@ -36,19 +36,21 @@ result = asyncio.run(
         config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
     )
 )
-print(result["answers"][0])
+print(result.text)
 # Revenue grew 18% YoY to $4.2B, driven by cloud services. Operating
 # margins improved from 29% to 34%. Management's $2B buyback and raised
 # guidance signal confidence in sustained growth.
 ```
 
-`run()` returns a `ResultEnvelope`: `answers` holds one entry per prompt.
+`run()` returns an `Output`: `result.text` is the answer, with `result.structured`,
+`result.usage`, and other facets alongside it.
 
 To use OpenAI instead: `Config(provider="openai", model="gpt-5-nano")`.<br>
 For Anthropic: `Config(provider="anthropic", model="claude-haiku-4-5")`.<br>
 For OpenRouter: `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.<br>
-For a self-hosted OpenAI-compatible server (text-only):
+For a self-hosted OpenAI-compatible server (text, image, and audio):
 `Config(provider="local", model="gemma3:4b", base_url="http://localhost:11434/v1")`.
+Single-model servers can omit `model`.
 
 For a full walkthrough (install, key setup, first result), see
 [Getting Started](https://polluxlib.dev/getting-started/).
@@ -59,7 +61,8 @@ For a full walkthrough (install, key setup, first result), see
 |---|---|
 | Ask one prompt and get an answer now | `run()` |
 | Ask many prompts against shared source(s) | `run_many()` |
-| Submit non-urgent work and collect it later | `defer()` / `defer_many()` |
+| Hold a multi-turn thread or run a tool-using agent loop | `interact()` / `Session` |
+| Submit non-urgent work and collect it later | `defer()` |
 
 Pollux keeps realtime and deferred work on separate entry points. If the result
 can wait, submit it once, persist the handle, and collect the same
@@ -78,7 +81,7 @@ Gemini-specific video clipping and FPS controls are available via
 `Source.with_gemini_video_settings(...)`; see the sending-content docs for the
 intended scope.
 
-Need structured output? Pass a Pydantic model as `response_schema` and get a
+Need structured output? Pass a Pydantic model as `output` and get a
 validated instance alongside the raw text. Switching providers is a config
 change: `provider="gemini"` to `provider="openai"`.
 
@@ -97,14 +100,46 @@ envelope = asyncio.run(
         config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
     )
 )
-for answer in envelope["answers"]:
+for answer in envelope.answers:
     print(answer)
 ```
+
+`run_many()` returns an `OutputCollection`: `answers` is the per-prompt text in
+input order, with `outputs`, `structured`, `usage`, and `status` alongside it.
 
 Add more sources when each prompt should see the same shared context. For
 per-file collection work, wrap `run_many()` in your own outer loop over files;
 that gives you one result record per file while Pollux handles each file's
 prompt set.
+
+## Multi-Turn Threads and Agent Loops
+
+When you need conversation history or tool calls, use `interact()` over an
+`Environment` and `Input`. A `Session` reuses one provider across turns:
+
+```python
+import asyncio
+from pollux import Config, Environment, Input, Session
+
+async def main():
+    env = Environment(instructions="Be concise.")
+    async with Session(Config(provider="anthropic", model="claude-haiku-4-5")) as session:
+        first = await session.interact(env, Input("Name a primary color."))
+        print(first.text)
+
+        # Continue the same thread from the prior turn's continuation:
+        second = await session.interact(
+            env, Input("Now name its complement.", continuation=first.continuation)
+        )
+        print(second.text)
+
+asyncio.run(main())
+```
+
+`Output.tool_calls` exposes any tools the model wants to run; return their
+results on the next `Input` to drive an agent loop. For tool declarations,
+dispatch, and streaming, see
+[Building an Agent Loop](https://polluxlib.dev/agent-loop/).
 
 ## When the Work Can Wait
 
@@ -134,7 +169,7 @@ handle = asyncio.run(
 snapshot = asyncio.run(inspect_deferred(handle))
 if snapshot.is_terminal:
     result = asyncio.run(collect_deferred(handle))
-    print(result["answers"][0])
+    print(result.answers[0])
 ```
 
 In production code, persist `handle.to_dict()` and restore it later with
@@ -173,7 +208,9 @@ For `provider="local"`, no API key is required; point `base_url` (or
 
 - [Getting Started](https://polluxlib.dev/getting-started/): first result in 2 minutes
 - [Core Concepts](https://polluxlib.dev/concepts/): mental model and vocabulary
+- [Building an Agent Loop](https://polluxlib.dev/agent-loop/): multi-turn threads, tool calls, and streaming
 - [Submitting Work for Later Collection](https://polluxlib.dev/submitting-work-for-later-collection/): deferred lifecycle API
+- [Migrating to 2.0](https://polluxlib.dev/migrating-to-v2/): moving from the v1 API
 - [Building With Deferred Delivery](https://polluxlib.dev/building-with-deferred-delivery/): when deferred is worth it
 - [API Reference](https://polluxlib.dev/reference/api/): entry points and types
 - [Cookbook](https://polluxlib.dev/reference/cli/): runnable end-to-end recipes
