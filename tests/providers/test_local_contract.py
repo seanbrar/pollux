@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pollux.errors import APIError, ConfigurationError
+from pollux.errors import APIError, ConfigurationError, ToolCallParseError
 from pollux.interaction.continuation import Continuation, Message, build_continuation
 from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.local import LocalProvider
@@ -650,6 +650,35 @@ async def test_local_generate_surfaces_http_error_as_api_error() -> None:
     assert err.status_code == 404
     assert err.hint is not None
     assert "Model not found" in err.hint
+
+
+@pytest.mark.asyncio
+async def test_local_generate_classifies_tool_call_parse_http_error() -> None:
+    """Local tool-call parser failures should be recoverable typed errors."""
+    fake = _FakeLocalClient(
+        status_code=500,
+        error_body={
+            "error": {"message": "failed to parse tool_calls JSON arguments from model"}
+        },
+    )
+    provider = _make_local_provider(fake)
+
+    with pytest.raises(ToolCallParseError) as exc:
+        await provider.generate(
+            *_local(
+                content="use tool",
+                tools=[
+                    {
+                        "name": "inspect",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                ],
+            ),
+        )
+
+    assert exc.value.provider == "local"
+    assert exc.value.phase == "generate"
+    assert exc.value.error_category == "tool_call_parse"
 
 
 @pytest.mark.asyncio

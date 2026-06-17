@@ -60,3 +60,69 @@ def test_continuation_accepts_matching_provider():
     blob = Continuation(provider="openai").to_jsonable()
     restored = Continuation.from_jsonable(blob, expected_provider="openai")
     assert restored.provider == "openai"
+
+
+def test_openai_messages_import_tool_calls():
+    continuation = Continuation.from_openai_messages(
+        [
+            {"role": "user", "content": "What is the weather?"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"city":"Paris"}',
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": '{"temp_c": 21}',
+            },
+        ],
+        provider="local",
+    )
+
+    assert continuation.provider == "local"
+    assert continuation.messages[1].tool_calls[0].name == "get_weather"
+    assert continuation.messages[1].tool_calls[0].arguments_dict() == {"city": "Paris"}
+    assert continuation.messages[2].tool_call_id == "call_1"
+
+
+def test_openai_messages_round_trip_tool_call_arguments_text():
+    continuation = Continuation(
+        messages=(
+            Message(
+                role="assistant",
+                tool_calls=(
+                    ToolCall.from_text(
+                        id="call_1",
+                        name="run",
+                        arguments_text='{"cmd":"pwd"}',
+                    ),
+                ),
+            ),
+        )
+    )
+
+    messages = continuation.to_openai_messages()
+
+    assert messages == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "run", "arguments": '{"cmd":"pwd"}'},
+                }
+            ],
+        }
+    ]

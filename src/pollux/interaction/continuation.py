@@ -74,6 +74,40 @@ class Message:
             provider_state=provider_state if isinstance(provider_state, dict) else None,
         )
 
+    @classmethod
+    def from_openai(cls, data: Mapping[str, Any]) -> Message:
+        """Build a replay message from an OpenAI Chat Completions message dict.
+
+        This importer is for text transcript replay. Media attachments belong in
+        Pollux ``Source`` values or the current turn's ``Input`` content, not in
+        provider-shaped history.
+        """
+        raw_tool_calls = data.get("tool_calls")
+        tool_calls: tuple[ToolCall, ...] = ()
+        if isinstance(raw_tool_calls, list):
+            tool_calls = tuple(
+                ToolCall.from_openai(tc)
+                for tc in raw_tool_calls
+                if isinstance(tc, dict)
+            )
+        tool_call_id = data.get("tool_call_id")
+        return cls(
+            role=str(data.get("role", "user")),
+            content=_openai_text_content(data.get("content")),
+            tool_calls=tool_calls,
+            tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
+            provider_state={"openai": dict(data)},
+        )
+
+    def to_openai(self) -> dict[str, Any]:
+        """Serialize as an OpenAI Chat Completions message dict."""
+        payload: dict[str, Any] = {"role": self.role, "content": self.content}
+        if self.tool_calls:
+            payload["tool_calls"] = [tc.to_openai() for tc in self.tool_calls]
+        if self.tool_call_id is not None:
+            payload["tool_call_id"] = self.tool_call_id
+        return payload
+
 
 @dataclass(frozen=True, slots=True)
 class Continuation:
@@ -157,6 +191,43 @@ class Continuation:
             provider_state=provider_state if isinstance(provider_state, dict) else None,
             version=version,
         )
+
+    @classmethod
+    def from_openai_messages(
+        cls,
+        messages: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...],
+        *,
+        provider: str | None = None,
+        response_id: str | None = None,
+    ) -> Continuation:
+        """Build a continuation from OpenAI Chat Completions replay messages."""
+        return cls(
+            messages=tuple(Message.from_openai(message) for message in messages),
+            response_id=response_id,
+            provider=provider,
+        )
+
+    def to_openai_messages(self) -> list[dict[str, Any]]:
+        """Serialize continuation messages as OpenAI Chat Completions messages."""
+        return [message.to_openai() for message in self.messages]
+
+
+def _openai_text_content(content: Any) -> str:
+    """Extract text from OpenAI string or text-part message content."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            text = part.get("text")
+            if isinstance(text, str):
+                text_parts.append(text)
+        return "\n\n".join(text_parts)
+    return str(content)
 
 
 def _prior_messages(input: Input) -> tuple[Message, ...]:  # noqa: A002

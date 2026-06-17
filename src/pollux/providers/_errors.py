@@ -17,6 +17,7 @@ from pollux.errors import (
     APIError,
     CacheError,
     ConfigurationError,
+    ContextOverflowError,
     RateLimitError,
     walk_exception_chain,
 )
@@ -192,6 +193,35 @@ def _detect_error_category(exc: BaseException, status_code: int | None) -> str |
     return None
 
 
+_TOKEN_PAIR_PATTERNS = (
+    re.compile(
+        r"(?P<n_tokens>\d[\d,]*)\s+tokens?.{0,80}?"
+        r"(?:maximum|context|limit|ctx|allowed).{0,40}?"
+        r"(?P<n_ctx>\d[\d,]*)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:maximum|context|limit|ctx|allowed).{0,40}?"
+        r"(?P<n_ctx>\d[\d,]*).{0,80}?"
+        r"(?P<n_tokens>\d[\d,]*)\s+tokens?",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _extract_context_window(exc: BaseException) -> tuple[int | None, int | None]:
+    """Best-effort extraction of requested/allowed token counts from errors."""
+    for e in walk_exception_chain(exc):
+        msg = str(e)
+        for pattern in _TOKEN_PAIR_PATTERNS:
+            match = pattern.search(msg)
+            if match:
+                n_tokens = int(match.group("n_tokens").replace(",", ""))
+                n_ctx = int(match.group("n_ctx").replace(",", ""))
+                return n_tokens, n_ctx
+    return None, None
+
+
 def wrap_provider_error(
     exc: BaseException,
     *,
@@ -252,13 +282,29 @@ def wrap_provider_error(
     if status_code == 429 or error_category == "rate_limit":
         err_cls = RateLimitError
         error_category = "rate_limit"
+    elif error_category == "context_overflow":
+        err_cls = ContextOverflowError
     elif phase == "cache":
         err_cls = CacheError
 
     status_note = f" (status={status_code})" if isinstance(status_code, int) else ""
     cause = str(exc)
+    formatted = f"{msg}{status_note}: {cause}" if cause else f"{msg}{status_note}"
+    if err_cls is ContextOverflowError:
+        n_tokens, n_ctx = _extract_context_window(exc)
+        return ContextOverflowError(
+            formatted,
+            hint=derived_hint,
+            retryable=retryable,
+            status_code=status_code,
+            retry_after_s=retry_after_s,
+            provider=provider,
+            phase=phase,
+            n_tokens=n_tokens,
+            n_ctx=n_ctx,
+        )
     return err_cls(
-        f"{msg}{status_note}: {cause}" if cause else f"{msg}{status_note}",
+        formatted,
         hint=derived_hint,
         retryable=retryable,
         status_code=status_code,

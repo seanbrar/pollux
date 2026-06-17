@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import json
 from typing import TYPE_CHECKING, Any
 
-from pollux.errors import ConfigurationError
+from pollux.errors import ConfigurationError, ToolCallParseError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -110,6 +110,21 @@ class ToolCall:
             provider_state=provider_state,
         )
 
+    @classmethod
+    def from_openai(cls, data: Mapping[str, Any]) -> ToolCall:
+        """Build a tool call from an OpenAI Chat Completions ``tool_calls`` item."""
+        function = data.get("function")
+        function = function if isinstance(function, dict) else {}
+        arguments = function.get("arguments", "")
+        index = data.get("index")
+        return cls.from_text(
+            id=str(data.get("id", "")),
+            name=str(function.get("name", "")),
+            arguments_text=arguments if isinstance(arguments, str) else str(arguments),
+            index=index if isinstance(index, int) else None,
+            provider_state={"openai": dict(data)},
+        )
+
     def arguments_dict(self) -> dict[str, Any]:
         """Return parsed JSON-object arguments or raise an explicit config error.
 
@@ -118,16 +133,22 @@ class ToolCall:
         are rejected instead of being silently treated as an empty dict.
         """
         if self.arguments_error is not None:
-            raise ConfigurationError(
+            raise ToolCallParseError(
                 f"Tool call {self.name!r} has invalid JSON arguments",
                 hint=self.arguments_error,
+                tool_name=self.name,
+                tool_call_id=self.id,
+                arguments_text=self.arguments_text,
             )
         if self.arguments is None:
             return {}
         if not isinstance(self.arguments, dict):
-            raise ConfigurationError(
+            raise ToolCallParseError(
                 f"Tool call {self.name!r} arguments must be a JSON object",
                 hint="Define tool parameters as an object schema and retry the turn.",
+                tool_name=self.name,
+                tool_call_id=self.id,
+                arguments_text=self.arguments_text,
             )
         return dict(self.arguments)
 
@@ -144,6 +165,20 @@ class ToolCall:
             payload["index"] = self.index
         if self.provider_state is not None:
             payload["provider_state"] = self.provider_state
+        return payload
+
+    def to_openai(self) -> dict[str, Any]:
+        """Serialize as an OpenAI Chat Completions ``tool_calls`` item."""
+        payload: dict[str, Any] = {
+            "id": self.id,
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "arguments": self.arguments_text,
+            },
+        }
+        if self.index is not None:
+            payload["index"] = self.index
         return payload
 
 

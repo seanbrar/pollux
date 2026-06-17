@@ -6,7 +6,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from pollux.errors import ConfigurationError
+from pollux.errors import ConfigurationError, ToolCallParseError
 from pollux.interaction.tools import ToolCall, ToolDeclaration, ToolResult
 
 pytestmark = pytest.mark.unit
@@ -44,13 +44,16 @@ def test_tool_call_arguments_dict_treats_empty_arguments_as_empty_object():
 
 def test_tool_call_arguments_dict_rejects_invalid_json():
     call = ToolCall.from_text(id="c1", name="f", arguments_text="{not json")
-    with pytest.raises(ConfigurationError, match="invalid JSON arguments"):
+    with pytest.raises(ToolCallParseError, match="invalid JSON arguments") as exc:
         call.arguments_dict()
+    assert exc.value.error_category == "tool_call_parse"
+    assert exc.value.tool_call_id == "c1"
+    assert exc.value.arguments_text == "{not json"
 
 
 def test_tool_call_arguments_dict_rejects_non_object_json():
     call = ToolCall.from_text(id="c1", name="f", arguments_text='["not", "object"]')
-    with pytest.raises(ConfigurationError, match="must be a JSON object"):
+    with pytest.raises(ToolCallParseError, match="must be a JSON object"):
         call.arguments_dict()
 
 
