@@ -47,7 +47,7 @@ from pollux.providers._openai_compat import (
     serialize_tool_calls,
 )
 from pollux.providers._utils import merge_provider_options, to_strict_schema
-from pollux.providers.base import ProviderCapabilities
+from pollux.providers.base import ProviderCapabilities, ProviderReadiness
 from pollux.providers.models import (
     Message,
     ProviderFileAsset,
@@ -124,6 +124,72 @@ class LocalProvider:
                 ),
             )
         return cast("httpx.AsyncClient", self._client)
+
+    async def check_ready(self, *, model: str | None = None) -> ProviderReadiness:
+        """Probe a local OpenAI-compatible server without sending a prompt.
+
+        Pollux checks the server and, when *model* is provided, verifies that the
+        configured model is listed by ``/v1/models`` before returning ready.
+        Ordinary connection failures and non-2xx responses are returned as
+        not-ready statuses so agent harnesses can fail before packing context.
+        """
+        client = self._get_client()
+        try:
+            health_response = await client.get("../health")
+            health_ready = health_response.status_code < 400
+            health_message = _readiness_message(health_response)
+            if model is None:
+                return ProviderReadiness(
+                    ready=health_ready,
+                    provider="local",
+                    status_code=health_response.status_code,
+                    message=health_message,
+                    model=None,
+                    model_verified=None,
+                )
+
+            response = await client.get("models")
+            if response.status_code >= 400:
+                return ProviderReadiness(
+                    ready=False,
+                    provider="local",
+                    status_code=response.status_code,
+                    message=_readiness_message(response) or health_message,
+                    model=model,
+                    model_verified=False,
+                )
+            models = _model_ids(response)
+            if model in models:
+                return ProviderReadiness(
+                    ready=True,
+                    provider="local",
+                    status_code=response.status_code,
+                    message=health_message or _readiness_message(response),
+                    model=model,
+                    model_verified=True,
+                )
+            return ProviderReadiness(
+                ready=False,
+                provider="local",
+                status_code=response.status_code,
+                message=f"Model {model!r} was not listed by the local server.",
+                model=model,
+                model_verified=False,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            hint = _hint_for_local_error(exc, base_url=self._base_url)
+            return ProviderReadiness(
+                ready=False,
+                provider="local",
+                status_code=getattr(
+                    getattr(exc, "response", None), "status_code", None
+                ),
+                message=hint or str(exc) or "Local provider readiness probe failed.",
+                model=model,
+                model_verified=False if model is not None else None,
+            )
 
     async def validate_request(
         self,
@@ -619,6 +685,40 @@ def _parse_response(
         response_id=extract_response_id(data),
         finish_reason=extract_finish_reason(choice),
     )
+
+
+def _readiness_message(response: httpx.Response) -> str | None:
+    """Extract a compact human-readable readiness message."""
+    try:
+        data = response.json()
+    except Exception:
+        text = response.text.strip()
+        return text or None
+    if isinstance(data, dict):
+        status = data.get("status")
+        if isinstance(status, str) and status:
+            return status
+        message = extract_error_message(response)
+        return message if message else None
+    return None
+
+
+def _model_ids(response: httpx.Response) -> set[str]:
+    """Extract model ids from an OpenAI-compatible models response."""
+    try:
+        data = response.json()
+    except Exception:
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    raw_models = data.get("data")
+    if not isinstance(raw_models, list):
+        return set()
+    ids: set[str] = set()
+    for item in raw_models:
+        if isinstance(item, Mapping) and isinstance(item.get("id"), str):
+            ids.add(cast("str", item["id"]))
+    return ids
 
 
 def _raise_sse_error_if_present(

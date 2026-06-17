@@ -8,7 +8,7 @@ import pytest
 import pollux
 from pollux import Environment, Input, Output, ToolDeclaration, ToolResult, interact
 from pollux.config import Config
-from pollux.providers.base import ProviderCapabilities
+from pollux.providers.base import ProviderCapabilities, ProviderReadiness
 from pollux.providers.models import ProviderResponse
 from pollux.providers.models import ToolCall as ProviderToolCall
 from tests.conftest import ANTHROPIC_MODEL, FakeProvider
@@ -120,3 +120,52 @@ async def test_agent_loop_continues_from_tool_results(monkeypatch):
     )
     assert final.text == "It is sunny."
     assert not final.tool_calls
+
+
+@pytest.mark.asyncio
+async def test_session_reuses_provider_and_closes(monkeypatch):
+    class CloseableScriptedProvider(ScriptedProvider):
+        closed: bool = False
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    provider = CloseableScriptedProvider(
+        script=[
+            ProviderResponse(text="one", usage={"total_tokens": 1}),
+            ProviderResponse(text="two", usage={"total_tokens": 1}),
+        ]
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+
+    async with pollux.Session(_cfg()) as session:
+        first = await session.interact(Environment(), Input("Q1"))
+        second = await session.interact(Environment(), Input("Q2"))
+
+    assert first.text == "one"
+    assert second.text == "two"
+    assert provider.generate_calls == 2
+    assert provider.closed is True
+
+
+@pytest.mark.asyncio
+async def test_session_check_ready_uses_provider_probe(monkeypatch):
+    class ReadyProvider(ScriptedProvider):
+        async def check_ready(self, *, model: str | None = None) -> ProviderReadiness:
+            return ProviderReadiness(
+                ready=True, provider="anthropic", model=model, message="ok"
+            )
+
+    provider = ReadyProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+
+    readiness = await pollux.check_ready(_cfg())
+
+    assert readiness.ready is True
+    assert readiness.model == ANTHROPIC_MODEL
+
+
+def test_local_reasoning_returns_scoped_provider_options() -> None:
+    assert pollux.local_reasoning(enabled=False) == {
+        "local": {"chat_template_kwargs": {"enable_thinking": False}}
+    }

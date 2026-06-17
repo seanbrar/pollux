@@ -48,11 +48,14 @@ class _FakeLocalClient:
         payload: Any = None,
         status_code: int = 200,
         error_body: Any = None,
+        get_payloads: dict[str, tuple[int, Any]] | None = None,
     ) -> None:
         self.last_json: dict[str, Any] | None = None
         self.closed = False
         self._status_code = status_code
         self._error_body = error_body
+        self.get_paths: list[str] = []
+        self._get_payloads = get_payloads or {}
         self._payload = payload or {
             "id": "chatcmpl_local_1",
             "choices": [
@@ -78,6 +81,12 @@ class _FakeLocalClient:
                 request=request,
             )
         return httpx.Response(self._status_code, json=self._payload, request=request)
+
+    async def get(self, path: str) -> Any:
+        self.get_paths.append(path)
+        status_code, payload = self._get_payloads.get(path, (404, {"status": "no"}))
+        request = httpx.Request("GET", f"{_LOCAL_BASE_URL}{path}")
+        return httpx.Response(status_code, json=payload, request=request)
 
     async def aclose(self) -> None:
         self.closed = True
@@ -679,6 +688,88 @@ async def test_local_generate_classifies_tool_call_parse_http_error() -> None:
     assert exc.value.provider == "local"
     assert exc.value.phase == "generate"
     assert exc.value.error_category == "tool_call_parse"
+
+
+@pytest.mark.asyncio
+async def test_local_check_ready_uses_health_endpoint() -> None:
+    fake = _FakeLocalClient(
+        get_payloads={
+            "../health": (200, {"status": "ok"}),
+            "models": (200, {"data": [{"id": LOCAL_MODEL}]}),
+        }
+    )
+    provider = _make_local_provider(fake)
+
+    readiness = await provider.check_ready(model=LOCAL_MODEL)
+
+    assert readiness.ready is True
+    assert readiness.provider == "local"
+    assert readiness.status_code == 200
+    assert readiness.message == "ok"
+    assert readiness.model == LOCAL_MODEL
+    assert readiness.model_verified is True
+    assert fake.get_paths == ["../health", "models"]
+
+
+@pytest.mark.asyncio
+async def test_local_check_ready_falls_back_to_models() -> None:
+    fake = _FakeLocalClient(
+        get_payloads={
+            "../health": (404, {"error": {"message": "missing"}}),
+            "models": (200, {"data": [{"id": LOCAL_MODEL}]}),
+        }
+    )
+    provider = _make_local_provider(fake)
+
+    readiness = await provider.check_ready(model=LOCAL_MODEL)
+
+    assert readiness.ready is True
+    assert readiness.status_code == 200
+    assert readiness.model_verified is True
+    assert fake.get_paths == ["../health", "models"]
+
+
+@pytest.mark.asyncio
+async def test_local_check_ready_reports_missing_model() -> None:
+    fake = _FakeLocalClient(
+        get_payloads={
+            "../health": (404, {"error": {"message": "missing"}}),
+            "models": (200, {"data": [{"id": "other-model"}]}),
+        }
+    )
+    provider = _make_local_provider(fake)
+
+    readiness = await provider.check_ready(model=LOCAL_MODEL)
+
+    assert readiness.ready is False
+    assert readiness.model == LOCAL_MODEL
+    assert readiness.model_verified is False
+    assert "not listed" in (readiness.message or "")
+
+
+@pytest.mark.asyncio
+async def test_local_check_ready_skips_model_probe_when_model_unset() -> None:
+    fake = _FakeLocalClient(get_payloads={"../health": (200, {"status": "ok"})})
+    provider = _make_local_provider(fake)
+
+    readiness = await provider.check_ready(model=None)
+
+    assert readiness.ready is True
+    assert readiness.model is None
+    assert readiness.model_verified is None
+    assert fake.get_paths == ["../health"]
+
+
+@pytest.mark.asyncio
+async def test_local_check_ready_requires_model_verification() -> None:
+    fake = _FakeLocalClient(get_payloads={"../health": (200, {"status": "ok"})})
+    provider = _make_local_provider(fake)
+
+    readiness = await provider.check_ready(model=LOCAL_MODEL)
+
+    assert readiness.ready is False
+    assert readiness.model_verified is False
+    assert fake.get_paths == ["../health", "models"]
 
 
 @pytest.mark.asyncio
