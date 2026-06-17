@@ -38,6 +38,18 @@ class ProviderCapabilities:
 
 
 @dataclass(frozen=True)
+class ProviderReadiness:
+    """Provider preflight status for agent loops and health checks."""
+
+    ready: bool
+    provider: str
+    status_code: int | None = None
+    message: str | None = None
+    model: str | None = None
+    model_verified: bool | None = None
+
+
+@dataclass(frozen=True)
 class ProviderDeferredHandle:
     """Provider-owned handle returned at deferred submission time."""
 
@@ -177,6 +189,15 @@ class ValidatingProvider(Protocol):
         config: Config,
     ) -> None:
         """Fail fast on unsupported model- or request-specific features."""
+        ...
+
+
+@runtime_checkable
+class ReadinessProvider(Protocol):
+    """Optional provider hook for fast readiness probes."""
+
+    async def check_ready(self, *, model: str | None = None) -> ProviderReadiness:
+        """Return provider readiness without raising for ordinary not-ready states."""
         ...
 
 
