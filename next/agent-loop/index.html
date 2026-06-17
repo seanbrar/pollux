@@ -1236,6 +1236,20 @@ trimming old turns), build <code>history</code> manually:</p>
     <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
+<p>If your agent already stores OpenAI Chat Completions-style messages, import
+that replay list into Pollux instead of rewriting each message by hand:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Continuation</span><span class="p">,</span> <span class="n">Input</span>
+
+<span class="n">continuation</span> <span class="o">=</span> <span class="n">Continuation</span><span class="o">.</span><span class="n">from_openai_messages</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;local&quot;</span><span class="p">)</span>
+<span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Continue.&quot;</span><span class="p">,</span> <span class="n">continuation</span><span class="o">=</span><span class="n">continuation</span><span class="p">),</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><code>ToolCall.to_openai()</code>, <code>Message.to_openai()</code>, and
+<code>Continuation.to_openai_messages()</code> provide the reverse mapping for harnesses
+that still dispatch OpenAI-shaped tool calls.</p>
 <h3 id="guiding-tool-use-with-system-instructions">Guiding tool use with system instructions<a class="headerlink" href="#guiding-tool-use-with-system-instructions" title="Permanent link">&para;</a></h3>
 <p>Use <code>instructions</code> to constrain when and how the model calls tools, passed to the <code>Environment</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
