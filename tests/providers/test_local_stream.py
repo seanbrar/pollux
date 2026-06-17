@@ -10,7 +10,7 @@ import pytest
 
 from pollux import Environment, Input
 from pollux.config import Config
-from pollux.errors import APIError
+from pollux.errors import APIError, ToolCallParseError
 from pollux.interaction.execute import stream_interaction
 from pollux.interaction.requirements import OutputRequirements
 from pollux.interaction.tools import ToolDeclaration
@@ -252,3 +252,59 @@ async def test_local_stream_http_error_raises_api_error() -> None:
     assert err.provider == "local"
     assert err.phase == "stream"
     assert err.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_local_stream_http_tool_parse_error_is_typed() -> None:
+    """HTTP errors from local tool parsers should be classified for recovery."""
+    fake = _FakeStreamClient(
+        status_code=500,
+        error_body={
+            "error": {"message": "Could not parse tool_calls JSON from model output"}
+        },
+    )
+    provider = _make_provider(fake)
+
+    with pytest.raises(ToolCallParseError) as exc:
+        async for _chunk in provider.stream_generate(
+            *_local(
+                content="Use the tool",
+                tools=[
+                    {
+                        "name": "inspect",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                ],
+            )
+        ):
+            pass
+
+    assert exc.value.provider == "local"
+    assert exc.value.phase == "stream"
+    assert exc.value.error_category == "tool_call_parse"
+
+
+@pytest.mark.asyncio
+async def test_local_stream_sse_error_payload_is_not_ignored() -> None:
+    """OpenAI-compatible streamed error payloads should raise from the iterator."""
+    fake = _FakeStreamClient(
+        lines=[_sse({"error": {"message": "failed to parse tool-call JSON arguments"}})]
+    )
+    provider = _make_provider(fake)
+
+    with pytest.raises(ToolCallParseError) as exc:
+        async for _chunk in provider.stream_generate(
+            *_local(
+                content="Use the tool",
+                tools=[
+                    {
+                        "name": "inspect",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                ],
+            )
+        ):
+            pass
+
+    assert exc.value.provider == "local"
+    assert exc.value.phase == "stream"

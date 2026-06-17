@@ -27,6 +27,7 @@ import httpx
 from pollux.errors import (
     APIError,
     ConfigurationError,
+    ToolCallParseError,
     walk_exception_chain,
 )
 from pollux.providers import _compile
@@ -228,6 +229,11 @@ class LocalProvider:
         try:
             response = await client.post("chat/completions", json=payload)
             if response.is_error:
+                _raise_tool_call_parse_error_if_present(
+                    extract_error_message(response),
+                    phase="generate",
+                    tools_present="tools" in payload,
+                )
                 raise httpx.HTTPStatusError(
                     extract_error_message(response),
                     request=response.request,
@@ -281,6 +287,11 @@ class LocalProvider:
             ) as response:
                 if response.is_error:
                     await response.aread()
+                    _raise_tool_call_parse_error_if_present(
+                        extract_error_message(response),
+                        phase="stream",
+                        tools_present="tools" in payload,
+                    )
                     raise httpx.HTTPStatusError(
                         extract_error_message(response),
                         request=response.request,
@@ -290,6 +301,7 @@ class LocalProvider:
                     data = parse_sse_line(line)
                     if data is None:
                         continue
+                    _raise_sse_error_if_present(data, tools_present="tools" in payload)
                     chunk = parse_chat_stream_chunk(data)
                     if chunk is not None:
                         yield chunk
@@ -607,6 +619,79 @@ def _parse_response(
         response_id=extract_response_id(data),
         finish_reason=extract_finish_reason(choice),
     )
+
+
+def _raise_sse_error_if_present(
+    data: Mapping[str, Any], *, tools_present: bool
+) -> None:
+    """Raise when a streaming payload is an OpenAI-compatible error envelope."""
+    error = data.get("error")
+    if error is None:
+        return
+    message = _error_message_from_payload(error)
+    _raise_tool_call_parse_error_if_present(
+        message, phase="stream", tools_present=tools_present
+    )
+    raise _local_api_error(
+        f"Local provider stream failed: {message}",
+        phase="stream",
+    )
+
+
+def _error_message_from_payload(payload: Any) -> str:
+    """Extract a compact message from a streamed error payload."""
+    if isinstance(payload, str):
+        return payload
+    if isinstance(payload, Mapping):
+        message = payload.get("message")
+        if isinstance(message, str) and message:
+            return message
+        code = payload.get("code")
+        if isinstance(code, str) and code:
+            return code
+    return "Local provider stream returned an error payload."
+
+
+def _raise_tool_call_parse_error_if_present(
+    message: str, *, phase: str, tools_present: bool
+) -> None:
+    """Classify local tool-call JSON parser failures as recoverable tool errors."""
+    if not _is_tool_call_parse_failure(message, tools_present=tools_present):
+        return
+    raise ToolCallParseError(
+        "Local provider rejected a tool-call JSON payload",
+        hint=message,
+        provider="local",
+        phase=phase,
+    )
+
+
+def _is_tool_call_parse_failure(message: str, *, tools_present: bool) -> bool:
+    """Return True for common local-server tool-call parser failures."""
+    msg = message.lower()
+    mentions_tooling = any(
+        marker in msg
+        for marker in (
+            "tool call",
+            "tool-call",
+            "tool_calls",
+            "function call",
+            "function_call",
+        )
+    )
+    mentions_json_parse = any(
+        marker in msg
+        for marker in (
+            "json",
+            "parse",
+            "parsed",
+            "parser",
+            "invalid",
+            "arguments",
+            "schema",
+        )
+    )
+    return mentions_json_parse and (mentions_tooling or tools_present)
 
 
 def _hint_for_local_error(exc: BaseException, *, base_url: str) -> str | None:

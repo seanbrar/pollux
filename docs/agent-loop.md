@@ -221,6 +221,24 @@ out = await interact(
 )
 ```
 
+If your agent already stores OpenAI Chat Completions-style messages, import
+that replay list into Pollux instead of rewriting each message by hand:
+
+```python
+from pollux import Continuation, Input
+
+continuation = Continuation.from_openai_messages(messages, provider="local")
+out = await interact(
+    env,
+    Input(content="Continue.", continuation=continuation),
+    config=config,
+)
+```
+
+`ToolCall.to_openai()`, `Message.to_openai()`, and
+`Continuation.to_openai_messages()` provide the reverse mapping for harnesses
+that still dispatch OpenAI-shaped tool calls.
+
 ### Guiding tool use with system instructions
 
 Use `instructions` to constrain when and how the model calls tools, passed to the `Environment`:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pollux.errors import APIError
+from pollux.errors import APIError, ContextOverflowError
 from pollux.providers._errors import extract_retry_after_s, wrap_provider_error
 
 pytestmark = pytest.mark.contract
@@ -265,3 +265,22 @@ def test_wrap_provider_error_categorizes_context_overflow_error() -> None:
         allow_network_errors=True,
     )
     assert err2.error_category == "context_overflow"
+
+
+def test_wrap_provider_error_returns_context_overflow_with_token_counts() -> None:
+    class BadRequestError(Exception):
+        pass
+
+    err = wrap_provider_error(
+        BadRequestError(
+            "Requested 12,345 tokens, maximum context length allowed is 8,192"
+        ),
+        provider="local",
+        phase="generate",
+        allow_network_errors=True,
+    )
+
+    assert isinstance(err, ContextOverflowError)
+    assert err.error_category == "context_overflow"
+    assert err.n_tokens == 12345
+    assert err.n_ctx == 8192

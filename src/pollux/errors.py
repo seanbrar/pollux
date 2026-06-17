@@ -62,6 +62,65 @@ class APIError(PolluxError):
         self.error_category = error_category
 
 
+class ContextOverflowError(APIError):
+    """Provider rejected a request because it exceeded the context window."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        n_tokens: int | None = None,
+        n_ctx: int | None = None,
+        hint: str | None = None,
+        retryable: bool | None = None,
+        status_code: int | None = None,
+        retry_after_s: float | None = None,
+        provider: str | None = None,
+        phase: str | None = None,
+        call_idx: int | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            hint=hint,
+            retryable=retryable,
+            status_code=status_code,
+            retry_after_s=retry_after_s,
+            provider=provider,
+            phase=phase,
+            call_idx=call_idx,
+            error_category="context_overflow",
+        )
+        self.n_tokens = n_tokens
+        self.n_ctx = n_ctx
+
+
+class ToolCallParseError(APIError):
+    """A model-emitted tool call could not be parsed for dispatch."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        tool_name: str | None = None,
+        tool_call_id: str | None = None,
+        arguments_text: str | None = None,
+        hint: str | None = None,
+        provider: str | None = None,
+        phase: str | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            hint=hint,
+            retryable=False,
+            provider=provider,
+            phase=phase,
+            error_category="tool_call_parse",
+        )
+        self.tool_name = tool_name
+        self.tool_call_id = tool_call_id
+        self.arguments_text = arguments_text
+
+
 class CacheError(APIError):
     """Cache operation failed."""
 
