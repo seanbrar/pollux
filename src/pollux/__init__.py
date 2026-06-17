@@ -668,9 +668,21 @@ def _build_openrouter(api_key: str | None, _base_url: str | None) -> Provider:
 
 
 def _build_local(api_key: str | None, base_url: str | None) -> Provider:
+    return _build_local_with_timeout(api_key, base_url, 300.0)
+
+
+def _build_local_with_timeout(
+    api_key: str | None,
+    base_url: str | None,
+    request_timeout_s: float,
+) -> Provider:
     from pollux.providers.local import LocalProvider
 
-    return LocalProvider(base_url=cast("str", base_url), api_key=api_key)
+    return LocalProvider(
+        base_url=cast("str", base_url),
+        api_key=api_key,
+        timeout_s=request_timeout_s,
+    )
 
 
 # Single source of truth for provider construction and lifecycle traits.
@@ -692,6 +704,7 @@ def _create_provider(
     *,
     use_mock: bool = False,
     base_url: str | None = None,
+    request_timeout_s: float = 300.0,
 ) -> Provider:
     """Instantiate a provider client from explicit parameters."""
     if use_mock:
@@ -724,6 +737,12 @@ def _create_provider(
             hint=f"Set {env_var} or pass Config(api_key=...).",
         )
 
+    if provider == "local":
+        return _build_local_with_timeout(
+            api_key,
+            base_url,
+            request_timeout_s,
+        )
     return spec.build(api_key, base_url)
 
 
@@ -734,6 +753,7 @@ def _get_provider(config: Config) -> Provider:
         config.api_key,
         use_mock=config.use_mock,
         base_url=config.base_url,
+        request_timeout_s=config.request_timeout_s,
     )
 
 

@@ -17,13 +17,18 @@ vary too much to query reliably).
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections.abc import Mapping
 import json
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
-from pollux.errors import APIError, ConfigurationError, walk_exception_chain
+from pollux.errors import (
+    APIError,
+    ConfigurationError,
+    walk_exception_chain,
+)
 from pollux.providers import _compile
 from pollux.providers._errors import wrap_provider_error
 from pollux.providers._openai_compat import (
@@ -58,13 +63,19 @@ if TYPE_CHECKING:
     from pollux.interaction.input import Input
     from pollux.interaction.requirements import OutputRequirements
 
-_LOCAL_TIMEOUT_S = 300.0
+_DEFAULT_LOCAL_TIMEOUT_S = 300.0
 
 
 class LocalProvider:
     """Chat Completions provider for self-hosted OpenAI-compatible servers."""
 
-    def __init__(self, base_url: str, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str | None = None,
+        *,
+        timeout_s: float = _DEFAULT_LOCAL_TIMEOUT_S,
+    ) -> None:
         """Initialize with the server's base URL and an optional auth token.
 
         Most local servers ignore the Authorization header; some require
@@ -73,6 +84,7 @@ class LocalProvider:
         """
         self._base_url = base_url
         self._api_key = api_key or "local"
+        self._timeout_s = timeout_s
         self._client: Any = None
 
     @property
@@ -80,7 +92,7 @@ class LocalProvider:
         """Return supported feature flags (narrow by design)."""
         return ProviderCapabilities(
             persistent_cache=False,
-            uploads=False,
+            uploads=True,
             structured_outputs=True,
             reasoning=False,
             reasoning_budget_tokens=False,
@@ -88,8 +100,8 @@ class LocalProvider:
             conversation=True,
             implicit_caching=False,
             file_rejection_hint=(
-                "Pass file content as text via Source.from_text(). "
-                "Images, PDFs, and remote URIs are not supported."
+                "Local supports text, image, and audio inputs through "
+                "OpenAI-compatible Chat Completions content parts."
             ),
         )
 
@@ -105,7 +117,7 @@ class LocalProvider:
                     "Authorization": f"Bearer {self._api_key}",
                     "Content-Type": "application/json",
                 },
-                timeout=_LOCAL_TIMEOUT_S,
+                timeout=self._timeout_s,
                 limits=httpx.Limits(
                     max_connections=None, max_keepalive_connections=None
                 ),
@@ -135,12 +147,13 @@ class LocalProvider:
                 ),
             )
         for part in _compile.request_parts(snapshot, input):
-            if not _is_text_part(part):
+            if not _is_supported_local_part(part):
                 raise ConfigurationError(
-                    "Local provider does not support file or multimodal input",
+                    "Local provider does not support this input MIME type",
                     hint=(
-                        "Pass file content as text via Source.from_text(). "
-                        "Images, PDFs, and remote URIs are not supported."
+                        "Local supports text, image, and audio inputs. "
+                        "Use a provider with broader multimodal support for "
+                        "PDF, video, or arbitrary binary files."
                     ),
                 )
 
@@ -164,10 +177,9 @@ class LocalProvider:
             history or None,
             system_instruction=_compile.system_instruction(snapshot),
         )
-        payload: dict[str, Any] = {
-            "model": config.model,
-            "messages": messages,
-        }
+        payload: dict[str, Any] = {"messages": messages}
+        if config.model is not None:
+            payload["model"] = config.model
         if requirements.temperature is not None:
             payload["temperature"] = requirements.temperature
         if requirements.top_p is not None:
@@ -296,12 +308,42 @@ class LocalProvider:
             ) from e
 
     async def upload_file(self, path: Path, mime_type: str) -> ProviderFileAsset:
-        """Reject uploads because local provider takes inline content only."""
-        _ = path, mime_type
-        raise _local_api_error(
-            "Local provider does not support file uploads",
-            phase="upload",
-            hint="Pass file content as text via Source.from_text().",
+        """Inline local files for OpenAI-compatible Chat Completions."""
+        try:
+            data = path.read_bytes()
+        except Exception as exc:
+            raise _local_api_error(
+                f"Failed to read local file for inline input: {path}",
+                phase="upload",
+            ) from exc
+
+        if _is_text_like_mime_type(mime_type):
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ConfigurationError(
+                    f"Local text input is not valid UTF-8: {path}",
+                    hint="Use a valid UTF-8 text file or pass a binary media type.",
+                ) from exc
+            return ProviderFileAsset(
+                file_id=text,
+                provider="local",
+                mime_type=mime_type,
+                file_name=path.name,
+                is_inline_fallback=True,
+            )
+
+        if mime_type.startswith(("image/", "audio/")):
+            return ProviderFileAsset(
+                file_id=_to_data_url(data, mime_type),
+                provider="local",
+                mime_type=mime_type,
+                file_name=path.name,
+            )
+
+        raise ConfigurationError(
+            f"Unsupported local input MIME type: {mime_type}",
+            hint="Local supports text, image, and audio files.",
         )
 
     async def create_cache(
@@ -329,22 +371,35 @@ class LocalProvider:
         await client.aclose()
 
 
-def _is_text_part(part: Any) -> bool:
-    """Return True when *part* is plain text the local provider can send inline.
-
-    Mirrors OpenRouter's input-part discrimination: strings and
-    text-only dicts pass; ProviderFileAsset and dicts carrying
-    ``uri``/``mime_type`` are rejected.
-    """
+def _is_supported_local_part(part: Any) -> bool:
+    """Return True when *part* can become local Chat Completions content."""
     if part is None:
         return True
     if isinstance(part, str):
         return True
     if isinstance(part, ProviderFileAsset):
-        return False
+        return part.provider == "local" and (
+            part.is_inline_fallback or part.mime_type.startswith(("image/", "audio/"))
+        )
     if isinstance(part, Mapping):
+        mime_type = part.get("mime_type")
+        if "file_path" in part:
+            return isinstance(mime_type, str) and (
+                _is_text_like_mime_type(mime_type)
+                or mime_type.startswith(("image/", "audio/"))
+            )
         if "uri" in part or "mime_type" in part:
-            return False
+            uri = part.get("uri")
+            return (
+                isinstance(uri, str)
+                and isinstance(mime_type, str)
+                and (
+                    mime_type.startswith("image/")
+                    or (
+                        mime_type.startswith("audio/") and uri.startswith("data:audio/")
+                    )
+                )
+            )
         return isinstance(part.get("text"), str)
     return False
 
@@ -367,9 +422,9 @@ def _build_messages(
             if message is not None:
                 messages.append(message)
 
-    user_text = _join_text_parts(parts)
-    if user_text or not messages:
-        messages.append({"role": "user", "content": user_text})
+    user_content = _content_from_parts(parts)
+    if user_content or not messages:
+        messages.append({"role": "user", "content": user_content})
 
     return messages
 
@@ -401,15 +456,115 @@ def _history_message(item: Message) -> dict[str, Any] | None:
     return message
 
 
-def _join_text_parts(parts: list[Any]) -> str:
-    """Concatenate text parts into a single user message body."""
-    texts: list[str] = []
+def _content_from_parts(parts: list[Any]) -> str | list[dict[str, Any]]:
+    """Convert Pollux parts into local Chat Completions message content."""
+    content_parts: list[dict[str, Any]] = []
     for part in parts:
-        if isinstance(part, str):
-            texts.append(part)
-        elif isinstance(part, Mapping) and isinstance(part.get("text"), str):
-            texts.append(cast("str", part["text"]))
-    return "\n\n".join(texts)
+        normalized = _normalize_input_part(part)
+        if normalized is not None:
+            content_parts.append(normalized)
+    if not content_parts:
+        return ""
+    if all(part.get("type") == "text" for part in content_parts):
+        return "\n\n".join(cast("str", part["text"]) for part in content_parts)
+    return content_parts
+
+
+def _normalize_input_part(part: Any) -> dict[str, Any] | None:
+    """Convert one Pollux part into a local Chat Completions content item."""
+    if part is None:
+        return None
+    if isinstance(part, str):
+        return {"type": "text", "text": part}
+    if isinstance(part, Mapping) and isinstance(part.get("text"), str):
+        return {"type": "text", "text": cast("str", part["text"])}
+
+    if isinstance(part, ProviderFileAsset):
+        if part.provider != "local":
+            raise _local_api_error(
+                f"Local provider cannot use {part.provider} file assets.",
+                phase="generate",
+            )
+        if part.is_inline_fallback:
+            return {"type": "text", "text": part.file_id}
+        return _media_content_part(
+            uri=part.file_id,
+            mime_type=part.mime_type,
+            file_name=part.file_name,
+        )
+
+    if isinstance(part, Mapping):
+        uri = part.get("uri")
+        mime_type = part.get("mime_type")
+        if isinstance(uri, str) and isinstance(mime_type, str):
+            return _media_content_part(uri=uri, mime_type=mime_type)
+
+    raise ConfigurationError(
+        f"Unsupported local input part: {type(part).__name__}",
+        hint="Local supports text, image, and audio inputs.",
+    )
+
+
+def _media_content_part(
+    *, uri: str, mime_type: str, file_name: str | None = None
+) -> dict[str, Any]:
+    """Build an OpenAI-compatible media content item for local servers."""
+    _ = file_name
+    if mime_type.startswith("image/"):
+        return {"type": "image_url", "image_url": {"url": uri}}
+    if mime_type.startswith("audio/"):
+        data, audio_format = _audio_payload(uri=uri, mime_type=mime_type)
+        return {
+            "type": "input_audio",
+            "input_audio": {"data": data, "format": audio_format},
+        }
+    raise ConfigurationError(
+        f"Unsupported local input MIME type: {mime_type}",
+        hint="Local supports text, image, and audio inputs.",
+    )
+
+
+def _audio_payload(*, uri: str, mime_type: str) -> tuple[str, str]:
+    """Return base64 audio payload and format for Chat Completions."""
+    if not uri.startswith("data:"):
+        raise ConfigurationError(
+            "Local audio input requires a data URL",
+            hint="Use Source.from_file(...) for local audio files.",
+        )
+    marker = ";base64,"
+    if marker not in uri:
+        raise ConfigurationError(
+            "Local audio data URL must be base64 encoded",
+            hint="Use Source.from_file(...) for local audio files.",
+        )
+    data = uri.split(marker, 1)[1]
+    return data, _audio_format(mime_type)
+
+
+def _audio_format(mime_type: str) -> str:
+    """Return the Chat Completions audio format token for a MIME type."""
+    suffix = mime_type.split("/", 1)[1].split(";", 1)[0].lower()
+    if suffix in {"mpeg", "mpga"}:
+        return "mp3"
+    return suffix
+
+
+def _is_text_like_mime_type(mime_type: str) -> bool:
+    """Return True when local should inline file bytes as text."""
+    if mime_type.startswith("text/"):
+        return True
+    return mime_type in {
+        "application/json",
+        "application/xml",
+        "application/yaml",
+        "application/x-yaml",
+    } or mime_type.endswith(("+json", "+xml"))
+
+
+def _to_data_url(data: bytes, mime_type: str) -> str:
+    """Encode raw file bytes as a base64 data URL."""
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def _parse_response(
@@ -464,8 +619,8 @@ def _hint_for_local_error(exc: BaseException, *, base_url: str) -> str | None:
             )
         if isinstance(e, httpx.ReadTimeout):
             return (
-                f"Local inference timed out after {_LOCAL_TIMEOUT_S:.0f}s. "
-                f"The model may be too slow for your hardware."
+                "Local inference timed out. Increase Config.request_timeout_s "
+                "or reduce input size."
             )
 
     if isinstance(exc, httpx.HTTPStatusError):

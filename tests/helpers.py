@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 def make_interaction(
     *,
-    model: str,
+    model: str | None,
     provider: str = "mock",
     content: str | None = None,
     prepared_parts: Sequence[Any] = (),

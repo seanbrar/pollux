@@ -205,6 +205,11 @@ async def submit_deferred(
         if provider_handle.submitted_at is not None
         else time.time()
     )
+    if config.model is None:
+        raise ConfigurationError(
+            "defer() requires a configured model",
+            hint="Pass Config(model=...) for provider-side deferred jobs.",
+        )
     return DeferredHandle(
         job_id=provider_handle.job_id,
         provider=config.provider,

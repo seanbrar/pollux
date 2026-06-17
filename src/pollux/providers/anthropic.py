@@ -7,7 +7,7 @@ from datetime import datetime
 import inspect
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pollux.errors import APIError, ConfigurationError
 from pollux.interaction.tools import ToolCallDelta
@@ -255,7 +255,7 @@ class AnthropicProvider:
         config: Config,
     ) -> dict[str, Any]:
         """Build the raw Anthropic Messages API request body."""
-        model = config.model
+        model = cast("str", config.model)
         history, _previous_response_id, provider_state = _compile.prior_turns(input)
         messages = self._build_messages(parts, history or None, provider_state)
         system_instruction = _compile.system_instruction(snapshot)
@@ -556,9 +556,10 @@ class AnthropicProvider:
             requirements.reasoning_effort is not None
             or requirements.reasoning_budget_tokens is not None
         )
-        if wants_reasoning and _model_lacks_extended_thinking(config.model):
+        model = cast("str", config.model)
+        if wants_reasoning and _model_lacks_extended_thinking(model):
             raise ConfigurationError(
-                f"Model {config.model!r} does not support extended thinking",
+                f"Model {model!r} does not support extended thinking",
                 hint=(
                     "Remove reasoning_effort/reasoning_budget_tokens, or use a "
                     "model with extended thinking (Claude 3.7 or 4.x)."

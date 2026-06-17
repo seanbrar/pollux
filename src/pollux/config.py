@@ -55,7 +55,9 @@ def _resolve_local_base_url() -> str | None:
 class Config:
     """Immutable configuration for Pollux execution.
 
-    Provider and model are required—Pollux does not guess what you want.
+    Provider and model are required for cloud providers—Pollux does not guess
+    what you want. Local OpenAI-compatible servers may omit ``model`` when the
+    server has a single configured model or otherwise does not require it.
     API keys are auto-resolved from standard environment variables.
 
     Example:
@@ -67,7 +69,7 @@ class Config:
     """
 
     provider: ProviderName
-    model: str
+    model: str | None = None
     #: Auto-resolved from the provider-specific API key env var when *None*.
     #: Optional for ``provider="local"``.
     api_key: str | None = None
@@ -76,6 +78,9 @@ class Config:
     base_url: str | None = None
     use_mock: bool = False
     request_concurrency: int = 6
+    #: HTTP request timeout in seconds for providers that own their transport.
+    #: Currently applied by the local OpenAI-compatible provider.
+    request_timeout_s: float = 300.0
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     #: Optional capability declarations that override the provider's static
     #: capabilities for this config (v2 interaction path). A declared capability
@@ -106,6 +111,16 @@ class Config:
                 f"request_concurrency must be ≥ 1, got {self.request_concurrency}",
                 hint="This controls how many API calls run in parallel.",
             )
+        if not isinstance(self.request_timeout_s, int | float):
+            raise ConfigurationError(
+                f"request_timeout_s must be numeric, got {type(self.request_timeout_s).__name__}",
+                hint="Pass a timeout in seconds, for example request_timeout_s=600.",
+            )
+        if self.request_timeout_s <= 0:
+            raise ConfigurationError(
+                f"request_timeout_s must be > 0, got {self.request_timeout_s}",
+                hint="Pass a positive timeout in seconds.",
+            )
 
         if self.provider == "local":
             # Local: resolve base_url for real calls, skip API-key resolution entirely.
@@ -122,6 +137,12 @@ class Config:
                     ),
                 )
             return
+
+        if not isinstance(self.model, str) or not self.model:
+            raise ConfigurationError(
+                f"model required for provider={self.provider!r}",
+                hint="Pass the provider model name, for example model='gpt-5-nano'.",
+            )
 
         # Cloud providers: base_url is not a meaningful override here.
         if self.base_url is not None:
