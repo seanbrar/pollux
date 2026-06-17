@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -93,7 +94,7 @@ def test_local_capabilities_are_narrow() -> None:
     caps = LocalProvider(base_url=_LOCAL_BASE_URL).capabilities
 
     assert caps.persistent_cache is False
-    assert caps.uploads is False
+    assert caps.uploads is True
     assert caps.structured_outputs is True
     assert caps.reasoning is False
     assert caps.reasoning_budget_tokens is False
@@ -142,6 +143,25 @@ async def test_local_generate_builds_chat_completions_payload() -> None:
         "output_tokens": 5,
         "total_tokens": 15,
     }
+
+
+@pytest.mark.asyncio
+async def test_local_generate_omits_model_when_unset() -> None:
+    """Local can target single-model servers that reject or ignore model names."""
+    fake = _FakeLocalClient()
+    provider = _make_local_provider(fake)
+    snapshot, input, requirements, config = make_interaction(
+        provider="local",
+        base_url=_LOCAL_BASE_URL,
+        model=None,
+        content="Hello",
+    )
+
+    await provider.generate(snapshot, input, requirements, config)
+
+    assert fake.last_json is not None
+    assert "model" not in fake.last_json
+    assert fake.last_json["messages"] == [{"role": "user", "content": "Hello"}]
 
 
 @pytest.mark.asyncio
@@ -527,34 +547,74 @@ async def test_local_generate_parses_tool_calls() -> None:
 
 
 @pytest.mark.asyncio
-async def test_local_generate_rejects_non_text_parts() -> None:
-    """Multimodal / file parts are explicitly unsupported on local."""
+async def test_local_generate_sends_multimodal_content_parts() -> None:
+    """Local should send image/audio content through Chat Completions parts."""
+    fake = _FakeLocalClient()
+    provider = _make_local_provider(fake)
+    audio = base64.b64encode(b"audio").decode("ascii")
+
+    await provider.generate(
+        *_local(
+            content="Describe these.",
+            prepared_parts=[
+                {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
+                {"uri": f"data:audio/wav;base64,{audio}", "mime_type": "audio/wav"},
+            ],
+        )
+    )
+
+    assert fake.last_json is not None
+    assert fake.last_json["messages"][-1] == {
+        "role": "user",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {"url": "https://example.com/photo.jpg"},
+            },
+            {
+                "type": "input_audio",
+                "input_audio": {"data": audio, "format": "wav"},
+            },
+            {"type": "text", "text": "Describe these."},
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_local_generate_rejects_unsupported_media_parts() -> None:
+    """Unsupported local media should fail with MIME-specific guidance."""
     provider = _make_local_provider(_FakeLocalClient())
 
-    with pytest.raises(ConfigurationError, match="file or multimodal input"):
+    with pytest.raises(ConfigurationError, match="input MIME type"):
         await provider.generate(
             *_local(
-                content="Describe this image.",
+                content="Describe this.",
                 prepared_parts=[
-                    {"uri": "https://example.com/photo.jpg", "mime_type": "image/jpeg"},
+                    {
+                        "uri": "https://example.com/doc.pdf",
+                        "mime_type": "application/pdf",
+                    },
                 ],
             )
         )
 
 
 @pytest.mark.asyncio
-async def test_local_upload_file_raises_api_error(tmp_path: Any) -> None:
-    """Uploads are unsupported; should raise APIError, not silently noop."""
+async def test_local_upload_file_inlines_text_and_media(tmp_path: Any) -> None:
+    """Local upload_file prepares inline Chat Completions assets."""
     provider = LocalProvider(base_url=_LOCAL_BASE_URL)
     text_path = tmp_path / "note.txt"
     text_path.write_text("hello", encoding="utf-8")
+    image_path = tmp_path / "photo.png"
+    image_path.write_bytes(b"png")
 
-    with pytest.raises(APIError, match="does not support file uploads") as exc:
-        await provider.upload_file(text_path, "text/plain")
+    text_asset = await provider.upload_file(text_path, "text/plain")
+    image_asset = await provider.upload_file(image_path, "image/png")
 
-    err = exc.value
-    assert err.provider == "local"
-    assert err.phase == "upload"
+    assert text_asset.provider == "local"
+    assert text_asset.file_id == "hello"
+    assert text_asset.is_inline_fallback is True
+    assert image_asset.file_id.startswith("data:image/png;base64,")
 
 
 @pytest.mark.asyncio
@@ -614,5 +674,18 @@ async def test_local_provider_configures_timeout() -> None:
     assert isinstance(client.timeout, httpx.Timeout)
     assert client.timeout.connect == 300.0
     assert client.timeout.read == 300.0
+
+    await provider.aclose()
+
+
+@pytest.mark.asyncio
+async def test_local_provider_accepts_custom_timeout() -> None:
+    """Agent harnesses can extend local timeouts for slow bulk generations."""
+    provider = LocalProvider(base_url=_LOCAL_BASE_URL, timeout_s=45.0)
+    client = provider._get_client()
+
+    assert isinstance(client.timeout, httpx.Timeout)
+    assert client.timeout.connect == 45.0
+    assert client.timeout.read == 45.0
 
     await provider.aclose()

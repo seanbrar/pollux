@@ -32,11 +32,12 @@ All fields and their defaults:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `provider` | `"gemini" \| "openai" \| "anthropic" \| "openrouter" \| "local"` | *(required)* | Provider to use |
-| `model` | `str` | *(required)* | Model identifier |
+| `model` | `str \| None` | `None` | Model identifier. Required for cloud providers; optional for single-model local servers |
 | `api_key` | `str \| None` | `None` | Explicit key; auto-resolved from env if omitted. Optional for `provider="local"` |
 | `base_url` | `str \| None` | `None` | Required for `provider="local"`; rejected for cloud providers. Falls back to `POLLUX_LOCAL_BASE_URL` |
 | `use_mock` | `bool` | `False` | Use mock provider (no network calls) |
 | `request_concurrency` | `int` | `6` | Max concurrent API calls in multi-prompt execution |
+| `request_timeout_s` | `float` | `300.0` | HTTP request timeout in seconds for providers that own their transport, including `provider="local"` |
 | `retry` | `RetryPolicy` | `RetryPolicy()` | Retry configuration |
 
 ## API Key Resolution
@@ -67,13 +68,16 @@ project root for local development, but never commit it.
 ## Self-Hosted Models (`provider="local"`)
 
 Pollux supports self-hosted servers that speak the OpenAI Chat Completions wire
-format. Point `base_url` at the server; `api_key` is optional.
+format. Point `base_url` at the server; `api_key` is optional. If the server
+has a single configured model or rejects client-supplied model names, omit
+`model` and Pollux will leave the `model` request field out of local payloads.
 
 ```python
 config = Config(
     provider="local",
     model="gemma3:4b",
     base_url="http://localhost:11434/v1",
+    request_timeout_s=600,
 )
 ```
 

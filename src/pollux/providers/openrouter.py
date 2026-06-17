@@ -270,7 +270,7 @@ class OpenRouterProvider:
                 ),
             )
 
-        model = config.model
+        model = cast("str", config.model)
         metadata = await self._get_model_metadata(model)
         _require_text_io(metadata, model=model)
 

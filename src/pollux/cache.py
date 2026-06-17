@@ -298,8 +298,15 @@ async def create_cache_impl(
                     hint="Ensure all items in the tools list are dictionaries.",
                 )
 
+    if config.model is None:
+        raise ConfigurationError(
+            "create_cache() requires a configured model",
+            hint="Pass Config(model=...) when preparing persistent provider caches.",
+        )
+    model = config.model
+
     key = compute_cache_key(
-        config.model,
+        model,
         src_tuple,
         provider=config.provider,
         api_key=config.api_key,
@@ -312,7 +319,7 @@ async def create_cache_impl(
         cache_name, expires_at = cached
         return CacheHandle(
             name=cache_name,
-            model=config.model,
+            model=model,
             provider=config.provider,
             expires_at=expires_at,
         )
@@ -323,7 +330,7 @@ async def create_cache_impl(
         provider,
         _registry,
         key=key,
-        model=config.model,
+        model=model,
         raw_parts=raw_parts,
         system_instruction=system_instruction,
         tools=tools,
@@ -341,7 +348,7 @@ async def create_cache_impl(
 
     return CacheHandle(
         name=cache_name,
-        model=config.model,
+        model=model,
         provider=config.provider,
         expires_at=expires_at,
     )

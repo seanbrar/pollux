@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
 import pytest
 
 import pollux
@@ -16,6 +17,7 @@ from pollux.errors import (
     APIError,
     ConfigurationError,
 )
+from pollux.providers.local import LocalProvider
 from pollux.providers.models import (
     ProviderFileAsset,
     ProviderResponse,
@@ -361,10 +363,36 @@ async def test_provider_validation_runs_before_uploads(
 
 
 @pytest.mark.asyncio
-async def test_local_file_sources_raise_local_specific_guidance(tmp_path: Any) -> None:
-    """Local file inputs should fail with the text-only local provider guidance."""
+async def test_local_file_sources_are_inlined_for_chat_completions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Local file inputs should be converted into inline Chat Completions parts."""
+
+    class _FakeLocalClient:
+        def __init__(self) -> None:
+            self.last_json: dict[str, Any] | None = None
+            self.closed = False
+
+        async def post(self, path: str, json: dict[str, Any]) -> httpx.Response:
+            self.last_json = json
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [{"message": {"content": "ok"}}],
+                    "usage": {"total_tokens": 1},
+                },
+                request=httpx.Request("POST", f"http://localhost:8080/v1/{path}"),
+            )
+
+        async def aclose(self) -> None:
+            self.closed = True
+
     file_path = tmp_path / "note.txt"
     file_path.write_text("hello", encoding="utf-8")
+    fake_client = _FakeLocalClient()
+    provider = LocalProvider(base_url="http://localhost:8080/v1")
+    provider._client = fake_client
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
 
     cfg = Config(
         provider="local",
@@ -372,17 +400,17 @@ async def test_local_file_sources_raise_local_specific_guidance(tmp_path: Any) -
         base_url="http://localhost:8080/v1",
     )
 
-    with pytest.raises(
-        ConfigurationError, match="Provider does not support file or multimodal input"
-    ) as exc:
-        await pollux.run(
-            "Summarize this.",
-            source=Source.from_file(file_path, mime_type="text/plain"),
-            config=cfg,
-        )
+    out = await pollux.run(
+        "Summarize this.",
+        source=Source.from_file(file_path, mime_type="text/plain"),
+        config=cfg,
+    )
 
-    assert exc.value.hint is not None
-    assert "Source.from_text()" in exc.value.hint
+    assert out.text == "ok"
+    assert fake_client.last_json is not None
+    assert (
+        fake_client.last_json["messages"][-1]["content"] == "hello\n\nSummarize this."
+    )
 
 
 @pytest.mark.asyncio

@@ -198,6 +198,18 @@ def test_non_integer_request_concurrency_raises_clear_error(gemini_model: str) -
     assert exc.value.hint is not None
 
 
+def test_non_positive_request_timeout_raises_clear_error(gemini_model: str) -> None:
+    """Request timeouts must fail at config construction, not during transport."""
+    with pytest.raises(ConfigurationError, match="request_timeout_s must be") as exc:
+        Config(
+            provider="gemini",
+            model=gemini_model,
+            use_mock=True,
+            request_timeout_s=0,
+        )
+    assert exc.value.hint is not None
+
+
 def test_local_requires_base_url_without_mock(
     monkeypatch: pytest.MonkeyPatch,
     local_model: str,
@@ -209,6 +221,20 @@ def test_local_requires_base_url_without_mock(
         Config(provider="local", model=local_model)
     assert exc.value.hint is not None
     assert "POLLUX_LOCAL_BASE_URL" in exc.value.hint
+
+
+def test_local_model_can_be_omitted() -> None:
+    """Single-model local servers can rely on their server-side default model."""
+    cfg = Config(provider="local", base_url="http://localhost:11434/v1")
+
+    assert cfg.model is None
+
+
+def test_cloud_provider_requires_model() -> None:
+    """Only local OpenAI-compatible servers may omit model."""
+    with pytest.raises(ConfigurationError, match="model required") as exc:
+        Config(provider="gemini", api_key="key")
+    assert exc.value.hint is not None
 
 
 def test_local_resolves_base_url_from_env(
