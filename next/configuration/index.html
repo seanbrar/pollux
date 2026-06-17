@@ -1090,9 +1090,9 @@ securely, and tuning concurrency and retry settings for your workload.</p>
 </tr>
 <tr>
 <td><code>model</code></td>
-<td><code>str</code></td>
-<td><em>(required)</em></td>
-<td>Model identifier</td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Model identifier. Required for cloud providers; optional for single-model local servers</td>
 </tr>
 <tr>
 <td><code>api_key</code></td>
@@ -1117,6 +1117,12 @@ securely, and tuning concurrency and retry settings for your workload.</p>
 <td><code>int</code></td>
 <td><code>6</code></td>
 <td>Max concurrent API calls in multi-prompt execution</td>
+</tr>
+<tr>
+<td><code>request_timeout_s</code></td>
+<td><code>float</code></td>
+<td><code>300.0</code></td>
+<td>HTTP request timeout in seconds for providers that own their transport, including <code>provider="local"</code></td>
 </tr>
 <tr>
 <td><code>retry</code></td>
@@ -1146,11 +1152,14 @@ securely, and tuning concurrency and retry settings for your workload.</p>
 project root for local development, but never commit it.</p>
 <h2 id="self-hosted-models-providerlocal">Self-Hosted Models (<code>provider="local"</code>)<a class="headerlink" href="#self-hosted-models-providerlocal" title="Permanent link">&para;</a></h2>
 <p>Pollux supports self-hosted servers that speak the OpenAI Chat Completions wire
-format. Point <code>base_url</code> at the server; <code>api_key</code> is optional.</p>
+format. Point <code>base_url</code> at the server; <code>api_key</code> is optional. If the server
+has a single configured model or rejects client-supplied model names, omit
+<code>model</code> and Pollux will leave the <code>model</code> request field out of local payloads.</p>
 <div class="highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span>
     <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;local&quot;</span><span class="p">,</span>
     <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemma3:4b&quot;</span><span class="p">,</span>
     <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:11434/v1&quot;</span><span class="p">,</span>
+    <span class="n">request_timeout_s</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>Or set <code>POLLUX_LOCAL_BASE_URL</code> in your environment and omit the kwarg:</p>

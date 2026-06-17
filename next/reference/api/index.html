@@ -6294,7 +6294,9 @@ requests and Gemini explicit-cache identity.</p>
 
 
         <p>Immutable configuration for Pollux execution.</p>
-<p>Provider and model are required—Pollux does not guess what you want.
+<p>Provider and model are required for cloud providers—Pollux does not guess
+what you want. Local OpenAI-compatible servers may omit <code>model</code> when the
+server has a single configured model or otherwise does not require it.
 API keys are auto-resolved from standard environment variables.</p>
 
 
@@ -6413,11 +6415,34 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 <span class="normal">150</span>
 <span class="normal">151</span>
 <span class="normal">152</span>
-<span class="normal">153</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Immutable configuration for Pollux execution.</span>
 
-<span class="sd">    Provider and model are required—Pollux does not guess what you want.</span>
+<span class="sd">    Provider and model are required for cloud providers—Pollux does not guess</span>
+<span class="sd">    what you want. Local OpenAI-compatible servers may omit ``model`` when the</span>
+<span class="sd">    server has a single configured model or otherwise does not require it.</span>
 <span class="sd">    API keys are auto-resolved from standard environment variables.</span>
 
 <span class="sd">    Example:</span>
@@ -6429,7 +6454,7 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">provider</span><span class="p">:</span> <span class="n">ProviderName</span>
-    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1">#: Auto-resolved from the provider-specific API key env var when *None*.</span>
     <span class="c1">#: Optional for ``provider=&quot;local&quot;``.</span>
     <span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -6438,6 +6463,9 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
     <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">use_mock</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">request_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="c1">#: HTTP request timeout in seconds for providers that own their transport.</span>
+    <span class="c1">#: Currently applied by the local OpenAI-compatible provider.</span>
+    <span class="n">request_timeout_s</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">300.0</span>
     <span class="n">retry</span><span class="p">:</span> <span class="n">RetryPolicy</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">)</span>
     <span class="c1">#: Optional capability declarations that override the provider&#39;s static</span>
     <span class="c1">#: capabilities for this config (v2 interaction path). A declared capability</span>
@@ -6468,6 +6496,16 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
                 <span class="sa">f</span><span class="s2">&quot;request_concurrency must be ≥ 1, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">request_concurrency</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
                 <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;This controls how many API calls run in parallel.&quot;</span><span class="p">,</span>
             <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request_timeout_s</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;request_timeout_s must be numeric, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request_timeout_s</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass a timeout in seconds, for example request_timeout_s=600.&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">request_timeout_s</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;request_timeout_s must be &gt; 0, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">request_timeout_s</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass a positive timeout in seconds.&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">&quot;local&quot;</span><span class="p">:</span>
             <span class="c1"># Local: resolve base_url for real calls, skip API-key resolution entirely.</span>
@@ -6484,6 +6522,12 @@ a <code>base_url</code> (or set <code>POLLUX_LOCAL_BASE_URL</code>). No API key 
                     <span class="p">),</span>
                 <span class="p">)</span>
             <span class="k">return</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;model required for provider=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass the provider model name, for example model=&#39;gpt-5-nano&#39;.&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
 
         <span class="c1"># Cloud providers: base_url is not a meaningful override here.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
