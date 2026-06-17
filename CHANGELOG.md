@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [2.0.0-rc.1] - 2026-06-17
+
+### Added
+
+- Add Session runtime and provider readiness probes ([`91b51c9`](https://github.com/seanbrar/pollux/commit/91b51c907a12c4ede634b2cbef319ce79b1f5805))
+- Add stream() for incremental interaction output ([`a197a89`](https://github.com/seanbrar/pollux/commit/a197a893089c56a8dafae06f2474ac6c78ebc026))
+- Move defer()/collect_deferred() to the v2 model ([`12fc06f`](https://github.com/seanbrar/pollux/commit/12fc06f8c18738e46fea641a5c4d78101291fed8))
+- Flip run()/run_many() to the v2 Output model ([`313feab`](https://github.com/seanbrar/pollux/commit/313feabbcaecf2e01968700294020863495da493))
+- Add interact() v2 frontdoor ([`9ea3536`](https://github.com/seanbrar/pollux/commit/9ea353684bdc7f2713adab118624806dd4ef661e))
+- Migrate the project recipes to the v2 API ([`67eebe4`](https://github.com/seanbrar/pollux/commit/67eebe4341ea036bcabac5a5f94e5e4174cc0378))
+- Add error taxonomy and OpenAI message interop ([`a63b666`](https://github.com/seanbrar/pollux/commit/a63b666bf720ab0536a9e1a1cb19b8364a93c30b))
+- Harden the local provider for multimodal agent loops ([`23f891b`](https://github.com/seanbrar/pollux/commit/23f891b950bb079fc2866f8d465ffc6500bf605f))
+- Introduce ToolCall.arguments_dict and ToolResult.from_value ([`91f7787`](https://github.com/seanbrar/pollux/commit/91f7787cddc77775b64f7452f5eea3cd196b171c))
+- Enforce continuation provider compatibility at runtime ([`fabbe41`](https://github.com/seanbrar/pollux/commit/fabbe414fdc647ca25ef370a22442de3b4926b5b))
+- Stream from the OpenAI and Gemini providers ([`5bf9b9d`](https://github.com/seanbrar/pollux/commit/5bf9b9d2aebe1a565f0f1e4298beae14496b38a9))
+- Stream from the Anthropic and OpenRouter providers ([`77f74b8`](https://github.com/seanbrar/pollux/commit/77f74b82b9d32b551bbfd719cec6005a9d8d63fd))
+- Add tool calling to the local provider ([`de1473f`](https://github.com/seanbrar/pollux/commit/de1473f90ed6ea22c63618d598ba1cffd15deeaf))
+- Remove the remaining public v1 surface ([`9c9cca6`](https://github.com/seanbrar/pollux/commit/9c9cca62a11b47e9f958f9184b027c4d2d3178a9))
+- Flip the provider boundary to v2 primitives ([`65ff9af`](https://github.com/seanbrar/pollux/commit/65ff9afe3a72538cb0f6383c4ccce4e2f86b7207))
+- Wire persistent caching into the v2 path ([`fcc9a4b`](https://github.com/seanbrar/pollux/commit/fcc9a4b366a4b25fb40304e285cae6f20aeeb968))
+- Add v2 capability resolution and Config declarations ([`6eb1ca6`](https://github.com/seanbrar/pollux/commit/6eb1ca64b9df54fc170630998fd6ec30de1388af))
+- Add v2 provider boundary and execution path ([`2bdb6ee`](https://github.com/seanbrar/pollux/commit/2bdb6ee552ddb162258173f4a01b8113eb0a439f))
+- Add v2 interaction model types ([`b8c4e5b`](https://github.com/seanbrar/pollux/commit/b8c4e5bf35f6f488f2006db547894f351214467c))
+
+### Changed
+
+- Refresh the README for the v2 API ([`804469b`](https://github.com/seanbrar/pollux/commit/804469bab73ea300accf4826983f2344ceb8df12))
+- Refresh the v2 migration guide for shipped behavior ([`58be4d3`](https://github.com/seanbrar/pollux/commit/58be4d33b5fb266b1990ff1f3d3b2ba6f23db44c))
+- Align documentation with v2 API structure and terms ([`7197eff`](https://github.com/seanbrar/pollux/commit/7197effd0a21177bb2c0673c17379a4c53a4a5d9))
+
 ## [1.8.0] - 2026-06-13
 
 ### Added
@@ -210,6 +240,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[2.0.0-rc.1]: https://github.com/seanbrar/pollux/compare/v1.8.0...v2.0.0-rc.1
 [1.8.0]: https://github.com/seanbrar/pollux/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/seanbrar/pollux/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/seanbrar/pollux/compare/v1.5.0...v1.6.0

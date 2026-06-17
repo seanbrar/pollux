@@ -1433,7 +1433,7 @@ wheels = [
 
 [[package]]
 name = "pollux-ai"
-version = "1.8.0"
+version = "2.0.0rc1"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
