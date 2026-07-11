@@ -12,9 +12,9 @@ Multimodal orchestration for LLM APIs.
 
 > You describe what to analyze. Pollux handles source patterns, context caching, deferred delivery, and multimodal content.
 
-[Documentation](https://polluxlib.dev/) ·
-[Getting Started](https://polluxlib.dev/getting-started/) ·
-[Building With Deferred Delivery](https://polluxlib.dev/building-with-deferred-delivery/)
+[Documentation](https://polluxlib.dev/next/) ·
+[Getting Started](https://polluxlib.dev/next/getting-started/) ·
+[Building With Deferred Delivery](https://polluxlib.dev/next/building-with-deferred-delivery/)
 
 [![PyPI](https://img.shields.io/pypi/v/pollux-ai)](https://pypi.org/project/pollux-ai/)
 [![CI](https://github.com/seanbrar/pollux/actions/workflows/ci.yml/badge.svg)](https://github.com/seanbrar/pollux/actions/workflows/ci.yml)
@@ -22,6 +22,11 @@ Multimodal orchestration for LLM APIs.
 [![Testing: MTMT](https://img.shields.io/badge/testing-MTMT_v0.1.0-blue)](https://github.com/seanbrar/minimal-tests-maximum-trust)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+
+> [!IMPORTANT]
+> This branch documents the Pollux 2.0 release candidate. Install with
+> `pip install --pre --upgrade pollux-ai`. The default PyPI install remains the
+> stable v1 line until 2.0 reaches its stable release.
 
 ## Quick Start
 
@@ -53,7 +58,7 @@ For a self-hosted OpenAI-compatible server (text, image, and audio):
 Single-model servers can omit `model`.
 
 For a full walkthrough (install, key setup, first result), see
-[Getting Started](https://polluxlib.dev/getting-started/).
+[Getting Started](https://polluxlib.dev/next/getting-started/).
 
 ## Which Entry Point Should I Use?
 
@@ -139,7 +144,7 @@ asyncio.run(main())
 `Output.tool_calls` exposes any tools the model wants to run; return their
 results on the next `Input` to drive an agent loop. For tool declarations,
 dispatch, and streaming, see
-[Building an Agent Loop](https://polluxlib.dev/agent-loop/).
+[Building an Agent Loop](https://polluxlib.dev/next/agent-loop/).
 
 ## When the Work Can Wait
 
@@ -174,20 +179,20 @@ if snapshot.is_terminal:
 
 In production code, persist `handle.to_dict()` and restore it later with
 `DeferredHandle.from_dict(...)`. For the full lifecycle, read
-[Submitting Work for Later Collection](https://polluxlib.dev/submitting-work-for-later-collection/)
+[Submitting Work for Later Collection](https://polluxlib.dev/next/submitting-work-for-later-collection/)
 and
-[Building With Deferred Delivery](https://polluxlib.dev/building-with-deferred-delivery/).
+[Building With Deferred Delivery](https://polluxlib.dev/next/building-with-deferred-delivery/).
 
 ## Where Pollux Ends
 
 Pollux owns content delivery, context caching, and provider translation. Prompt
 design, workflow orchestration, and what you do with results are yours. See
-[Core Concepts](https://polluxlib.dev/concepts/) for the full boundary model.
+[Core Concepts](https://polluxlib.dev/next/concepts/) for the full boundary model.
 
 ## Installation
 
 ```bash
-pip install pollux-ai
+pip install --pre --upgrade pollux-ai
 ```
 
 Set your provider's API key:
@@ -206,22 +211,22 @@ For `provider="local"`, no API key is required; point `base_url` (or
 
 ## Documentation
 
-- [Getting Started](https://polluxlib.dev/getting-started/): first result in 2 minutes
-- [Core Concepts](https://polluxlib.dev/concepts/): mental model and vocabulary
-- [Building an Agent Loop](https://polluxlib.dev/agent-loop/): multi-turn threads, tool calls, and streaming
-- [Submitting Work for Later Collection](https://polluxlib.dev/submitting-work-for-later-collection/): deferred lifecycle API
-- [Migrating to 2.0](https://polluxlib.dev/migrating-to-v2/): moving from the v1 API
-- [Building With Deferred Delivery](https://polluxlib.dev/building-with-deferred-delivery/): when deferred is worth it
-- [API Reference](https://polluxlib.dev/reference/api/): entry points and types
-- [Cookbook](https://polluxlib.dev/reference/cli/): runnable end-to-end recipes
+- [Getting Started](https://polluxlib.dev/next/getting-started/): first result in 2 minutes
+- [Core Concepts](https://polluxlib.dev/next/concepts/): mental model and vocabulary
+- [Building an Agent Loop](https://polluxlib.dev/next/agent-loop/): multi-turn threads, tool calls, and streaming
+- [Submitting Work for Later Collection](https://polluxlib.dev/next/submitting-work-for-later-collection/): deferred lifecycle API
+- [Migrating to 2.0](https://polluxlib.dev/next/migrating-to-v2/): moving from the v1 API
+- [Building With Deferred Delivery](https://polluxlib.dev/next/building-with-deferred-delivery/): when deferred is worth it
+- [API Reference](https://polluxlib.dev/next/reference/api/): entry points and types
+- [Cookbook](https://polluxlib.dev/next/reference/cli/): runnable end-to-end recipes
 
-Full docs at [polluxlib.dev](https://polluxlib.dev/).
+Full v2 RC docs at [polluxlib.dev/next](https://polluxlib.dev/next/).
 
 ## Contributing
 
-See [CONTRIBUTING](https://polluxlib.dev/contributing/) and [TESTING.md](./TESTING.md) for guidelines.
+See [CONTRIBUTING](https://polluxlib.dev/next/contributing/) and [TESTING.md](./TESTING.md) for guidelines.
 
-Built during [Google Summer of Code 2025](https://summerofcode.withgoogle.com/) with Google DeepMind. [Learn more](https://polluxlib.dev/#about)
+Built during [Google Summer of Code 2025](https://summerofcode.withgoogle.com/) with Google DeepMind. [Learn more](https://polluxlib.dev/next/#about)
 
 ## License
 

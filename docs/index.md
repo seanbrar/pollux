@@ -38,8 +38,11 @@ output, usage tracking.
 ## Install
 
 ```bash
-pip install pollux-ai
+pip install --pre --upgrade pollux-ai
 ```
+
+The `next` documentation describes the 2.0 release candidate. The default
+PyPI install remains the stable v1 line until 2.0 reaches stable release.
 
 ## Documentation
 
