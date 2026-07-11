@@ -50,7 +50,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  # Keep deploys serialized, but do not let one PR preview cancel another.
+  group: "pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}"
   cancel-in-progress: true
 
 jobs:
@@ -121,14 +122,20 @@ jobs:
             default_version="${{ inputs.default_version }}"
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release="${ref_name#v}"
-            version="${release%.*}"
-            title="${version}"
-            major="${version%%.*}"
-            if [[ "${major}" == "1" ]]; then
-              aliases="v1"
+            if [[ "${release}" == *-* ]]; then
+              # Keep prereleases addressable without promoting them to latest.
+              version="${release}"
+              title="${release}"
             else
-              aliases="latest"
-              default_version="latest"
+              version="${release%.*}"
+              title="${version}"
+              major="${version%%.*}"
+              if [[ "${major}" == "1" ]]; then
+                aliases="v1"
+              else
+                aliases="latest"
+                default_version="latest"
+              fi
             fi
           elif [[ "${ref_name}" == "v1" ]]; then
             version="v1"
