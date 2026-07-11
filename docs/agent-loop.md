@@ -171,6 +171,18 @@ Within each iteration, Pollux handled:
 The boundary is clean: Pollux executes turns, you decide what happens
 *between* them.
 
+### Async-native execution
+
+Pollux's execution API is async-native. Agent harnesses that expose a
+synchronous command-line interface can wrap Pollux with `asyncio.run(...)` at
+their own process boundary, as the example does above. Keep that sync bridge in
+your application adapter instead of pushing it into Pollux.
+
+Do not call `asyncio.run(...)` from inside an already-running event loop
+(for example, from an async web server, notebook kernel, or another agent
+runtime). In those environments, keep your Pollux adapter async and `await`
+`interact()`, `run()`, or `stream()` directly.
+
 ## Variations
 
 These are all small modifications to the same loop structure.
@@ -221,8 +233,9 @@ out = await interact(
 )
 ```
 
-If your agent already stores OpenAI Chat Completions-style messages, import
-that replay list into Pollux instead of rewriting each message by hand:
+If your application owns an OpenAI Chat Completions-style transcript for resume,
+compaction, or audit logs, keep that transcript as the durable record and import
+it into a fresh Pollux continuation for each turn:
 
 ```python
 from pollux import Continuation, Input
@@ -237,7 +250,11 @@ out = await interact(
 
 `ToolCall.to_openai()`, `Message.to_openai()`, and
 `Continuation.to_openai_messages()` provide the reverse mapping for harnesses
-that still dispatch OpenAI-shaped tool calls.
+that still dispatch OpenAI-shaped tool calls. For supported text and tool
+message shapes, importing with `Continuation.from_openai_messages(...)` and
+exporting with `to_openai_messages()` preserves `role`, `content`,
+`tool_calls`, and `tool_call_id`. Display reasoning is output data and is not
+replayed as transcript history.
 
 ### Guiding tool use with system instructions
 
@@ -301,7 +318,9 @@ the control flow.
   exception breaks the loop.
 - **Use `ToolCall.arguments_dict()` for dispatch.** It accepts object-shaped
   JSON arguments and rejects malformed or non-object arguments with an actionable
-  error, instead of silently treating them as `{}`.
+  error, instead of silently treating them as `{}`. If your application wants a
+  compatibility fallback for a specific local model, put that policy in your
+  dispatcher and log it; Pollux keeps the typed tool-call object strict.
 - **`tool_calls` is a flat tuple on `Output`.** When using `interact()` or `run()`,
   `out.tool_calls` is a flat tuple of `ToolCall` objects.
 - **The model can request multiple tools in one turn.** The example handles
