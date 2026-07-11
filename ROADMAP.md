@@ -5,14 +5,14 @@ This roadmap is intentionally scope-constrained. Pollux is already past the
 trustworthy, more legible, and harder to misuse.
 
 - **Intent**: communicate priorities and scope boundaries, not promises.
-- **Last updated**: 2026-06-12
-- **Current release**: v1.8 adds reasoning budget tokens, normalized
-  `cached_tokens` usage reporting, a text-only `local` provider, serialized
-  continuation state stamps, and Anthropic pre-flight rejection of
-  extended-thinking requests on Claude 3 models. It also removes the deprecated
-  `Options.delivery_mode` shim.
-- **Next major**: v2.0 is planned as a major-version cleanup of Pollux's
-  interaction model. See `docs/migrating-to-v2.md` for the migration direction.
+- **Last updated**: 2026-07-11
+- **Current prerelease**: v2.0.0-rc.1 ships the v2 interaction model on the
+  `release/2.0.0` line. The stable 2.0 release has not shipped yet.
+- **Maintenance line**: v1.8 remains on the dedicated `v1` branch for 1.x
+  maintenance releases.
+- **Next release**: continue validating the v2 API through release candidates,
+  then promote it to stable 2.0 from `main`. See `docs/migrating-to-v2.md` for
+  the shipped migration contract.
 - **Status tracking**: Issues and PRs are the source of truth for active work.
 
 ## Product Strategy
@@ -36,9 +36,11 @@ trustworthy, more legible, and harder to misuse.
 The core library now covers the main orchestration responsibilities it set out
 to own:
 
-- Stable entry points for realtime and deferred execution:
-  `run()`, `run_many()`, `defer()`, `defer_many()`,
-  `inspect_deferred()`, `collect_deferred()`, `cancel_deferred()`.
+- Typed entry points for realtime, streaming, and deferred execution:
+  `run()`, `run_many()`, `interact()`, `stream()`, `defer()`,
+  `inspect_deferred()`, `collect_deferred()`, and `cancel_deferred()`.
+- A reusable `Session` runtime, typed `Environment` / `Input` interaction
+  primitives, and public `Continuation` state for multi-turn applications.
 - Multimodal source handling across the supported cloud provider matrix, plus
   a text-only `local` provider for self-hosted OpenAI-compatible servers.
 - Source patterns: fan-out, fan-in, and broadcast.
