@@ -961,10 +961,11 @@
 <h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h1>
 <p>Let's get Pollux running and see your first result.</p>
 <h2 id="1-install">1. Install<a class="headerlink" href="#1-install" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>pollux-ai
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--upgrade<span class="w"> </span>pollux-ai
 </code></pre></div>
-<p>Or download the latest wheel from
-<a href="https://github.com/seanbrar/pollux/releases/latest">Releases</a>.</p>
+<p>The <code>--pre</code> flag selects the 2.0 release candidate. Without it, pip installs
+the stable v1 line until 2.0 reaches its stable release. You can also download
+the RC wheel from <a href="https://github.com/seanbrar/pollux/releases">Releases</a>.</p>
 <h2 id="2-set-your-api-key">2. Set Your API Key<a class="headerlink" href="#2-set-your-api-key" title="Permanent link">&para;</a></h2>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Gemini</label><label for="__tabbed_1_2">OpenAI</label><label for="__tabbed_1_3">Anthropic</label><label for="__tabbed_1_4">OpenRouter</label></div>
 <div class="tabbed-content">

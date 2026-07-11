@@ -776,10 +776,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-is-available-now" class="md-nav__link">
+  <a href="#what-is-available-in-the-rc" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Is Available Now
+        What Is Available In The RC
       
     </span>
   </a>
@@ -787,10 +787,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#as-the-design-settles" class="md-nav__link">
+  <a href="#during-the-rc-cycle" class="md-nav__link">
     <span class="md-ellipsis">
       
-        As The Design Settles
+        During The RC Cycle
       
     </span>
   </a>
@@ -997,23 +997,23 @@
   
 
 
-<!-- Intent: Preview the planned Pollux 2.0 migration path for 1.x users.
-     Teach what is expected to stay familiar, what is expected to move, and
-     what users can do in 1.x to reduce future churn. Do NOT present the v2 API
-     as final or require users to rewrite code before v2 is released. Assumes
-     the reader has used Pollux 1.x. Register: warm guide with precise caveats. -->
+<!-- Intent: Guide Pollux 1.x users to the shipped 2.0 release-candidate API.
+     Teach what stayed familiar, what changed, and how to migrate without
+     implying that the RC has stable-release guarantees. Assumes the reader
+     has used Pollux 1.x. Register: warm guide with precise caveats. -->
 
 <h1 id="migrating-to-pollux-20">Migrating to Pollux 2.0<a class="headerlink" href="#migrating-to-pollux-20" title="Permanent link">&para;</a></h1>
 <div class="admonition warning">
-<p class="admonition-title">Planned, not released</p>
-<p>Pollux 2.0 has not shipped. This page describes the migration direction so
-you can write 1.x code with less future churn. Names, signatures, and exact
-replacement snippets may change before release.</p>
+<p class="admonition-title">Release candidate</p>
+<p>Pollux 2.0 is available as a release candidate, not a stable release. The
+API on this page is shipped in the RC and on <code>main</code>, but interaction details
+may still change before stable 2.0. Install it with
+<code>pip install --pre --upgrade pollux-ai</code>.</p>
 </div>
-<p>Pollux 2.0 is planned as a major-version cleanup of the interaction model. The
-goal is to name the pieces of a model interaction directly: the environment the
-model runs in, the input for this turn, the output requirements, and the
-continuation state that carries work forward.</p>
+<p>Pollux 2.0 is a major-version cleanup of the interaction model. It names the
+pieces of a model interaction directly: the environment the model runs in, the
+input for this turn, the output requirements, and the continuation state that
+carries work forward.</p>
 <p>Most one-shot code should remain recognizable. The bigger changes affect code
 that builds agent loops, persists continuation state, prepares caches, submits
 deferred collections, or reaches into result dictionaries.</p>
@@ -1031,9 +1031,9 @@ deferred collections, or reaches into result dictionaries.</p>
 <li>Dictionary-style result access such as <code>result["text"]</code>.</li>
 </ul>
 <p>If your code calls <code>run()</code> with a prompt, sources, and config, the migration is
-expected to be small.</p>
+small.</p>
 <h2 id="what-stays-familiar">What Stays Familiar<a class="headerlink" href="#what-stays-familiar" title="Permanent link">&para;</a></h2>
-<p>These 1.x entry points are expected to keep their role:</p>
+<p>These entry points keep their 1.x role:</p>
 <ul>
 <li><code>run()</code> for one realtime interaction.</li>
 <li><code>run_many()</code> for source-pattern collections: fan-out, fan-in, and broadcast.</li>
@@ -1043,14 +1043,13 @@ expected to be small.</p>
 </ul>
 <p>In other words, the first Pollux program still starts with <code>run()</code>.</p>
 <h2 id="what-changes">What Changes<a class="headerlink" href="#what-changes" title="Permanent link">&para;</a></h2>
-<p>The planned changes move behavior out of special-case helpers and into named
-interaction pieces. Treat the right column as migration direction until the v2
-API lands.</p>
+<p>The changes move behavior out of special-case helpers and into named
+interaction pieces.</p>
 <table>
 <thead>
 <tr>
 <th>1.x</th>
-<th>Planned 2.0 shape</th>
+<th>2.0 RC shape</th>
 <th>Why</th>
 </tr>
 </thead>
@@ -1088,7 +1087,7 @@ API lands.</p>
 <span class="n">text</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">]</span>
 <span class="n">payload</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 
-<span class="c1"># 2.0 planned shape</span>
+<span class="c1"># 2.0 RC</span>
 <span class="n">text</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span>
 <span class="n">payload</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">()</span>
 </code></pre></div>
@@ -1097,7 +1096,7 @@ interaction-shaped API:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># 1.x</span>
 <span class="n">next_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">continue_tool</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">tool_results</span><span class="p">)</span>
 
-<span class="c1"># 2.0 planned shape</span>
+<span class="c1"># 2.0 RC</span>
 <span class="n">next_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
     <span class="n">environment</span><span class="p">,</span>
     <span class="n">Input</span><span class="p">(</span><span class="n">continuation</span><span class="o">=</span><span class="n">continuation</span><span class="p">,</span> <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">),</span>
@@ -1120,8 +1119,8 @@ provider is rejected before dispatch. Across the 1.x → 2.0 boundary, plan to r
 work rather than reusing old serialized blobs; persist enough application state to
 rebuild the request when that is the right recovery path.</p>
 <h2 id="what-to-do-in-1x">What To Do In 1.x<a class="headerlink" href="#what-to-do-in-1x" title="Permanent link">&para;</a></h2>
-<p>You do not need to rewrite working 1.x code before 2.0 exists. To make future
-migration easier:</p>
+<p>You do not need to migrate working 1.x code while 2.0 is in RC. When you are
+ready to test the RC:</p>
 <ul>
 <li>Keep provider setup, prompts, sources, and output requirements separated in
   your own code.</li>
@@ -1134,8 +1133,8 @@ migration easier:</p>
 <li>Use <code>run()</code> and <code>run_many()</code> for realtime source patterns, and <code>defer()</code>
   only when provider-side deferred delivery is the workflow you want.</li>
 </ul>
-<h2 id="what-is-available-now">What Is Available Now<a class="headerlink" href="#what-is-available-now" title="Permanent link">&para;</a></h2>
-<p>The 2.0 interaction model is landing incrementally on <code>main</code>:</p>
+<h2 id="what-is-available-in-the-rc">What Is Available In The RC<a class="headerlink" href="#what-is-available-in-the-rc" title="Permanent link">&para;</a></h2>
+<p>The 2.0 interaction model is available in <code>v2.0.0-rc.1</code> and on <code>main</code>:</p>
 <ul>
 <li><code>run()</code> and <code>run_many()</code> now return the 2.0 result model: <code>run()</code> returns an
   <code>Output</code> (named facets <code>text</code>, <code>structured</code>, <code>reasoning</code>, <code>tool_calls</code>,
@@ -1157,12 +1156,12 @@ migration easier:</p>
 and <code>collect_deferred()</code> returns an <code>OutputCollection</code>. Persistent caching
 returns through <code>prepare_environment()</code> / <code>Environment(cache=...)</code>.
 <code>create_cache()</code>, <code>defer_many()</code>, and <code>Options</code> are removed.</p>
-<h2 id="as-the-design-settles">As The Design Settles<a class="headerlink" href="#as-the-design-settles" title="Permanent link">&para;</a></h2>
-<p>This page will change as the 2.0 API moves from plan to release candidate. Use
-it as the public migration guide; exact replacement snippets will become more
-specific as names and signatures settle.</p>
+<h2 id="during-the-rc-cycle">During The RC Cycle<a class="headerlink" href="#during-the-rc-cycle" title="Permanent link">&para;</a></h2>
+<p>This page is the public migration contract for the release-candidate cycle. It
+will track any deliberate pre-stable changes so downstream developers can test
+the exact API that is being prepared for stable 2.0.</p>
 <hr />
-<p>For the concepts behind the planned model, read <a href="../concepts/">Core Concepts</a>.
+<p>For the concepts behind the model, read <a href="../concepts/">Core Concepts</a>.
 For the current provider contract, see
 <a href="../reference/provider-capabilities/">Provider Capabilities</a>.</p>
 
