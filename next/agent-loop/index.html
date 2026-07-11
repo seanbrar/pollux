@@ -630,6 +630,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#async-native-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async-native execution
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1197,6 +1208,15 @@ This means you control:</p>
 </ol>
 <p>The boundary is clean: Pollux executes turns, you decide what happens
 <em>between</em> them.</p>
+<h3 id="async-native-execution">Async-native execution<a class="headerlink" href="#async-native-execution" title="Permanent link">&para;</a></h3>
+<p>Pollux's execution API is async-native. Agent harnesses that expose a
+synchronous command-line interface can wrap Pollux with <code>asyncio.run(...)</code> at
+their own process boundary, as the example does above. Keep that sync bridge in
+your application adapter instead of pushing it into Pollux.</p>
+<p>Do not call <code>asyncio.run(...)</code> from inside an already-running event loop
+(for example, from an async web server, notebook kernel, or another agent
+runtime). In those environments, keep your Pollux adapter async and <code>await</code>
+<code>interact()</code>, <code>run()</code>, or <code>stream()</code> directly.</p>
 <h2 id="variations">Variations<a class="headerlink" href="#variations" title="Permanent link">&para;</a></h2>
 <p>These are all small modifications to the same loop structure.</p>
 <h3 id="adding-more-tools">Adding more tools<a class="headerlink" href="#adding-more-tools" title="Permanent link">&para;</a></h3>
@@ -1236,8 +1256,9 @@ trimming old turns), build <code>history</code> manually:</p>
     <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>If your agent already stores OpenAI Chat Completions-style messages, import
-that replay list into Pollux instead of rewriting each message by hand:</p>
+<p>If your application owns an OpenAI Chat Completions-style transcript for resume,
+compaction, or audit logs, keep that transcript as the durable record and import
+it into a fresh Pollux continuation for each turn:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Continuation</span><span class="p">,</span> <span class="n">Input</span>
 
 <span class="n">continuation</span> <span class="o">=</span> <span class="n">Continuation</span><span class="o">.</span><span class="n">from_openai_messages</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;local&quot;</span><span class="p">)</span>
@@ -1249,7 +1270,11 @@ that replay list into Pollux instead of rewriting each message by hand:</p>
 </code></pre></div>
 <p><code>ToolCall.to_openai()</code>, <code>Message.to_openai()</code>, and
 <code>Continuation.to_openai_messages()</code> provide the reverse mapping for harnesses
-that still dispatch OpenAI-shaped tool calls.</p>
+that still dispatch OpenAI-shaped tool calls. For supported text and tool
+message shapes, importing with <code>Continuation.from_openai_messages(...)</code> and
+exporting with <code>to_openai_messages()</code> preserves <code>role</code>, <code>content</code>,
+<code>tool_calls</code>, and <code>tool_call_id</code>. Display reasoning is output data and is not
+replayed as transcript history.</p>
 <h3 id="guiding-tool-use-with-system-instructions">Guiding tool use with system instructions<a class="headerlink" href="#guiding-tool-use-with-system-instructions" title="Permanent link">&para;</a></h3>
 <p>Use <code>instructions</code> to constrain when and how the model calls tools, passed to the <code>Environment</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
@@ -1303,7 +1328,9 @@ the control flow.</p>
   exception breaks the loop.</li>
 <li><strong>Use <code>ToolCall.arguments_dict()</code> for dispatch.</strong> It accepts object-shaped
   JSON arguments and rejects malformed or non-object arguments with an actionable
-  error, instead of silently treating them as <code>{}</code>.</li>
+  error, instead of silently treating them as <code>{}</code>. If your application wants a
+  compatibility fallback for a specific local model, put that policy in your
+  dispatcher and log it; Pollux keeps the typed tool-call object strict.</li>
 <li><strong><code>tool_calls</code> is a flat tuple on <code>Output</code>.</strong> When using <code>interact()</code> or <code>run()</code>,
   <code>out.tool_calls</code> is a flat tuple of <code>ToolCall</code> objects.</li>
 <li><strong>The model can request multiple tools in one turn.</strong> The example handles

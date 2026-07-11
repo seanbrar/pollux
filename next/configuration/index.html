@@ -691,6 +691,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Config Fields">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#field-categories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field Categories
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1054,8 +1071,8 @@
 
 <h1 id="configuring-pollux">Configuring Pollux<a class="headerlink" href="#configuring-pollux" title="Permanent link">&para;</a></h1>
 <p>You need to tell Pollux which provider, model, and API key to use. The
-<code>Config</code> object captures these choices explicitly. No global state, no
-implicit defaults.</p>
+<code>Config</code> object captures these choices explicitly. No implicit provider or
+model defaults.</p>
 <div class="admonition info">
 <p class="admonition-title">Boundary</p>
 <p><strong>Pollux owns:</strong> validating config, resolving API keys from the
@@ -1130,8 +1147,59 @@ securely, and tuning concurrency and retry settings for your workload.</p>
 <td><code>RetryPolicy()</code></td>
 <td>Retry configuration</td>
 </tr>
+<tr>
+<td><code>capabilities</code></td>
+<td><code>Mapping[str, bool] \| None</code></td>
+<td><code>None</code></td>
+<td>Optional v2 interaction capability overrides, mainly for local OpenAI-compatible servers whose feature support varies</td>
+</tr>
 </tbody>
 </table>
+<h3 id="field-categories">Field Categories<a class="headerlink" href="#field-categories" title="Permanent link">&para;</a></h3>
+<p><code>Config</code> is intentionally a low-level library object. If you are building an
+application or agent framework on top of Pollux, you will usually expose a
+smaller product-specific selector and translate it into <code>Config</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Fields</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Provider identity</td>
+<td><code>provider</code>, <code>model</code></td>
+<td>Which provider adapter and model Pollux should call. Cloud providers require both fields. A local OpenAI-compatible server may omit <code>model</code> when the server owns model selection.</td>
+</tr>
+<tr>
+<td>Transport settings</td>
+<td><code>base_url</code>, <code>request_timeout_s</code></td>
+<td>How Pollux reaches a provider endpoint. <code>base_url</code> is only for <code>provider="local"</code> and is rejected for cloud providers.</td>
+</tr>
+<tr>
+<td>Credentials</td>
+<td><code>api_key</code> or provider env vars</td>
+<td>Authentication material. Pass an explicit key, or let Pollux resolve it from the provider-specific environment variable.</td>
+</tr>
+<tr>
+<td>Capability overrides</td>
+<td><code>capabilities</code></td>
+<td>Advanced escape hatch for declaring provider capabilities when static provider defaults are too broad or too narrow, especially for local servers.</td>
+</tr>
+<tr>
+<td>Per-execution controls</td>
+<td><code>request_concurrency</code>, <code>retry</code>, <code>use_mock</code></td>
+<td>Pollux execution behavior around concurrency, retries, and mock/no-network operation. Generation controls such as <code>temperature</code>, <code>max_tokens</code>, <code>reasoning_effort</code>, and <code>tool_choice</code> are passed to <code>run()</code>, <code>run_many()</code>, <code>interact()</code>, <code>stream()</code>, or <code>defer()</code>, not stored on <code>Config</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>For application settings, keep product concerns outside Pollux. For example,
+an agent harness might keep <code>provider = "local"</code> and <code>model = "gemma3:4b"</code> in
+its own TOML file, then construct <code>Config(provider="local", model="gemma3:4b")</code>
+at the Pollux boundary. Pollux still owns provider credential discovery and
+provider validation.</p>
 <h2 id="api-key-resolution">API Key Resolution<a class="headerlink" href="#api-key-resolution" title="Permanent link">&para;</a></h2>
 <p>If <code>api_key</code> is omitted, Pollux resolves it from environment variables:</p>
 <ul>
@@ -1148,8 +1216,11 @@ securely, and tuning concurrency and retry settings for your workload.</p>
 <p>You can also pass a key directly:</p>
 <div class="highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;openai&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5-nano&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Pollux auto-loads <code>.env</code> files via <code>python-dotenv</code>. Create a <code>.env</code> in your
-project root for local development, but never commit it.</p>
+<p>If an expected environment variable is not already set, Pollux lazily asks
+<code>python-dotenv</code> to load a <code>.env</code> file and checks again. A <code>.env</code> file is
+convenient for local development, but it is not required: exported process
+environment variables, shell profiles, secret managers, CI secrets, or explicit
+<code>api_key=</code> values all work. Never commit real keys.</p>
 <h2 id="self-hosted-models-providerlocal">Self-Hosted Models (<code>provider="local"</code>)<a class="headerlink" href="#self-hosted-models-providerlocal" title="Permanent link">&para;</a></h2>
 <p>Pollux supports self-hosted servers that speak the OpenAI Chat Completions wire
 format. Point <code>base_url</code> at the server; <code>api_key</code> is optional. If the server
@@ -1167,6 +1238,10 @@ has a single configured model or rejects client-supplied model names, omit
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;local&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gemma3:4b&quot;</span><span class="p">)</span>
 </code></pre></div>
+<p>As with API keys, <code>POLLUX_LOCAL_BASE_URL</code> can come from the process
+environment, a shell profile, CI configuration, or a <code>.env</code> file. Applications
+do not need to require a Pollux-specific <code>.env</code>; they can read their own
+settings and pass <code>base_url=</code> directly.</p>
 <p>The supported surface is narrow by design: text in, text or JSON out. Pollux
 also surfaces model-native reasoning text when the local server returns it.
 File uploads, tool calling, reasoning controls, context caching, and deferred

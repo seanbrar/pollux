@@ -570,6 +570,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#persisting-agent-transcripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persisting Agent Transcripts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Persisting Agent Transcripts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#application-owned-transcripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application-Owned Transcripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#handling-tool-messages-in-history" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1039,7 +1067,8 @@ across sessions.</p>
 </code></pre></div>
 <h2 id="using-history-for-manual-control">Using <code>history</code> for Manual Control<a class="headerlink" href="#using-history-for-manual-control" title="Permanent link">&para;</a></h2>
 <p>If you need to inject mid-conversation context, groom old context out to
-save tokens, or resume a chat from a database, <code>continue_from</code> won't cut it.</p>
+save tokens, or resume a chat from a database, a prior <code>continuation</code> alone
+is not enough.</p>
 <p>Instead, pass an explicit <code>history</code> list of dictionaries containing <code>role</code>
 and <code>content</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
@@ -1067,7 +1096,52 @@ and <code>content</code>:</p>
 <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">manual_history_injection</span><span class="p">())</span>
 </code></pre></div>
 <p>Pollux treats the <code>history</code> block chronologically <em>before</em> the prompt you
-provide to <code>run()</code>.</p>
+provide to <code>interact()</code>.</p>
+<h2 id="persisting-agent-transcripts">Persisting Agent Transcripts<a class="headerlink" href="#persisting-agent-transcripts" title="Permanent link">&para;</a></h2>
+<p>For agent frameworks, persist Pollux continuation state separately from your
+product transcript:</p>
+<ul>
+<li>Keep the <code>output.continuation.to_jsonable()</code> serialization when <code>output.continuation</code> is
+  present and you want Pollux to continue a provider-correct interaction later.</li>
+<li>Maintain your own user-visible transcript for display, search, audit logs, and
+  summarization.</li>
+<li>Capture media-bearing inputs as application records that can be reconstructed
+  as <code>Source</code> values, or send them as current-turn input. Do not flatten PDFs,
+  images, audio, video, or provider-native media parts into replay messages.</li>
+</ul>
+<h3 id="application-owned-transcripts">Application-Owned Transcripts<a class="headerlink" href="#application-owned-transcripts" title="Permanent link">&para;</a></h3>
+<p>If your application is the source of truth for history because it supports
+resume, compaction, truncation, or audit logs, keep that transcript in your own
+store and rebuild a <code>Continuation</code> for each Pollux turn. In this pattern,
+<code>Continuation</code> is the provider replay object for the next call, not the durable
+application transcript.</p>
+<p><code>Continuation.from_openai_messages(...)</code> is a compatibility bridge for text
+Chat Completions-style transcripts and tool turns. It extracts text from
+OpenAI text parts, preserves tool calls, and deliberately does not turn
+provider-shaped media attachments into Pollux <code>Source</code> objects. That keeps
+media explicit at the Pollux boundary:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pollux</span><span class="w"> </span><span class="kn">import</span> <span class="n">Continuation</span><span class="p">,</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Source</span><span class="p">,</span> <span class="n">interact</span>
+
+<span class="n">continuation</span> <span class="o">=</span> <span class="n">Continuation</span><span class="o">.</span><span class="n">from_openai_messages</span><span class="p">(</span><span class="n">text_messages</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;local&quot;</span><span class="p">)</span>
+<span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="n">Source</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;current-report.pdf&quot;</span><span class="p">)])</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">,</span>
+    <span class="n">Input</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Continue the analysis.&quot;</span><span class="p">,</span> <span class="n">continuation</span><span class="o">=</span><span class="n">continuation</span><span class="p">),</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>For supported text and tool message shapes,
+<code>Continuation.from_openai_messages(messages).to_openai_messages()</code> is a
+lossless round trip for <code>role</code>, <code>content</code>, <code>tool_calls</code>, and <code>tool_call_id</code>.
+Display reasoning is not part of that replay contract: <code>Output.reasoning</code> is
+diagnostic/output data and should not be copied into future transcript messages.
+Provider-specific opaque reasoning blocks are replayed through
+<code>provider_state</code> only when a provider requires them.</p>
+<p>If you need to resume an older session that included files or images, load
+those application records and rebuild <code>Source.from_file(...)</code>,
+<code>Source.from_uri(...)</code>, or another source constructor explicitly. Pollux's
+replay messages are for conversation turns, not hidden media transport.</p>
 <h2 id="handling-tool-messages-in-history">Handling Tool Messages in History<a class="headerlink" href="#handling-tool-messages-in-history" title="Permanent link">&para;</a></h2>
 <p>If your conversation includes tool execution (the model asked for data, you
 retrieved it, and now you must return it), <code>history</code> is how you manually
@@ -1144,6 +1218,12 @@ format tool responses:</p>
   tool calls, Pollux builds the <code>continuation</code> state automatically, even
   without explicit <code>history=[]</code>. This means continuation works for the next
   turn of any tool call, with no opt-in needed.</li>
+<li><strong>Reasoning is output data unless a provider requires opaque replay.</strong>
+  Pollux surfaces reasoning text on <code>Output.reasoning</code> for display and
+  debugging. Provider-specific signed thinking or reasoning blocks are kept
+  inside continuation <code>provider_state</code> only when the provider requires them
+  for valid follow-up turns; do not copy display reasoning into future user or
+  assistant messages yourself.</li>
 <li><strong>Provider differences exist.</strong> Gemini, OpenAI, and Anthropic support tool
   calling and tool messages in history. OpenRouter supports them on models
   that advertise tool support. See
