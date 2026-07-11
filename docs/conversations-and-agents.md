@@ -71,7 +71,8 @@ asyncio.run(chat_loop())
 ## Using `history` for Manual Control
 
 If you need to inject mid-conversation context, groom old context out to
-save tokens, or resume a chat from a database, `continue_from` won't cut it.
+save tokens, or resume a chat from a database, a prior `continuation` alone
+is not enough.
 
 Instead, pass an explicit `history` list of dictionaries containing `role`
 and `content`:
@@ -103,7 +104,60 @@ asyncio.run(manual_history_injection())
 ```
 
 Pollux treats the `history` block chronologically *before* the prompt you
-provide to `run()`.
+provide to `interact()`.
+
+## Persisting Agent Transcripts
+
+For agent frameworks, persist Pollux continuation state separately from your
+product transcript:
+
+- Keep the `output.continuation.to_jsonable()` serialization when `output.continuation` is
+  present and you want Pollux to continue a provider-correct interaction later.
+- Maintain your own user-visible transcript for display, search, audit logs, and
+  summarization.
+- Capture media-bearing inputs as application records that can be reconstructed
+  as `Source` values, or send them as current-turn input. Do not flatten PDFs,
+  images, audio, video, or provider-native media parts into replay messages.
+
+### Application-Owned Transcripts
+
+If your application is the source of truth for history because it supports
+resume, compaction, truncation, or audit logs, keep that transcript in your own
+store and rebuild a `Continuation` for each Pollux turn. In this pattern,
+`Continuation` is the provider replay object for the next call, not the durable
+application transcript.
+
+`Continuation.from_openai_messages(...)` is a compatibility bridge for text
+Chat Completions-style transcripts and tool turns. It extracts text from
+OpenAI text parts, preserves tool calls, and deliberately does not turn
+provider-shaped media attachments into Pollux `Source` objects. That keeps
+media explicit at the Pollux boundary:
+
+```python
+from pollux import Continuation, Environment, Input, Source, interact
+
+continuation = Continuation.from_openai_messages(text_messages, provider="local")
+env = Environment(sources=[Source.from_file("current-report.pdf")])
+
+result = await interact(
+    env,
+    Input(content="Continue the analysis.", continuation=continuation),
+    config=config,
+)
+```
+
+For supported text and tool message shapes,
+`Continuation.from_openai_messages(messages).to_openai_messages()` is a
+lossless round trip for `role`, `content`, `tool_calls`, and `tool_call_id`.
+Display reasoning is not part of that replay contract: `Output.reasoning` is
+diagnostic/output data and should not be copied into future transcript messages.
+Provider-specific opaque reasoning blocks are replayed through
+`provider_state` only when a provider requires them.
+
+If you need to resume an older session that included files or images, load
+those application records and rebuild `Source.from_file(...)`,
+`Source.from_uri(...)`, or another source constructor explicitly. Pollux's
+replay messages are for conversation turns, not hidden media transport.
 
 ## Handling Tool Messages in History
 
@@ -199,6 +253,12 @@ next_result = await interact(
   tool calls, Pollux builds the `continuation` state automatically, even
   without explicit `history=[]`. This means continuation works for the next
   turn of any tool call, with no opt-in needed.
+- **Reasoning is output data unless a provider requires opaque replay.**
+  Pollux surfaces reasoning text on `Output.reasoning` for display and
+  debugging. Provider-specific signed thinking or reasoning blocks are kept
+  inside continuation `provider_state` only when the provider requires them
+  for valid follow-up turns; do not copy display reasoning into future user or
+  assistant messages yourself.
 - **Provider differences exist.** Gemini, OpenAI, and Anthropic support tool
   calling and tool messages in history. OpenRouter supports them on models
   that advertise tool support. See

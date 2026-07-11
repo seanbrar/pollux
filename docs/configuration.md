@@ -6,8 +6,8 @@
 # Configuring Pollux
 
 You need to tell Pollux which provider, model, and API key to use. The
-`Config` object captures these choices explicitly. No global state, no
-implicit defaults.
+`Config` object captures these choices explicitly. No implicit provider or
+model defaults.
 
 !!! info "Boundary"
     **Pollux owns:** validating config, resolving API keys from the
@@ -39,6 +39,27 @@ All fields and their defaults:
 | `request_concurrency` | `int` | `6` | Max concurrent API calls in multi-prompt execution |
 | `request_timeout_s` | `float` | `300.0` | HTTP request timeout in seconds for providers that own their transport, including `provider="local"` |
 | `retry` | `RetryPolicy` | `RetryPolicy()` | Retry configuration |
+| `capabilities` | `Mapping[str, bool] \| None` | `None` | Optional v2 interaction capability overrides, mainly for local OpenAI-compatible servers whose feature support varies |
+
+### Field Categories
+
+`Config` is intentionally a low-level library object. If you are building an
+application or agent framework on top of Pollux, you will usually expose a
+smaller product-specific selector and translate it into `Config`.
+
+| Category | Fields | Meaning |
+|---|---|---|
+| Provider identity | `provider`, `model` | Which provider adapter and model Pollux should call. Cloud providers require both fields. A local OpenAI-compatible server may omit `model` when the server owns model selection. |
+| Transport settings | `base_url`, `request_timeout_s` | How Pollux reaches a provider endpoint. `base_url` is only for `provider="local"` and is rejected for cloud providers. |
+| Credentials | `api_key` or provider env vars | Authentication material. Pass an explicit key, or let Pollux resolve it from the provider-specific environment variable. |
+| Capability overrides | `capabilities` | Advanced escape hatch for declaring provider capabilities when static provider defaults are too broad or too narrow, especially for local servers. |
+| Per-execution controls | `request_concurrency`, `retry`, `use_mock` | Pollux execution behavior around concurrency, retries, and mock/no-network operation. Generation controls such as `temperature`, `max_tokens`, `reasoning_effort`, and `tool_choice` are passed to `run()`, `run_many()`, `interact()`, `stream()`, or `defer()`, not stored on `Config`. |
+
+For application settings, keep product concerns outside Pollux. For example,
+an agent harness might keep `provider = "local"` and `model = "gemma3:4b"` in
+its own TOML file, then construct `Config(provider="local", model="gemma3:4b")`
+at the Pollux boundary. Pollux still owns provider credential discovery and
+provider validation.
 
 ## API Key Resolution
 
@@ -62,8 +83,11 @@ You can also pass a key directly:
 config = Config(provider="openai", model="gpt-5-nano", api_key="sk-...")
 ```
 
-Pollux auto-loads `.env` files via `python-dotenv`. Create a `.env` in your
-project root for local development, but never commit it.
+If an expected environment variable is not already set, Pollux lazily asks
+`python-dotenv` to load a `.env` file and checks again. A `.env` file is
+convenient for local development, but it is not required: exported process
+environment variables, shell profiles, secret managers, CI secrets, or explicit
+`api_key=` values all work. Never commit real keys.
 
 ## Self-Hosted Models (`provider="local"`)
 
@@ -90,6 +114,11 @@ export POLLUX_LOCAL_BASE_URL="http://localhost:11434/v1"
 ```python
 config = Config(provider="local", model="gemma3:4b")
 ```
+
+As with API keys, `POLLUX_LOCAL_BASE_URL` can come from the process
+environment, a shell profile, CI configuration, or a `.env` file. Applications
+do not need to require a Pollux-specific `.env`; they can read their own
+settings and pass `base_url=` directly.
 
 The supported surface is narrow by design: text in, text or JSON out. Pollux
 also surfaces model-native reasoning text when the local server returns it.

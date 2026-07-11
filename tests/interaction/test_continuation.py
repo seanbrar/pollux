@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import pytest
 
 from pollux.errors import PolluxError
 from pollux.interaction.continuation import SCHEMA_VERSION, Continuation, Message
 from pollux.interaction.tools import ToolCall
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 pytestmark = pytest.mark.unit
 
@@ -93,6 +98,38 @@ def test_openai_messages_import_tool_calls():
     assert continuation.messages[1].tool_calls[0].name == "get_weather"
     assert continuation.messages[1].tool_calls[0].arguments_dict() == {"city": "Paris"}
     assert continuation.messages[2].tool_call_id == "call_1"
+
+
+def test_openai_messages_round_trip_supported_transcript_shapes():
+    messages: list[Mapping[str, Any]] = [
+        {"role": "system", "content": "Be concise."},
+        {"role": "user", "content": "What is the weather?"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"city":"Paris"}',
+                    },
+                    "index": 0,
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_1",
+            "content": '{"temp_c": 21}',
+        },
+        {"role": "assistant", "content": "It is 21 C in Paris."},
+    ]
+
+    continuation = Continuation.from_openai_messages(messages, provider="local")
+
+    assert continuation.to_openai_messages() == messages
 
 
 def test_openai_messages_round_trip_tool_call_arguments_text():
