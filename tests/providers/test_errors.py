@@ -284,3 +284,97 @@ def test_wrap_provider_error_returns_context_overflow_with_token_counts() -> Non
     assert err.error_category == "context_overflow"
     assert err.n_tokens == 12345
     assert err.n_ctx == 8192
+
+
+@pytest.mark.parametrize(
+    ("body", "n_tokens", "n_ctx"),
+    [
+        (
+            "llama.cpp error: request (9,216 tokens) exceeds context size "
+            "(8,192 tokens)",
+            9216,
+            8192,
+        ),
+        (
+            "vLLM: This model's maximum context length is 4096 tokens. "
+            "However, you requested 5000 tokens in the messages.",
+            5000,
+            4096,
+        ),
+        (
+            "Ollama: prompt exceeds context window of 2048 tokens: "
+            "2300 tokens requested",
+            2300,
+            2048,
+        ),
+        (
+            "TGI input validation error: maximum allowed context is "
+            "4,096 tokens, received 5,120 tokens",
+            5120,
+            4096,
+        ),
+    ],
+)
+def test_wrap_provider_error_categorizes_self_hosted_context_overflow_bodies(
+    body: str,
+    n_tokens: int,
+    n_ctx: int,
+) -> None:
+    class _SdkError(Exception):
+        status_code: int
+
+    exc = _SdkError(body)
+    exc.status_code = 400
+
+    err = wrap_provider_error(
+        exc,
+        provider="local",
+        phase="generate",
+        allow_network_errors=True,
+    )
+
+    assert isinstance(err, ContextOverflowError)
+    assert err.error_category == "context_overflow"
+    assert err.n_tokens == n_tokens
+    assert err.n_ctx == n_ctx
+
+
+def test_wrap_provider_error_uses_token_counts_for_novel_context_overflow_wording() -> (
+    None
+):
+    class _SdkError(Exception):
+        status_code: int
+
+    exc = _SdkError(
+        "request contains 12,000 tokens, model ctx capacity is 8,192 tokens"
+    )
+    exc.status_code = 400
+
+    err = wrap_provider_error(
+        exc,
+        provider="local",
+        phase="generate",
+        allow_network_errors=True,
+    )
+
+    assert isinstance(err, ContextOverflowError)
+    assert err.n_tokens == 12000
+    assert err.n_ctx == 8192
+
+
+def test_wrap_provider_error_does_not_use_token_counts_below_context_window() -> None:
+    class _SdkError(Exception):
+        status_code: int
+
+    exc = _SdkError("request contains 512 tokens, model ctx window is 8,192 tokens")
+    exc.status_code = 400
+
+    err = wrap_provider_error(
+        exc,
+        provider="local",
+        phase="generate",
+        allow_network_errors=True,
+    )
+
+    assert not isinstance(err, ContextOverflowError)
+    assert err.error_category is None

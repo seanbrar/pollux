@@ -131,6 +131,17 @@ def _auth_hint(
 
 def _detect_error_category(exc: BaseException, status_code: int | None) -> str | None:
     """Detect normalized error category based on status code, message, and exception type."""
+    # Self-hosted servers phrase context overflow inconsistently, so before the
+    # substring scan we classify on an extractable (n_tokens, n_ctx) pair where
+    # the request exceeds the window. This sits ahead of the priority checks
+    # below safely: it is gated on a 400/bad-request, which is mutually exclusive
+    # with the rate-limit (429), auth (401/403), and capacity (5xx) categories,
+    # so it cannot shadow them.
+    if (
+        status_code == 400 or _has_bad_request_error(exc)
+    ) and _has_context_overflow_counts(exc):
+        return "context_overflow"
+
     for e in walk_exception_chain(exc):
         name = type(e).__name__
         msg = str(e).lower()
@@ -177,6 +188,12 @@ def _detect_error_category(exc: BaseException, status_code: int | None) -> str |
                 "token limit",
                 "exceeds limit",
                 "prompt length",
+                "context size",
+                "exceeds context",
+                "context window",
+                "n_ctx",
+                "kv cache",
+                "context shift",
             )
         ):
             return "context_overflow"
@@ -191,6 +208,11 @@ def _detect_error_category(exc: BaseException, status_code: int | None) -> str |
             return "capacity"
 
     return None
+
+
+def _has_bad_request_error(exc: BaseException) -> bool:
+    """Return whether the exception chain includes an SDK bad-request error."""
+    return any(type(e).__name__ == "BadRequestError" for e in walk_exception_chain(exc))
 
 
 _TOKEN_PAIR_PATTERNS = (
@@ -220,6 +242,15 @@ def _extract_context_window(exc: BaseException) -> tuple[int | None, int | None]
                 n_ctx = int(match.group("n_ctx").replace(",", ""))
                 return n_tokens, n_ctx
     return None, None
+
+
+def _has_context_overflow_counts(exc: BaseException) -> bool:
+    """Return whether error text carries requested/allowed context counts."""
+    # wrap_provider_error re-runs _extract_context_window to populate the
+    # ContextOverflowError counts, so an overflow 400 parses twice. The input is
+    # a short error string, so the duplicate regex pass is not worth caching.
+    n_tokens, n_ctx = _extract_context_window(exc)
+    return n_tokens is not None and n_ctx is not None and n_tokens >= n_ctx
 
 
 def wrap_provider_error(
