@@ -1,0 +1,288 @@
+/* Homepage styles — scoped to classes that only exist in home.html.
+   Dark hero + code sections, gold accents, light feature cards. */
+
+/* ── Shared section container ────────────────────────────────────── */
+
+.pollux-hero__grid,
+.pollux-example__inner,
+.pollux-features__grid,
+.pollux-install__inner,
+.pollux-home-footer__inner {
+  max-width: 64rem;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────── */
+
+.pollux-hero {
+  background: linear-gradient(
+    180deg,
+    var(--pollux-blue-900) 0%,
+    var(--pollux-blue-800) 100%
+  );
+  padding: 5rem 0 4rem;
+}
+
+.pollux-hero__grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ── Hero logo ───────────────────────────────────────────────────── */
+
+.pollux-hero__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.pollux-hero__logo-img {
+  width: 300px;
+  height: auto;
+  display: block;
+}
+
+/* ── Hero text ───────────────────────────────────────────────────── */
+
+.pollux-hero__heading {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin: 0 0 1rem;
+  color: hsl(220, 20%, 95%);
+}
+
+.pollux-hero__heading-serif {
+  font-family: "Libre Baskerville", serif;
+}
+
+.pollux-hero__tagline {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: hsla(220, 20%, 85%, 0.85);
+  margin: 0 0 2rem;
+  max-width: 36rem;
+}
+
+.pollux-hero__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Hero CTAs ───────────────────────────────────────────────────── */
+
+.pollux-hero__cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 1.6rem;
+  border-radius: var(--pollux-radius);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 180ms ease, border-color 180ms ease,
+    color 180ms ease;
+  cursor: pointer;
+}
+
+.pollux-hero__cta--primary {
+  background: var(--pollux-gold-500);
+  color: var(--pollux-blue-900);
+  border: 1px solid var(--pollux-gold-500);
+}
+
+.pollux-hero__cta--primary:hover {
+  background: var(--pollux-gold-600);
+  border-color: var(--pollux-gold-600);
+  color: var(--pollux-blue-900);
+}
+
+.pollux-hero__cta--secondary {
+  background: transparent;
+  color: hsl(220, 20%, 85%);
+  border: 1px solid hsla(220, 20%, 85%, 0.35);
+}
+
+.pollux-hero__cta--secondary:hover {
+  border-color: hsla(220, 20%, 85%, 0.6);
+  color: hsl(220, 20%, 95%);
+}
+
+/* ── Example ─────────────────────────────────────────────────────── */
+
+.pollux-example {
+  background: var(--pollux-blue-900);
+  padding: 3.5rem 0 4rem;
+}
+
+.pollux-example__inner {
+  display: flex;
+  justify-content: center;
+}
+
+.pollux-example__frame {
+  max-width: 42rem;
+  width: 100%;
+  border-radius: var(--pollux-radius);
+  overflow: hidden;
+  background: var(--pollux-blue-800);
+  border: 1px solid hsla(220, 30%, 30%, 0.5);
+}
+
+.pollux-example__bar {
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--pollux-gold-600),
+    var(--pollux-gold-400)
+  );
+}
+
+.pollux-example__frame pre {
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  background: transparent;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.pollux-example__frame code {
+  font-family: var(--md-code-font-family, "Roboto Mono", monospace);
+  color: hsl(220, 20%, 85%);
+}
+
+/* ── Features ────────────────────────────────────────────────────── */
+
+.pollux-features {
+  padding: 3.5rem 0;
+}
+
+.pollux-features__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.pollux-features__card {
+  padding: 1.5rem;
+  border-radius: var(--pollux-radius);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-top: 3px solid var(--pollux-gold-500);
+  background: var(--md-default-bg-color);
+  transition: border-color 200ms ease, box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+.pollux-features__card:hover {
+  border-top-color: var(--pollux-gold-400);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.pollux-features__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.pollux-features__desc {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color--light);
+  margin: 0;
+}
+
+/* ── Install ─────────────────────────────────────────────────────── */
+
+.pollux-install {
+  padding: 2.5rem 0 4rem;
+}
+
+.pollux-install__inner {
+  text-align: center;
+}
+
+.pollux-install__cmd {
+  display: inline-block;
+  margin: 0;
+  padding: 0.65rem 2.2rem;
+  border-radius: 999px;
+  background: var(--pollux-blue-900);
+  border: 1px solid var(--pollux-gold-300);
+  font-size: 0.92rem;
+  font-family: var(--md-code-font-family, "Roboto Mono", monospace);
+  color: hsl(220, 20%, 85%);
+  letter-spacing: 0.01em;
+}
+
+/* ── Homepage footer ─────────────────────────────────────────────── */
+
+.pollux-home-footer {
+  margin-top: 0;
+  background: none;
+  color: inherit;
+}
+
+.pollux-home-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--pollux-footer-border);
+  padding-top: 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
+/* ── Dark mode tuning ────────────────────────────────────────────── */
+
+body[data-md-color-scheme="slate"] .pollux-features__card {
+  background: hsl(220, 15%, 16%);
+  border-color: hsla(220, 15%, 25%, 0.5);
+  border-top-color: var(--pollux-gold-500);
+}
+
+body[data-md-color-scheme="slate"] .pollux-features__card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  border-top-color: var(--pollux-gold-400);
+}
+
+/* ── Responsive: stack on mobile ─────────────────────────────────── */
+
+@media screen and (max-width: 51.199em) {
+  .pollux-hero {
+    padding: 3rem 0 2.5rem;
+  }
+
+  .pollux-hero__logo {
+    margin-bottom: 1.5rem;
+  }
+
+  .pollux-hero__logo-img {
+    width: 220px;
+  }
+
+  .pollux-hero__heading {
+    font-size: 1.8rem;
+  }
+
+  .pollux-features__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pollux-example__frame {
+    border-radius: var(--pollux-radius);
+  }
+
+  .pollux-home-footer__inner {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
