@@ -1113,11 +1113,16 @@ Serialized continuations are stamped with a schema version and the provider that
 produced them, and <code>from_jsonable()</code> rejects an incompatible version (and, when you
 pass <code>expected_provider=</code>, a mismatched provider) with an actionable error instead
 of misreading it.</p>
-<p>A continuation is bound to its provider: its <code>provider_state</code> (response ids,
-provider-specific replay blocks) is not portable, so reusing one under a different
-provider is rejected before dispatch. Across the 1.x → 2.0 boundary, plan to re-run
-work rather than reusing old serialized blobs; persist enough application state to
-rebuild the request when that is the right recovery path.</p>
+<p>A continuation is opaque and bound to its provider. Applications serialize,
+restore, and pass it back unchanged; provider response IDs and replay blocks are
+not editable or portable. The final v2 RC uses continuation schema version 2 and
+rejects schema-v1 RC artifacts. <code>Continuation.from_openai_messages()</code> and
+<code>to_openai_messages()</code> were removed; use typed <code>Message</code> history after grooming
+or importing an application transcript.</p>
+<p>For durable run identity, use
+<code>environment.fingerprint(provider=config.provider)</code> and compose <code>config.model</code>
+plus application policy/schema versions separately. <code>EnvironmentSnapshot</code> is
+now internal and is no longer a supported identity route.</p>
 <h2 id="what-to-do-in-1x">What To Do In 1.x<a class="headerlink" href="#what-to-do-in-1x" title="Permanent link">&para;</a></h2>
 <p>You do not need to migrate working 1.x code while 2.0 is in RC. When you are
 ready to test the RC:</p>

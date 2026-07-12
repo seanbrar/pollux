@@ -1407,6 +1407,9 @@ jobs, see <a href="../../building-with-deferred-delivery/">Building With Deferre
   holds for <code>stream()</code> too: signed thinking blocks are reassembled from the
   stream, so a streamed extended-thinking + tool turn continues identically to
   the non-streaming path.</li>
+<li>Do not compact between an extended-thinking tool call and its tool results.
+  The signed blocks exist only in the opaque continuation; complete the tool
+  exchange first, then switch to application-authored <code>Message</code> history.</li>
 <li><code>max_tokens</code>: limits the output length. Default is <code>16384</code> for Anthropic,
   which leaves room for thinking output at all effort levels. Other providers
   currently ignore this option.</li>
