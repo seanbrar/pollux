@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pollux.errors import ConfigurationError
+from pollux.interaction.continuation import _continuation_state
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -46,11 +47,12 @@ def _reject_incompatible_continuations(
         return
     for inp in inputs:
         continuation = inp.continuation
-        if continuation is None or continuation.provider is None:
+        if continuation is None:
             continue
-        if continuation.provider != active:
+        producing_provider = _continuation_state(continuation).provider
+        if producing_provider != active:
             raise ConfigurationError(
-                f"Continuation was produced by provider {continuation.provider!r}, "
+                f"Continuation was produced by provider {producing_provider!r}, "
                 f"but the active provider is {active!r}",
                 hint="Reuse a continuation only with the provider that produced "
                 "it, or start a new interaction.",

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 from pydantic import BaseModel
 import pytest
 
@@ -169,3 +172,75 @@ def test_local_reasoning_returns_scoped_provider_options() -> None:
     assert pollux.local_reasoning(enabled=False) == {
         "local": {"chat_template_kwargs": {"enable_thinking": False}}
     }
+
+
+@pytest.mark.asyncio
+async def test_cancelled_one_shot_interact_releases_request_and_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BlockingProvider(ScriptedProvider):
+        started = asyncio.Event()
+        request_released = False
+        provider_closed = False
+
+        async def generate(self, *_args: Any) -> ProviderResponse:
+            self.started.set()
+            try:
+                await asyncio.Event().wait()
+                raise AssertionError("blocking request unexpectedly resumed")
+            finally:
+                self.request_released = True
+
+        async def aclose(self) -> None:
+            self.provider_closed = True
+
+    provider = BlockingProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+    task = asyncio.create_task(interact(Environment(), Input("wait"), config=_cfg()))
+    await provider.started.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert provider.request_released is True
+    assert provider.provider_closed is True
+
+
+@pytest.mark.asyncio
+async def test_cancelled_session_interact_keeps_session_reusable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ReusableProvider(ScriptedProvider):
+        started = asyncio.Event()
+        request_released = False
+        provider_closed = False
+        calls = 0
+
+        async def generate(self, *_args: Any) -> ProviderResponse:
+            self.calls += 1
+            if self.calls > 1:
+                return ProviderResponse(text="reused", usage={"total_tokens": 1})
+            self.started.set()
+            try:
+                await asyncio.Event().wait()
+                raise AssertionError("blocking request unexpectedly resumed")
+            finally:
+                self.request_released = True
+
+        async def aclose(self) -> None:
+            self.provider_closed = True
+
+    provider = ReusableProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+
+    async with pollux.Session(_cfg()) as session:
+        task = asyncio.create_task(session.interact(Environment(), Input("wait")))
+        await provider.started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert provider.request_released is True
+        assert provider.provider_closed is False
+        assert (await session.interact(Environment(), Input("again"))).text == "reused"
+
+    assert provider.provider_closed is True

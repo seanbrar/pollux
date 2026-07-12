@@ -1,20 +1,20 @@
-<!-- Intent: Preview the planned Pollux 2.0 migration path for 1.x users.
-     Teach what is expected to stay familiar, what is expected to move, and
-     what users can do in 1.x to reduce future churn. Do NOT present the v2 API
-     as final or require users to rewrite code before v2 is released. Assumes
-     the reader has used Pollux 1.x. Register: warm guide with precise caveats. -->
+<!-- Intent: Guide Pollux 1.x users to the shipped 2.0 release-candidate API.
+     Teach what stayed familiar, what changed, and how to migrate without
+     implying that the RC has stable-release guarantees. Assumes the reader
+     has used Pollux 1.x. Register: warm guide with precise caveats. -->
 
 # Migrating to Pollux 2.0
 
-!!! warning "Planned, not released"
-    Pollux 2.0 has not shipped. This page describes the migration direction so
-    you can write 1.x code with less future churn. Names, signatures, and exact
-    replacement snippets may change before release.
+!!! warning "Release candidate"
+    Pollux 2.0 is available as a release candidate, not a stable release. The
+    API on this page is shipped in the RC and on `main`, but interaction details
+    may still change before stable 2.0. Install it with
+    `pip install --pre --upgrade pollux-ai`.
 
-Pollux 2.0 is planned as a major-version cleanup of the interaction model. The
-goal is to name the pieces of a model interaction directly: the environment the
-model runs in, the input for this turn, the output requirements, and the
-continuation state that carries work forward.
+Pollux 2.0 is a major-version cleanup of the interaction model. It names the
+pieces of a model interaction directly: the environment the model runs in, the
+input for this turn, the output requirements, and the continuation state that
+carries work forward.
 
 Most one-shot code should remain recognizable. The bigger changes affect code
 that builds agent loops, persists continuation state, prepares caches, submits
@@ -35,11 +35,11 @@ You should read this page if your 1.x code uses any of these:
 - Dictionary-style result access such as `result["text"]`.
 
 If your code calls `run()` with a prompt, sources, and config, the migration is
-expected to be small.
+small.
 
 ## What Stays Familiar
 
-These 1.x entry points are expected to keep their role:
+These entry points keep their 1.x role:
 
 - `run()` for one realtime interaction.
 - `run_many()` for source-pattern collections: fan-out, fan-in, and broadcast.
@@ -51,11 +51,10 @@ In other words, the first Pollux program still starts with `run()`.
 
 ## What Changes
 
-The planned changes move behavior out of special-case helpers and into named
-interaction pieces. Treat the right column as migration direction until the v2
-API lands.
+The changes move behavior out of special-case helpers and into named
+interaction pieces.
 
-| 1.x | Planned 2.0 shape | Why |
+| 1.x | 2.0 RC shape | Why |
 | --- | --- | --- |
 | `Options(...)` | `Environment`, `Input`, and `OutputRequirements` | Provider, turn input, and output contract become separate objects. |
 | `continue_tool(env, results)` | `interact(environment, Input(continuation=..., tool_results=...))` | Tool-result replay becomes part of continuing an interaction. |
@@ -72,7 +71,7 @@ Here is the expected direction for result handling:
 text = result["text"]
 payload = dict(result)
 
-# 2.0 planned shape
+# 2.0 RC
 text = result.text
 payload = result.to_jsonable()
 ```
@@ -84,7 +83,7 @@ interaction-shaped API:
 # 1.x
 next_result = await continue_tool(env, tool_results)
 
-# 2.0 planned shape
+# 2.0 RC
 next_result = await interact(
     environment,
     Input(continuation=continuation, tool_results=tool_results),
@@ -105,16 +104,22 @@ produced them, and `from_jsonable()` rejects an incompatible version (and, when 
 pass `expected_provider=`, a mismatched provider) with an actionable error instead
 of misreading it.
 
-A continuation is bound to its provider: its `provider_state` (response ids,
-provider-specific replay blocks) is not portable, so reusing one under a different
-provider is rejected before dispatch. Across the 1.x → 2.0 boundary, plan to re-run
-work rather than reusing old serialized blobs; persist enough application state to
-rebuild the request when that is the right recovery path.
+A continuation is opaque and bound to its provider. Applications serialize,
+restore, and pass it back unchanged; provider response IDs and replay blocks are
+not editable or portable. The final v2 RC uses continuation schema version 2 and
+rejects schema-v1 RC artifacts. `Continuation.from_openai_messages()` and
+`to_openai_messages()` were removed; use typed `Message` history after grooming
+or importing an application transcript.
+
+For durable run identity, use
+`environment.fingerprint(provider=config.provider)` and compose `config.model`
+plus application policy/schema versions separately. `EnvironmentSnapshot` is
+now internal and is no longer a supported identity route.
 
 ## What To Do In 1.x
 
-You do not need to rewrite working 1.x code before 2.0 exists. To make future
-migration easier:
+You do not need to migrate working 1.x code while 2.0 is in RC. When you are
+ready to test the RC:
 
 - Keep provider setup, prompts, sources, and output requirements separated in
   your own code.
@@ -127,9 +132,9 @@ migration easier:
 - Use `run()` and `run_many()` for realtime source patterns, and `defer()`
   only when provider-side deferred delivery is the workflow you want.
 
-## What Is Available Now
+## What Is Available In The RC
 
-The 2.0 interaction model is landing incrementally on `main`:
+The 2.0 interaction model is available in `v2.0.0-rc.1` and on `main`:
 
 - `run()` and `run_many()` now return the 2.0 result model: `run()` returns an
   `Output` (named facets `text`, `structured`, `reasoning`, `tool_calls`,
@@ -152,14 +157,14 @@ and `collect_deferred()` returns an `OutputCollection`. Persistent caching
 returns through `prepare_environment()` / `Environment(cache=...)`.
 `create_cache()`, `defer_many()`, and `Options` are removed.
 
-## As The Design Settles
+## During The RC Cycle
 
-This page will change as the 2.0 API moves from plan to release candidate. Use
-it as the public migration guide; exact replacement snippets will become more
-specific as names and signatures settle.
+This page is the public migration contract for the release-candidate cycle. It
+will track any deliberate pre-stable changes so downstream developers can test
+the exact API that is being prepared for stable 2.0.
 
 ---
 
-For the concepts behind the planned model, read [Core Concepts](concepts.md).
+For the concepts behind the model, read [Core Concepts](concepts.md).
 For the current provider contract, see
 [Provider Capabilities](reference/provider-capabilities.md).

@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Message
 from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.openrouter import (
     OpenRouterProvider,
@@ -19,7 +19,7 @@ from pollux.providers.openrouter import (
 from tests.conftest import (
     OPENROUTER_MODEL,
 )
-from tests.helpers import make_interaction
+from tests.helpers import make_continuation, make_interaction
 
 
 def _openrouter(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
@@ -264,7 +264,8 @@ async def test_openrouter_generate_characterizes_tool_history_and_schema_shape()
     await provider.generate(
         *_openrouter(
             model="openai/gpt-4.1-mini",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="openrouter",
                 messages=(
                     Message(role="user", content="Need orbit code."),
                     Message(
@@ -474,10 +475,11 @@ async def test_openrouter_generate_replays_reasoning_only_history() -> None:
         *_openrouter(
             model="openai/gpt-4.1-mini",
             content="Continue.",
-            continuation=Continuation(
-                messages=(
-                    Message(role="user", content="Think first."),
-                    Message(role="assistant", content=""),
+            continuation=make_continuation(
+                provider="openrouter",
+                serialized_messages=(
+                    {"role": "user", "content": "Think first."},
+                    {"role": "assistant", "content": ""},
                 ),
                 provider_state={
                     "history": [

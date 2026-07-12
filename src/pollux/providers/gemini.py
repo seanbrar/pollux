@@ -13,6 +13,7 @@ import time
 from typing import TYPE_CHECKING, Any
 import uuid
 
+from pollux._lifecycle import close_async_iterator
 from pollux.errors import APIError, ConfigurationError
 from pollux.interaction.tools import ToolCallDelta
 from pollux.parts import build_shared_parts
@@ -669,6 +670,7 @@ class GeminiProvider:
         contents = self._build_contents(parts, history or None)
 
         tool_call_index = 0
+        stream: Any = None
         try:
             stream = await client.aio.models.generate_content_stream(
                 model=config.model,
@@ -690,6 +692,9 @@ class GeminiProvider:
                 allow_network_errors=True,
                 message="Gemini stream failed",
             ) from e
+        finally:
+            if stream is not None:
+                await close_async_iterator(stream)
 
     def _stream_response_to_chunks(
         self, response: Any, tool_call_index: int

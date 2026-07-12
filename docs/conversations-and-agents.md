@@ -32,7 +32,11 @@ next turn.
 
 ## Continuing a Conversation with `Continuation`
 
-Pass a prior result's `continuation` back into the next `Input(continuation=...)` to automatically resume a conversation. Pollux unpacks the initial prompt, the assistant's previous response, and any tool calls directly into the context payload.
+Pass a prior result's `continuation` back into the next
+`Input(continuation=...)` to resume the provider-correct conversation. Treat the
+value as opaque: serialize it with `to_jsonable()`, restore it with
+`Continuation.from_jsonable()`, and otherwise pass it back unchanged. Do not
+inspect, edit, merge, or summarize its serialized provider state.
 
 To get a `continuation` for subsequent turns in plain conversational calls, the first turn must opt into conversation tracking by passing `history=[]` (or an empty list/tuple). Without it, Pollux treats the call as stateless and does not build continuation state.
 
@@ -71,10 +75,10 @@ asyncio.run(chat_loop())
 ## Using `history` for Manual Control
 
 If you need to inject mid-conversation context, groom old context out to
-save tokens, or resume a chat from a database, `continue_from` won't cut it.
+save tokens, or resume a chat from a database, a prior `continuation` alone
+is not enough.
 
-Instead, pass an explicit `history` list of dictionaries containing `role`
-and `content`:
+Instead, pass explicit typed `Message` history:
 
 ```python
 import asyncio
@@ -103,7 +107,63 @@ asyncio.run(manual_history_injection())
 ```
 
 Pollux treats the `history` block chronologically *before* the prompt you
-provide to `run()`.
+provide to `interact()`. This deliberately gives up response IDs and opaque
+provider replay state. A successful interaction creates a fresh continuation
+for the active provider.
+
+## Persisting Agent Transcripts
+
+For agent frameworks, persist Pollux continuation state separately from your
+product transcript:
+
+- Keep the `output.continuation.to_jsonable()` serialization when `output.continuation` is
+  present and you want Pollux to continue a provider-correct interaction later.
+- Maintain your own user-visible transcript for display, search, audit logs, and
+  summarization.
+- Capture media-bearing inputs as application records that can be reconstructed
+  as `Source` values, or send them as current-turn input. Do not flatten PDFs,
+  images, audio, video, or provider-native media parts into replay messages.
+
+### Application-Owned Transcripts
+
+If your application is the source of truth for history because it supports
+resume, compaction, truncation, or audit logs, keep that transcript in your own
+store and rebuild typed `Message` history for each Pollux turn:
+
+```python
+from pollux import Environment, Input, Message, Source, interact
+
+history = [Message.from_openai(message) for message in text_messages]
+env = Environment(sources=[Source.from_file("current-report.pdf")])
+
+result = await interact(
+    env,
+    Input(content="Continue the analysis.", history=history),
+    config=config,
+)
+```
+
+`Message.from_openai()` and `Message.to_openai()` bridge individual portable
+text/tool messages. Move OpenAI `system` messages to `Environment.instructions`.
+Display reasoning is diagnostic output and should not be copied into transcript
+messages.
+
+If you need to resume an older session that included files or images, load
+those application records and rebuild `Source.from_file(...)`,
+`Source.from_uri(...)`, or another source constructor explicitly. Pollux's
+replay messages are for conversation turns, not hidden media transport.
+
+### Portable History Shapes
+
+Portable history consists of non-empty user text, assistant text and/or
+normalized `ToolCall` values, and tool messages with the matching
+`tool_call_id`. Keep parallel tool results in call order. System messages,
+media, reasoning, response IDs, and provider-native state are not portable.
+
+Anthropic extended-thinking tool turns are a special boundary: signed thinking
+blocks live only in the untouched continuation. Return pending tool results with
+that continuation, then compact at a completed interaction boundary. Groomed
+history cannot recreate the signatures Anthropic requires.
 
 ## Handling Tool Messages in History
 
@@ -199,10 +259,22 @@ next_result = await interact(
   tool calls, Pollux builds the `continuation` state automatically, even
   without explicit `history=[]`. This means continuation works for the next
   turn of any tool call, with no opt-in needed.
+- **Reasoning is output data unless a provider requires opaque replay.**
+  Pollux surfaces reasoning text on `Output.reasoning` for display and
+  debugging. Provider-specific signed thinking or reasoning blocks are kept
+  inside the opaque continuation only when the provider requires them for valid
+  follow-up turns; do not copy display reasoning into future messages.
 - **Provider differences exist.** Gemini, OpenAI, and Anthropic support tool
   calling and tool messages in history. OpenRouter supports them on models
   that advertise tool support. See
   [Provider Capabilities](reference/provider-capabilities.md) for details.
+
+## Durable Environment Identity
+
+Use `environment.fingerprint(provider=config.provider)` to bind saved work to
+the model-facing instructions, sources, tools, and provider. Compose
+`config.model` plus application policy/schema identifiers separately. Cache
+preferences and environment metadata intentionally do not affect this identity.
 
 ---
 

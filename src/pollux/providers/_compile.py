@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from pollux.interaction.continuation import _continuation_state
 from pollux.providers.models import (
     Message as ProviderMessage,
 )
@@ -102,21 +103,25 @@ def prior_turns(
     state is folded under a ``"history"`` key so the transport can replay opaque
     blocks (e.g. reasoning) during continuation.
     """
-    prior: tuple[Message, ...] = ()
+    prior: tuple[Any, ...] = ()
     previous_response_id: str | None = None
     provider_state: dict[str, object] | None = None
 
     if input.continuation is not None:
-        prior = input.continuation.messages
-        previous_response_id = input.continuation.response_id
-        if input.continuation.provider_state is not None:
-            provider_state = dict(input.continuation.provider_state)
+        state = _continuation_state(input.continuation)
+        prior = state.messages
+        previous_response_id = state.response_id
+        if state.provider_state is not None:
+            provider_state = dict(state.provider_state)
     elif input.history is not None:
         prior = tuple(input.history)
 
     messages = [_provider_message(m) for m in prior]
     item_states: list[dict[str, object] | None] = [
-        dict(m.provider_state) if m.provider_state is not None else None for m in prior
+        dict(m.provider_state)
+        if getattr(m, "provider_state", None) is not None
+        else None
+        for m in prior
     ]
     messages.extend(_tool_result_message(tr) for tr in input.tool_results)
 

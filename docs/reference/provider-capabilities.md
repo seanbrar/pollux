@@ -144,6 +144,9 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   holds for `stream()` too: signed thinking blocks are reassembled from the
   stream, so a streamed extended-thinking + tool turn continues identically to
   the non-streaming path.
+- Do not compact between an extended-thinking tool call and its tool results.
+  The signed blocks exist only in the opaque continuation; complete the tool
+  exchange first, then switch to application-authored `Message` history.
 - `max_tokens`: limits the output length. Default is `16384` for Anthropic,
   which leaves room for thinking output at all effort levels. Other providers
   currently ignore this option.

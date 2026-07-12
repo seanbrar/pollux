@@ -103,6 +103,7 @@ class _FakeStream:
     ):
         self._events = events
         self._raise = raise_exc
+        self.closed = False
 
     def __aiter__(self) -> _FakeStream:
         return self
@@ -114,6 +115,9 @@ class _FakeStream:
             raise StopAsyncIteration
         return self._events.pop(0)
 
+    async def close(self) -> None:
+        self.closed = True
+
 
 class _FakeMessages:
     def __init__(
@@ -122,10 +126,12 @@ class _FakeMessages:
         self._events = events
         self._raise = raise_exc
         self.last_kwargs: dict[str, Any] | None = None
+        self.stream: _FakeStream | None = None
 
     async def create(self, **kwargs: Any) -> _FakeStream:
         self.last_kwargs = kwargs
-        return _FakeStream(self._events, raise_exc=self._raise)
+        self.stream = _FakeStream(self._events, raise_exc=self._raise)
+        return self.stream
 
 
 def _provider_with_stream(
@@ -148,6 +154,7 @@ async def test_anthropic_stream_generate_reassembles_signed_thinking_blocks() ->
 
     assert messages.last_kwargs is not None
     assert messages.last_kwargs["stream"] is True
+    assert messages.stream is not None and messages.stream.closed is True
 
     state_chunks = [c for c in chunks if c.provider_state is not None]
     assert len(state_chunks) == 1

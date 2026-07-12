@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Message
 from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.gemini import GeminiProvider
 from pollux.providers.openai import OpenAIProvider
@@ -15,7 +15,7 @@ from tests.conftest import (
     GEMINI_MODEL,
     OPENAI_MODEL,
 )
-from tests.helpers import make_interaction
+from tests.helpers import make_continuation, make_interaction
 from tests.providers.helpers import FakeResponses
 
 pytestmark = pytest.mark.contract
@@ -48,7 +48,8 @@ async def test_openai_maps_tool_history_to_responses_api_format() -> None:
     await provider.generate(
         *_openai(
             content="Continue the conversation",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="openai",
                 messages=(
                     Message(role="user", content="What's the weather?"),
                     Message(
@@ -104,7 +105,8 @@ async def test_openai_preserves_assistant_text_with_tool_calls() -> None:
     await provider.generate(
         *_openai(
             content="Continue",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="openai",
                 messages=(
                     Message(
                         role="assistant",
@@ -142,7 +144,8 @@ async def test_openai_keeps_tool_outputs_when_previous_response_id_is_set() -> N
     await provider.generate(
         *_openai(
             content="Continue",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="openai",
                 response_id="resp_prev",
                 messages=(
                     Message(role="user", content="What's the weather?"),
@@ -202,7 +205,8 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
     await provider.generate(
         *_gemini(
             content="Continue the conversation",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="gemini",
                 messages=(
                     Message(role="user", content="What's the weather?"),
                     Message(
@@ -273,7 +277,8 @@ async def test_gemini_merges_prompt_into_tool_response_content() -> None:
     await provider.generate(
         *_gemini(
             content="Proceed.",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="gemini",
                 messages=(
                     Message(role="user", content="What's the weather?"),
                     Message(

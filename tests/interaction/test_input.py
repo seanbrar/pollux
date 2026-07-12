@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 
 from pollux.errors import ConfigurationError
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Message
 from pollux.interaction.input import Input
 from pollux.interaction.tools import ToolResult
+from tests.helpers import make_continuation
 
 pytestmark = pytest.mark.unit
 
@@ -39,13 +40,13 @@ def test_rejects_history_and_continuation_together():
         Input(
             content="x",
             history=(Message(role="user", content="prior"),),
-            continuation=Continuation(provider="mock"),
+            continuation=make_continuation(provider="mock"),
         )
 
 
 def test_continuation_only_with_tool_results_is_valid():
     inp = Input(
-        continuation=Continuation(provider="mock"),
+        continuation=make_continuation(provider="mock"),
         tool_results=[ToolResult(call_id="c1", content="ok")],
     )
     assert inp.continuation is not None
