@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError
+from pollux.interaction.continuation import SCHEMA_VERSION, Continuation, Message
 from pollux.interaction.environment import EnvironmentSnapshot
 from pollux.interaction.input import Input
 from pollux.interaction.requirements import OutputRequirements
@@ -29,7 +30,39 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from pollux.config import ProviderName
-    from pollux.interaction.continuation import Continuation, Message
+
+
+def make_continuation(
+    *,
+    messages: Sequence[Message] = (),
+    serialized_messages: Sequence[dict[str, Any]] | None = None,
+    response_id: str | None = None,
+    provider: str = "anthropic",
+    provider_state: dict[str, Any] | None = None,
+    message_provider_states: Sequence[dict[str, Any] | None] | None = None,
+) -> Continuation:
+    """Restore an opaque continuation fixture through its public artifact API."""
+    message_payloads = (
+        [dict(message) for message in serialized_messages]
+        if serialized_messages is not None
+        else [message.to_jsonable() for message in messages]
+    )
+    if message_provider_states is not None:
+        for message, state in zip(
+            message_payloads, message_provider_states, strict=False
+        ):
+            if state is not None:
+                message["provider_state"] = state
+    payload: dict[str, Any] = {
+        "version": SCHEMA_VERSION,
+        "provider": provider,
+        "messages": message_payloads,
+    }
+    if response_id is not None:
+        payload["response_id"] = response_id
+    if provider_state is not None:
+        payload["provider_state"] = provider_state
+    return Continuation.from_jsonable(payload)
 
 
 def make_interaction(

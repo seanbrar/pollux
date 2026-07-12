@@ -7,6 +7,7 @@ fragment reassembly, ``done.output`` parity with non-streaming) and the public
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,6 +15,7 @@ import pytest
 
 import pollux
 from pollux import Environment, Event, Input
+from pollux._lifecycle import close_async_iterator
 from pollux.config import Config
 from pollux.errors import APIError, ConfigurationError
 from pollux.interaction.execute import execute_interaction, stream_interaction
@@ -229,3 +231,106 @@ async def test_stream_frontdoor_yields_events(monkeypatch: pytest.MonkeyPatch) -
     ]
 
     assert types == ["start", "text_delta", "usage", "finish", "done"]
+
+
+@dataclass
+class _CloseAwareStreamProvider:
+    """Block after one chunk and record request-stream/provider cleanup."""
+
+    stream_closed: bool = False
+    provider_closed: bool = False
+    waiting: asyncio.Event = field(default_factory=asyncio.Event)
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        return ProviderCapabilities(
+            persistent_cache=False,
+            uploads=False,
+            conversation=True,
+        )
+
+    async def generate(self, *_args: Any) -> ProviderResponse:
+        return ProviderResponse(text="reused", usage={"total_tokens": 1})
+
+    async def stream_generate(self, *_args: Any) -> Any:
+        try:
+            yield ProviderStreamChunk(text="partial")
+            self.waiting.set()
+            await asyncio.Event().wait()
+        finally:
+            self.stream_closed = True
+
+    async def aclose(self) -> None:
+        self.provider_closed = True
+
+
+@pytest.mark.asyncio
+async def test_public_stream_aclose_propagates_and_closes_owned_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _CloseAwareStreamProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+    events = pollux.stream(Environment(), Input("hi"), config=_cfg())
+    assert (await anext(events)).type == "start"
+    assert (await anext(events)).type == "text_delta"
+
+    await events.aclose()
+
+    assert provider.stream_closed is True
+    assert provider.provider_closed is True
+
+
+@pytest.mark.asyncio
+async def test_session_stream_aclose_releases_stream_but_keeps_session_reusable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _CloseAwareStreamProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+
+    async with pollux.Session(_cfg()) as session:
+        events = session.stream(Environment(), Input("hi"))
+        assert (await anext(events)).type == "start"
+        assert (await anext(events)).type == "text_delta"
+        await events.aclose()
+        assert provider.stream_closed is True
+        assert provider.provider_closed is False
+        assert (await session.interact(Environment(), Input("again"))).text == "reused"
+
+    assert provider.provider_closed is True
+
+
+@pytest.mark.asyncio
+async def test_cancelling_blocked_stream_iteration_closes_active_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _CloseAwareStreamProvider()
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+    events = pollux.stream(Environment(), Input("hi"), config=_cfg())
+    await anext(events)
+    await anext(events)
+
+    async def next_event() -> Event:
+        return await anext(events)
+
+    pending: asyncio.Task[Event] = asyncio.create_task(next_event())
+    await provider.waiting.wait()
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+
+    assert provider.stream_closed is True
+    assert provider.provider_closed is True
+
+
+@pytest.mark.asyncio
+async def test_async_iterator_close_helper_is_idempotent() -> None:
+    class CloseCounter:
+        calls = 0
+
+        async def aclose(self) -> None:
+            self.calls += 1
+
+    iterator = CloseCounter()
+    await close_async_iterator(iterator)
+    await close_async_iterator(iterator)
+    assert iterator.calls == 1

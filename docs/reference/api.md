@@ -88,6 +88,8 @@ and `ResultEnvelope` types are no longer part of the public API.
 
 ::: pollux.Continuation
 
+::: pollux.Message
+
 ::: pollux.ToolDeclaration
 
 ::: pollux.ToolCall

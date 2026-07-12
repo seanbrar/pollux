@@ -1,149 +1,268 @@
-"""The v2 ``Continuation`` primitive and its typed replay messages.
-
-``Continuation`` is the public, serializable state Pollux needs to continue a
-provider-correct interaction. It replaces v1.x's private ``_conversation_state``
-dict. It is not memory: Pollux does not summarize, rank, or compact it.
-"""
+"""Portable transcript messages and opaque provider replay continuations."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
-from pollux.errors import PolluxError
+from pollux.errors import ConfigurationError, PolluxError
 from pollux.interaction.tools import ToolCall
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from pollux.interaction.input import Input
     from pollux.providers.models import ProviderResponse
 
-#: Bump when the serialized shape changes incompatibly.
-SCHEMA_VERSION = 1
+
+#: Bump when the serialized continuation shape or replay semantics change.
+SCHEMA_VERSION = 2
+
+MessageRole = Literal["user", "assistant", "tool"]
+_MESSAGE_ROLES = {"user", "assistant", "tool"}
 
 
 @dataclass(frozen=True, slots=True)
 class Message:
-    """A typed conversational turn preserved for provider-correct replay."""
+    """A portable, application-authored text or tool transcript message."""
 
-    role: str
+    role: MessageRole
+    content: str = ""
+    tool_calls: Sequence[ToolCall] = ()
+    tool_call_id: str | None = None
+
+    def __post_init__(self) -> None:
+        """Freeze tool calls and reject shapes adapters cannot portably replay."""
+        if self.role not in _MESSAGE_ROLES:
+            raise ConfigurationError(
+                f"Unsupported history message role: {self.role!r}",
+                hint="Use 'user', 'assistant', or 'tool'. Put system instructions "
+                "on Environment.instructions.",
+            )
+        if not isinstance(self.content, str):
+            raise ConfigurationError(
+                "Message content must be text",
+                hint="Keep media in Source values or the current Input.",
+            )
+        calls = tuple(self.tool_calls)
+        if not all(isinstance(call, ToolCall) for call in calls):
+            raise ConfigurationError(
+                "Message tool_calls must contain ToolCall values",
+                hint="Normalize provider tool calls with ToolCall.from_text(...).",
+            )
+        if any(call.provider_state is not None for call in calls):
+            raise ConfigurationError(
+                "Portable history tool calls cannot contain provider state",
+                hint="Rebuild transcript calls with ToolCall.from_text(...).",
+            )
+        object.__setattr__(self, "tool_calls", calls)
+
+        if self.role == "user":
+            if not self.content.strip():
+                raise ConfigurationError("User history messages require non-empty text")
+            if calls or self.tool_call_id is not None:
+                raise ConfigurationError(
+                    "User history messages cannot contain tool-call fields"
+                )
+        elif self.role == "assistant":
+            if not self.content and not calls:
+                raise ConfigurationError(
+                    "Assistant history messages require text or tool calls"
+                )
+            if self.tool_call_id is not None:
+                raise ConfigurationError(
+                    "Assistant history messages cannot have tool_call_id"
+                )
+        else:
+            if not isinstance(self.tool_call_id, str) or not self.tool_call_id.strip():
+                raise ConfigurationError(
+                    "Tool history messages require a non-empty tool_call_id"
+                )
+            if calls:
+                raise ConfigurationError(
+                    "Tool history messages cannot contain nested tool calls"
+                )
+
+    def to_jsonable(self) -> dict[str, Any]:
+        """Serialize this portable transcript message."""
+        payload: dict[str, Any] = {"role": self.role, "content": self.content}
+        if self.tool_calls:
+            payload["tool_calls"] = [call.to_jsonable() for call in self.tool_calls]
+        if self.tool_call_id is not None:
+            payload["tool_call_id"] = self.tool_call_id
+        return payload
+
+    @classmethod
+    def from_jsonable(cls, data: Mapping[str, Any]) -> Message:
+        """Parse and validate a portable transcript message."""
+        role = data.get("role")
+        if role not in _MESSAGE_ROLES:
+            raise ConfigurationError(
+                f"Unsupported history message role: {role!r}",
+                hint="Use 'user', 'assistant', or 'tool'. Put system instructions "
+                "on Environment.instructions.",
+            )
+        raw_calls = data.get("tool_calls")
+        calls = _tool_calls_from_jsonable(raw_calls)
+        content = data.get("content", "")
+        if not isinstance(content, str):
+            raise ConfigurationError("Message content must be text")
+        tool_call_id = data.get("tool_call_id")
+        return cls(
+            role=cast("MessageRole", role),
+            content=content,
+            tool_calls=calls,
+            tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
+        )
+
+    @classmethod
+    def from_openai(cls, data: Mapping[str, Any]) -> Message:
+        """Build a portable message from one OpenAI Chat Completions message.
+
+        System messages are intentionally rejected: stable system context belongs
+        on :attr:`Environment.instructions`, not in portable turn history.
+        """
+        role = data.get("role")
+        if role not in _MESSAGE_ROLES:
+            raise ConfigurationError(
+                f"Unsupported OpenAI history role: {role!r}; move system "
+                "messages to Environment.instructions",
+                hint="Move system messages to Environment.instructions.",
+            )
+        raw_calls = data.get("tool_calls")
+        imported_calls = (
+            tuple(
+                ToolCall.from_openai(call)
+                for call in raw_calls
+                if isinstance(call, dict)
+            )
+            if isinstance(raw_calls, list)
+            else ()
+        )
+        calls = tuple(
+            ToolCall.from_text(
+                id=call.id,
+                name=call.name,
+                arguments_text=call.arguments_text,
+                index=call.index,
+            )
+            for call in imported_calls
+        )
+        tool_call_id = data.get("tool_call_id")
+        return cls(
+            role=cast("MessageRole", role),
+            content=_openai_text_content(data.get("content")),
+            tool_calls=calls,
+            tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
+        )
+
+    def to_openai(self) -> dict[str, Any]:
+        """Serialize as one OpenAI Chat Completions transcript message."""
+        payload: dict[str, Any] = {"role": self.role, "content": self.content}
+        if self.tool_calls:
+            payload["tool_calls"] = [call.to_openai() for call in self.tool_calls]
+        if self.tool_call_id is not None:
+            payload["tool_call_id"] = self.tool_call_id
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class _ReplayMessage:
+    """One internal continuation message, including opaque provider state."""
+
+    role: MessageRole
     content: str = ""
     tool_calls: tuple[ToolCall, ...] = ()
     tool_call_id: str | None = None
     provider_state: dict[str, Any] | None = None
 
-    def to_jsonable(self) -> dict[str, Any]:
-        """Serialize to a compact JSON-compatible dict (optional facets omitted)."""
-        payload: dict[str, Any] = {"role": self.role, "content": self.content}
-        if self.tool_calls:
-            payload["tool_calls"] = [tc.to_jsonable() for tc in self.tool_calls]
-        if self.tool_call_id is not None:
-            payload["tool_call_id"] = self.tool_call_id
-        if self.provider_state is not None:
-            payload["provider_state"] = self.provider_state
-        return payload
+    @classmethod
+    def from_message(cls, message: Message) -> _ReplayMessage:
+        return cls(
+            role=message.role,
+            content=message.content,
+            tool_calls=tuple(message.tool_calls),
+            tool_call_id=message.tool_call_id,
+        )
 
     @classmethod
-    def from_jsonable(cls, data: Mapping[str, Any]) -> Message:
-        """Parse a serialized message, type-guarding each facet."""
-        raw_tool_calls = data.get("tool_calls")
-        tool_calls: tuple[ToolCall, ...] = ()
-        if isinstance(raw_tool_calls, list):
-            tool_calls = tuple(
-                ToolCall.from_text(
-                    id=str(tc.get("id", "")),
-                    name=str(tc.get("name", "")),
-                    arguments_text=str(tc.get("arguments_text", "")),
-                    index=tc.get("index") if isinstance(tc.get("index"), int) else None,
-                    provider_state=tc.get("provider_state")
-                    if isinstance(tc.get("provider_state"), dict)
-                    else None,
-                )
-                for tc in raw_tool_calls
-                if isinstance(tc, dict)
+    def from_jsonable(cls, data: Mapping[str, Any]) -> _ReplayMessage:
+        role = data.get("role")
+        if role not in _MESSAGE_ROLES:
+            raise PolluxError(
+                f"Incompatible continuation message role: {role!r}",
+                hint="Start a new interaction instead of editing continuation state.",
             )
         content = data.get("content", "")
+        if not isinstance(content, str):
+            raise PolluxError("Incompatible continuation message content")
         tool_call_id = data.get("tool_call_id")
         provider_state = data.get("provider_state")
         return cls(
-            role=str(data.get("role", "user")),
-            content=content if isinstance(content, str) else str(content),
-            tool_calls=tool_calls,
+            role=cast("MessageRole", role),
+            content=content,
+            tool_calls=_tool_calls_from_jsonable(data.get("tool_calls")),
             tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
-            provider_state=provider_state if isinstance(provider_state, dict) else None,
+            provider_state=deepcopy(provider_state)
+            if isinstance(provider_state, dict)
+            else None,
         )
 
-    @classmethod
-    def from_openai(cls, data: Mapping[str, Any]) -> Message:
-        """Build a replay message from an OpenAI Chat Completions message dict.
-
-        This importer is for text transcript replay. Media attachments belong in
-        Pollux ``Source`` values or the current turn's ``Input`` content, not in
-        provider-shaped history.
-        """
-        raw_tool_calls = data.get("tool_calls")
-        tool_calls: tuple[ToolCall, ...] = ()
-        if isinstance(raw_tool_calls, list):
-            tool_calls = tuple(
-                ToolCall.from_openai(tc)
-                for tc in raw_tool_calls
-                if isinstance(tc, dict)
-            )
-        tool_call_id = data.get("tool_call_id")
-        return cls(
-            role=str(data.get("role", "user")),
-            content=_openai_text_content(data.get("content")),
-            tool_calls=tool_calls,
-            tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
-            provider_state={"openai": dict(data)},
-        )
-
-    def to_openai(self) -> dict[str, Any]:
-        """Serialize as an OpenAI Chat Completions message dict."""
+    def to_jsonable(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"role": self.role, "content": self.content}
         if self.tool_calls:
-            payload["tool_calls"] = [tc.to_openai() for tc in self.tool_calls]
+            payload["tool_calls"] = [
+                deepcopy(call.to_jsonable()) for call in self.tool_calls
+            ]
         if self.tool_call_id is not None:
             payload["tool_call_id"] = self.tool_call_id
+        if self.provider_state is not None:
+            payload["provider_state"] = deepcopy(self.provider_state)
         return payload
 
 
 @dataclass(frozen=True, slots=True)
+class _ContinuationState:
+    messages: tuple[_ReplayMessage, ...]
+    response_id: str | None
+    provider: str
+    provider_state: dict[str, Any] | None
+
+
+@dataclass(frozen=True, slots=True, init=False, repr=False)
 class Continuation:
-    """Serializable state for continuing a provider-correct interaction.
+    """Opaque, serializable state for provider-correct replay.
 
-    Read it from ``output.continuation`` and pass it back as
-    ``Input(continuation=...)`` to take the next turn. Persist it across processes
-    with :meth:`to_jsonable` / :meth:`from_jsonable`, which stamp and verify a
-    schema version (and, optionally, the producing provider).
-
-    A continuation is bound to the provider that produced it — its
-    ``provider_state`` (response ids, provider-specific replay blocks) is not
-    portable. Reusing one under a different provider is rejected before dispatch.
-    It is not memory: Pollux does not summarize, rank, or compact it.
+    Applications receive this value from :attr:`Output.continuation`, persist it
+    through :meth:`to_jsonable` / :meth:`from_jsonable`, and pass it back through
+    ``Input(continuation=...)``. Replay fields are intentionally not public.
     """
 
     SCHEMA_VERSION: ClassVar[int] = SCHEMA_VERSION
+    __state: _ContinuationState
 
-    messages: tuple[Message, ...] = ()
-    response_id: str | None = None
-    provider: str | None = None
-    provider_state: dict[str, Any] | None = None
-    version: int = SCHEMA_VERSION
+    def __init__(self) -> None:
+        raise TypeError(
+            "Continuation values are created by Pollux outputs or "
+            "Continuation.from_jsonable()"
+        )
+
+    def __repr__(self) -> str:
+        """Return a representation that does not reveal replay state."""
+        return f"Continuation(version={SCHEMA_VERSION})"
 
     def to_jsonable(self) -> dict[str, Any]:
-        """Serialize to a JSON-compatible dict with version/provider markers."""
+        """Return a defensive JSON-compatible serialization of this handle."""
+        state = self.__state
         payload: dict[str, Any] = {
-            "version": self.version,
-            "messages": [m.to_jsonable() for m in self.messages],
+            "version": SCHEMA_VERSION,
+            "provider": state.provider,
+            "messages": [message.to_jsonable() for message in state.messages],
         }
-        if self.provider is not None:
-            payload["provider"] = self.provider
-        if self.response_id is not None:
-            payload["response_id"] = self.response_id
-        if self.provider_state is not None:
-            payload["provider_state"] = self.provider_state
+        if state.response_id is not None:
+            payload["response_id"] = state.response_id
+        if state.provider_state is not None:
+            payload["provider_state"] = deepcopy(state.provider_state)
         return payload
 
     @classmethod
@@ -153,14 +272,8 @@ class Continuation:
         *,
         expected_provider: str | None = None,
     ) -> Continuation:
-        """Parse a serialized continuation, rejecting incompatible artifacts.
-
-        A continuation written by an incompatible schema version is refused with
-        a clear error rather than misread. When *expected_provider* is given, a
-        continuation produced by a different provider is also refused.
-        """
-        raw_version = data.get("version")
-        version = raw_version if isinstance(raw_version, int) else None
+        """Restore a versioned artifact and optionally verify its provider."""
+        version = data.get("version")
         if version != SCHEMA_VERSION:
             raise PolluxError(
                 f"Incompatible continuation: expected schema version "
@@ -169,7 +282,11 @@ class Continuation:
                 "version. Start a new interaction instead of reusing it.",
             )
         provider = data.get("provider")
-        provider = provider if isinstance(provider, str) else None
+        if not isinstance(provider, str) or not provider:
+            raise PolluxError(
+                "Incompatible continuation: missing provider identity",
+                hint="Start a new interaction instead of editing continuation state.",
+            )
         if expected_provider is not None and provider != expected_provider:
             raise PolluxError(
                 f"Continuation provider {provider!r} does not match the active "
@@ -177,123 +294,145 @@ class Continuation:
                 hint="Reuse a continuation only with the provider that produced it.",
             )
         raw_messages = data.get("messages")
-        messages: tuple[Message, ...] = ()
-        if isinstance(raw_messages, list):
-            messages = tuple(
-                Message.from_jsonable(m) for m in raw_messages if isinstance(m, dict)
+        if not isinstance(raw_messages, list):
+            raise PolluxError("Incompatible continuation: messages must be a list")
+        if not all(isinstance(message, Mapping) for message in raw_messages):
+            raise PolluxError(
+                "Incompatible continuation: every message must be an object"
             )
         response_id = data.get("response_id")
         provider_state = data.get("provider_state")
-        return cls(
-            messages=messages,
+        return _new_continuation(
+            messages=tuple(
+                _ReplayMessage.from_jsonable(message) for message in raw_messages
+            ),
             response_id=response_id if isinstance(response_id, str) else None,
             provider=provider,
-            provider_state=provider_state if isinstance(provider_state, dict) else None,
-            version=version,
+            provider_state=deepcopy(provider_state)
+            if isinstance(provider_state, dict)
+            else None,
         )
 
-    @classmethod
-    def from_openai_messages(
-        cls,
-        messages: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...],
-        *,
-        provider: str | None = None,
-        response_id: str | None = None,
-    ) -> Continuation:
-        """Build a continuation from OpenAI Chat Completions replay messages."""
-        return cls(
-            messages=tuple(Message.from_openai(message) for message in messages),
+
+def _new_continuation(
+    *,
+    messages: tuple[_ReplayMessage, ...],
+    response_id: str | None,
+    provider: str,
+    provider_state: dict[str, Any] | None,
+) -> Continuation:
+    continuation = object.__new__(Continuation)
+    object.__setattr__(
+        continuation,
+        "_Continuation__state",
+        _ContinuationState(
+            messages=messages,
             response_id=response_id,
             provider=provider,
-        )
+            provider_state=deepcopy(provider_state),
+        ),
+    )
+    return continuation
 
-    def to_openai_messages(self) -> list[dict[str, Any]]:
-        """Serialize continuation messages as OpenAI Chat Completions messages."""
-        return [message.to_openai() for message in self.messages]
+
+def _continuation_state(continuation: Continuation) -> _ContinuationState:
+    """Return opaque replay state for Pollux internals."""
+    return cast(
+        "_ContinuationState",
+        object.__getattribute__(continuation, "_Continuation__state"),
+    )
+
+
+def _tool_calls_from_jsonable(raw: Any) -> tuple[ToolCall, ...]:
+    if not isinstance(raw, list):
+        return ()
+    return tuple(
+        ToolCall.from_text(
+            id=str(call.get("id", "")),
+            name=str(call.get("name", "")),
+            arguments_text=str(call.get("arguments_text", "")),
+            index=call.get("index") if isinstance(call.get("index"), int) else None,
+            provider_state=deepcopy(call.get("provider_state"))
+            if isinstance(call.get("provider_state"), dict)
+            else None,
+        )
+        for call in raw
+        if isinstance(call, dict)
+    )
 
 
 def _openai_text_content(content: Any) -> str:
-    """Extract text from OpenAI string or text-part message content."""
     if content is None:
         return ""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        text_parts: list[str] = []
-        for part in content:
-            if not isinstance(part, dict):
-                continue
-            text = part.get("text")
-            if isinstance(text, str):
-                text_parts.append(text)
-        return "\n\n".join(text_parts)
+        return "\n\n".join(
+            part["text"]
+            for part in content
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        )
     return str(content)
 
 
-def _prior_messages(input: Input) -> tuple[Message, ...]:  # noqa: A002
-    """Replay messages preceding this turn: prior state plus returned tool results."""
+def _prior_messages(input: Input) -> tuple[_ReplayMessage, ...]:  # noqa: A002
     if input.continuation is not None:
-        prior = input.continuation.messages
+        prior = _continuation_state(input.continuation).messages
     elif input.history is not None:
-        prior = tuple(input.history)
+        prior = tuple(_ReplayMessage.from_message(message) for message in input.history)
     else:
         prior = ()
     tool_messages = tuple(
-        Message(role="tool", content=tr.content, tool_call_id=tr.call_id)
-        for tr in input.tool_results
+        _ReplayMessage(role="tool", content=result.content, tool_call_id=result.call_id)
+        for result in input.tool_results
     )
     return prior + tool_messages
 
 
 def build_continuation(
-    input: Input,  # noqa: A002 - "input" is the canonical v2 primitive name
+    input: Input,  # noqa: A002
     response: ProviderResponse,
     *,
     user_content: str | None,
     provider: str | None,
 ) -> Continuation | None:
-    """Assemble the next-turn continuation for one interaction, or ``None``.
-
-    A continuation is produced when the caller opted into conversation continuity
-    (the input carried prior ``continuation`` or ``history``) or when the response
-    carries tool calls the caller may need to return results for. It appends this
-    turn's user message (when present) and the assistant reply to the prior replay
-    messages; the assistant message and the continuation both carry the response's
-    opaque ``provider_state`` for correct replay.
-    """
+    """Assemble the next opaque continuation after a successful interaction."""
     wants_conversation = input.continuation is not None or input.history is not None
     response_tool_calls = response.tool_calls or ()
     if not (wants_conversation or response_tool_calls):
         return None
+    if provider is None:
+        raise PolluxError("Cannot create a continuation without provider identity")
 
     messages = list(_prior_messages(input))
     turn_user_content = user_content or input.content
     if turn_user_content is not None:
-        messages.append(Message(role="user", content=turn_user_content))
+        messages.append(_ReplayMessage(role="user", content=turn_user_content))
 
     provider_state = (
-        response.provider_state if isinstance(response.provider_state, dict) else None
+        deepcopy(response.provider_state)
+        if isinstance(response.provider_state, dict)
+        else None
     )
     messages.append(
-        Message(
+        _ReplayMessage(
             role="assistant",
             content=response.text,
             tool_calls=tuple(
-                ToolCall.from_text(id=tc.id, name=tc.name, arguments_text=tc.arguments)
-                for tc in response_tool_calls
+                ToolCall.from_text(
+                    id=call.id,
+                    name=call.name,
+                    arguments_text=call.arguments,
+                )
+                for call in response_tool_calls
             ),
             provider_state=provider_state,
         )
     )
-
     response_id = (
-        response.response_id
-        if isinstance(response.response_id, str)
-        else input.continuation.response_id
-        if input.continuation is not None
-        else None
+        response.response_id if isinstance(response.response_id, str) else None
     )
-    return Continuation(
+    return _new_continuation(
         messages=tuple(messages),
         response_id=response_id,
         provider=provider,

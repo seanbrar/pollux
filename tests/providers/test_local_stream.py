@@ -126,11 +126,13 @@ class _FakeStreamResponse:
 class _FakeStreamCM:
     def __init__(self, response: _FakeStreamResponse) -> None:
         self._response = response
+        self.exited = False
 
     async def __aenter__(self) -> _FakeStreamResponse:
         return self._response
 
     async def __aexit__(self, *_exc: object) -> bool:
+        self.exited = True
         return False
 
 
@@ -147,13 +149,15 @@ class _FakeStreamClient:
         self._status_code = status_code
         self._error_body = error_body
         self.closed = False
+        self.last_stream: _FakeStreamCM | None = None
 
     def stream(self, method: str, path: str, *, json: dict[str, Any]) -> _FakeStreamCM:
         del method, path
         self.last_json = json
-        return _FakeStreamCM(
+        self.last_stream = _FakeStreamCM(
             _FakeStreamResponse(self._lines, self._status_code, self._error_body)
         )
+        return self.last_stream
 
     async def aclose(self) -> None:
         self.closed = True
@@ -188,6 +192,7 @@ async def test_local_stream_generate_parses_sse_chunks() -> None:
     assert any(c.finish_reason == "stop" for c in chunks)
     assert any(c.usage and c.usage.get("total_tokens") == 5 for c in chunks)
     assert any(c.response_id == "c1" for c in chunks)
+    assert fake.last_stream is not None and fake.last_stream.exited is True
 
 
 @pytest.mark.asyncio

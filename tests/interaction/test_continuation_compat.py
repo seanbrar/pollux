@@ -18,6 +18,7 @@ from pollux.interaction.input import Input
 from pollux.interaction.requirements import OutputRequirements
 from pollux.providers.base import ProviderCapabilities
 from tests.conftest import ANTHROPIC_MODEL, FakeProvider
+from tests.helpers import make_continuation
 
 pytestmark = pytest.mark.integration
 
@@ -34,8 +35,8 @@ def _cfg() -> Config:
     return Config(provider="anthropic", model=ANTHROPIC_MODEL, use_mock=True)
 
 
-def _continuation(provider: str | None) -> Continuation:
-    return Continuation(
+def _continuation(provider: str) -> Continuation:
+    return make_continuation(
         messages=(Message(role="user", content="earlier"),),
         provider=provider,
     )
@@ -58,20 +59,6 @@ async def test_accepts_continuation_from_the_matching_provider() -> None:
     out = await execute_interaction(
         Environment(),
         Input(content="next", continuation=_continuation("anthropic")),
-        OutputRequirements(),
-        _cfg(),
-        _conversational_provider(),
-    )
-    assert out.text == "ok:next"
-
-
-@pytest.mark.asyncio
-async def test_accepts_continuation_without_a_provider_marker() -> None:
-    # Hand-built or history-derived continuations carry no provider marker and
-    # are left alone by the compatibility check.
-    out = await execute_interaction(
-        Environment(),
-        Input(content="next", continuation=_continuation(None)),
         OutputRequirements(),
         _cfg(),
         _conversational_provider(),

@@ -13,12 +13,11 @@ top-level ``pollux`` package.
 from __future__ import annotations
 
 from pollux.interaction.collection import CollectionStatus, OutputCollection
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Continuation, Message, MessageRole
 from pollux.interaction.environment import (
     CachePolicy,
     CacheSetting,
     Environment,
-    EnvironmentSnapshot,
 )
 from pollux.interaction.event import Event, EventType
 from pollux.interaction.input import Input
@@ -47,12 +46,12 @@ __all__ = [
     "Continuation",
     "Diagnostics",
     "Environment",
-    "EnvironmentSnapshot",
     "Event",
     "EventType",
     "Input",
     "JSONValue",
     "Message",
+    "MessageRole",
     "Metrics",
     "Output",
     "OutputCollection",

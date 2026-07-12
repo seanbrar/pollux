@@ -76,6 +76,7 @@ class _AsyncEvents:
     ):
         self._events = events
         self._raise = raise_exc
+        self.closed = False
 
     def __aiter__(self) -> _AsyncEvents:
         return self
@@ -87,6 +88,9 @@ class _AsyncEvents:
             raise StopAsyncIteration
         return self._events.pop(0)
 
+    async def close(self) -> None:
+        self.closed = True
+
 
 class _FakeResponses:
     def __init__(
@@ -95,10 +99,12 @@ class _FakeResponses:
         self._events = events
         self._raise = raise_exc
         self.last_kwargs: dict[str, Any] | None = None
+        self.stream: _AsyncEvents | None = None
 
     async def create(self, **kwargs: Any) -> _AsyncEvents:
         self.last_kwargs = kwargs
-        return _AsyncEvents(self._events, raise_exc=self._raise)
+        self.stream = _AsyncEvents(self._events, raise_exc=self._raise)
+        return self.stream
 
 
 def _provider_with(
@@ -137,6 +143,7 @@ async def test_openai_stream_through_interaction_assembles_output() -> None:
 
     assert responses.last_kwargs is not None
     assert responses.last_kwargs["stream"] is True
+    assert responses.stream is not None and responses.stream.closed is True
 
     types = [e.type for e in events]
     assert types[0] == "start"

@@ -10,13 +10,13 @@ import httpx
 import pytest
 
 from pollux.errors import APIError, ConfigurationError, ToolCallParseError
-from pollux.interaction.continuation import Continuation, Message, build_continuation
+from pollux.interaction.continuation import Message, build_continuation
 from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.local import LocalProvider
 from tests.conftest import (
     LOCAL_MODEL,
 )
-from tests.helpers import make_interaction
+from tests.helpers import make_continuation, make_interaction
 
 pytestmark = pytest.mark.contract
 
@@ -313,10 +313,10 @@ async def test_local_reasoning_is_display_only_and_not_replayed() -> None:
         input_, response, user_content="2+2?", provider="local"
     )
     assert continuation is not None
-    assistant = continuation.messages[-1]
-    assert assistant.role == "assistant"
-    assert assistant.content == "4"
-    assert assistant.provider_state is None
+    assistant = continuation.to_jsonable()["messages"][-1]
+    assert assistant["role"] == "assistant"
+    assert assistant["content"] == "4"
+    assert "provider_state" not in assistant
     assert reasoning_text not in json.dumps(continuation.to_jsonable())
 
     # Replaying the continuation must not send reasoning back to the server.
@@ -476,7 +476,8 @@ async def test_local_generate_replays_tool_history() -> None:
     await provider.generate(
         *_local(
             content="",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="local",
                 messages=(
                     Message(role="user", content="What's the weather in NYC?"),
                     Message(

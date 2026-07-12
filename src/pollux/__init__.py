@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from pollux._lifecycle import close_async_iterator
 from pollux.config import (
     _API_KEY_ENV_VARS,
     _LOCAL_BASE_URL_ENV_VAR,
@@ -53,10 +54,10 @@ from pollux.interaction import (
     CacheSetting,
     Continuation,
     Environment,
-    EnvironmentSnapshot,
     Event,
     Input,
     Message,
+    MessageRole,
     Output,
     OutputCollection,
     OutputRequirements,
@@ -66,6 +67,7 @@ from pollux.interaction import (
     ToolDeclaration,
     ToolResult,
 )
+from pollux.interaction.environment import EnvironmentSnapshot as _EnvironmentSnapshot
 from pollux.interaction.execute import (
     execute_interaction,
     execute_interactions,
@@ -81,7 +83,7 @@ from pollux.retry import RetryPolicy
 from pollux.source import Source
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable, Sequence
+    from collections.abc import AsyncGenerator, Callable, Sequence
 
     from pollux.interaction.schema import ResponseSchemaInput
     from pollux.providers.base import Provider
@@ -287,7 +289,7 @@ async def stream(
     reasoning_budget_tokens: int | None = None,
     tool_choice: ToolChoice | None = None,
     provider_options: dict[str, dict[str, Any]] | None = None,
-) -> AsyncIterator[Event]:
+) -> AsyncGenerator[Event, None]:
     """Stream one explicit v2 interaction as :class:`Event` objects.
 
     The streaming sibling of :func:`interact`: same environment/input/config and
@@ -326,7 +328,7 @@ async def stream(
                 result = event.output
     """
     async with Session(config) as session:
-        async for event in session.stream(
+        events = session.stream(
             environment,
             input,
             output=output,
@@ -338,8 +340,12 @@ async def stream(
             reasoning_budget_tokens=reasoning_budget_tokens,
             tool_choice=tool_choice,
             provider_options=provider_options,
-        ):
-            yield event
+        )
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await close_async_iterator(events)
 
 
 class Session:
@@ -421,7 +427,7 @@ class Session:
         reasoning_budget_tokens: int | None = None,
         tool_choice: ToolChoice | None = None,
         provider_options: dict[str, dict[str, Any]] | None = None,
-    ) -> AsyncIterator[Event]:
+    ) -> AsyncGenerator[Event, None]:
         """Stream one interaction using the session's provider instance."""
         self._ensure_open()
         requirements = _build_requirements(
@@ -435,10 +441,14 @@ class Session:
             tool_choice=tool_choice,
             provider_options=provider_options,
         )
-        async for event in stream_interaction(
+        events = stream_interaction(
             environment, input, requirements, self.config, self._provider
-        ):
-            yield event
+        )
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await close_async_iterator(events)
 
     async def run_many(
         self,
@@ -733,7 +743,7 @@ async def prepare_environment(
     if isinstance(cache, CachePolicy):
         provider = _get_provider(config)
         try:
-            snapshot = EnvironmentSnapshot.from_environment(
+            snapshot = _EnvironmentSnapshot.from_environment(
                 environment, provider=config.provider
             )
             await resolve_persistent_cache(snapshot, config, provider)
@@ -965,6 +975,7 @@ __all__ = [
     "Input",
     "InternalError",
     "Message",
+    "MessageRole",
     "Output",
     "OutputCollection",
     "OutputRequirements",

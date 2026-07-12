@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Message
 from pollux.interaction.tools import ToolCall, ToolResult
 from pollux.providers.anthropic import AnthropicProvider
 from pollux.providers.models import (
@@ -17,7 +17,7 @@ from pollux.providers.models import (
 from tests.conftest import (
     ANTHROPIC_MODEL,
 )
-from tests.helpers import make_interaction
+from tests.helpers import make_continuation, make_interaction
 
 
 def _anthropic(**kwargs: Any) -> tuple[Any, Any, Any, Any]:
@@ -711,7 +711,8 @@ async def test_anthropic_generate_history_replays_preserved_thinking_blocks() ->
 
     await provider.generate(
         *_anthropic(
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="anthropic",
                 messages=(
                     Message(
                         role="assistant",

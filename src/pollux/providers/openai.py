@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from pollux._lifecycle import close_async_iterator
 from pollux.errors import APIError, ConfigurationError
 from pollux.interaction.tools import ToolCallDelta
 from pollux.parts import build_shared_parts
@@ -549,6 +550,7 @@ class OpenAIProvider:
         )
         create_kwargs["stream"] = True
 
+        stream: Any = None
         try:
             stream = await client.responses.create(**create_kwargs)
             async for event in stream:
@@ -567,6 +569,9 @@ class OpenAIProvider:
                 allow_network_errors=True,
                 message="OpenAI stream failed",
             ) from e
+        finally:
+            if stream is not None:
+                await close_async_iterator(stream)
 
     def _stream_event_to_chunk(self, event: Any) -> ProviderStreamChunk | None:
         """Map one Responses API stream event to a normalized chunk."""
