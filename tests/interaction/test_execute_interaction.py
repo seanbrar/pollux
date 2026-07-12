@@ -92,7 +92,8 @@ async def test_tool_calls_and_continuation():
     assert out.tool_calls[0].arguments == {"city": "P"}
     assert out.metrics.completion_status == "clean"
     assert out.continuation is not None
-    assert any(message.tool_calls for message in out.continuation.messages)
+    serialized = out.continuation.to_jsonable()
+    assert any(message.get("tool_calls") for message in serialized["messages"])
 
 
 @pytest.mark.asyncio

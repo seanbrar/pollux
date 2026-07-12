@@ -248,6 +248,22 @@ class Source:
         )
         return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
+    def _environment_identity(self, *, provider: str) -> dict[str, Any]:
+        """Return provider-visible source identity for environment hashing."""
+        identity: dict[str, Any] = {
+            "source_type": self.source_type,
+            "mime_type": self.mime_type,
+            "content_hash": self._content_hash(),
+        }
+        if self.source_type == "file":
+            identity["identifier"] = Path(self.identifier).name
+        elif self.source_type not in {"text", "json"}:
+            identity["identifier"] = self.identifier
+        provider_hints = self.provider_hints_for(provider)
+        if provider_hints is not None:
+            identity["provider_hints"] = provider_hints
+        return identity
+
     def with_gemini_video_settings(
         self,
         *,

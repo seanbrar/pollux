@@ -9,6 +9,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from pollux._lifecycle import close_async_iterator
 from pollux.errors import APIError, ConfigurationError
 from pollux.interaction.tools import ToolCallDelta
 from pollux.parts import build_shared_parts
@@ -620,6 +621,7 @@ class AnthropicProvider:
         create_kwargs["stream"] = True
 
         assembler = _AnthropicStreamAssembler()
+        stream: Any = None
         try:
             stream = await client.messages.create(**create_kwargs)
             async for event in stream:
@@ -641,6 +643,9 @@ class AnthropicProvider:
                 allow_network_errors=True,
                 message="Anthropic stream failed",
             ) from e
+        finally:
+            if stream is not None:
+                await close_async_iterator(stream)
 
     async def _resolve_deferred_parts(
         self,

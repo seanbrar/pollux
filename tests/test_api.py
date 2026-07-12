@@ -287,12 +287,12 @@ async def test_live_tool_calls_conversation_and_reasoning_roundtrip(
     assert second.structured.get("secret_code") == "K9-ORBIT"
 
     assert second.continuation is not None
-    messages = second.continuation.messages
+    messages = second.continuation.to_jsonable()["messages"]
     assert messages
     tool_indexes = [
         i
         for i, msg in enumerate(messages)
-        if msg.role == "tool" and msg.tool_call_id == tool_ref
+        if msg["role"] == "tool" and msg.get("tool_call_id") == tool_ref
     ]
     assert tool_indexes
     assert tool_indexes[0] < len(messages) - 1

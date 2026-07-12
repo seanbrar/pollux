@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from pollux.errors import APIError, ConfigurationError
-from pollux.interaction.continuation import Continuation, Message
+from pollux.interaction.continuation import Message
 from pollux.providers._utils import to_strict_schema
 from pollux.providers.models import (
     ProviderFileAsset,
@@ -16,7 +16,7 @@ from pollux.providers.openai import OpenAIProvider
 from tests.conftest import (
     OPENAI_MODEL,
 )
-from tests.helpers import make_interaction
+from tests.helpers import make_continuation, make_interaction
 from tests.providers.helpers import FakeResponses, async_return
 
 
@@ -252,7 +252,8 @@ async def test_openai_generate_forwards_conversation_and_instructions() -> None:
     await provider.generate(
         *_openai(
             content="And now?",
-            continuation=Continuation(
+            continuation=make_continuation(
+                provider="openai",
                 response_id="resp_123",
                 messages=(Message(role="user", content="This should be skipped."),),
             ),

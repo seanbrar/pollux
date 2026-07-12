@@ -183,6 +183,25 @@ Do not call `asyncio.run(...)` from inside an already-running event loop
 runtime). In those environments, keep your Pollux adapter async and `await`
 `interact()`, `run()`, or `stream()` directly.
 
+### Closing streams early
+
+Cancellation of a task awaiting `interact()` or a stream iteration propagates
+through Pollux and releases the active provider request. If a consumer may stop
+streaming before the terminal `done` event, explicitly close the iterator; a
+bare `break` does not guarantee synchronous async-generator cleanup:
+
+```python
+from contextlib import aclosing
+
+async with aclosing(stream(env, input, config=config)) as events:
+    async for event in events:
+        if should_stop(event):
+            break
+```
+
+Closing a `Session.stream()` releases only that request. The session remains
+open and reusable until its own context manager exits or `aclose()` is called.
+
 ## Variations
 
 These are all small modifications to the same loop structure.
@@ -234,27 +253,22 @@ out = await interact(
 ```
 
 If your application owns an OpenAI Chat Completions-style transcript for resume,
-compaction, or audit logs, keep that transcript as the durable record and import
-it into a fresh Pollux continuation for each turn:
+compaction, or audit logs, convert its portable messages into typed history:
 
 ```python
-from pollux import Continuation, Input
+from pollux import Input, Message
 
-continuation = Continuation.from_openai_messages(messages, provider="local")
+history = [Message.from_openai(message) for message in messages]
 out = await interact(
     env,
-    Input(content="Continue.", continuation=continuation),
+    Input(content="Continue.", history=history),
     config=config,
 )
 ```
 
-`ToolCall.to_openai()`, `Message.to_openai()`, and
-`Continuation.to_openai_messages()` provide the reverse mapping for harnesses
-that still dispatch OpenAI-shaped tool calls. For supported text and tool
-message shapes, importing with `Continuation.from_openai_messages(...)` and
-exporting with `to_openai_messages()` preserves `role`, `content`,
-`tool_calls`, and `tool_call_id`. Display reasoning is output data and is not
-replayed as transcript history.
+`ToolCall.to_openai()` and `Message.to_openai()` provide the reverse mapping for
+harnesses that dispatch OpenAI-shaped tool calls. System instructions belong on
+`Environment`, and display reasoning is not replayed as transcript history.
 
 ### Guiding tool use with system instructions
 

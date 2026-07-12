@@ -75,6 +75,7 @@ class _AsyncChunks:
     ):
         self._chunks = chunks
         self._raise = raise_exc
+        self.closed = False
 
     def __aiter__(self) -> _AsyncChunks:
         return self
@@ -86,6 +87,9 @@ class _AsyncChunks:
             raise StopAsyncIteration
         return self._chunks.pop(0)
 
+    async def aclose(self) -> None:
+        self.closed = True
+
 
 def _provider_with(
     chunks: list[SimpleNamespace], raise_exc: Exception | None = None
@@ -96,7 +100,9 @@ def _provider_with(
         captured["model"] = model
         captured["contents"] = contents
         captured["config"] = config
-        return _AsyncChunks(chunks, raise_exc=raise_exc)
+        stream = _AsyncChunks(chunks, raise_exc=raise_exc)
+        captured["stream"] = stream
+        return stream
 
     provider = GeminiProvider("test-key")
     provider._client = SimpleNamespace(
@@ -131,6 +137,7 @@ async def test_gemini_stream_through_interaction_assembles_output() -> None:
     ]
 
     assert captured["model"] == GEMINI_MODEL
+    assert captured["stream"].closed is True
 
     types = [e.type for e in events]
     assert types[0] == "start"

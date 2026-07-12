@@ -16,6 +16,7 @@ from dataclasses import replace
 import time
 from typing import TYPE_CHECKING
 
+from pollux._lifecycle import close_async_iterator
 from pollux.cache import create_cache_impl
 from pollux.errors import APIError, ConfigurationError, InternalError, PolluxError
 from pollux.interaction._uploads import cleanup_uploads, substitute_upload_parts
@@ -387,11 +388,10 @@ async def stream_interaction(
     finish_reason: str | None = None
     response_id: str | None = None
 
+    provider_stream = provider.stream_generate(snapshot, input, requirements, config)
     try:
         yield Event(type="start")
-        async for chunk in provider.stream_generate(
-            snapshot, input, requirements, config
-        ):
+        async for chunk in provider_stream:
             if chunk.text:
                 text_parts.append(chunk.text)
                 yield Event(type="text_delta", text=chunk.text)
@@ -449,4 +449,5 @@ async def stream_interaction(
         )
         yield Event(type="done", output=output)
     finally:
+        await close_async_iterator(provider_stream)
         await cleanup_uploads(upload_cache, provider)

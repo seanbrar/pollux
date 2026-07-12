@@ -104,11 +104,17 @@ produced them, and `from_jsonable()` rejects an incompatible version (and, when 
 pass `expected_provider=`, a mismatched provider) with an actionable error instead
 of misreading it.
 
-A continuation is bound to its provider: its `provider_state` (response ids,
-provider-specific replay blocks) is not portable, so reusing one under a different
-provider is rejected before dispatch. Across the 1.x → 2.0 boundary, plan to re-run
-work rather than reusing old serialized blobs; persist enough application state to
-rebuild the request when that is the right recovery path.
+A continuation is opaque and bound to its provider. Applications serialize,
+restore, and pass it back unchanged; provider response IDs and replay blocks are
+not editable or portable. The final v2 RC uses continuation schema version 2 and
+rejects schema-v1 RC artifacts. `Continuation.from_openai_messages()` and
+`to_openai_messages()` were removed; use typed `Message` history after grooming
+or importing an application transcript.
+
+For durable run identity, use
+`environment.fingerprint(provider=config.provider)` and compose `config.model`
+plus application policy/schema versions separately. `EnvironmentSnapshot` is
+now internal and is no longer a supported identity route.
 
 ## What To Do In 1.x
 
