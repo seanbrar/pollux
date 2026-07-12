@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- PSR-INSERT-FLAG -->
+## [2.0.0-rc.2] - 2026-07-12
+
+### Added
+
+- Harden v2 interaction contracts ([`e8ef4ee`](https://github.com/seanbrar/pollux/commit/e8ef4ee165219d589fadb1e4c6ba4b4820186bfd))
+
+### Fixed
+
+- Detect local context overflow errors ([`f57ab3b`](https://github.com/seanbrar/pollux/commit/f57ab3b30c9695fb011d24e1c99759a5b03aa37d))
+
+### Changed
+
+- Align public guidance with v2 release candidate ([`04892c5`](https://github.com/seanbrar/pollux/commit/04892c5d362879c3a18a4d22e52511e6dd285f88))
+- Align public guidance with v2 release candidate ([`04892c5`](https://github.com/seanbrar/pollux/commit/04892c5d362879c3a18a4d22e52511e6dd285f88))
+- Clarify agent integration boundaries ([`da247ea`](https://github.com/seanbrar/pollux/commit/da247ea5ac941aefcff0a6295a7548b445e3cd57))
+
 ## [2.0.0-rc.1] - 2026-06-17
 
 ### Added
@@ -240,6 +256,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[2.0.0-rc.2]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.1...v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/seanbrar/pollux/compare/v1.8.0...v2.0.0-rc.1
 [1.8.0]: https://github.com/seanbrar/pollux/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/seanbrar/pollux/compare/v1.6.0...v1.7.0
