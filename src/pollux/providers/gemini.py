@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+from dataclasses import replace
 from datetime import datetime
 import json
 import logging
@@ -48,6 +50,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _GEMINI_BATCH_INLINE_LIMIT_BYTES = 20_000_000
+_GEMINI_FUNCTION_CALLS_KEY = "gemini_function_calls"
 
 
 def _provider_hint_payload(
@@ -306,15 +309,23 @@ class GeminiProvider:
         self,
         parts: list[Any],
         history: list[Message] | None,
+        provider_state: dict[str, object] | None = None,
     ) -> Any:
         """Build Gemini contents from history + current parts."""
         from google.genai import types
 
         input_contents: list[Any] = []
         call_id_to_name: dict[str, str] = {}
+        history_states = (
+            provider_state.get("history", [])
+            if isinstance(provider_state, dict)
+            else []
+        )
+        if not isinstance(history_states, list):
+            history_states = []
 
         if history:
-            for item in history:
+            for item_index, item in enumerate(history):
                 if item.role == "tool":
                     call_id = item.tool_call_id
                     name = "unknown_tool"
@@ -334,15 +345,25 @@ class GeminiProvider:
                         types.Content(
                             role="user",
                             parts=[
-                                types.Part.from_function_response(
-                                    name=name,
-                                    response=parsed_content,
+                                types.Part(
+                                    function_response=types.FunctionResponse(
+                                        id=call_id,
+                                        name=name,
+                                        response=parsed_content,
+                                    )
                                 )
                             ],
                         )
                     )
                 elif item.role == "assistant":
                     ast_parts: list[Any] = []
+                    item_state = (
+                        history_states[item_index]
+                        if item_index < len(history_states)
+                        and isinstance(history_states[item_index], dict)
+                        else None
+                    )
+                    signatures = _function_call_signatures(item_state)
                     if item.content:
                         ast_parts.append(types.Part.from_text(text=item.content))
                     if item.tool_calls:
@@ -353,8 +374,13 @@ class GeminiProvider:
                             except Exception:
                                 args_dict = {}
                             ast_parts.append(
-                                types.Part.from_function_call(
-                                    name=tc.name, args=args_dict
+                                types.Part(
+                                    function_call=types.FunctionCall(
+                                        id=tc.id,
+                                        name=tc.name,
+                                        args=args_dict,
+                                    ),
+                                    thought_signature=signatures.get(tc.id),
                                 )
                             )
                     if ast_parts:
@@ -430,9 +456,11 @@ class GeminiProvider:
                         config,
                         upload_cache=upload_cache,
                     )
-                    history, _prev, _ps = _compile.prior_turns(inp)
+                    history, _prev, provider_state = _compile.prior_turns(inp)
                     inlined_request = types.InlinedRequest(
-                        contents=self._build_contents(parts, history or None),
+                        contents=self._build_contents(
+                            parts, history or None, provider_state
+                        ),
                         config=types.GenerateContentConfig(
                             **self._build_config_kwargs(parts, snapshot, requirements)
                         ),
@@ -621,9 +649,9 @@ class GeminiProvider:
         from google.genai import types
 
         parts = _compile.request_parts(snapshot, input)
-        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
+        history, _previous_response_id, provider_state = _compile.prior_turns(input)
         config_kwargs = self._build_config_kwargs(parts, snapshot, requirements)
-        contents = self._build_contents(parts, history or None)
+        contents = self._build_contents(parts, history or None, provider_state)
 
         try:
             response = await client.aio.models.generate_content(
@@ -656,20 +684,22 @@ class GeminiProvider:
     ) -> AsyncIterator[ProviderStreamChunk]:
         """Stream normalized deltas from Gemini's streaming content endpoint.
 
-        Gemini replays conversation via history (no provider_state), so thought
-        text is surfaced for display only. Function calls arrive whole rather
-        than fragmented, so each one is emitted as a single-fragment tool-call
-        delta with its own slot index.
+        Gemini replays conversation via history. Thought text is surfaced for
+        display, while signed function-call state is retained opaquely for the
+        next continuation turn. Function calls arrive whole rather than
+        fragmented, so each one is emitted as a single-fragment tool-call delta
+        with its own slot index.
         """
         client = self._get_client()
         from google.genai import types
 
         parts = _compile.request_parts(snapshot, input)
-        history, _previous_response_id, _provider_state = _compile.prior_turns(input)
+        history, _previous_response_id, provider_state = _compile.prior_turns(input)
         config_kwargs = self._build_config_kwargs(parts, snapshot, requirements)
-        contents = self._build_contents(parts, history or None)
+        contents = self._build_contents(parts, history or None, provider_state)
 
         tool_call_index = 0
+        function_call_state: list[dict[str, str]] = []
         stream: Any = None
         try:
             stream = await client.aio.models.generate_content_stream(
@@ -681,7 +711,23 @@ class GeminiProvider:
                 for chunk in self._stream_response_to_chunks(response, tool_call_index):
                     if chunk.tool_calls:
                         tool_call_index += len(chunk.tool_calls)
+                    if chunk.provider_state:
+                        entries = chunk.provider_state.get(_GEMINI_FUNCTION_CALLS_KEY)
+                        if isinstance(entries, list):
+                            function_call_state.extend(
+                                entry for entry in entries if isinstance(entry, dict)
+                            )
+                            remaining_state = dict(chunk.provider_state)
+                            remaining_state.pop(_GEMINI_FUNCTION_CALLS_KEY, None)
+                            chunk = replace(
+                                chunk,
+                                provider_state=remaining_state or None,
+                            )
                     yield chunk
+            if function_call_state:
+                yield ProviderStreamChunk(
+                    provider_state={_GEMINI_FUNCTION_CALLS_KEY: function_call_state}
+                )
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -717,6 +763,7 @@ class GeminiProvider:
                         _field(function_call, "id") or f"call_{uuid.uuid4().hex[:8]}"
                     )
                     arguments = json.dumps(_field(function_call, "args") or {})
+                    state_entry = _function_call_state_entry(str(call_id), part)
                     chunks.append(
                         ProviderStreamChunk(
                             tool_calls=(
@@ -726,7 +773,12 @@ class GeminiProvider:
                                     name=str(_field(function_call, "name", "")),
                                     arguments=arguments,
                                 ),
-                            )
+                            ),
+                            provider_state=(
+                                {_GEMINI_FUNCTION_CALLS_KEY: [state_entry]}
+                                if state_entry is not None
+                                else None
+                            ),
                         )
                     )
                     local_tool_count += 1
@@ -1238,6 +1290,26 @@ class GeminiProvider:
                     )
                 )
 
+        function_call_parts: list[Any] = []
+        candidates = _field(response, "candidates", []) or []
+        if isinstance(candidates, list) and candidates:
+            content = _field(candidates[0], "content")
+            candidate_parts = (
+                _field(content, "parts", []) if content is not None else []
+            )
+            if isinstance(candidate_parts, list):
+                function_call_parts = [
+                    part
+                    for part in candidate_parts
+                    if _field(part, "function_call") is not None
+                ]
+
+        function_call_state = [
+            state
+            for call, part in zip(tool_calls, function_call_parts, strict=False)
+            if (state := _function_call_state_entry(call.id, part)) is not None
+        ]
+
         finish_reason: str | None = None
         reasoning_parts: list[str] = []
         artifacts: dict[str, Any] = {}
@@ -1273,8 +1345,50 @@ class GeminiProvider:
             tool_calls=tool_calls if tool_calls else None,
             response_id=None,
             finish_reason=finish_reason,
+            provider_state=(
+                {_GEMINI_FUNCTION_CALLS_KEY: function_call_state}
+                if function_call_state
+                else None
+            ),
             artifacts=artifacts or None,
         )
+
+
+def _function_call_state_entry(call_id: str, part: Any) -> dict[str, str] | None:
+    """Encode one Gemini function-call thought signature for continuation replay."""
+    signature = _field(part, "thought_signature")
+    if isinstance(signature, bytes) and signature:
+        encoded = base64.b64encode(signature).decode("ascii")
+    elif isinstance(signature, str) and signature:
+        encoded = signature
+    else:
+        return None
+    return {"id": call_id, "thought_signature": encoded}
+
+
+def _function_call_signatures(
+    provider_state: object,
+) -> dict[str, bytes]:
+    """Decode preserved Gemini signatures, keyed by normalized tool-call ID."""
+    if not isinstance(provider_state, dict):
+        return {}
+    entries = provider_state.get(_GEMINI_FUNCTION_CALLS_KEY)
+    if not isinstance(entries, list):
+        return {}
+
+    signatures: dict[str, bytes] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        call_id = entry.get("id")
+        encoded = entry.get("thought_signature")
+        if not isinstance(call_id, str) or not isinstance(encoded, str):
+            continue
+        try:
+            signatures[call_id] = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            continue
+    return signatures
 
 
 def _field(obj: Any, key: str, default: Any = None) -> Any:

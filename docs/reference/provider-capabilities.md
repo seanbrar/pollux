@@ -91,6 +91,11 @@ jobs, see [Building With Deferred Delivery](../building-with-deferred-delivery.m
   when the selected model and reasoning mode support it. Pollux forwards both
   `reasoning_effort` and `reasoning_budget_tokens`; model-specific acceptance
   is enforced by the Gemini API.
+- Gemini function-call thought signatures and call IDs are preserved in opaque
+  `continuation` state and replayed with tool results. This applies to both
+  `interact()` and `stream()` and is required for Gemini 3 tool loops. Keep the
+  continuation untouched until the pending tool exchange is complete; portable
+  application-authored `history` does not contain provider signatures.
 
 ### OpenAI
 

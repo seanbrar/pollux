@@ -838,6 +838,39 @@ def test_gemini_parse_response_extracts_tool_calls() -> None:
     assert result.tool_calls[0].arguments == '{"city": "NYC"}'
 
 
+def test_gemini_parse_response_preserves_function_call_thought_signature() -> None:
+    """Gemini function-call signatures survive in opaque replay state."""
+    provider = GeminiProvider("test-key")
+
+    fc = _obj(id="call_abc", name="get_weather", args={"city": "NYC"})
+    function_call_part = _obj(
+        function_call=fc,
+        thought_signature=b"signed-thought",
+        text=None,
+        thought=False,
+    )
+    fake_response = _obj(
+        text="",
+        parsed=None,
+        usage_metadata=None,
+        function_calls=[fc],
+        candidates=[
+            _obj(content=_obj(parts=[function_call_part]), finish_reason="STOP")
+        ],
+    )
+
+    result = provider._parse_response(fake_response)
+
+    assert result.provider_state == {
+        "gemini_function_calls": [
+            {
+                "id": "call_abc",
+                "thought_signature": "c2lnbmVkLXRob3VnaHQ=",
+            }
+        ]
+    }
+
+
 def test_gemini_parse_response_generates_id_when_missing() -> None:
     """Gemini may omit fc.id; a stable synthetic ID should be generated."""
     provider = GeminiProvider("test-key")
