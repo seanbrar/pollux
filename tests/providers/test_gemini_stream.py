@@ -29,6 +29,7 @@ def _part(**kwargs: Any) -> SimpleNamespace:
     kwargs.setdefault("text", None)
     kwargs.setdefault("thought", False)
     kwargs.setdefault("function_call", None)
+    kwargs.setdefault("thought_signature", None)
     return SimpleNamespace(**kwargs)
 
 
@@ -54,7 +55,8 @@ def _thinking_tool_chunks() -> list[SimpleNamespace]:
                 _part(
                     function_call=SimpleNamespace(
                         id=None, name="get_weather", args={"city": "NYC"}
-                    )
+                    ),
+                    thought_signature=b"stream-signature",
                 )
             ],
             finish="STOP",
@@ -154,6 +156,11 @@ async def test_gemini_stream_through_interaction_assembles_output() -> None:
     assert done.usage.total_tokens == 15
     assert done.usage.reasoning_tokens == 2
     assert done.metrics.finish_reason == "stop"
+    assert done.continuation is not None
+    state = done.continuation.to_jsonable()["provider_state"]
+    assert state["gemini_function_calls"][0]["thought_signature"] == (
+        "c3RyZWFtLXNpZ25hdHVyZQ=="
+    )
 
 
 @pytest.mark.asyncio

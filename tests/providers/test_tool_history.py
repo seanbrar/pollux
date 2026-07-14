@@ -247,6 +247,68 @@ async def test_gemini_maps_tool_history_to_content_format() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gemini_replays_function_call_signature_and_ids() -> None:
+    """Opaque Gemini replay state restores signatures and call/result IDs."""
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_content(
+        *,
+        model: str,  # noqa: ARG001
+        contents: Any,
+        config: Any,  # noqa: ARG001
+    ) -> Any:
+        captured["contents"] = contents
+        return MagicMock(text="ok", parsed=None, usage_metadata=None)
+
+    provider = GeminiProvider("test-key")
+    fake_models = MagicMock()
+    fake_models.generate_content = fake_generate_content
+    fake_aio = MagicMock()
+    fake_aio.models = fake_models
+    provider._client = MagicMock()
+    provider._client.aio = fake_aio
+
+    await provider.generate(
+        *_gemini(
+            continuation=make_continuation(
+                provider="gemini",
+                messages=(
+                    Message(
+                        role="assistant",
+                        tool_calls=(
+                            ToolCall.from_text(
+                                id="call_abc",
+                                name="get_weather",
+                                arguments_text='{"location": "NYC"}',
+                            ),
+                        ),
+                    ),
+                ),
+                provider_state={
+                    "history": [
+                        {
+                            "gemini_function_calls": [
+                                {
+                                    "id": "call_abc",
+                                    "thought_signature": "c2lnbmVkLXRob3VnaHQ=",
+                                }
+                            ]
+                        }
+                    ]
+                },
+            ),
+            tool_results=[ToolResult(call_id="call_abc", content='{"temp": 72}')],
+        )
+    )
+
+    contents = captured["contents"]
+    function_call = contents[0].parts[0]
+    assert function_call.function_call.id == "call_abc"
+    assert function_call.thought_signature == b"signed-thought"
+    assert contents[1].parts[0].function_response.id == "call_abc"
+
+
+@pytest.mark.asyncio
 async def test_gemini_merges_prompt_into_tool_response_content() -> None:
     """When history ends with a tool response, the prompt is merged in.
 

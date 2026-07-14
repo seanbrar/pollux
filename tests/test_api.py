@@ -394,6 +394,54 @@ async def test_gemini_reasoning_roundtrip_on_gemini3(gemini_api_key: str) -> Non
 
 
 @pytest.mark.asyncio
+async def test_gemini3_tool_call_signature_roundtrip(gemini_api_key: str) -> None:
+    """E2E: Gemini 3 accepts a continued tool call with its thought signature."""
+    config = Config(
+        provider="gemini",
+        model=_GEMINI_REASONING_MODEL,
+        api_key=gemini_api_key,
+    )
+    environment = Environment(
+        tools=[
+            ToolDeclaration(
+                name="get_secret",
+                description="Return a secret code.",
+                parameters={
+                    "type": "object",
+                    "properties": {"topic": {"type": "string"}},
+                    "required": ["topic"],
+                },
+            )
+        ]
+    )
+
+    first = await pollux.interact(
+        environment,
+        Input("Call get_secret once with topic='orbit'."),
+        config=config,
+        tool_choice="required",
+        reasoning_effort="low",
+    )
+
+    assert first.tool_calls
+    second = await pollux.interact(
+        Environment(),
+        Input(
+            continuation=first.continuation,
+            tool_results=[
+                ToolResult.from_value(
+                    call_id=first.tool_calls[0].id,
+                    value={"code": "K9-ORBIT"},
+                )
+            ],
+        ),
+        config=config,
+    )
+
+    assert "k9-orbit" in second.text.lower()
+
+
+@pytest.mark.asyncio
 async def test_gemini_url_context_roundtrip(
     gemini_api_key: str,
     gemini_test_model: str,
