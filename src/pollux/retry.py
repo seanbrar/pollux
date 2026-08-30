@@ -1,7 +1,7 @@
 """Minimal async retry with explicit error contracts.
 
 Design goals:
-- Small API surface (MTMT-friendly)
+- Small API surface
 - Explicit state (policy + attempt counters)
 - No brittle substring matching for retry decisions
 """

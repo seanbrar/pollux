@@ -1,201 +1,18 @@
-<!-- Intent: Repository landing page for first-time users. Get the reader to a
-     working result quickly, then show the three execution shapes they are most
-     likely to need: single-call realtime, source-pattern realtime, and
-     deferred delivery. Do NOT reteach lifecycle details, provider caveats, or
-     architecture concepts that already live in the docs. Assumes the reader
-     knows what an LLM API is and is deciding whether to try Pollux. Register:
-     landing copy. -->
-
 # Pollux
 
-Multimodal orchestration for LLM APIs.
+Pollux sends prompts and multimodal sources to several LLM providers through
+one small Python interface. It handles uploads, shared context, retries,
+provider differences, and normalized results.
 
-> You describe what to analyze. Pollux handles source patterns, context caching, deferred delivery, and multimodal content.
+## Install
 
-[Documentation](https://polluxlib.dev/next/) ·
-[Getting Started](https://polluxlib.dev/next/getting-started/) ·
-[Building With Deferred Delivery](https://polluxlib.dev/next/building-with-deferred-delivery/)
-
-[![PyPI](https://img.shields.io/pypi/v/pollux-ai)](https://pypi.org/project/pollux-ai/)
-[![CI](https://github.com/seanbrar/pollux/actions/workflows/ci.yml/badge.svg)](https://github.com/seanbrar/pollux/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/seanbrar/pollux/graph/badge.svg)](https://codecov.io/gh/seanbrar/pollux)
-[![Testing: MTMT](https://img.shields.io/badge/testing-MTMT_v0.1.0-blue)](https://github.com/seanbrar/minimal-tests-maximum-trust)
-![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-
-> [!IMPORTANT]
-> This branch documents the Pollux 2.0 release candidate. Install with
-> `pip install --pre --upgrade pollux-ai`. The default PyPI install remains the
-> stable v1 line until 2.0 reaches its stable release.
-
-## Quick Start
-
-```python
-import asyncio
-from pollux import Config, Source, run
-
-result = asyncio.run(
-    run(
-        "What are the key findings and their implications?",
-        source=Source.from_file("earnings-report.pdf"),
-        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
-    )
-)
-print(result.text)
-# Revenue grew 18% YoY to $4.2B, driven by cloud services. Operating
-# margins improved from 29% to 34%. Management's $2B buyback and raised
-# guidance signal confidence in sustained growth.
-```
-
-`run()` returns an `Output`: `result.text` is the answer, with `result.structured`,
-`result.usage`, and other facets alongside it.
-
-To use OpenAI instead: `Config(provider="openai", model="gpt-5-nano")`.<br>
-For Anthropic: `Config(provider="anthropic", model="claude-haiku-4-5")`.<br>
-For OpenRouter: `Config(provider="openrouter", model="google/gemma-3-27b-it:free")`.<br>
-For a self-hosted OpenAI-compatible server (text, image, and audio):
-`Config(provider="local", model="gemma3:4b", base_url="http://localhost:11434/v1")`.
-Single-model servers can omit `model`.
-
-For a full walkthrough (install, key setup, first result), see
-[Getting Started](https://polluxlib.dev/next/getting-started/).
-
-## Which Entry Point Should I Use?
-
-| If you want to... | Use |
-|---|---|
-| Ask one prompt and get an answer now | `run()` |
-| Ask many prompts against shared source(s) | `run_many()` |
-| Hold a multi-turn thread or run a tool-using agent loop | `interact()` / `Session` |
-| Submit non-urgent work and collect it later | `defer()` |
-
-Pollux keeps realtime and deferred work on separate entry points. If the result
-can wait, submit it once, persist the handle, and collect the same
-`ResultEnvelope` later.
-
-## What Pollux Handles
-
-Say you have a document and ten questions about it. Without orchestration, each
-API call re-uploads the file, and your code has to manage caching, retries, and
-concurrency. Pollux uploads once, caches the content when the provider supports
-it, fans out your prompts concurrently, and hands back results.
-
-The same `Source` interface handles PDFs, images, video, YouTube URLs, and
-arXiv papers. Your code does not need per-format upload branches.
-Gemini-specific video clipping and FPS controls are available via
-`Source.with_gemini_video_settings(...)`; see the sending-content docs for the
-intended scope.
-
-Need structured output? Pass a Pydantic model as `output` and get a
-validated instance alongside the raw text. Switching providers is a config
-change: `provider="gemini"` to `provider="openai"`.
-
-## One Upload, Many Prompts
-
-Got three questions about the same paper? `run_many()` fans them out concurrently:
-
-```python
-import asyncio
-from pollux import Config, Source, run_many
-
-envelope = asyncio.run(
-    run_many(
-        ["Summarize the methodology.", "List key findings.", "Identify limitations."],
-        sources=[Source.from_file("paper.pdf")],
-        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
-    )
-)
-for answer in envelope.answers:
-    print(answer)
-```
-
-`run_many()` returns an `OutputCollection`: `answers` is the per-prompt text in
-input order, with `outputs`, `structured`, `usage`, and `status` alongside it.
-
-Add more sources when each prompt should see the same shared context. For
-per-file collection work, wrap `run_many()` in your own outer loop over files;
-that gives you one result record per file while Pollux handles each file's
-prompt set.
-
-## Multi-Turn Threads and Agent Loops
-
-When you need conversation history or tool calls, use `interact()` over an
-`Environment` and `Input`. A `Session` reuses one provider across turns:
-
-```python
-import asyncio
-from pollux import Config, Environment, Input, Session
-
-async def main():
-    env = Environment(instructions="Be concise.")
-    async with Session(Config(provider="anthropic", model="claude-haiku-4-5")) as session:
-        first = await session.interact(env, Input("Name a primary color."))
-        print(first.text)
-
-        # Continue the same thread from the prior turn's continuation:
-        second = await session.interact(
-            env, Input("Now name its complement.", continuation=first.continuation)
-        )
-        print(second.text)
-
-asyncio.run(main())
-```
-
-`Output.tool_calls` exposes any tools the model wants to run; return their
-results on the next `Input` to drive an agent loop. For tool declarations,
-dispatch, and streaming, see
-[Building an Agent Loop](https://polluxlib.dev/next/agent-loop/).
-
-## When the Work Can Wait
-
-Deferred delivery is for long fan-out work, backfills, and scheduled analysis
-where no one is waiting on the answer in the current process.
-
-```python
-import asyncio
-from pollux import (
-    Config,
-    Source,
-    collect_deferred,
-    defer,
-    inspect_deferred,
-)
-
-config = Config(provider="openai", model="gpt-5-nano")
-
-handle = asyncio.run(
-    defer(
-        "Summarize the report in five bullets.",
-        source=Source.from_file("market-report.pdf"),
-        config=config,
-    )
-)
-
-snapshot = asyncio.run(inspect_deferred(handle))
-if snapshot.is_terminal:
-    result = asyncio.run(collect_deferred(handle))
-    print(result.answers[0])
-```
-
-In production code, persist `handle.to_dict()` and restore it later with
-`DeferredHandle.from_dict(...)`. For the full lifecycle, read
-[Submitting Work for Later Collection](https://polluxlib.dev/next/submitting-work-for-later-collection/)
-and
-[Building With Deferred Delivery](https://polluxlib.dev/next/building-with-deferred-delivery/).
-
-## Where Pollux Ends
-
-Pollux owns content delivery, context caching, and provider translation. Prompt
-design, workflow orchestration, and what you do with results are yours. See
-[Core Concepts](https://polluxlib.dev/next/concepts/) for the full boundary model.
-
-## Installation
+Pollux 2.0 is currently a release candidate:
 
 ```bash
 pip install --pre --upgrade pollux-ai
 ```
 
-Set your provider's API key:
+Set the key for the provider you want to use:
 
 ```bash
 export GEMINI_API_KEY="your-key-here"     # or
@@ -204,29 +21,99 @@ export ANTHROPIC_API_KEY="your-key-here"  # or
 export OPENROUTER_API_KEY="your-key-here"
 ```
 
-Keys from: [Google AI Studio](https://ai.dev/) · [OpenAI](https://platform.openai.com/api-keys) · [Anthropic](https://console.anthropic.com/settings/keys) · [OpenRouter](https://openrouter.ai/keys)
+The local provider does not need a key. Point it at an OpenAI-compatible server
+with `base_url` or `POLLUX_LOCAL_BASE_URL`.
 
-For `provider="local"`, no API key is required; point `base_url` (or
-`POLLUX_LOCAL_BASE_URL`) at a self-hosted OpenAI-compatible server.
+## Ask About a File
+
+```python
+import asyncio
+
+from pollux import Config, Source, run
+
+result = asyncio.run(
+    run(
+        "What are the key findings?",
+        source=Source.from_file("paper.pdf"),
+        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
+    )
+)
+
+print(result.text)
+```
+
+`run()` returns an `Output`. Alongside `text`, it can contain structured data,
+tool calls, reasoning, token usage, completion details, and continuation state.
+
+Changing providers is a configuration change:
+
+```python
+Config(provider="openai", model="gpt-5-nano")
+Config(provider="anthropic", model="claude-haiku-4-5")
+Config(provider="openrouter", model="google/gemma-3-27b-it:free")
+Config(provider="local", model="gemma3:4b", base_url="http://localhost:11434/v1")
+```
+
+## Ask Several Questions About Shared Context
+
+```python
+import asyncio
+
+from pollux import Config, Source, run_many
+
+results = asyncio.run(
+    run_many(
+        [
+            "Summarize the methodology.",
+            "List the key findings.",
+            "Identify the main limitation.",
+        ],
+        sources=[Source.from_file("paper.pdf")],
+        config=Config(provider="gemini", model="gemini-2.5-flash-lite"),
+    )
+)
+
+for answer in results.answers:
+    print(answer)
+```
+
+Every prompt sees the same source set. Pollux reuses uploaded content and runs
+the prompts concurrently. To process separate files independently, write the
+outer loop in your application and call `run()` or `run_many()` for each file.
+
+## Choose the Smallest Entry Point
+
+| Need | Use |
+| --- | --- |
+| One answer now | `run()` |
+| Several prompts over shared sources | `run_many()` |
+| Conversation history or tool calls | `interact()` or `Session` |
+| Incremental output | `stream()` |
+| Provider-side asynchronous work | `defer()` |
+
+The advanced entry points use the same `Environment`, `Input`, `Output`, and
+`OutputCollection` types as the simple path.
 
 ## Documentation
 
-- [Getting Started](https://polluxlib.dev/next/getting-started/): first result in 2 minutes
-- [Core Concepts](https://polluxlib.dev/next/concepts/): mental model and vocabulary
-- [Building an Agent Loop](https://polluxlib.dev/next/agent-loop/): multi-turn threads, tool calls, and streaming
-- [Submitting Work for Later Collection](https://polluxlib.dev/next/submitting-work-for-later-collection/): deferred lifecycle API
-- [Migrating to 2.0](https://polluxlib.dev/next/migrating-to-v2/): moving from the v1 API
-- [Building With Deferred Delivery](https://polluxlib.dev/next/building-with-deferred-delivery/): when deferred is worth it
-- [API Reference](https://polluxlib.dev/next/reference/api/): entry points and types
-- [Cookbook](https://polluxlib.dev/next/reference/cli/): runnable end-to-end recipes
+- [Getting started](https://polluxlib.dev/next/getting-started/)
+- [Sending content](https://polluxlib.dev/next/sending-content/)
+- [Structured output](https://polluxlib.dev/next/structured-data/)
+- [Conversations, tools, and streaming](https://polluxlib.dev/next/agent-loop/)
+- [Deferred work](https://polluxlib.dev/next/submitting-work-for-later-collection/)
+- [Provider capabilities](https://polluxlib.dev/next/reference/provider-capabilities/)
+- [API reference](https://polluxlib.dev/next/reference/api/)
+- [Migrating from 1.x](https://polluxlib.dev/next/migrating-to-v2/)
 
-Full v2 RC docs at [polluxlib.dev/next](https://polluxlib.dev/next/).
+## Development
 
-## Contributing
+```bash
+uv sync
+just check
+```
 
-See [CONTRIBUTING](https://polluxlib.dev/next/contributing/) and [TESTING.md](./TESTING.md) for guidelines.
-
-Built during [Google Summer of Code 2025](https://summerofcode.withgoogle.com/) with Google DeepMind. [Learn more](https://polluxlib.dev/next/#about)
+See [Contributing](https://polluxlib.dev/next/contributing/) for the repository
+layout and focused development commands.
 
 ## License
 

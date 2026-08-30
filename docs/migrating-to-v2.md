@@ -134,7 +134,7 @@ ready to test the RC:
 
 ## What Is Available In The RC
 
-The 2.0 interaction model is available in `v2.0.0-rc.1` and on `main`:
+The 2.0 interaction model is available in the current release candidate:
 
 - `run()` and `run_many()` now return the 2.0 result model: `run()` returns an
   `Output` (named facets `text`, `structured`, `reasoning`, `tool_calls`,

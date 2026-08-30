@@ -1,11 +1,3 @@
-<!-- Intent: Establish the mental model for LLM orchestration through
-     Pollux's lens. Teach domain concepts (multimodal inputs, structured output,
-     tool calling, multi-turn, caching, source patterns, reasoning) BEFORE
-     showing any Pollux API. Then introduce Pollux's four-phase pipeline and
-     the ownership boundary table. Do NOT include runnable code examples or
-     hands-on tutorials, those belong in subsequent pages. Assumes no prior
-     LLM API experience. Register: conceptual/declarative. -->
-
 # Core Concepts
 
 Before touching the API, it helps to understand the LLM ecosystem concepts
@@ -121,40 +113,34 @@ in fan-out, parallelizing calls in broadcast.
 
 ### Reasoning Modes
 
-Some models support explicit **reasoning**: an extended thinking phase before
-generating a response. When enabled via an effort control, the model's internal
-reasoning trace may be returned alongside the answer, allowing you to audit
-how it arrived at its conclusions. Support for reasoning varies by model
-family and provider.
+Some models support an explicit **reasoning** phase before generating a
+response. Pollux can request an effort level or token budget and surfaces any
+reasoning content the provider chooses to return. Providers differ in whether
+they return reasoning text, a summary, only token counts, or nothing at all.
 
 ---
 
-## Pollux's Pipeline
+## Pollux's Interaction Model
 
-Pollux implements these concepts through a four-phase pipeline:
+The explicit interaction API has one small shape:
 
 ```mermaid
 graph LR
-    R[Request] --> P[Plan]
-    P --> E[Execute]
-    E --> X[Extract]
+    E[Environment] --> C[Provider call]
+    I[Input] --> C
+    CFG[Config] --> C
+    C --> O[Output]
 ```
 
-**Request:** Validates and normalizes prompts, sources, config, and options
-into a canonical representation.
+The environment holds stable instructions, sources, tools, and cache policy.
+The input holds one turn's content and optional continuation state. Config
+chooses the provider and model. Pollux validates that combination, translates
+it at the provider boundary, and returns a normalized
+[`Output`](sending-content.md#output-and-outputcollection-reference).
 
-**Plan:** Converts the request into deterministic API calls and computes
-cache keys from content hashes.
-
-**Execute:** Uploads content, reuses cached context where possible, and runs
-provider calls concurrently.
-
-**Extract:** Transforms API responses into a stable
-[`Output`](sending-content.md#output-and-outputcollection-reference) with
-`text`, optional `structured` data, and `usage` metadata.
-
-This separation is what lets Pollux handle multimodal inputs and provider
-differences without forcing callers to reimplement orchestration logic.
+`run()` and `run_many()` are conveniences over the same model. Most programs
+should start with them and introduce `Environment` and `Input` only when they
+need conversation state, tools, or prepared caching.
 
 ### Source Patterns in Pollux
 
@@ -183,8 +169,8 @@ graph LR
     S3[Source 3] --> P
 ```
 
-Synthesize across multiple artifacts with a single question. The prompt
-stays stable while sources vary. Keeps comparisons objective.
+Synthesize across multiple artifacts with a single question. Every source is
+part of the same shared context for that call.
 
 #### Broadcast: many sources, many prompts
 
@@ -199,7 +185,9 @@ graph LR
 ```
 
 Apply the same analysis template across multiple sources. Consistent prompts
-make output comparison and post-processing predictable.
+make output comparison and post-processing predictable. Application code owns
+the outer loop over sources; `run_many()` handles the prompt set for one source
+or shared source group.
 
 ## Where Pollux Ends and You Begin
 

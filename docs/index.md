@@ -7,33 +7,14 @@ hide:
   - path
 ---
 
-<!-- Intent: Search-visible landing copy for the docs home page. State what
-     Pollux is, what problems it solves, and where a new reader should start.
-     Do NOT duplicate the full getting-started flow or topical guides.
-     Assumes no prior familiarity with the project. Register: landing copy. -->
-
 <!-- SEO fallback: this Markdown body is not rendered visually (the content
      block is suppressed by home.html) but crawlers will index the text. -->
 
 # Pollux
 
-Multimodal orchestration for LLM APIs. You describe what to analyze. Pollux
-handles source patterns, context caching, and the multimodal plumbing.
-
-**Multimodal-first.** PDFs, images, video, YouTube, arXiv. One interface,
-any source type.
-
-**Source patterns.** Fan-out, fan-in, and broadcast execution over your
-content. No boilerplate.
-
-**Context caching.** Upload once, reuse across prompts. Automatic TTL
-management saves tokens and money.
-
-**Deferred delivery.** Submit non-urgent work once, persist a handle, and
-collect later in the same `OutputCollection` / `Output` format.
-
-**Built for reliability.** Async pipeline, retries with backoff, structured
-output, usage tracking.
+Pollux sends prompts and multimodal sources to several LLM providers through
+one Python interface. It handles uploads, shared context, retries, provider
+differences, and normalized results.
 
 ## Install
 
@@ -60,8 +41,3 @@ PyPI install remains the stable v1 line until 2.0 reaches stable release.
 - [Error Handling](error-handling.md)
 - [Configuration](configuration.md)
 - [API Reference](reference/api.md)
-
----
-
-Pollux started as a Google Summer of Code 2025 project with Google DeepMind.
-The brightest star in the Gemini constellation.
