@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-08-30
+
+Pollux 2.0 replaces the v1 option and result envelopes with a smaller,
+explicit interaction model.
+
+### Added
+
+- `Environment`, `Input`, `Output`, `OutputCollection`, and `Continuation` as
+  the shared model across realtime, streaming, tool-loop, and deferred work.
+- `interact()`, `stream()`, and `Session` for explicit multi-turn interactions.
+- Provider readiness checks and typed error categories.
+
+### Changed
+
+- `run()` and `run_many()` accept generation controls directly and return typed
+  outputs with text, structured data, tool calls, usage, diagnostics, and
+  continuation state.
+- Context caching is prepared through `prepare_environment()` and reused as
+  part of an `Environment`.
+- `defer()` accepts one prompt or a prompt collection, while collection and
+  cancellation use the same output model as realtime execution.
+
+### Removed
+
+- The v1 `Options` and `ResultEnvelope` interfaces.
+- `continue_tool()`, `create_cache()`, and `defer_many()` in favor of the
+  interaction model's smaller set of composable entry points.
+
 ## [2.0.0-rc.4] - 2026-08-30
 
 This candidate narrows the public surface before the stable 2.0 release.
@@ -282,6 +310,7 @@ This candidate narrows the public surface before the stable 2.0 release.
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[2.0.0]: https://github.com/seanbrar/pollux/compare/v1.8.0...v2.0.0
 [2.0.0-rc.4]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.3...v2.0.0-rc.4
 [2.0.0-rc.3]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.2...v2.0.0-rc.3
 [2.0.0-rc.2]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.1...v2.0.0-rc.2

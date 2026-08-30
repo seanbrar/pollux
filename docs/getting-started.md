@@ -10,12 +10,8 @@ Let's get Pollux running and see your first result.
 ## 1. Install
 
 ```bash
-pip install --pre --upgrade pollux-ai
+pip install --upgrade pollux-ai
 ```
-
-The `--pre` flag selects the 2.0 release candidate. Without it, pip installs
-the stable v1 line until 2.0 reaches its stable release. You can also download
-the RC wheel from [Releases](https://github.com/seanbrar/pollux/releases).
 
 ## 2. Set Your API Key
 

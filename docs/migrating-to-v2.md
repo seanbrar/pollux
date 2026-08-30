@@ -1,15 +1,10 @@
-<!-- Intent: Guide Pollux 1.x users to the shipped 2.0 release-candidate API.
-     Teach what stayed familiar, what changed, and how to migrate without
-     implying that the RC has stable-release guarantees. Assumes the reader
-     has used Pollux 1.x. Register: warm guide with precise caveats. -->
+<!-- Intent: Guide Pollux 1.x users to the 2.0 API. Teach what stayed familiar,
+     what changed, and how to migrate. Assumes the reader has used Pollux 1.x.
+     Register: warm guide with precise caveats. -->
 
 # Migrating to Pollux 2.0
 
-!!! warning "Release candidate"
-    Pollux 2.0 is available as a release candidate, not a stable release. The
-    API on this page is shipped in the RC and on `main`, but interaction details
-    may still change before stable 2.0. Install it with
-    `pip install --pre --upgrade pollux-ai`.
+Install or upgrade with `pip install --upgrade pollux-ai`.
 
 Pollux 2.0 is a major-version cleanup of the interaction model. It names the
 pieces of a model interaction directly: the environment the model runs in, the
@@ -54,7 +49,7 @@ In other words, the first Pollux program still starts with `run()`.
 The changes move behavior out of special-case helpers and into named
 interaction pieces.
 
-| 1.x | 2.0 RC shape | Why |
+| 1.x | 2.0 shape | Why |
 | --- | --- | --- |
 | `Options(...)` | `Environment`, `Input`, and execution keyword arguments | Stable context, turn input, and generation controls become explicit. |
 | `continue_tool(env, results)` | `interact(environment, Input(continuation=..., tool_results=...))` | Tool-result replay becomes part of continuing an interaction. |
@@ -71,7 +66,7 @@ Here is the expected direction for result handling:
 text = result["text"]
 payload = dict(result)
 
-# 2.0 RC
+# 2.0
 text = result.text
 payload = result.to_jsonable()
 ```
@@ -83,7 +78,7 @@ interaction-shaped API:
 # 1.x
 next_result = await continue_tool(env, tool_results)
 
-# 2.0 RC
+# 2.0
 next_result = await interact(
     environment,
     Input(continuation=continuation, tool_results=tool_results),
@@ -106,8 +101,8 @@ of misreading it.
 
 A continuation is opaque and bound to its provider. Applications serialize,
 restore, and pass it back unchanged; provider response IDs and replay blocks are
-not editable or portable. The final v2 RC uses continuation schema version 2 and
-rejects schema-v1 RC artifacts. `Continuation.from_openai_messages()` and
+not editable or portable. Pollux 2.0 uses continuation schema version 2 and
+rejects schema-v1 prerelease artifacts. `Continuation.from_openai_messages()` and
 `to_openai_messages()` were removed; use typed `Message` history after grooming
 or importing an application transcript.
 
@@ -116,10 +111,9 @@ For durable run identity, use
 plus application policy/schema versions separately. `EnvironmentSnapshot` is
 now internal and is no longer a supported identity route.
 
-## What To Do In 1.x
+## Migration Approach
 
-You do not need to migrate working 1.x code while 2.0 is in RC. When you are
-ready to test the RC:
+When you are ready to migrate working 1.x code:
 
 - Keep provider setup, prompts, sources, and output requirements separated in
   your own code.
@@ -132,9 +126,9 @@ ready to test the RC:
 - Use `run()` and `run_many()` for realtime source patterns, and `defer()`
   only when provider-side deferred delivery is the workflow you want.
 
-## What Is Available In The RC
+## The 2.0 Surface
 
-The 2.0 interaction model is available in the current release candidate:
+The 2.0 interaction model includes:
 
 - `run()` and `run_many()` now return the 2.0 result model: `run()` returns an
   `Output` (named facets `text`, `structured`, `reasoning`, `tool_calls`,
@@ -156,12 +150,6 @@ The 2.0 interaction model is available in the current release candidate:
 and `collect_deferred()` returns an `OutputCollection`. Persistent caching
 returns through `prepare_environment()` / `Environment(cache=...)`.
 `create_cache()`, `defer_many()`, and `Options` are removed.
-
-## During The RC Cycle
-
-This page is the public migration contract for the release-candidate cycle. It
-will track any deliberate pre-stable changes so downstream developers can test
-the exact API that is being prepared for stable 2.0.
 
 ---
 

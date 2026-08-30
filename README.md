@@ -6,10 +6,8 @@ provider differences, and normalized results.
 
 ## Install
 
-Pollux 2.0 is currently a release candidate:
-
 ```bash
-pip install --pre --upgrade pollux-ai
+pip install --upgrade pollux-ai
 ```
 
 Set the key for the provider you want to use:
@@ -96,14 +94,14 @@ The advanced entry points use the same `Environment`, `Input`, `Output`, and
 
 ## Documentation
 
-- [Getting started](https://polluxlib.dev/next/getting-started/)
-- [Sending content](https://polluxlib.dev/next/sending-content/)
-- [Structured output](https://polluxlib.dev/next/structured-data/)
-- [Conversations, tools, and streaming](https://polluxlib.dev/next/agent-loop/)
-- [Deferred work](https://polluxlib.dev/next/submitting-work-for-later-collection/)
-- [Provider capabilities](https://polluxlib.dev/next/reference/provider-capabilities/)
-- [API reference](https://polluxlib.dev/next/reference/api/)
-- [Migrating from 1.x](https://polluxlib.dev/next/migrating-to-v2/)
+- [Getting started](https://polluxlib.dev/latest/getting-started/)
+- [Sending content](https://polluxlib.dev/latest/sending-content/)
+- [Structured output](https://polluxlib.dev/latest/structured-data/)
+- [Conversations, tools, and streaming](https://polluxlib.dev/latest/agent-loop/)
+- [Deferred work](https://polluxlib.dev/latest/submitting-work-for-later-collection/)
+- [Provider capabilities](https://polluxlib.dev/latest/reference/provider-capabilities/)
+- [API reference](https://polluxlib.dev/latest/reference/api/)
+- [Migrating from 1.x](https://polluxlib.dev/latest/migrating-to-v2/)
 
 ## Development
 
@@ -112,7 +110,7 @@ uv sync
 just check
 ```
 
-See [Contributing](https://polluxlib.dev/next/contributing/) for the repository
+See [Contributing](https://polluxlib.dev/latest/contributing/) for the repository
 layout and focused development commands.
 
 ## License

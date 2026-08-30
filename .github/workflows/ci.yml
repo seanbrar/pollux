@@ -6,6 +6,13 @@ name: Continuous Integration
     branches: [main, v1, "release/**"]
   pull_request:
     branches: [main, v1, "release/**"]
+  workflow_dispatch:
+    inputs:
+      api_tests:
+        description: Run credentialed provider API tests
+        required: false
+        default: false
+        type: boolean
   # Run API tests nightly to detect provider-side drift during quiet periods
   schedule:
     - cron: "0 8 * * *" # 8am UTC daily
@@ -38,7 +45,10 @@ jobs:
 
   api-tests:
     # Run API tests exactly once to avoid exhausting shared quota.
-    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.api_tests)
     uses: ./.github/workflows/reusable-checks.yml
     secrets: inherit
     with:
