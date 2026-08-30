@@ -1405,78 +1405,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pollux.OutputRequirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        OutputRequirements
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pollux.OutputRequirements-functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Functions
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Functions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#pollux.OutputRequirements.output_schema_json" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_schema_json
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pollux.OutputRequirements.output_schema_model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_schema_model
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pollux.OutputRequirements.output_schema_hash" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_schema_hash
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pollux.OutputRequirements.provider_options_for" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        provider_options_for
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#pollux.Continuation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1815,17 +1743,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pollux.PlanningError" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PlanningError
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#pollux.InternalError" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2096,7 +2013,7 @@ stable environments, continuation, or tool loops, use :func:<code>interact</code
                 <code>prompt</code>
             </td>
             <td>
-                  <code><span title="str">str</span> | None</code>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2104,7 +2021,7 @@ stable environments, continuation, or tool loops, use :func:<code>interact</code
               </div>
             </td>
             <td>
-                  <code>None</code>
+                <em>required</em>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -2386,7 +2303,8 @@ print(result.text)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">130</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">129</span>
+<span class="normal">130</span>
 <span class="normal">131</span>
 <span class="normal">132</span>
 <span class="normal">133</span>
@@ -2463,8 +2381,12 @@ print(result.text)</p>
 <span class="normal">204</span>
 <span class="normal">205</span>
 <span class="normal">206</span>
-<span class="normal">207</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
-    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">source</span><span class="p">:</span> <span class="n">Source</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2517,6 +2439,11 @@ print(result.text)</p>
 <span class="sd">        result = await run(&quot;Summarize.&quot;, source=Source.from_file(&quot;doc.pdf&quot;), config=config)</span>
 <span class="sd">        print(result.text)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">sources</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+            <span class="s2">&quot;source and sources are mutually exclusive&quot;</span><span class="p">,</span>
+            <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass one source with source=, or several with sources=.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
     <span class="k">if</span> <span class="n">environment</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
             <span class="s2">&quot;environment cannot be combined with inline source/sources&quot;</span><span class="p">,</span>
@@ -2575,7 +2502,7 @@ print(result.text)</p>
                 <code>prompts</code>
             </td>
             <td>
-                  <code><span title="str">str</span> | <span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span> | None] | None</code>
+                  <code><span title="str">str</span> | <span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2583,7 +2510,7 @@ print(result.text)</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                <em>required</em>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -2927,7 +2854,7 @@ for answer in results.answers:
 <span class="normal">692</span>
 <span class="normal">693</span>
 <span class="normal">694</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_many</span><span class="p">(</span>
-    <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
@@ -3266,11 +3193,7 @@ while result.tool_calls:
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
-<span class="normal">213</span>
-<span class="normal">214</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">214</span>
 <span class="normal">215</span>
 <span class="normal">216</span>
 <span class="normal">217</span>
@@ -3331,7 +3254,11 @@ while result.tool_calls:
 <span class="normal">272</span>
 <span class="normal">273</span>
 <span class="normal">274</span>
-<span class="normal">275</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">interact</span><span class="p">(</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">interact</span><span class="p">(</span>
     <span class="n">environment</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
     <span class="nb">input</span><span class="p">:</span> <span class="n">Input</span><span class="p">,</span>  <span class="c1"># noqa: A002 - &quot;input&quot; is the canonical v2 primitive name</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3663,11 +3590,7 @@ mid-stream provider failure raises from the iterator rather than emitting a
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">278</span>
-<span class="normal">279</span>
-<span class="normal">280</span>
-<span class="normal">281</span>
-<span class="normal">282</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">282</span>
 <span class="normal">283</span>
 <span class="normal">284</span>
 <span class="normal">285</span>
@@ -3733,7 +3656,11 @@ mid-stream provider failure raises from the iterator rather than emitting a
 <span class="normal">345</span>
 <span class="normal">346</span>
 <span class="normal">347</span>
-<span class="normal">348</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream</span><span class="p">(</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span>
+<span class="normal">352</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream</span><span class="p">(</span>
     <span class="n">environment</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
     <span class="nb">input</span><span class="p">:</span> <span class="n">Input</span><span class="p">,</span>  <span class="c1"># noqa: A002 - &quot;input&quot; is the canonical v2 primitive name</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3918,22 +3845,6 @@ returned environment reuse it by identity.</p>
                   <code>None</code>
             </td>
           </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>metadata</code>
-            </td>
-            <td>
-                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Optional provider-neutral metadata for planning.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
       </tbody>
     </table>
 
@@ -4026,17 +3937,13 @@ results = await run_many(prompts, environment=environment, config=config)</p>
 <span class="normal">746</span>
 <span class="normal">747</span>
 <span class="normal">748</span>
-<span class="normal">749</span>
-<span class="normal">750</span>
-<span class="normal">751</span>
-<span class="normal">752</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prepare_environment</span><span class="p">(</span>
+<span class="normal">749</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prepare_environment</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
     <span class="n">instructions</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">tools</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">ToolDeclaration</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">cache</span><span class="p">:</span> <span class="n">CacheSetting</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Environment</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Prepare a reusable :class:`Environment`, front-loading cache/upload I/O.</span>
 
@@ -4054,7 +3961,6 @@ results = await run_many(prompts, environment=environment, config=config)</p>
 <span class="sd">        cache: Cache preference: a :class:`CachePolicy` for persistent caching,</span>
 <span class="sd">            ``&quot;auto&quot;`` for provider-managed caching, ``&quot;none&quot;`` to disable, or</span>
 <span class="sd">            ``None`` for the default.</span>
-<span class="sd">        metadata: Optional provider-neutral metadata for planning.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        The prepared :class:`Environment`.</span>
@@ -4073,7 +3979,6 @@ results = await run_many(prompts, environment=environment, config=config)</p>
         <span class="n">sources</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">sources</span><span class="p">),</span>
         <span class="n">tools</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">tools</span><span class="p">)</span> <span class="k">if</span> <span class="n">tools</span> <span class="k">else</span> <span class="p">(),</span>
         <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
-        <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">CachePolicy</span><span class="p">):</span>
         <span class="n">provider</span> <span class="o">=</span> <span class="n">_get_provider</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
@@ -4123,7 +4028,7 @@ deferred delivery and are intentionally not part of this surface.</p>
                 <code>prompts</code>
             </td>
             <td>
-                  <code><span title="str">str</span> | <span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span> | None] | None</code>
+                  <code><span title="str">str</span> | <span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4131,7 +4036,7 @@ deferred delivery and are intentionally not part of this surface.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                <em>required</em>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4340,9 +4245,7 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">549</span>
-<span class="normal">550</span>
-<span class="normal">551</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">551</span>
 <span class="normal">552</span>
 <span class="normal">553</span>
 <span class="normal">554</span>
@@ -4411,7 +4314,7 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 <span class="normal">617</span>
 <span class="normal">618</span>
 <span class="normal">619</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">defer</span><span class="p">(</span>
-    <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">prompts</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">config</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
@@ -4453,9 +4356,7 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 <span class="sd">    Returns:</span>
 <span class="sd">        A serializable :class:`DeferredHandle` for the submitted job.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">prompt_tuple</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="p">(</span><span class="n">prompts</span><span class="p">,)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="kc">None</span><span class="p">)))</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prompts</span><span class="p">)</span>
-    <span class="p">)</span>
+    <span class="n">prompt_tuple</span> <span class="o">=</span> <span class="p">(</span><span class="n">prompts</span><span class="p">,)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prompts</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">prompt_tuple</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
             <span class="s2">&quot;defer() requires at least one prompt&quot;</span><span class="p">,</span>
@@ -4499,15 +4400,15 @@ Pass the same schema to :func:<code>collect_deferred</code> to rehydrate.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">755</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">752</span>
+<span class="normal">753</span>
+<span class="normal">754</span>
+<span class="normal">755</span>
 <span class="normal">756</span>
 <span class="normal">757</span>
 <span class="normal">758</span>
 <span class="normal">759</span>
-<span class="normal">760</span>
-<span class="normal">761</span>
-<span class="normal">762</span>
-<span class="normal">763</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inspect_deferred</span><span class="p">(</span>
+<span class="normal">760</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inspect_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeferredSnapshot</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Inspect the current state of a deferred job.&quot;&quot;&quot;</span>
@@ -4585,7 +4486,10 @@ output rehydration. Must match the schema used at submission time.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">766</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">763</span>
+<span class="normal">764</span>
+<span class="normal">765</span>
+<span class="normal">766</span>
 <span class="normal">767</span>
 <span class="normal">768</span>
 <span class="normal">769</span>
@@ -4606,10 +4510,7 @@ output rehydration. Must match the schema used at submission time.</p>
 <span class="normal">784</span>
 <span class="normal">785</span>
 <span class="normal">786</span>
-<span class="normal">787</span>
-<span class="normal">788</span>
-<span class="normal">789</span>
-<span class="normal">790</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect_deferred</span><span class="p">(</span>
+<span class="normal">787</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">response_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -4652,15 +4553,15 @@ output rehydration. Must match the schema used at submission time.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">793</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">790</span>
+<span class="normal">791</span>
+<span class="normal">792</span>
+<span class="normal">793</span>
 <span class="normal">794</span>
 <span class="normal">795</span>
 <span class="normal">796</span>
 <span class="normal">797</span>
-<span class="normal">798</span>
-<span class="normal">799</span>
-<span class="normal">800</span>
-<span class="normal">801</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_deferred</span><span class="p">(</span>
+<span class="normal">798</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_deferred</span><span class="p">(</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">DeferredHandle</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Request provider-side cancellation for a deferred job.&quot;&quot;&quot;</span>
@@ -7201,8 +7102,7 @@ from a raw dict schema with :meth:<code>ToolDeclaration.from_dict</code>.</p>
 <span class="normal">102</span>
 <span class="normal">103</span>
 <span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">105</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Environment</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The reusable, stable model-facing setup around interactions.</span>
 
@@ -7215,7 +7115,6 @@ from a raw dict schema with :meth:<code>ToolDeclaration.from_dict</code>.</p>
     <span class="n">sources</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Source</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
     <span class="n">tools</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">ToolDeclaration</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
     <span class="n">cache</span><span class="p">:</span> <span class="n">CacheSetting</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Freeze the source and tool sequences to immutable tuples.&quot;&quot;&quot;</span>
@@ -7227,9 +7126,9 @@ from a raw dict schema with :meth:<code>ToolDeclaration.from_dict</code>.</p>
 
 <span class="sd">        The fingerprint covers instructions, ordered sources, ordered tools,</span>
 <span class="sd">        and the active provider. Model identity belongs to :class:`Config` and</span>
-<span class="sd">        must be composed separately by durable runtimes. Cache preferences and</span>
-<span class="sd">        metadata are deliberately excluded because they do not change the</span>
-<span class="sd">        model-visible environment.</span>
+<span class="sd">        must be composed separately by durable runtimes. Cache preferences are</span>
+<span class="sd">        deliberately excluded because they do not change the model-visible</span>
+<span class="sd">        environment.</span>
 
 <span class="sd">        Fingerprints remain stable across compatible Pollux releases. A future</span>
 <span class="sd">        semantic change will increment the embedded fingerprint version.</span>
@@ -7303,16 +7202,17 @@ from a raw dict schema with :meth:<code>ToolDeclaration.from_dict</code>.</p>
         <p>Return stable identity for the provider-visible environment.</p>
 <p>The fingerprint covers instructions, ordered sources, ordered tools,
 and the active provider. Model identity belongs to :class:<code>Config</code> and
-must be composed separately by durable runtimes. Cache preferences and
-metadata are deliberately excluded because they do not change the
-model-visible environment.</p>
+must be composed separately by durable runtimes. Cache preferences are
+deliberately excluded because they do not change the model-visible
+environment.</p>
 <p>Fingerprints remain stable across compatible Pollux releases. A future
 semantic change will increment the embedded fingerprint version.</p>
 
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/interaction/environment.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 58</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 57</span>
+<span class="normal"> 58</span>
 <span class="normal"> 59</span>
 <span class="normal"> 60</span>
 <span class="normal"> 61</span>
@@ -7359,15 +7259,14 @@ semantic change will increment the embedded fingerprint version.</p>
 <span class="normal">102</span>
 <span class="normal">103</span>
 <span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">fingerprint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="normal">105</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">fingerprint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return stable identity for the provider-visible environment.</span>
 
 <span class="sd">    The fingerprint covers instructions, ordered sources, ordered tools,</span>
 <span class="sd">    and the active provider. Model identity belongs to :class:`Config` and</span>
-<span class="sd">    must be composed separately by durable runtimes. Cache preferences and</span>
-<span class="sd">    metadata are deliberately excluded because they do not change the</span>
-<span class="sd">    model-visible environment.</span>
+<span class="sd">    must be composed separately by durable runtimes. Cache preferences are</span>
+<span class="sd">    deliberately excluded because they do not change the model-visible</span>
+<span class="sd">    environment.</span>
 
 <span class="sd">    Fingerprints remain stable across compatible Pollux releases. A future</span>
 <span class="sd">    semantic change will increment the embedded fingerprint version.</span>
@@ -7793,7 +7692,13 @@ to tuples.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/interaction/collection.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">24</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
 <span class="normal">25</span>
 <span class="normal">26</span>
 <span class="normal">27</span>
@@ -7852,23 +7757,11 @@ to tuples.</p>
 <span class="normal">80</span>
 <span class="normal">81</span>
 <span class="normal">82</span>
-<span class="normal">83</span>
-<span class="normal">84</span>
-<span class="normal">85</span>
-<span class="normal">86</span>
-<span class="normal">87</span>
-<span class="normal">88</span>
-<span class="normal">89</span>
-<span class="normal">90</span>
-<span class="normal">91</span>
-<span class="normal">92</span>
-<span class="normal">93</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">83</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">OutputCollection</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Aggregate result for a multi-call source pattern.&quot;&quot;&quot;</span>
 
     <span class="n">outputs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Output</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
-    <span class="n">prompt_indexes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">source_indexes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Coerce the outputs sequence to an immutable tuple.&quot;&quot;&quot;</span>
@@ -7910,13 +7803,15 @@ to tuples.</p>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">status</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CollectionStatus</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Partial-completion status based on answer presence.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Summarize whether the interactions completed without errors.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
             <span class="k">return</span> <span class="s2">&quot;ok&quot;</span>
-        <span class="n">empty</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">output</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-        <span class="k">if</span> <span class="n">empty</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+        <span class="n">failed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="mi">1</span> <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">completion_status</span> <span class="o">==</span> <span class="s2">&quot;error&quot;</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">failed</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
             <span class="k">return</span> <span class="s2">&quot;error&quot;</span>
-        <span class="k">if</span> <span class="n">empty</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">failed</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="s2">&quot;partial&quot;</span>
         <span class="k">return</span> <span class="s2">&quot;ok&quot;</span>
 
@@ -7927,10 +7822,6 @@ to tuples.</p>
             <span class="s2">&quot;outputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">output</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">()</span> <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">],</span>
             <span class="s2">&quot;usage&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">usage</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">(),</span>
         <span class="p">}</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prompt_indexes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;prompt_indexes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_indexes</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_indexes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;source_indexes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_indexes</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">payload</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -8035,7 +7926,7 @@ to tuples.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Partial-completion status based on answer presence.</p>
+        <p>Summarize whether the interactions completed without errors.</p>
 
     </div>
 
@@ -8062,360 +7953,21 @@ to tuples.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pollux/interaction/collection.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">82</span>
-<span class="normal">83</span>
-<span class="normal">84</span>
-<span class="normal">85</span>
-<span class="normal">86</span>
-<span class="normal">87</span>
-<span class="normal">88</span>
-<span class="normal">89</span>
-<span class="normal">90</span>
-<span class="normal">91</span>
-<span class="normal">92</span>
-<span class="normal">93</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_jsonable</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_jsonable</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Serialize to a JSON-compatible dict with per-output detail and aggregates.&quot;&quot;&quot;</span>
     <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
         <span class="s2">&quot;outputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">output</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">()</span> <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">],</span>
         <span class="s2">&quot;usage&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">usage</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">(),</span>
     <span class="p">}</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prompt_indexes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;prompt_indexes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_indexes</span><span class="p">)</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_indexes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;source_indexes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_indexes</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">payload</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<a id="pollux.OutputRequirements"></a>
-    <div class="doc doc-contents first">
-
-
-
-        <p>Per-interaction controls for the response Pollux asks the model to produce.</p>
-
-
-
-
-
-
-
-
-              <details class="mkdocstrings-source">
-                <summary>Source code in <code>src/pollux/interaction/requirements.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 30</span>
-<span class="normal"> 31</span>
-<span class="normal"> 32</span>
-<span class="normal"> 33</span>
-<span class="normal"> 34</span>
-<span class="normal"> 35</span>
-<span class="normal"> 36</span>
-<span class="normal"> 37</span>
-<span class="normal"> 38</span>
-<span class="normal"> 39</span>
-<span class="normal"> 40</span>
-<span class="normal"> 41</span>
-<span class="normal"> 42</span>
-<span class="normal"> 43</span>
-<span class="normal"> 44</span>
-<span class="normal"> 45</span>
-<span class="normal"> 46</span>
-<span class="normal"> 47</span>
-<span class="normal"> 48</span>
-<span class="normal"> 49</span>
-<span class="normal"> 50</span>
-<span class="normal"> 51</span>
-<span class="normal"> 52</span>
-<span class="normal"> 53</span>
-<span class="normal"> 54</span>
-<span class="normal"> 55</span>
-<span class="normal"> 56</span>
-<span class="normal"> 57</span>
-<span class="normal"> 58</span>
-<span class="normal"> 59</span>
-<span class="normal"> 60</span>
-<span class="normal"> 61</span>
-<span class="normal"> 62</span>
-<span class="normal"> 63</span>
-<span class="normal"> 64</span>
-<span class="normal"> 65</span>
-<span class="normal"> 66</span>
-<span class="normal"> 67</span>
-<span class="normal"> 68</span>
-<span class="normal"> 69</span>
-<span class="normal"> 70</span>
-<span class="normal"> 71</span>
-<span class="normal"> 72</span>
-<span class="normal"> 73</span>
-<span class="normal"> 74</span>
-<span class="normal"> 75</span>
-<span class="normal"> 76</span>
-<span class="normal"> 77</span>
-<span class="normal"> 78</span>
-<span class="normal"> 79</span>
-<span class="normal"> 80</span>
-<span class="normal"> 81</span>
-<span class="normal"> 82</span>
-<span class="normal"> 83</span>
-<span class="normal"> 84</span>
-<span class="normal"> 85</span>
-<span class="normal"> 86</span>
-<span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
-<span class="normal"> 90</span>
-<span class="normal"> 91</span>
-<span class="normal"> 92</span>
-<span class="normal"> 93</span>
-<span class="normal"> 94</span>
-<span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
-<span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span>
-<span class="normal">102</span>
-<span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span>
-<span class="normal">107</span>
-<span class="normal">108</span>
-<span class="normal">109</span>
-<span class="normal">110</span>
-<span class="normal">111</span>
-<span class="normal">112</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">OutputRequirements</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-interaction controls for the response Pollux asks the model to produce.&quot;&quot;&quot;</span>
-
-    <span class="n">output_schema</span><span class="p">:</span> <span class="n">ResponseSchemaInput</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">max_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">reasoning_effort</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">reasoning_budget_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">tool_choice</span><span class="p">:</span> <span class="n">ToolChoice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Raw provider-scoped generation options keyed by provider name. Passed</span>
-    <span class="c1">#: through without normalization at the active provider boundary.</span>
-    <span class="n">provider_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate requirement shapes early for clear errors.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span>
-            <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="p">(</span>
-                <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
-                <span class="ow">and</span> <span class="n">_is_base_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-            <span class="p">)</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;output_schema must be a Pydantic model class or JSON schema dict&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass a BaseModel subclass or a dict following JSON Schema.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
-            <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_tokens</span> <span class="o">&lt;=</span> <span class="mi">0</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;max_tokens must be a positive integer&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass max_tokens=16384 or greater for thinking models.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
-            <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
-            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span> <span class="o">&lt;</span> <span class="mi">0</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;reasoning_budget_tokens must be a non-negative integer&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass reasoning_budget_tokens=0 or a larger integer.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_effort</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">reasoning_budget_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;reasoning_effort and reasoning_budget_tokens are mutually exclusive&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Choose either qualitative effort or an explicit token budget.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
-            <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
-        <span class="p">):</span>
-            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
-                <span class="s2">&quot;seed must be an integer&quot;</span><span class="p">,</span>
-                <span class="n">hint</span><span class="o">=</span><span class="s2">&quot;Pass seed=42 for reproducible sampling where supported.&quot;</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">_validate_provider_options</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return JSON Schema for provider APIs.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">response_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the Pydantic model class when one was provided.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">response_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a stable hash of the JSON Schema.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">response_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">provider_options_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return raw generation options for the active provider.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
-        <span class="n">payload</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span> <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-<h2 id="pollux.OutputRequirements-functions">Functions<a href="#pollux.OutputRequirements-functions" class="headerlink" title="Permanent link">&para;</a></h2>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.OutputRequirements.output_schema_json" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">output_schema_json</span>
-
-
-<a href="#pollux.OutputRequirements.output_schema_json" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">output_schema_json</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return JSON Schema for provider APIs.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/interaction/requirements.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">95</span>
-<span class="normal">96</span>
-<span class="normal">97</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">output_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return JSON Schema for provider APIs.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">response_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.OutputRequirements.output_schema_model" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">output_schema_model</span>
-
-
-<a href="#pollux.OutputRequirements.output_schema_model" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">output_schema_model</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return the Pydantic model class when one was provided.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/interaction/requirements.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">output_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the Pydantic model class when one was provided.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">response_schema_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.OutputRequirements.output_schema_hash" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">output_schema_hash</span>
-
-
-<a href="#pollux.OutputRequirements.output_schema_hash" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">output_schema_hash</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return a stable hash of the JSON Schema.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/interaction/requirements.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">output_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a stable hash of the JSON Schema.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">response_schema_hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="pollux.OutputRequirements.provider_options_for" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">provider_options_for</span>
-
-
-<a href="#pollux.OutputRequirements.provider_options_for" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">provider_options_for</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Return raw generation options for the active provider.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pollux/interaction/requirements.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">107</span>
-<span class="normal">108</span>
-<span class="normal">109</span>
-<span class="normal">110</span>
-<span class="normal">111</span>
-<span class="normal">112</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">provider_options_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return raw generation options for the active provider.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">payload</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span> <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -10551,55 +10103,6 @@ agent loops can return structured tool output without repeating
 
 
 
-<a id="pollux.PlanningError"></a>
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="pollux.errors.PolluxError" href="#pollux.PolluxError">PolluxError</a></code></p>
-
-
-
-        <p>Execution planning failed.</p>
-
-
-
-
-
-
-
-
-              <details class="mkdocstrings-source">
-                <summary>Source code in <code>src/pollux/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">27</span>
-<span class="normal">28</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">PlanningError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execution planning failed.&quot;&quot;&quot;</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
 <a id="pollux.InternalError"></a>
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -10618,8 +10121,8 @@ agent loops can return structured tool output without repeating
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">31</span>
-<span class="normal">32</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">InternalError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">27</span>
+<span class="normal">28</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">InternalError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A Pollux internal error (bug) or invariant violation.&quot;&quot;&quot;</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -10669,7 +10172,11 @@ retries without brittle substring matching.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">35</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
 <span class="normal">36</span>
 <span class="normal">37</span>
 <span class="normal">38</span>
@@ -10692,11 +10199,7 @@ retries without brittle substring matching.</p>
 <span class="normal">55</span>
 <span class="normal">56</span>
 <span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span>
-<span class="normal">60</span>
-<span class="normal">61</span>
-<span class="normal">62</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">APIError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
+<span class="normal">58</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">APIError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;API call failed.</span>
 
 <span class="sd">    Providers attach retry metadata so core execution can perform bounded</span>
@@ -10770,8 +10273,8 @@ retries without brittle substring matching.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">128</span>
-<span class="normal">129</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RateLimitError</span><span class="p">(</span><span class="n">APIError</span><span class="p">):</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">124</span>
+<span class="normal">125</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RateLimitError</span><span class="p">(</span><span class="n">APIError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rate limit exceeded (HTTP 429).&quot;&quot;&quot;</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -10819,8 +10322,8 @@ retries without brittle substring matching.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">124</span>
-<span class="normal">125</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CacheError</span><span class="p">(</span><span class="n">APIError</span><span class="p">):</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">120</span>
+<span class="normal">121</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CacheError</span><span class="p">(</span><span class="n">APIError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Cache operation failed.&quot;&quot;&quot;</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -10868,15 +10371,15 @@ retries without brittle substring matching.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pollux/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">132</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
 <span class="normal">133</span>
 <span class="normal">134</span>
 <span class="normal">135</span>
-<span class="normal">136</span>
-<span class="normal">137</span>
-<span class="normal">138</span>
-<span class="normal">139</span>
-<span class="normal">140</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DeferredNotReadyError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
+<span class="normal">136</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DeferredNotReadyError</span><span class="p">(</span><span class="n">PolluxError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Deferred job is not yet in a terminal state.&quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snapshot</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>

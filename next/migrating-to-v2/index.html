@@ -765,10 +765,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-to-do-in-1x" class="md-nav__link">
+  <a href="#migration-approach" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What To Do In 1.x
+        Migration Approach
       
     </span>
   </a>
@@ -776,21 +776,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-is-available-in-the-rc" class="md-nav__link">
+  <a href="#the-20-surface" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Is Available In The RC
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#during-the-rc-cycle" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        During The RC Cycle
+        The 2.0 Surface
       
     </span>
   </a>
@@ -997,22 +986,15 @@
   
 
 
-<!-- Intent: Guide Pollux 1.x users to the shipped 2.0 release-candidate API.
-     Teach what stayed familiar, what changed, and how to migrate without
-     implying that the RC has stable-release guarantees. Assumes the reader
-     has used Pollux 1.x. Register: warm guide with precise caveats. -->
+<!-- Intent: Guide Pollux 1.x users to the 2.0 API. Teach what stayed familiar,
+     what changed, and how to migrate. Assumes the reader has used Pollux 1.x.
+     Register: warm guide with precise caveats. -->
 
 <h1 id="migrating-to-pollux-20">Migrating to Pollux 2.0<a class="headerlink" href="#migrating-to-pollux-20" title="Permanent link">&para;</a></h1>
-<div class="admonition warning">
-<p class="admonition-title">Release candidate</p>
-<p>Pollux 2.0 is available as a release candidate, not a stable release. The
-API on this page is shipped in the RC and on <code>main</code>, but interaction details
-may still change before stable 2.0. Install it with
-<code>pip install --pre --upgrade pollux-ai</code>.</p>
-</div>
+<p>Install or upgrade with <code>pip install --upgrade pollux-ai</code>.</p>
 <p>Pollux 2.0 is a major-version cleanup of the interaction model. It names the
 pieces of a model interaction directly: the environment the model runs in, the
-input for this turn, the output requirements, and the continuation state that
+input for this turn, the output it returns, and the continuation state that
 carries work forward.</p>
 <p>Most one-shot code should remain recognizable. The bigger changes affect code
 that builds agent loops, persists continuation state, prepares caches, submits
@@ -1049,15 +1031,15 @@ interaction pieces.</p>
 <thead>
 <tr>
 <th>1.x</th>
-<th>2.0 RC shape</th>
+<th>2.0 shape</th>
 <th>Why</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>Options(...)</code></td>
-<td><code>Environment</code>, <code>Input</code>, and <code>OutputRequirements</code></td>
-<td>Provider, turn input, and output contract become separate objects.</td>
+<td><code>Environment</code>, <code>Input</code>, and execution keyword arguments</td>
+<td>Stable context, turn input, and generation controls become explicit.</td>
 </tr>
 <tr>
 <td><code>continue_tool(env, results)</code></td>
@@ -1087,7 +1069,7 @@ interaction pieces.</p>
 <span class="n">text</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">]</span>
 <span class="n">payload</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 
-<span class="c1"># 2.0 RC</span>
+<span class="c1"># 2.0</span>
 <span class="n">text</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span>
 <span class="n">payload</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">to_jsonable</span><span class="p">()</span>
 </code></pre></div>
@@ -1096,7 +1078,7 @@ interaction-shaped API:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># 1.x</span>
 <span class="n">next_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">continue_tool</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">tool_results</span><span class="p">)</span>
 
-<span class="c1"># 2.0 RC</span>
+<span class="c1"># 2.0</span>
 <span class="n">next_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interact</span><span class="p">(</span>
     <span class="n">environment</span><span class="p">,</span>
     <span class="n">Input</span><span class="p">(</span><span class="n">continuation</span><span class="o">=</span><span class="n">continuation</span><span class="p">,</span> <span class="n">tool_results</span><span class="o">=</span><span class="n">tool_results</span><span class="p">),</span>
@@ -1115,17 +1097,16 @@ pass <code>expected_provider=</code>, a mismatched provider) with an actionable 
 of misreading it.</p>
 <p>A continuation is opaque and bound to its provider. Applications serialize,
 restore, and pass it back unchanged; provider response IDs and replay blocks are
-not editable or portable. The final v2 RC uses continuation schema version 2 and
-rejects schema-v1 RC artifacts. <code>Continuation.from_openai_messages()</code> and
+not editable or portable. Pollux 2.0 uses continuation schema version 2 and
+rejects schema-v1 prerelease artifacts. <code>Continuation.from_openai_messages()</code> and
 <code>to_openai_messages()</code> were removed; use typed <code>Message</code> history after grooming
 or importing an application transcript.</p>
 <p>For durable run identity, use
 <code>environment.fingerprint(provider=config.provider)</code> and compose <code>config.model</code>
 plus application policy/schema versions separately. <code>EnvironmentSnapshot</code> is
 now internal and is no longer a supported identity route.</p>
-<h2 id="what-to-do-in-1x">What To Do In 1.x<a class="headerlink" href="#what-to-do-in-1x" title="Permanent link">&para;</a></h2>
-<p>You do not need to migrate working 1.x code while 2.0 is in RC. When you are
-ready to test the RC:</p>
+<h2 id="migration-approach">Migration Approach<a class="headerlink" href="#migration-approach" title="Permanent link">&para;</a></h2>
+<p>When you are ready to migrate working 1.x code:</p>
 <ul>
 <li>Keep provider setup, prompts, sources, and output requirements separated in
   your own code.</li>
@@ -1138,8 +1119,8 @@ ready to test the RC:</p>
 <li>Use <code>run()</code> and <code>run_many()</code> for realtime source patterns, and <code>defer()</code>
   only when provider-side deferred delivery is the workflow you want.</li>
 </ul>
-<h2 id="what-is-available-in-the-rc">What Is Available In The RC<a class="headerlink" href="#what-is-available-in-the-rc" title="Permanent link">&para;</a></h2>
-<p>The 2.0 interaction model is available in <code>v2.0.0-rc.1</code> and on <code>main</code>:</p>
+<h2 id="the-20-surface">The 2.0 Surface<a class="headerlink" href="#the-20-surface" title="Permanent link">&para;</a></h2>
+<p>The 2.0 interaction model includes:</p>
 <ul>
 <li><code>run()</code> and <code>run_many()</code> now return the 2.0 result model: <code>run()</code> returns an
   <code>Output</code> (named facets <code>text</code>, <code>structured</code>, <code>reasoning</code>, <code>tool_calls</code>,
@@ -1161,10 +1142,6 @@ ready to test the RC:</p>
 and <code>collect_deferred()</code> returns an <code>OutputCollection</code>. Persistent caching
 returns through <code>prepare_environment()</code> / <code>Environment(cache=...)</code>.
 <code>create_cache()</code>, <code>defer_many()</code>, and <code>Options</code> are removed.</p>
-<h2 id="during-the-rc-cycle">During The RC Cycle<a class="headerlink" href="#during-the-rc-cycle" title="Permanent link">&para;</a></h2>
-<p>This page is the public migration contract for the release-candidate cycle. It
-will track any deliberate pre-stable changes so downstream developers can test
-the exact API that is being prepared for stable 2.0.</p>
 <hr />
 <p>For the concepts behind the model, read <a href="../concepts/">Core Concepts</a>.
 For the current provider contract, see

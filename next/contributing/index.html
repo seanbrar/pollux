@@ -891,21 +891,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#before-opening-a-pr" class="md-nav__link">
+  <a href="#making-a-change" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Before Opening a PR
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pull-requests" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pull Requests
+        Making a Change
       
     </span>
   </a>
@@ -984,56 +973,32 @@
   
 
 
-<!-- Intent: Contributor-facing workflow reference. Cover setup, PR and issue
-     expectations, docs standards, and cookbook rules. Do NOT duplicate the
-     full contributor guide from repo-root docs or explain Pollux concepts for
-     end users. Assumes the reader is contributing to this repository.
-     Register: reference. -->
-
 <h1 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h1>
-<p>Thanks for considering a contribution to Pollux. Whether it's a bug fix, a
-new cookbook recipe, or a docs improvement, small, focused changes with
-focused rationale are what move this project forward.</p>
+<p>Bug fixes, focused features, and documentation improvements are welcome.</p>
 <h2 id="development-setup">Development Setup<a class="headerlink" href="#development-setup" title="Permanent link">&para;</a></h2>
 <p>We use <code>uv</code> for dependency management:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w">                       </span><span class="c1"># installs the project + dev/test/docs/lint deps</span>
 just<span class="w"> </span>check<span class="w">                    </span><span class="c1"># lint + typecheck + tests</span>
 </code></pre></div>
 <p>Requires Python <code>&gt;=3.10,&lt;3.15</code> (3.13 recommended).</p>
-<h2 id="before-opening-a-pr">Before Opening a PR<a class="headerlink" href="#before-opening-a-pr" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Run <code>just check</code> (lint + typecheck + tests).</li>
-<li>If docs changed, preview locally: <code>just docs-serve</code>.</li>
-<li>Write a test plan — describe how you verified the change and why.</li>
-<li>Keep changes focused: one PR, one idea.</li>
-</ol>
-<h2 id="pull-requests">Pull Requests<a class="headerlink" href="#pull-requests" title="Permanent link">&para;</a></h2>
-<p><strong>Title:</strong> Conventional Commits style — <code>type(scope): subject</code> (imperative).</p>
-<p>Examples: <code>feat(api): add playlist support</code>, <code>fix(cache): handle expired tokens</code>,
-<code>docs(cookbook): add source-pattern recipe</code>.</p>
-<p><strong>Body</strong> follows the <a href="https://github.com/seanbrar/pollux/blob/main/.github/PULL_REQUEST_TEMPLATE.md">PR template</a>:</p>
-<ol>
-<li><strong>Summary</strong> — what and why, one or two sentences</li>
-<li><strong>Related issue</strong> — <code>Closes #123</code>, or "None" for unprompted changes</li>
-<li><strong>Test plan</strong> — describe verification with evidence</li>
-<li><strong>Notes</strong> (optional) — context not apparent from the diff</li>
-</ol>
-<p><strong>Checklist:</strong></p>
-<ul>
-<li>[ ] PR title follows conventional commits</li>
-<li>[ ] <code>just check</code> passes</li>
-<li>[ ] Tests cover meaningful cases, not only the happy path</li>
-<li>[ ] Docs updated if public API or user-facing behavior changed</li>
-</ul>
+<h2 id="making-a-change">Making a Change<a class="headerlink" href="#making-a-change" title="Permanent link">&para;</a></h2>
+<p>Keep changes focused and run <code>just check</code> before submitting them. If the docs
+change, also run <code>just docs-build</code> or preview them with <code>just docs-serve</code>.</p>
+<p>Maintainers normally commit directly to <code>main</code>. Larger changes may use a branch
+and reach <code>main</code> by fast-forward or squash merge. Pull requests are for external
+contributions and occasions when independent review is useful; there is no
+required body template.</p>
+<p>Commit subjects use <code>&lt;area&gt;: &lt;imperative summary&gt;</code>, for example
+<code>cache: reuse uploads across fan-out</code>. Use a body only for motivation or a
+trade-off that is not apparent from the diff.</p>
 <h2 id="issues">Issues<a class="headerlink" href="#issues" title="Permanent link">&para;</a></h2>
 <p>Issue templates exist for <a href="https://github.com/seanbrar/pollux/issues/new?template=bug.md">bugs</a> and <a href="https://github.com/seanbrar/pollux/issues/new?template=feature.md">feature requests</a>. Keep issues small and concrete.</p>
-<p>When a PR addresses an issue, link it in the <strong>Related issue</strong> section using
-closing keywords (<code>Closes #123</code>, <code>Fixes #456</code>).</p>
+<p>Link an issue when the change actually resolves one; an issue is not required
+before making a change.</p>
 <h2 id="testing-philosophy">Testing Philosophy<a class="headerlink" href="#testing-philosophy" title="Permanent link">&para;</a></h2>
-<p>This project follows the <a href="https://github.com/seanbrar/minimal-tests-maximum-trust">MTMT (Minimal Tests, Maximum Trust)</a> testing standard. See <a href="https://github.com/seanbrar/pollux/blob/main/TESTING.md">TESTING.md</a> for guidance.</p>
-<p>Every PR includes a test plan. The MTMT criteria — architectural guarantee,
-boundary coverage, trivial delegation, non-behavioral change — are the
-vocabulary for explaining why tests were or weren't added.</p>
+<p>Tests should protect the boundary affected by the change. See
+<a href="https://github.com/seanbrar/pollux/blob/main/TESTING.md">TESTING.md</a> for the
+suite layout and commands.</p>
 <h2 id="documentation-standards">Documentation Standards<a class="headerlink" href="#documentation-standards" title="Permanent link">&para;</a></h2>
 <p>Docs are user-facing first. Prioritize clarity, speed to success, and accurate
 examples. When in doubt, cut.</p>
@@ -1065,7 +1030,7 @@ python<span class="w"> </span>-m<span class="w"> </span>cookbook<span class="w">
 <p><strong>Adding a recipe:</strong> create the Python script in <code>cookbook/&lt;category&gt;/</code> and
 reuse shared runtime args from <code>cookbook.utils.runtime</code>. The recipe catalog
 in <a href="../reference/cli/#recipe-catalog">CLI</a> lists all available recipes. Update
-the authoritative topical docs in the same PR when the recipe adds a new
+the authoritative topical docs in the same change when the recipe adds a new
 concept or changes user-facing behavior.</p>
 
 

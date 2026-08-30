@@ -491,15 +491,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#polluxs-pipeline" class="md-nav__link">
+  <a href="#polluxs-interaction-model" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pollux's Pipeline
+        Pollux's Interaction Model
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Pollux&#39;s Pipeline">
+    <nav class="md-nav" aria-label="Pollux&#39;s Interaction Model">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1092,14 +1092,6 @@
   
 
 
-<!-- Intent: Establish the mental model for LLM orchestration through
-     Pollux's lens. Teach domain concepts (multimodal inputs, structured output,
-     tool calling, multi-turn, caching, source patterns, reasoning) BEFORE
-     showing any Pollux API. Then introduce Pollux's four-phase pipeline and
-     the ownership boundary table. Do NOT include runnable code examples or
-     hands-on tutorials, those belong in subsequent pages. Assumes no prior
-     LLM API experience. Register: conceptual/declarative. -->
-
 <h1 id="core-concepts">Core Concepts<a class="headerlink" href="#core-concepts" title="Permanent link">&para;</a></h1>
 <p>Before touching the API, it helps to understand the LLM ecosystem concepts
 that shaped Pollux's design. This page covers those concepts first, then
@@ -1192,29 +1184,26 @@ patterns emerge:</p>
 orchestration layer optimizes for each shape differently: reusing uploads
 in fan-out, parallelizing calls in broadcast.</p>
 <h3 id="reasoning-modes">Reasoning Modes<a class="headerlink" href="#reasoning-modes" title="Permanent link">&para;</a></h3>
-<p>Some models support explicit <strong>reasoning</strong>: an extended thinking phase before
-generating a response. When enabled via an effort control, the model's internal
-reasoning trace may be returned alongside the answer, allowing you to audit
-how it arrived at its conclusions. Support for reasoning varies by model
-family and provider.</p>
+<p>Some models support an explicit <strong>reasoning</strong> phase before generating a
+response. Pollux can request an effort level or token budget and surfaces any
+reasoning content the provider chooses to return. Providers differ in whether
+they return reasoning text, a summary, only token counts, or nothing at all.</p>
 <hr />
-<h2 id="polluxs-pipeline">Pollux's Pipeline<a class="headerlink" href="#polluxs-pipeline" title="Permanent link">&para;</a></h2>
-<p>Pollux implements these concepts through a four-phase pipeline:</p>
+<h2 id="polluxs-interaction-model">Pollux's Interaction Model<a class="headerlink" href="#polluxs-interaction-model" title="Permanent link">&para;</a></h2>
+<p>The explicit interaction API has one small shape:</p>
 <pre class="mermaid"><code>graph LR
-    R[Request] --&gt; P[Plan]
-    P --&gt; E[Execute]
-    E --&gt; X[Extract]</code></pre>
-<p><strong>Request:</strong> Validates and normalizes prompts, sources, config, and options
-into a canonical representation.</p>
-<p><strong>Plan:</strong> Converts the request into deterministic API calls and computes
-cache keys from content hashes.</p>
-<p><strong>Execute:</strong> Uploads content, reuses cached context where possible, and runs
-provider calls concurrently.</p>
-<p><strong>Extract:</strong> Transforms API responses into a stable
-<a href="../sending-content/#output-and-outputcollection-reference"><code>Output</code></a> with
-<code>text</code>, optional <code>structured</code> data, and <code>usage</code> metadata.</p>
-<p>This separation is what lets Pollux handle multimodal inputs and provider
-differences without forcing callers to reimplement orchestration logic.</p>
+    E[Environment] --&gt; C[Provider call]
+    I[Input] --&gt; C
+    CFG[Config] --&gt; C
+    C --&gt; O[Output]</code></pre>
+<p>The environment holds stable instructions, sources, tools, and cache policy.
+The input holds one turn's content and optional continuation state. Config
+chooses the provider and model. Pollux validates that combination, translates
+it at the provider boundary, and returns a normalized
+<a href="../sending-content/#output-and-outputcollection-reference"><code>Output</code></a>.</p>
+<p><code>run()</code> and <code>run_many()</code> are conveniences over the same model. Most programs
+should start with them and introduce <code>Environment</code> and <code>Input</code> only when they
+need conversation state, tools, or prepared caching.</p>
 <h3 id="source-patterns-in-pollux">Source Patterns in Pollux<a class="headerlink" href="#source-patterns-in-pollux" title="Permanent link">&para;</a></h3>
 <p>Pollux expresses source patterns through its two entry points, <code>run()</code> and
 <code>run_many()</code>:</p>
@@ -1231,8 +1220,8 @@ prompt.</p>
     S1[Source 1] --&gt; P[Prompt]
     S2[Source 2] --&gt; P
     S3[Source 3] --&gt; P</code></pre>
-<p>Synthesize across multiple artifacts with a single question. The prompt
-stays stable while sources vary. Keeps comparisons objective.</p>
+<p>Synthesize across multiple artifacts with a single question. Every source is
+part of the same shared context for that call.</p>
 <h4 id="broadcast-many-sources-many-prompts">Broadcast: many sources, many prompts<a class="headerlink" href="#broadcast-many-sources-many-prompts" title="Permanent link">&para;</a></h4>
 <pre class="mermaid"><code>graph LR
     S1[Source 1] --&gt; P1[Prompt 1]
@@ -1242,7 +1231,9 @@ stays stable while sources vary. Keeps comparisons objective.</p>
     S3 --&gt; P1
     S3 --&gt; P2</code></pre>
 <p>Apply the same analysis template across multiple sources. Consistent prompts
-make output comparison and post-processing predictable.</p>
+make output comparison and post-processing predictable. Application code owns
+the outer loop over sources; <code>run_many()</code> handles the prompt set for one source
+or shared source group.</p>
 <h2 id="where-pollux-ends-and-you-begin">Where Pollux Ends and You Begin<a class="headerlink" href="#where-pollux-ends-and-you-begin" title="Permanent link">&para;</a></h2>
 <p>Pollux is an orchestration layer, not a framework. It handles the mechanics
 of getting content to a model and results back to you, but deliberately

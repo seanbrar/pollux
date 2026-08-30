@@ -1064,13 +1064,6 @@
   
 
 
-<!-- Intent: Teach error handling for Pollux pipelines: the exception
-     hierarchy, failure triage, production error patterns (category-specific
-     catching, circuit breakers, partial failures, resume-on-failure). Do NOT
-     re-explain tool calling or conversation mechanics. Assumes the reader has
-     used run() and understands Config. Register: reference + guided
-     applied (patterns). -->
-
 <h1 id="handling-errors-and-recovery">Handling Errors and Recovery<a class="headerlink" href="#handling-errors-and-recovery" title="Permanent link">&para;</a></h1>
 <p>You want your Pollux-based pipeline to handle failures gracefully. Retry
 what's transient, skip what's broken, and log enough to diagnose issues
@@ -1084,8 +1077,7 @@ without parsing error strings.</p>
 <p>Pollux uses a single exception hierarchy rooted at <code>PolluxError</code>:</p>
 <div class="highlight"><pre><span></span><code>PolluxError
 ├── ConfigurationError   # Bad config, missing key, unsupported feature
-├── SourceError          # File not found, invalid arXiv reference
-├── PlanningError        # Execution plan could not be built
+├── SourceError          # Invalid source or content could not be loaded
 ├── InternalError        # Bug or invariant violation inside Pollux
 ├── DeferredNotReadyError # Deferred job is still active
 └── APIError             # Provider call failed
@@ -1309,8 +1301,8 @@ handling, structured logging, and a summary report:</p>
 </tr>
 <tr>
 <td><code>status: "partial"</code></td>
-<td>Some prompts returned empty answers</td>
-<td>Check individual entries in <code>collection.answers</code> to identify which prompts failed</td>
+<td>Some interactions failed while others completed</td>
+<td>Check each output's <code>metrics.completion_status</code> and diagnostics</td>
 </tr>
 <tr>
 <td>Remote source rejected</td>
@@ -1409,24 +1401,22 @@ a systemic issue, not isolated bad files:</p>
     <span class="k">return</span> <span class="n">report</span>
 </code></pre></div>
 <h3 id="distinguishing-status-partial-from-exceptions">Distinguishing <code>status: "partial"</code> from exceptions<a class="headerlink" href="#distinguishing-status-partial-from-exceptions" title="Permanent link">&para;</a></h3>
-<p>Not all problems are exceptions. A <code>status: "partial"</code> result means some
-prompts in a <code>run_many()</code> call returned empty answers. The call succeeded
-but the output is incomplete:</p>
-<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_many</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+<p>Not all problems are exceptions. A collected deferred job can contain both
+successful and failed interactions. In that case, its collection has
+<code>status: "partial"</code> and preserves every output in submission order:</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">collect_deferred</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
 
 <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;ok&quot;</span><span class="p">:</span>
-    <span class="c1"># All answers populated: process normally</span>
+    <span class="c1"># Every interaction completed.</span>
     <span class="k">pass</span>
 <span class="k">elif</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;partial&quot;</span><span class="p">:</span>
-    <span class="c1"># Some answers are empty strings: decide per-answer</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">answers</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">answer</span><span class="p">:</span>
-            <span class="n">process_answer</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">answer</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">output</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">completion_status</span> <span class="o">!=</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span>
+            <span class="n">process_answer</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Empty answer for prompt </span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Interaction </span><span class="si">%d</span><span class="s2"> failed: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">output</span><span class="o">.</span><span class="n">diagnostics</span><span class="o">.</span><span class="n">raw</span><span class="p">)</span>
 <span class="k">elif</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span>
-    <span class="c1"># All answers empty: treat as a failure</span>
-    <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;All answers empty&quot;</span><span class="p">)</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Every interaction failed&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="durable-pipelines-with-resume-on-failure">Durable Pipelines with Resume-on-Failure<a class="headerlink" href="#durable-pipelines-with-resume-on-failure" title="Permanent link">&para;</a></h3>
 <p>For long-running jobs where partial failures are expected, persist a
@@ -1458,9 +1448,10 @@ each item (not only at run end), so you never lose progress. See the
 <li><strong><code>RateLimitError</code> means retries were exhausted.</strong> Pollux already waited
   and retried. If you still get <code>RateLimitError</code>, reduce concurrency or add
   a longer backoff at the workflow level.</li>
-<li><strong>Check <code>result.status</code> or <code>completion_status</code> even on success.</strong> A successful call can return
-  <code>"partial"</code> status with some empty answers. Don't assume all answers are
-  populated because no exception was raised.</li>
+<li><strong>Check collected status and per-output completion state.</strong> A deferred job can
+  finish with only some interactions successful. Empty text alone is not a
+  failure because structured and tool-call outputs may legitimately contain no
+  text.</li>
 <li><strong>Don't catch <code>Exception</code> when you mean <code>PolluxError</code>.</strong> Catching too
   broadly hides bugs in your own code. Catch <code>PolluxError</code> for
   Pollux-specific failures; let everything else propagate.</li>

@@ -272,11 +272,11 @@
       <img src="assets/logo.avif" alt="Pollux" class="pollux-hero__logo-img" width="400" height="600" />
     </div>
     <h1 class="pollux-hero__heading pollux-hero__heading-serif">
-      Multimodal orchestration for LLM APIs
+      Send prompts and files through one Python interface
     </h1>
     <p class="pollux-hero__tagline">
-      You describe what to analyze. Pollux handles source patterns,
-      context caching, and the multimodal plumbing.
+      Pollux handles uploads, shared context, retries, provider differences,
+      and normalized results.
     </p>
     <div class="pollux-hero__actions">
       <a href="getting-started/" class="pollux-hero__cta pollux-hero__cta--primary">
@@ -313,31 +313,31 @@ print(result.text)</code></pre>
 <section class="pollux-features">
   <div class="pollux-features__grid">
     <div class="pollux-features__card">
-      <h2 class="pollux-features__title">Multimodal-first</h2>
+      <h2 class="pollux-features__title">Files and URLs</h2>
       <p class="pollux-features__desc">
         PDFs, images, video, YouTube, arXiv.
-        One interface, any source type.
+        Use the same entry point for each.
       </p>
     </div>
     <div class="pollux-features__card">
-      <h2 class="pollux-features__title">Source patterns</h2>
+      <h2 class="pollux-features__title">Shared context</h2>
       <p class="pollux-features__desc">
-        Fan-out, fan-in, and broadcast execution
-        over your content. No boilerplate.
+        Ask several questions without writing
+        upload and concurrency machinery.
       </p>
     </div>
     <div class="pollux-features__card">
-      <h2 class="pollux-features__title">Context caching</h2>
+      <h2 class="pollux-features__title">Provider differences</h2>
       <p class="pollux-features__desc">
-        Upload once, reuse across prompts.
-        Automatic TTL management saves tokens and money.
+        Use one result model without hiding
+        capabilities that genuinely differ.
       </p>
     </div>
     <div class="pollux-features__card">
-      <h2 class="pollux-features__title">Built for reliability</h2>
+      <h2 class="pollux-features__title">Useful results</h2>
       <p class="pollux-features__desc">
-        Async pipeline, retries with backoff,
-        structured output, usage tracking.
+        Read text, structured data, tool calls,
+        usage, and completion state directly.
       </p>
     </div>
   </div>
@@ -346,7 +346,7 @@ print(result.text)</code></pre>
 
 <section class="pollux-install">
   <div class="pollux-install__inner">
-    <pre class="pollux-install__cmd"><code>pip install pollux-ai</code></pre>
+    <pre class="pollux-install__cmd"><code>pip install --upgrade pollux-ai</code></pre>
   </div>
 </section>
 
