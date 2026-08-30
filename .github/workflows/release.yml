@@ -1,91 +1,131 @@
 name: Release
 
 "on":
-  # Manual trigger only - releases should be intentional
+  push:
+    tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Run in no-op mode to preview changes'
-        required: false
-        type: boolean
-        default: true
-      force:
-        description: 'Optional forced release bump'
-        required: false
-        type: string
-        default: ""
+
+permissions:
+  contents: read
 
 jobs:
-  release:
-    # Safety: allow dry-runs from any branch. Restrict real publishing to
-    # final release lines (main, v1) and RC branches (release/**).
-    if: ${{ inputs.dry_run || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v1' || startsWith(github.ref, 'refs/heads/release/') }}
-    runs-on: ubuntu-latest
+  build:
+    name: build distributions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - uses: extractions/setup-just@v3
+
+      - name: Verify tag and package version
+        if: github.ref_type == 'tag'
+        run: |
+          package_version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          test -n "$package_version"
+          test "v$package_version" = "$GITHUB_REF_NAME"
+          grep -q "^## \[$package_version\]" CHANGELOG.md
+
+      - name: Install development dependencies
+        run: uv sync --frozen
+
+      - name: Check source
+        run: just check
+
+      - name: Build wheel and source distribution
+        run: uv build
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: distributions
+          path: dist/*
+          if-no-files-found: error
+
+  verify:
+    name: install built wheel
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: distributions
+          path: dist
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Install wheel into a clean environment
+        run: |
+          wheel=$(find dist -name '*.whl' -type f -print -quit)
+          test -n "$wheel"
+          uv venv release-venv
+          uv pip install --python release-venv/bin/python "$wheel"
+          release-venv/bin/python - <<'PY'
+          import pollux
+
+          expected = {
+              "Config",
+              "Environment",
+              "Input",
+              "Output",
+              "Source",
+              "defer",
+              "interact",
+              "run",
+              "run_many",
+              "stream",
+          }
+          missing = expected.difference(pollux.__all__)
+          if missing:
+              raise SystemExit(f"wheel is missing public exports: {sorted(missing)}")
+          print(f"verified pollux-ai {pollux.__version__}")
+          PY
+
+  publish:
+    name: publish release
+    needs: verify
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     environment:
       name: pypi
       url: https://pypi.org/project/pollux-ai/
-    timeout-minutes: 15
-    # Prevent multiple releases from running simultaneously
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: false
-    # Permissions for PSR action and PyPI trusted publishing
     permissions:
-      contents: write  # Needed for creating releases and pushing tags
-      id-token: write  # Needed for PyPI trusted publishing (OIDC)
-
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0  # Full history needed for semantic-release
-          token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
 
-      # Main release step using PSR action
-      - name: Create and Publish Release
-        id: release
-        uses: python-semantic-release/python-semantic-release@v10
+      - uses: actions/download-artifact@v7
         with:
-          verbosity: '1'  # Enable verbose output for debugging
-          # Use PAT for authentication (more secure than SSH keys)
-          github_token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
-          # Enable dry-run mode based on workflow input
-          no_operation_mode: ${{ inputs.dry_run }}
-          # Release branches always produce prereleases.
-          prerelease: ${{ startsWith(github.ref, 'refs/heads/release/') && 'true' || '' }}
-          prerelease_token: ${{ startsWith(github.ref, 'refs/heads/release/') && 'rc' || '' }}
-          # Optional manual override for first major/prerelease cutovers.
-          force: ${{ inputs.force }}
-          # Build distributions via build_command (also stages uv.lock into the release commit).
-          build: true
+          name: distributions
+          path: dist
 
-      - name: Publish to GitHub Release
-        if: steps.release.outputs.released == 'true' && !inputs.dry_run
-        uses: python-semantic-release/publish-action@v10
-        with:
-          github_token: ${{ secrets.SEMANTIC_RELEASE_PAT }}
-          tag: ${{ steps.release.outputs.tag }}
+      - name: Read release notes from the changelog
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk -v version="$version" '
+            index($0, "## [" version "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
 
-      # Publish to PyPI on real releases
       - name: Publish to PyPI
-        if: steps.release.outputs.released == 'true' && !inputs.dry_run
         uses: pypa/gh-action-pypi-publish@release/v1
 
-      # Provide feedback for dry-run mode
-      - name: Dry Run Summary
-        if: inputs.dry_run && steps.release.outputs.version != ''
-        run: |
-          {
-            echo "## 🛡️ Dry Run Completed"
-            echo "A new release **v${{ steps.release.outputs.version }}** is ready."
-            echo "The following release notes would be generated:"
-            echo "${{ steps.release.outputs.release_notes }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Provide feedback for successful releases
-      - name: Release Summary
-        if: steps.release.outputs.released == 'true' && !inputs.dry_run
-        run: |
-          {
-            echo "## ✅ Release Successful"
-            echo "Version **${{ steps.release.outputs.tag }}** has been published to GitHub and PyPI."
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: dist/*
+          prerelease: ${{ contains(github.ref_name, '-') }}

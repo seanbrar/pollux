@@ -53,14 +53,10 @@ docs = [
     "mkdocstrings[python]>=0.25.0",
     "mkdocs-htmlproofer-plugin",
 ]
-release = [
-    "python-semantic-release==10.2.0",
-]
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
     { include-group = "docs" },
-    { include-group = "release" },
     "pre-commit>=4.2.0",
     "rust-just",
     "tomli>=2.0.1",
@@ -266,8 +262,7 @@ exclude = [
 ]
 
 [tool.rumdl.per-file-ignores]
-# CHANGELOG link references are managed by python-semantic-release;
-# forward-declared refs for unreleased versions are expected.
+# Historical changelog links include versions that predate nearby references.
 "CHANGELOG.md" = ["MD053"]
 
 # --- Mutmut ---
@@ -279,61 +274,3 @@ pytest_add_cli_args = [
     "--ignore=tests/test_cookbook.py",
     "--ignore=tests/test_cookbook_contract.py",
 ]
-
-# --- Semantic Release ---
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-build_command = """
-    python -m pip install --disable-pip-version-check "uv==0.9.26"
-    uv lock --upgrade-package "$PACKAGE_NAME"
-    git add uv.lock
-    uv build
-"""
-tag_format = "v{version}"
-allow_zero_version = true
-major_on_zero = true
-
-[tool.semantic_release.branches.main]
-match = "main"
-prerelease = false
-
-[tool.semantic_release.branches.v1]
-# Long-lived v1 maintenance line. Publishes final patch/minor releases after
-# main moves to v2 (e.g., 1.8.1 or 1.9.0), not prereleases.
-match = "v1"
-prerelease = false
-
-[tool.semantic_release.branches.release]
-# Release branches publish RCs (e.g., 1.0.0-rc.1) before final main release.
-match = "^release\\/.*$"
-prerelease = true
-prerelease_token = "rc"
-
-[tool.semantic_release.branches.preview]
-# Allow dry-run previews on feature branches without changing release rules.
-# This produces prerelease versions like `0.10.0-preview.1` on feature branches.
-match = "^(?!main$)(?!v1$)(?!release\\/).+"
-prerelease = true
-prerelease_token = "preview"
-
-[tool.semantic_release.changelog]
-template_dir = "templates"
-mode = "update"
-insertion_flag = "<!-- PSR-INSERT-FLAG -->"
-exclude_commit_patterns = [
-    "build(.*):",    # build system - internal dependency management
-    "ci(.*):",       # continuous integration - internal CI/CD
-    "chore(.*):",    # chores - internal maintenance
-    "refactor(.*):", # refactoring - internal code organization
-    "style(.*):",    # code style - internal formatting
-    "test(.*):",     # testing - internal test changes
-]
-
-[tool.semantic_release.changelog.environment]
-keep_trailing_newline = true
-lstrip_blocks = true
-trim_blocks = true
-
-[tool.semantic_release.publish]
-dist_glob_patterns = ["dist/*"]
-upload_to_vcs_release = true
