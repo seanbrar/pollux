@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- PSR-INSERT-FLAG -->
+## [2.0.0-rc.4] - 2026-08-30
+
+This candidate narrows the public surface before the stable 2.0 release.
+
+### Changed
+
+- `run()`, `run_many()`, and `defer()` now require the prompts their runtime
+  already required, and `run()` rejects simultaneous `source=` and `sources=`
+  instead of silently ignoring one.
+- `OutputCollection.status` now reflects execution failures rather than empty
+  text, so structured and tool-call-only results remain successful.
+- Removed unused collection indexes, environment metadata, the public
+  `OutputRequirements` bundle, and the obsolete `PlanningError` category.
+- Simplified the README, interaction model, testing guide, and maintainer
+  workflow around the paths the project actually uses.
+
+### Release process
+
+- Releases now come from explicit version tags and install the built wheel in a
+  clean environment before publishing.
+
 ## [2.0.0-rc.3] - 2026-07-14
 
 ### Fixed
@@ -262,6 +282,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add performance monitoring and architectural modernization ([`498e846`](https://github.com/seanbrar/pollux/commit/498e846356892f230d8ba210e2c3d249129abdac))
 
 <!-- PSR-LINKS-START -->
+[2.0.0-rc.4]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.3...v2.0.0-rc.4
 [2.0.0-rc.3]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.2...v2.0.0-rc.3
 [2.0.0-rc.2]: https://github.com/seanbrar/pollux/compare/v2.0.0-rc.1...v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/seanbrar/pollux/compare/v1.8.0...v2.0.0-rc.1
