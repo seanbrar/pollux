@@ -13,7 +13,7 @@ from pollux.config import Config
 from pollux.errors import (
     APIError,
     ConfigurationError,
-    PlanningError,
+    SourceError,
 )
 from pollux.providers import _compile
 from pollux.providers.models import (
@@ -151,8 +151,8 @@ async def test_upload_configuration_errors_propagate_without_internal_wrap(
 
 
 @pytest.mark.asyncio
-async def test_planning_error_wraps_source_loader_failure() -> None:
-    """Source loader failures should surface as PlanningError with context."""
+async def test_source_error_wraps_source_loader_failure() -> None:
+    """Source loader failures should surface as SourceError with context."""
 
     def _boom() -> bytes:
         raise RuntimeError("boom")
@@ -166,7 +166,7 @@ async def test_planning_error_wraps_source_loader_failure() -> None:
     )
 
     cfg = Config(provider="gemini", model=GEMINI_MODEL, use_mock=True)
-    with pytest.raises(PlanningError, match="Failed to load content"):
+    with pytest.raises(SourceError, match="Failed to load content"):
         await pollux.run_many(
             ("Q",),
             sources=(bad,),

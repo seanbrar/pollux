@@ -24,10 +24,6 @@ class SourceError(PolluxError):
     """Source validation or loading failed."""
 
 
-class PlanningError(PolluxError):
-    """Execution planning failed."""
-
-
 class InternalError(PolluxError):
     """A Pollux internal error (bug) or invariant violation."""
 

@@ -32,9 +32,9 @@ def build_shared_parts(
                 text = content.decode("utf-8", errors="replace")
                 parts.append(text)
             except Exception as e:
-                from pollux.errors import PlanningError
+                from pollux.errors import SourceError
 
-                raise PlanningError(
+                raise SourceError(
                     f"Failed to load content from source: {source.identifier}",
                     hint=str(e),
                 ) from e

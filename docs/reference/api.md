@@ -102,8 +102,6 @@ and `ResultEnvelope` types are no longer part of the public API.
 
 ::: pollux.SourceError
 
-::: pollux.PlanningError
-
 ::: pollux.InternalError
 
 ::: pollux.APIError

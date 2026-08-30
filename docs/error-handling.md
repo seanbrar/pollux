@@ -1,10 +1,3 @@
-<!-- Intent: Teach error handling for Pollux pipelines: the exception
-     hierarchy, failure triage, production error patterns (category-specific
-     catching, circuit breakers, partial failures, resume-on-failure). Do NOT
-     re-explain tool calling or conversation mechanics. Assumes the reader has
-     used run() and understands Config. Register: reference + guided
-     applied (patterns). -->
-
 # Handling Errors and Recovery
 
 You want your Pollux-based pipeline to handle failures gracefully. Retry
@@ -24,8 +17,7 @@ Pollux uses a single exception hierarchy rooted at `PolluxError`:
 ```
 PolluxError
 ├── ConfigurationError   # Bad config, missing key, unsupported feature
-├── SourceError          # File not found, invalid arXiv reference
-├── PlanningError        # Execution plan could not be built
+├── SourceError          # Invalid source or content could not be loaded
 ├── InternalError        # Bug or invariant violation inside Pollux
 ├── DeferredNotReadyError # Deferred job is still active
 └── APIError             # Provider call failed
