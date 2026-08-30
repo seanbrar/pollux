@@ -1,14 +1,6 @@
-<!-- Intent: Contributor-facing workflow reference. Cover setup, PR and issue
-     expectations, docs standards, and cookbook rules. Do NOT duplicate the
-     full contributor guide from repo-root docs or explain Pollux concepts for
-     end users. Assumes the reader is contributing to this repository.
-     Register: reference. -->
-
 # Contributing
 
-Thanks for considering a contribution to Pollux. Whether it's a bug fix, a
-new cookbook recipe, or a docs improvement, small, focused changes with
-focused rationale are what move this project forward.
+Bug fixes, focused features, and documentation improvements are welcome.
 
 ## Development Setup
 
@@ -21,48 +13,32 @@ just check                    # lint + typecheck + tests
 
 Requires Python `>=3.10,<3.15` (3.13 recommended).
 
-## Before Opening a PR
+## Making a Change
 
-1. Run `just check` (lint + typecheck + tests).
-2. If docs changed, preview locally: `just docs-serve`.
-3. Write a test plan — describe how you verified the change and why.
-4. Keep changes focused: one PR, one idea.
+Keep changes focused and run `just check` before submitting them. If the docs
+change, also run `just docs-build` or preview them with `just docs-serve`.
 
-## Pull Requests
+Maintainers normally commit directly to `main`. Larger changes may use a branch
+and reach `main` by fast-forward or squash merge. Pull requests are for external
+contributions and occasions when independent review is useful; there is no
+required body template.
 
-**Title:** Conventional Commits style — `type(scope): subject` (imperative).
-
-Examples: `feat(api): add playlist support`, `fix(cache): handle expired tokens`,
-`docs(cookbook): add source-pattern recipe`.
-
-**Body** follows the [PR template](https://github.com/seanbrar/pollux/blob/main/.github/PULL_REQUEST_TEMPLATE.md):
-
-1. **Summary** — what and why, one or two sentences
-2. **Related issue** — `Closes #123`, or "None" for unprompted changes
-3. **Test plan** — describe verification with evidence
-4. **Notes** (optional) — context not apparent from the diff
-
-**Checklist:**
-
-- [ ] PR title follows conventional commits
-- [ ] `just check` passes
-- [ ] Tests cover meaningful cases, not only the happy path
-- [ ] Docs updated if public API or user-facing behavior changed
+Commit subjects use `<area>: <imperative summary>`, for example
+`cache: reuse uploads across fan-out`. Use a body only for motivation or a
+trade-off that is not apparent from the diff.
 
 ## Issues
 
 Issue templates exist for [bugs](https://github.com/seanbrar/pollux/issues/new?template=bug.md) and [feature requests](https://github.com/seanbrar/pollux/issues/new?template=feature.md). Keep issues small and concrete.
 
-When a PR addresses an issue, link it in the **Related issue** section using
-closing keywords (`Closes #123`, `Fixes #456`).
+Link an issue when the change actually resolves one; an issue is not required
+before making a change.
 
 ## Testing Philosophy
 
-This project follows the [MTMT (Minimal Tests, Maximum Trust)](https://github.com/seanbrar/minimal-tests-maximum-trust) testing standard. See [TESTING.md](https://github.com/seanbrar/pollux/blob/main/TESTING.md) for guidance.
-
-Every PR includes a test plan. The MTMT criteria — architectural guarantee,
-boundary coverage, trivial delegation, non-behavioral change — are the
-vocabulary for explaining why tests were or weren't added.
+Tests should protect the boundary affected by the change. See
+[TESTING.md](https://github.com/seanbrar/pollux/blob/main/TESTING.md) for the
+suite layout and commands.
 
 ## Documentation Standards
 
@@ -103,5 +79,5 @@ python -m cookbook getting-started/analyze-single-paper --mock
 **Adding a recipe:** create the Python script in `cookbook/<category>/` and
 reuse shared runtime args from `cookbook.utils.runtime`. The recipe catalog
 in [CLI](reference/cli.md#recipe-catalog) lists all available recipes. Update
-the authoritative topical docs in the same PR when the recipe adds a new
+the authoritative topical docs in the same change when the recipe adds a new
 concept or changes user-facing behavior.
