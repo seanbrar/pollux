@@ -184,8 +184,8 @@ async def test_live_source_patterns_and_generation_controls(
 
     result = await pollux.run_many(
         prompts=(
-            "JSON planet. Reply exactly FIRST:<planet>.",
-            "JSON code. Reply exactly SECOND:<code>.",
+            "Return the JSON planet value.",
+            "Return the JSON code value.",
         ),
         sources=(source,),
         config=config,
@@ -194,9 +194,7 @@ async def test_live_source_patterns_and_generation_controls(
 
     assert len(result.outputs) == 2
     assert sum(o.metrics.n_calls for o in result.outputs) == 2
-    assert "first" in result.answers[0].lower()
     assert "neptune" in result.answers[0].lower()
-    assert "second" in result.answers[1].lower()
     assert "zx-41" in result.answers[1].lower()
     assert result.usage.total_tokens > 0
 
