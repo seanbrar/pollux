@@ -5,13 +5,22 @@ from __future__ import annotations
 import pytest
 
 from pollux.interaction.collection import OutputCollection
-from pollux.interaction.output import Output, Usage
+from pollux.interaction.output import CompletionStatus, Metrics, Output, Usage
 
 pytestmark = pytest.mark.unit
 
 
-def _output(text: str, total: int = 0) -> Output:
-    return Output(text=text, usage=Usage(total_tokens=total))
+def _output(
+    text: str,
+    total: int = 0,
+    *,
+    completion_status: CompletionStatus = "clean",
+) -> Output:
+    return Output(
+        text=text,
+        usage=Usage(total_tokens=total),
+        metrics=Metrics(completion_status=completion_status),
+    )
 
 
 def test_answers_and_structured_preserve_order():
@@ -31,17 +40,24 @@ def test_usage_is_summed_across_outputs():
 
 
 @pytest.mark.parametrize(
-    ("texts", "expected"),
+    ("statuses", "expected"),
     [
-        (["a", "b"], "ok"),
-        (["a", ""], "partial"),
-        (["", ""], "error"),
+        (["clean", "clean"], "ok"),
+        (["clean", "error"], "partial"),
+        (["error", "error"], "error"),
         ([], "ok"),
     ],
 )
-def test_status_reflects_answer_presence(texts, expected):
-    coll = OutputCollection(outputs=tuple(_output(t) for t in texts))
+def test_status_reflects_execution_outcomes(statuses, expected):
+    coll = OutputCollection(
+        outputs=tuple(_output("", completion_status=status) for status in statuses)
+    )
     assert coll.status == expected
+
+
+def test_structured_output_does_not_require_text_for_success():
+    coll = OutputCollection(outputs=(Output(structured={"value": 1}),))
+    assert coll.status == "ok"
 
 
 def test_to_jsonable_includes_outputs_and_aggregates():
@@ -50,3 +66,5 @@ def test_to_jsonable_includes_outputs_and_aggregates():
     assert payload["status"] == "ok"
     assert [o["text"] for o in payload["outputs"]] == ["a", "b"]
     assert payload["usage"]["total_tokens"] == 3
+    assert "prompt_indexes" not in payload
+    assert "source_indexes" not in payload

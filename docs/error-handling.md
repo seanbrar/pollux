@@ -234,7 +234,7 @@ asyncio.run(process_collection("./papers", "Summarize the key findings."))
 | `ConfigurationError` at startup | Missing API key | `export GEMINI_API_KEY="your-key"` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY`) or pass `api_key` in `Config(...)` |
 | Outputs look like `echo: ...` | `use_mock=True` is set | Set `use_mock=False` (default) and ensure the API key is present |
 | `ConfigurationError` at request time | Provider/model mismatch | Verify the model belongs to the selected provider |
-| `status: "partial"` | Some prompts returned empty answers | Check individual entries in `collection.answers` to identify which prompts failed |
+| `status: "partial"` | Some interactions failed while others completed | Check each output's `metrics.completion_status` and diagnostics |
 | Remote source rejected | Unsupported MIME type on OpenAI | OpenAI remote URL support is limited to PDFs and images |
 | Keys show as `***redacted***` | Intentional redaction | Your key is still being used. `Config` hides it from string representations |
 | `APIError: Cannot reach local server` | Local server not running, or wrong `base_url` | Start the server and confirm its URL; check `POLLUX_LOCAL_BASE_URL` and the `/v1` suffix |
@@ -312,26 +312,24 @@ async def process_with_circuit_breaker(
 
 ### Distinguishing `status: "partial"` from exceptions
 
-Not all problems are exceptions. A `status: "partial"` result means some
-prompts in a `run_many()` call returned empty answers. The call succeeded
-but the output is incomplete:
+Not all problems are exceptions. A collected deferred job can contain both
+successful and failed interactions. In that case, its collection has
+`status: "partial"` and preserves every output in submission order:
 
 ```python
-result = await run_many(prompts, sources=sources, config=config)
+result = await collect_deferred(handle)
 
 if result.status == "ok":
-    # All answers populated: process normally
+    # Every interaction completed.
     pass
 elif result.status == "partial":
-    # Some answers are empty strings: decide per-answer
-    for i, answer in enumerate(result.answers):
-        if answer:
-            process_answer(i, answer)
+    for i, output in enumerate(result.outputs):
+        if output.metrics.completion_status != "error":
+            process_answer(i, output)
         else:
-            log.warning("Empty answer for prompt %d", i)
+            log.warning("Interaction %d failed: %s", i, output.diagnostics.raw)
 elif result.status == "error":
-    # All answers empty: treat as a failure
-    log.error("All answers empty")
+    log.error("Every interaction failed")
 ```
 
 ### Durable Pipelines with Resume-on-Failure
@@ -371,9 +369,10 @@ python -m cookbook production/resume-on-failure \
 - **`RateLimitError` means retries were exhausted.** Pollux already waited
   and retried. If you still get `RateLimitError`, reduce concurrency or add
   a longer backoff at the workflow level.
-- **Check `result.status` or `completion_status` even on success.** A successful call can return
-  `"partial"` status with some empty answers. Don't assume all answers are
-  populated because no exception was raised.
+- **Check collected status and per-output completion state.** A deferred job can
+  finish with only some interactions successful. Empty text alone is not a
+  failure because structured and tool-call outputs may legitimately contain no
+  text.
 - **Don't catch `Exception` when you mean `PolluxError`.** Catching too
   broadly hides bugs in your own code. Catch `PolluxError` for
   Pollux-specific failures; let everything else propagate.

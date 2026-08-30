@@ -1,10 +1,4 @@
-"""``OutputCollection``: the aggregate result for source-pattern runs.
-
-Fan-out, fan-in, and broadcast produce many interaction outputs. A collection
-preserves per-interaction outputs and prompt/source indexes, exposes ergonomic
-list accessors, and carries the partial-completion ``status`` that single
-``Output`` deliberately does not.
-"""
+"""``OutputCollection``: the aggregate result for multi-prompt runs."""
 
 from __future__ import annotations
 
@@ -16,8 +10,8 @@ from pollux.interaction.output import Usage
 if TYPE_CHECKING:
     from pollux.interaction.output import Output
 
-#: ``"ok"`` when every answer is non-empty, ``"error"`` when all are empty,
-#: ``"partial"`` otherwise.
+#: ``"ok"`` when every interaction completed, ``"error"`` when all failed,
+#: and ``"partial"`` otherwise.
 CollectionStatus = Literal["ok", "partial", "error"]
 
 
@@ -26,8 +20,6 @@ class OutputCollection:
     """Aggregate result for a multi-call source pattern."""
 
     outputs: tuple[Output, ...] = ()
-    prompt_indexes: tuple[int, ...] | None = None
-    source_indexes: tuple[int, ...] | None = None
 
     def __post_init__(self) -> None:
         """Coerce the outputs sequence to an immutable tuple."""
@@ -69,13 +61,15 @@ class OutputCollection:
 
     @property
     def status(self) -> CollectionStatus:
-        """Partial-completion status based on answer presence."""
+        """Summarize whether the interactions completed without errors."""
         if not self.outputs:
             return "ok"
-        empty = sum(1 for output in self.outputs if not output.text.strip())
-        if empty == len(self.outputs):
+        failed = sum(
+            1 for output in self.outputs if output.metrics.completion_status == "error"
+        )
+        if failed == len(self.outputs):
             return "error"
-        if empty > 0:
+        if failed > 0:
             return "partial"
         return "ok"
 
@@ -86,8 +80,4 @@ class OutputCollection:
             "outputs": [output.to_jsonable() for output in self.outputs],
             "usage": self.usage.to_jsonable(),
         }
-        if self.prompt_indexes is not None:
-            payload["prompt_indexes"] = list(self.prompt_indexes)
-        if self.source_indexes is not None:
-            payload["source_indexes"] = list(self.source_indexes)
         return payload

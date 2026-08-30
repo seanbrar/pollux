@@ -274,7 +274,7 @@ next_result = await interact(
 Use `environment.fingerprint(provider=config.provider)` to bind saved work to
 the model-facing instructions, sources, tools, and provider. Compose
 `config.model` plus application policy/schema identifiers separately. Cache
-preferences and environment metadata intentionally do not affect this identity.
+preferences intentionally do not affect this identity.
 
 ---
 

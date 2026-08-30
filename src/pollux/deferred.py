@@ -411,10 +411,7 @@ async def collect_deferred_handle(
             )
         )
 
-    return OutputCollection(
-        outputs=tuple(outputs),
-        prompt_indexes=tuple(range(handle.request_count)),
-    )
+    return OutputCollection(outputs=tuple(outputs))
 
 
 async def cancel_deferred_handle(handle: DeferredHandle, provider: Provider) -> None:

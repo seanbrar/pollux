@@ -12,6 +12,7 @@ import pytest
 
 import pollux
 from pollux.config import Config
+from pollux.errors import ConfigurationError
 from pollux.interaction.collection import OutputCollection
 from pollux.interaction.output import Output
 from pollux.providers.base import ProviderCapabilities
@@ -48,7 +49,7 @@ async def test_run_many_returns_collection_in_order(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_many_partial_status_from_empty_answers(monkeypatch):
+async def test_run_many_empty_text_is_not_an_execution_failure(monkeypatch):
     provider = ScriptedProvider(
         script=[
             ProviderResponse(
@@ -59,7 +60,7 @@ async def test_run_many_partial_status_from_empty_answers(monkeypatch):
     )
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
     coll = await pollux.run_many(["Q1", "Q2"], config=_cfg())
-    assert coll.status == "partial"
+    assert coll.status == "ok"
 
 
 @pytest.mark.asyncio
@@ -91,6 +92,24 @@ async def test_run_structured_output(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_many_structured_output_has_ok_status(monkeypatch):
+    provider = ScriptedProvider(
+        _capabilities=ProviderCapabilities(
+            persistent_cache=False, uploads=False, structured_outputs=True
+        ),
+        script=[
+            ProviderResponse(
+                text="", usage={}, structured={"value": 5}, finish_reason="stop"
+            )
+        ],
+    )
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
+    result = await pollux.run_many(["Q"], config=_cfg(), output=_Answer)
+    assert result.status == "ok"
+    assert isinstance(result.structured[0], _Answer)
+
+
+@pytest.mark.asyncio
 async def test_run_with_source_shares_context(monkeypatch):
     provider = FakeProvider()
     monkeypatch.setattr(pollux, "_get_provider", lambda _config: provider)
@@ -101,6 +120,18 @@ async def test_run_with_source_shares_context(monkeypatch):
     assert isinstance(out, Output)
     assert provider.last_parts is not None
     assert "DOCBODY" in provider.last_parts
+
+
+@pytest.mark.asyncio
+async def test_run_rejects_source_and_sources_together(monkeypatch):
+    monkeypatch.setattr(pollux, "_get_provider", lambda _config: FakeProvider())
+    with pytest.raises(ConfigurationError, match="mutually exclusive"):
+        await pollux.run(
+            "Summarize",
+            source=pollux.Source.from_text("first"),
+            sources=[pollux.Source.from_text("second")],
+            config=_cfg(),
+        )
 
 
 @pytest.mark.asyncio

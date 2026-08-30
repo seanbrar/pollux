@@ -64,10 +64,10 @@ async def test_empty_string_prompt_raises_clear_error() -> None:
     assert exc.value.hint is not None
 
 
-def test_requirements_reject_unknown_provider_options_provider() -> None:
-    """provider_options should be keyed by supported provider names."""
-    with pytest.raises(ConfigurationError, match="Unknown provider_options provider"):
-        pollux.OutputRequirements(provider_options={"not-a-provider": {"x": 1}})
+def test_internal_requirement_bundle_is_not_public() -> None:
+    """Friendly entry-point kwargs are the public generation-control surface."""
+    assert "OutputRequirements" not in pollux.__all__
+    assert not hasattr(pollux, "OutputRequirements")
 
 
 @pytest.mark.asyncio

@@ -265,7 +265,7 @@ An `OutputCollection` aggregates results from multi-prompt source-pattern execut
 | `outputs` | `tuple[Output, ...]` | Individual `Output` objects in submission order |
 | `answers` | `list[str]` | Property helper returning a list of primary text responses |
 | `structured` | `list[Any]` | Property helper returning a list of parsed structured payloads |
-| `status` | `"ok" \| "partial" \| "error"` | Aggregate status based on whether all, some, or no answers were returned |
+| `status` | `"ok" \| "partial" \| "error"` | Whether all, some, or no interactions completed without errors |
 | `usage` | `Usage` | Token usage summed across all interactions in the collection |
 
 Example of serializing a completed result to JSON:

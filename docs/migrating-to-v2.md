@@ -13,7 +13,7 @@
 
 Pollux 2.0 is a major-version cleanup of the interaction model. It names the
 pieces of a model interaction directly: the environment the model runs in, the
-input for this turn, the output requirements, and the continuation state that
+input for this turn, the output it returns, and the continuation state that
 carries work forward.
 
 Most one-shot code should remain recognizable. The bigger changes affect code
@@ -56,7 +56,7 @@ interaction pieces.
 
 | 1.x | 2.0 RC shape | Why |
 | --- | --- | --- |
-| `Options(...)` | `Environment`, `Input`, and `OutputRequirements` | Provider, turn input, and output contract become separate objects. |
+| `Options(...)` | `Environment`, `Input`, and execution keyword arguments | Stable context, turn input, and generation controls become explicit. |
 | `continue_tool(env, results)` | `interact(environment, Input(continuation=..., tool_results=...))` | Tool-result replay becomes part of continuing an interaction. |
 | `create_cache(...)` | Prepared `Environment` | Cache identity belongs with the model environment that will reuse it. |
 | `defer_many(...)` | `defer(...)` | Deferred submission uses one entry point for one interaction or a collection. |

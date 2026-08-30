@@ -276,10 +276,7 @@ async def execute_interactions(
             )
         )
 
-    return OutputCollection(
-        outputs=tuple(outputs),
-        prompt_indexes=tuple(range(len(inputs))),
-    )
+    return OutputCollection(outputs=tuple(outputs))
 
 
 async def execute_interaction(

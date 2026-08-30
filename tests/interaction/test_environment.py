@@ -116,12 +116,11 @@ def test_uri_fingerprint_is_network_free(monkeypatch: pytest.MonkeyPatch) -> Non
     assert env.fingerprint(provider="gemini")
 
 
-def test_cache_and_metadata_do_not_change_fingerprint() -> None:
+def test_cache_does_not_change_fingerprint() -> None:
     base = Environment(instructions="sys")
     policy = Environment(
         instructions="sys",
         cache=CachePolicy(ttl_seconds=3600),
-        metadata={"runtime": "different"},
     )
     assert base.fingerprint(provider="gemini") == policy.fingerprint(provider="gemini")
 

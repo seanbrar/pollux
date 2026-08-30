@@ -48,7 +48,6 @@ class Environment:
     sources: Sequence[Source] = ()
     tools: Sequence[ToolDeclaration] = ()
     cache: CacheSetting = None
-    metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Freeze the source and tool sequences to immutable tuples."""
@@ -60,9 +59,9 @@ class Environment:
 
         The fingerprint covers instructions, ordered sources, ordered tools,
         and the active provider. Model identity belongs to :class:`Config` and
-        must be composed separately by durable runtimes. Cache preferences and
-        metadata are deliberately excluded because they do not change the
-        model-visible environment.
+        must be composed separately by durable runtimes. Cache preferences are
+        deliberately excluded because they do not change the model-visible
+        environment.
 
         Fingerprints remain stable across compatible Pollux releases. A future
         semantic change will increment the embedded fingerprint version.

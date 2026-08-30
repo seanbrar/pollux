@@ -60,7 +60,6 @@ from pollux.interaction import (
     MessageRole,
     Output,
     OutputCollection,
-    OutputRequirements,
     ToolCall,
     ToolCallDelta,
     ToolChoice,
@@ -74,6 +73,7 @@ from pollux.interaction.execute import (
     resolve_persistent_cache,
     stream_interaction,
 )
+from pollux.interaction.requirements import OutputRequirements as _OutputRequirements
 from pollux.providers.base import (
     CloseableProvider,
     ProviderReadiness,
@@ -112,9 +112,9 @@ def _build_requirements(
     reasoning_budget_tokens: int | None,
     tool_choice: ToolChoice | None,
     provider_options: dict[str, dict[str, Any]] | None,
-) -> OutputRequirements:
+) -> _OutputRequirements:
     """Assemble OutputRequirements from the friendly first-class kwargs."""
-    return OutputRequirements(
+    return _OutputRequirements(
         output_schema=output,
         temperature=temperature,
         top_p=top_p,
@@ -128,7 +128,7 @@ def _build_requirements(
 
 
 async def run(
-    prompt: str | None = None,
+    prompt: str,
     *,
     source: Source | None = None,
     sources: Sequence[Source] = (),
@@ -181,6 +181,11 @@ async def run(
         result = await run("Summarize.", source=Source.from_file("doc.pdf"), config=config)
         print(result.text)
     """
+    if source is not None and sources:
+        raise ConfigurationError(
+            "source and sources are mutually exclusive",
+            hint="Pass one source with source=, or several with sources=.",
+        )
     if environment is not None and source is not None:
         raise ConfigurationError(
             "environment cannot be combined with inline source/sources",
@@ -452,7 +457,7 @@ class Session:
 
     async def run_many(
         self,
-        prompts: str | Sequence[str | None] | None = None,
+        prompts: str | Sequence[str],
         *,
         sources: Sequence[Source] = (),
         environment: Environment | None = None,
@@ -470,9 +475,7 @@ class Session:
     ) -> OutputCollection:
         """Run source-pattern prompts using the session's provider instance."""
         self._ensure_open()
-        prompt_tuple = (
-            (prompts,) if isinstance(prompts, (str, type(None))) else tuple(prompts)
-        )
+        prompt_tuple = (prompts,) if isinstance(prompts, str) else tuple(prompts)
         if environment is not None:
             if sources or instructions is not None or tools is not None:
                 raise ConfigurationError(
@@ -547,7 +550,7 @@ def local_reasoning(*, enabled: bool = False) -> dict[str, dict[str, Any]]:
 
 
 async def defer(
-    prompts: str | Sequence[str | None] | None = None,
+    prompts: str | Sequence[str],
     *,
     sources: Sequence[Source] = (),
     config: Config,
@@ -589,9 +592,7 @@ async def defer(
     Returns:
         A serializable :class:`DeferredHandle` for the submitted job.
     """
-    prompt_tuple = (
-        (prompts,) if isinstance(prompts, (str, type(None))) else tuple(prompts)
-    )
+    prompt_tuple = (prompts,) if isinstance(prompts, str) else tuple(prompts)
     if not prompt_tuple:
         raise ConfigurationError(
             "defer() requires at least one prompt",
@@ -620,7 +621,7 @@ async def defer(
 
 
 async def run_many(
-    prompts: str | Sequence[str | None] | None = None,
+    prompts: str | Sequence[str],
     *,
     sources: Sequence[Source] = (),
     config: Config,
@@ -701,7 +702,6 @@ async def prepare_environment(
     instructions: str | None = None,
     tools: Sequence[ToolDeclaration] | None = None,
     cache: CacheSetting = None,
-    metadata: dict[str, Any] | None = None,
 ) -> Environment:
     """Prepare a reusable :class:`Environment`, front-loading cache/upload I/O.
 
@@ -719,7 +719,6 @@ async def prepare_environment(
         cache: Cache preference: a :class:`CachePolicy` for persistent caching,
             ``"auto"`` for provider-managed caching, ``"none"`` to disable, or
             ``None`` for the default.
-        metadata: Optional provider-neutral metadata for planning.
 
     Returns:
         The prepared :class:`Environment`.
@@ -738,7 +737,6 @@ async def prepare_environment(
         sources=tuple(sources),
         tools=tuple(tools) if tools else (),
         cache=cache,
-        metadata=metadata,
     )
     if isinstance(cache, CachePolicy):
         provider = _get_provider(config)
@@ -978,7 +976,6 @@ __all__ = [
     "MessageRole",
     "Output",
     "OutputCollection",
-    "OutputRequirements",
     "PlanningError",
     "PolluxError",
     "ProviderReadiness",

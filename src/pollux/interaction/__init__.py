@@ -29,7 +29,7 @@ from pollux.interaction.output import (
     Usage,
     completion_status,
 )
-from pollux.interaction.requirements import OutputRequirements, ToolChoice
+from pollux.interaction.requirements import ToolChoice
 from pollux.interaction.tools import (
     JSONValue,
     ToolCall,
@@ -55,7 +55,6 @@ __all__ = [
     "Metrics",
     "Output",
     "OutputCollection",
-    "OutputRequirements",
     "ToolCall",
     "ToolCallDelta",
     "ToolChoice",
